@@ -21,7 +21,7 @@ vercel.json         Header für Vercel
 
 ## 2. Mit Vercel verbinden
 
-1. In Vercel „Add New → Project“ und das Repo importieren.
+1. Erledigt: Vercel-Projekt `darkline-site` ist mit dem Repo verbunden, jeder Push auf `main` geht live (https://darkline-site.vercel.app).
 2. Framework Preset: **Other**. Build Command und Output Directory leer lassen.
 3. Deploy.
 4. Domain umziehen: Im **alten** Vercel-Projekt unter Settings → Domains `darklineperformance.de` (und `www.`) entfernen, dann im **neuen** Projekt hinzufügen.
@@ -38,7 +38,7 @@ Aufruf: `https://www.darklineperformance.de/admin`
 2. Auf GitHub: Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate new token.
    - Repository access: *Only select repositories* → `darkline-site`
    - Permissions → Repository permissions → **Contents: Read and write**
-3. Im Admin „Sign In with Token“ wählen und den Token einfügen.
+3. Im Admin **„Mit Zugriffstoken anmelden“** wählen und den Token einfügen. (Der Button „Mit GitHub anmelden“ funktioniert erst mit dem optionalen OAuth-Helfer unten.)
 
 Optional bequemer („Login with GitHub“-Button): einen OAuth-Helfer wie `sveltia-cms-auth` (Cloudflare Worker) einrichten und dessen Adresse als `base_url` unter `backend` in `admin/config.yml` eintragen.
 
