@@ -1,0 +1,44 @@
+{
+  "cars": [
+    {
+      "marke": "Porsche",
+      "modell": "911 GT3 R",
+      "klasse": "GT3",
+      "motor": "Boxer 6",
+      "antrieb": "Heck",
+      "bild": "/img/cars/porsche.webp"
+    },
+    {
+      "marke": "Mercedes-AMG",
+      "modell": "GT3",
+      "klasse": "GT3",
+      "motor": "V8",
+      "antrieb": "Front-Mittel",
+      "bild": "/img/cars/amg.webp"
+    },
+    {
+      "marke": "BMW",
+      "modell": "M4 GT3",
+      "klasse": "GT3",
+      "motor": "R6 Turbo",
+      "antrieb": "Front-Mittel",
+      "bild": "/img/cars/bmw.webp"
+    },
+    {
+      "marke": "Ferrari",
+      "modell": "296 GT3",
+      "klasse": "GT3",
+      "motor": "V6 Turbo",
+      "antrieb": "Mittel",
+      "bild": "/img/cars/ferrari.webp"
+    },
+    {
+      "marke": "Ford",
+      "modell": "Mustang GT3",
+      "klasse": "GT3",
+      "motor": "V8",
+      "antrieb": "Front-Mittel",
+      "bild": "/img/cars/ford.webp"
+    }
+  ]
+}

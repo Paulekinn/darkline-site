@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Darkline Performance Motorsport</title>
+<meta name="description" content="Darkline Performance Motorsport – iRacing-Team für Langstrecke in GT3 und GTP.">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <a class="logo" href="#top" aria-label="Darkline Performance – nach oben"><img src="img/brand/logo.webp" alt="Darkline Performance" width="900" height="216"></a>
+    <div class="sess"><i></i><span id="sess-text">Saison läuft</span></div>
+    <nav aria-label="Hauptnavigation">
+      <a href="#nennliste">Nennliste</a>
+      <a href="#klassement">Klassement</a>
+      <a href="#news">News</a>
+      <a href="#garage">Garage</a>
+      <a href="#partner">Partner</a>
+      <a class="box" href="#box">Box, Box</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="grid-hero" id="hero" aria-label="Einleitung">
+    <div class="photo"><img src="img/hero.webp" alt="Darkline Porsche 911 GT3 R auf der Strecke" width="1400" height="788"></div>
+    <div class="wrap">
+      <img class="hero-logo" src="img/brand/logo.webp" alt="Darkline Performance" width="900" height="216">
+      <h1 class="wide">Precision<br><em>in Motion</em></h1>
+      <p class="lead"><b>Darkline Performance Motorsport</b> ist ein iRacing-Team für Langstrecke in GT3 und GTP. Wir teilen uns Autos über zwölf und vierundzwanzig Stunden, fahren sauber und bringen sie heil ins Ziel.</p>
+      <div class="hero-cta">
+        <a class="hbtn" data-link="discord" href="https://discord.gg/QP2rKy6n8U">Discord beitreten →</a>
+        <a class="hbtn ghost" href="#nennliste">Zur Nennliste</a>
+      </div>
+    </div>
+    <div class="strip">
+      <div class="wrap">
+        <div><span class="lbl">Plattform</span><b>iRacing</b></div>
+        <div><span class="lbl">Klassen</span><b>GT3 · GTP</b></div>
+        <div><span class="lbl" id="best-lbl">Bestes Ergebnis</span><b id="best-val">–</b></div>
+        <div><span class="lbl">Nächstes Rennen</span><b class="r" id="next-val">In Planung</b></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sheet grid-sec" id="nennliste">
+    <div class="wrap">
+      <div class="doc-head">
+        <h2 class="wide">Nennliste</h2>
+        <div class="doc-meta lbl" id="entries-meta"></div>
+        <p>Die Startaufstellung von Darkline: wer fährt, welche Klasse und welche Aufgabe im Team.</p>
+      </div>
+      <div class="startgrid" id="entries"></div>
+    </div>
+  </section>
+
+  <section class="sheet" id="klassement">
+    <div class="wrap">
+      <div class="doc-head">
+        <h2 class="wide">Klassement</h2>
+        <div class="doc-meta lbl" id="results-meta"></div>
+        <p>Kommende Starts und gefahrene Rennen. Ein Rennen anklicken für den Rennbericht.</p>
+      </div>
+      <div class="sub"><h3>Kalender</h3><span class="lbl">Kommende Rennen</span></div>
+      <div class="cal" id="calendar"></div>
+      <div class="sub"><h3>Ergebnisse</h3><span class="lbl">Start → Ziel</span></div>
+      <ol class="class-list" id="results"></ol>
+    </div>
+  </section>
+
+  <section class="sheet" id="news" style="padding-top:0">
+    <div class="wrap">
+      <div class="doc-head">
+        <h2 class="wide">News</h2>
+        <div class="doc-meta lbl">Aus der Box</div>
+        <p>Rennvorschauen, Rennberichte und Neuigkeiten aus dem Team.</p>
+      </div>
+      <div class="news-grid" id="news-grid"></div>
+      <div class="more" id="news-more" hidden><button type="button" id="news-more-btn">Ältere News anzeigen</button></div>
+    </div>
+  </section>
+
+  <section class="sheet garage" id="garage">
+    <div class="wrap">
+      <div class="doc-head">
+        <h2 class="wide">Garage</h2>
+        <div class="doc-meta lbl" id="cars-meta"></div>
+        <p>Fahrzeug auswählen. Alle Liverys sind Teamdesigns von Paul Wiez und keinem Fahrer fest zugeordnet.</p>
+      </div>
+      <div class="gsel">
+        <ul id="carlist"></ul>
+        <div class="stage">
+          <img id="carimg" alt="" width="1440" height="960" decoding="async">
+          <div class="cap">
+            <div><span class="lbl" id="carmake"></span><h3 class="wide" id="carname"></h3></div>
+            <div class="specs" id="carspecs"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sheet" id="partner">
+    <div class="wrap">
+      <div class="doc-head">
+        <h2 class="wide">Auf der Livery</h2>
+        <div class="doc-meta lbl">Partner &amp; Teamwear</div>
+        <p>Partner fahren sichtbar mit: auf der Livery, im Stream und in News und Social Posts. Wir suchen langfristige Partnerschaften aus Simracing, Community und Content.</p>
+      </div>
+      <div class="decals">
+        <a class="decal" href="https://pat-media.at/"><span class="lbl">Partner · Media</span><span class="lg"><img src="img/partners/pat-media.png" alt="Pat Media" width="300" height="100"></span><span class="lbl">pat-media.at ↗</span></a>
+        <a class="decal" href="https://amadee.de/"><span class="lbl">Partner · Software</span><span class="lg"><img src="img/partners/amadee.png" alt="Amadee – Software für Musikschulen" width="300" height="100"></span><span class="lbl">amadee.de ↗</span></a>
+        <a class="decal" href="https://sim-lab.eu/"><span class="lbl">Partner · Hardware</span><span class="lg"><img class="wide-logo" src="img/partners/sim-lab.png" alt="Sim-Lab" width="600" height="132"></span><span class="lbl">sim-lab.eu ↗</span></a>
+      </div>
+      <div class="merch">
+        <ul><li>Team Shirt</li><li>Polo Shirt</li><li>Hoodie</li><li>Zipper</li></ul>
+        <span class="lbl">Teamwear auf Anfrage · <span data-text="email">kontakt@darklineperformance.de</span></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="sheet" id="box" style="padding-top:0">
+    <div class="wrap">
+      <div class="doc-head">
+        <h2 class="wide" style="white-space:nowrap">Box, Box</h2>
+        <div class="doc-meta lbl">Recruiting · Partner · Kontakt</div>
+      </div>
+      <div class="pit">
+        <div aria-hidden="true">
+          <div class="board">
+            <div>DPM</div>
+            <div class="y">Seat</div>
+            <div>Open</div>
+            <div class="r">Box</div>
+          </div>
+          <div class="pole"></div>
+        </div>
+        <div>
+          <h2 class="wide" style="font-size:clamp(1.8rem,4vw,3rem)">Ein Cockpit ist frei.</h2>
+          <p class="intro">Wir suchen Fahrer, die nicht nur Pace mitbringen, sondern ins Team passen: ruhig, fair, lernbereit und verlässlich. Fokus GT3 und Road Racing, GTP als nächster Schritt.</p>
+          <ol class="checklist">
+            <li>iRacing-Erfahrung im Road-Bereich</li>
+            <li>Saubere Kommunikation im Team</li>
+            <li>Bereitschaft für Training und Vorbereitung</li>
+            <li>Fairer Umgang auf und neben der Strecke</li>
+          </ol>
+          <div class="fields">
+            <div><span class="lbl">Bewerbung · Feld 1</span><b>Name</b></div>
+            <div><span class="lbl">Feld 2</span><b>iRacing-Profil, Klasse, Erfahrung</b></div>
+            <div><span class="lbl">Feld 3</span><b>Rennfokus: GT3, GTP, Endurance, Sprint</b></div>
+            <div><span class="lbl">Feld 4</span><b>Warum Darkline?</b></div>
+          </div>
+          <div class="contact">
+            <a class="cbtn red" data-link="discord" href="https://discord.gg/QP2rKy6n8U"><span class="lbl">Bewerbung &amp; Community</span><b>Discord beitreten →</b></a>
+            <a class="cbtn" data-link="email" href="mailto:kontakt@darklineperformance.de"><span class="lbl">Partner &amp; Anfragen</span><b data-text="email">kontakt@darklineperformance.de</b></a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="chequer" aria-hidden="true"></div>
+  <div class="wrap">
+    <div style="display:grid;gap:18px">
+      <img src="img/brand/logo.webp" alt="Darkline Performance" width="900" height="216">
+      <nav>
+        <a data-link="twitch" href="https://www.twitch.tv/darklineperformance">Twitch</a>
+        <a data-link="instagram" href="https://www.instagram.com/darkline.performancemotorsport">Instagram</a>
+        <a data-link="tiktok" href="https://www.tiktok.com/@darklineperformance">TikTok</a>
+        <a data-link="discord" href="https://discord.gg/QP2rKy6n8U">Discord</a>
+      </nav>
+    </div>
+    <nav>
+      <a data-link="impressum" href="https://darkline-performance.vercel.app/impressum">Impressum</a>
+      <a data-link="datenschutz" href="https://darkline-performance.vercel.app/datenschutz">Datenschutz</a>
+      <span>© <span id="year">2026</span> Darkline Performance Motorsport</span>
+    </nav>
+  </div>
+</footer>
+
+<div class="detail" id="detail" role="dialog" aria-modal="true" aria-labelledby="d-title" hidden>
+  <div class="dtop"><div class="wrap"><img src="img/brand/logo.webp" alt="Darkline Performance" width="900" height="216"><button type="button" class="close" id="d-close">Schließen ✕</button></div></div>
+  <div id="d-content"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,132 @@
+# Darkline Admin – Konfiguration für Sveltia CMS
+# WICHTIG: Bei "repo" euren GitHub-Benutzer/Organisation und den Repo-Namen eintragen.
+
+backend:
+  name: github
+  repo: Paulekinn/darkline-site
+  branch: main
+  commit_messages:
+    update: "Admin: {{collection}} aktualisiert"
+
+media_folder: img/uploads
+public_folder: /img/uploads
+
+site_url: https://www.darklineperformance.de
+display_url: https://www.darklineperformance.de
+logo_url: /img/brand/logo.webp
+
+collections:
+  # ---------------- FAHRER ----------------
+  - name: team
+    label: Fahrer
+    files:
+      - name: drivers
+        label: Nennliste (Fahrer)
+        file: content/drivers.json
+        fields:
+          - name: drivers
+            label: Fahrer
+            label_singular: Fahrer
+            widget: list
+            summary: "{{fields.name}} · {{fields.status}}"
+            fields:
+              - { name: name, label: Name, widget: string, hint: "Genau so schreiben wie bei den Rennen (für Starts und bestes Ergebnis)." }
+              - { name: kuerzel, label: Kürzel, widget: string, hint: "z. B. PW" }
+              - { name: rolle, label: Rolle, widget: string, hint: "z. B. Fahrer · Team Designer" }
+              - { name: klassen, label: Klassen, widget: select, multiple: true, options: [GT3, GTP] }
+              - { name: status, label: Status, widget: select, options: [aktiv, inaktiv], default: aktiv }
+              - { name: zitat, label: Zitat, widget: text, required: false }
+              - { name: foto, label: Foto, widget: image, required: false, hint: "Quadratisch, mind. 600 × 600 px" }
+
+  # ---------------- RENNEN ----------------
+  - name: rennen
+    label: Rennen & Berichte
+    files:
+      - name: races
+        label: Kalender & Klassement
+        file: content/races.json
+        fields:
+          - name: races
+            label: Rennen
+            label_singular: Rennen
+            widget: list
+            summary: "{{fields.datum}} · {{fields.titel}} · {{fields.status}}"
+            fields:
+              - { name: id, label: Kennung, widget: string, pattern: ["^[a-z0-9-]+$", "Nur Kleinbuchstaben, Zahlen und Bindestriche"], hint: "Eindeutig, wird Teil des Links, z. B. spa-24h-2027" }
+              - { name: titel, label: Rennen, widget: string, hint: "z. B. 24 Hours of Spa" }
+              - { name: strecke, label: Strecke, widget: string, required: false }
+              - { name: serie, label: Serie, widget: string, required: false }
+              - { name: klasse, label: Klasse, widget: select, options: [GT3, GTP, Multiclass, Supercars, Andere], default: GT3 }
+              - { name: datum, label: Datum, widget: datetime, format: "YYYY-MM-DD", date_format: "DD.MM.YYYY", time_format: false, required: false }
+              - { name: startzeit, label: Startzeit, widget: string, required: false, hint: "z. B. 15:00" }
+              - { name: status, label: Status, widget: select, options: [geplant, abgeschlossen], default: geplant, hint: "Geplant = erscheint im Kalender. Abgeschlossen = erscheint im Klassement." }
+              - { name: start, label: Startplatz, widget: number, value_type: int, min: 1, required: false }
+              - { name: ziel, label: Zielposition, widget: number, value_type: int, min: 1, required: false }
+              - { name: fahrzeug, label: Fahrzeug, widget: string, required: false }
+              - { name: crew, label: Fahrer im Auto, label_singular: Fahrer, widget: list, required: false, hint: "Namen wie in der Nennliste. Gäste z. B. als 'Name (Gast)'." }
+              - { name: fazit, label: Kurzfazit, widget: string, required: false, hint: "Ein Satz für das Klassement" }
+              - { name: banner, label: Bannerbild, widget: image, required: false }
+              - { name: bericht_titel, label: Überschrift Bericht, widget: string, required: false }
+              - { name: bericht, label: Rennbericht / Vorschau, widget: markdown, required: false }
+
+  # ---------------- NEWS ----------------
+  - name: news
+    label: News
+    files:
+      - name: posts
+        label: Alle News
+        file: content/news.json
+        fields:
+          - name: posts
+            label: Beiträge
+            label_singular: Beitrag
+            widget: list
+            summary: "{{fields.datum}} · {{fields.titel}}"
+            fields:
+              - { name: id, label: Kennung, widget: string, pattern: ["^[a-z0-9-]+$", "Nur Kleinbuchstaben, Zahlen und Bindestriche"], hint: "Wird Teil des Links, z. B. spa-24h-vorschau" }
+              - { name: titel, label: Titel, widget: string }
+              - { name: kategorie, label: Kategorie, widget: select, options: [Rennvorschau, Rennbericht, Team, Fahrer, Partner], default: Team }
+              - { name: datum, label: Datum, widget: datetime, format: "YYYY-MM-DD", date_format: "DD.MM.YYYY", time_format: false }
+              - { name: teaser, label: Kurztext, widget: text, required: false }
+              - { name: bild, label: Bild, widget: image, required: false }
+              - { name: rennen, label: Zugehöriges Rennen (Kennung), widget: string, required: false, hint: "Optional, z. B. spa-24h-2026" }
+              - { name: inhalt, label: Text, widget: markdown, required: false }
+
+  # ---------------- GARAGE ----------------
+  - name: garage
+    label: Garage
+    files:
+      - name: cars
+        label: Fahrzeuge
+        file: content/cars.json
+        fields:
+          - name: cars
+            label: Fahrzeuge
+            label_singular: Fahrzeug
+            widget: list
+            summary: "{{fields.marke}} {{fields.modell}}"
+            fields:
+              - { name: marke, label: Marke, widget: string }
+              - { name: modell, label: Modell, widget: string }
+              - { name: klasse, label: Klasse, widget: select, options: [GT3, GTP, Andere], default: GT3 }
+              - { name: motor, label: Motor, widget: string, required: false }
+              - { name: antrieb, label: Antrieb, widget: string, required: false }
+              - { name: bild, label: Livery-Bild, widget: image, hint: "Querformat 3:2, mind. 1440 px breit" }
+
+  # ---------------- EINSTELLUNGEN ----------------
+  - name: einstellungen
+    label: Einstellungen
+    files:
+      - name: settings
+        label: Links & Recruiting
+        file: content/settings.json
+        fields:
+          - { name: open_seat, label: Open Seat anzeigen, widget: boolean, default: true }
+          - { name: open_seat_text, label: Open-Seat-Text, widget: string, required: false }
+          - { name: discord, label: Discord-Link, widget: string }
+          - { name: email, label: Kontakt-E-Mail, widget: string }
+          - { name: twitch, label: Twitch, widget: string, required: false }
+          - { name: instagram, label: Instagram, widget: string, required: false }
+          - { name: tiktok, label: TikTok, widget: string, required: false }
+          - { name: impressum, label: Impressum-Link, widget: string, required: false }
+          - { name: datenschutz, label: Datenschutz-Link, widget: string, required: false }

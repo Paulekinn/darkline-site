@@ -1,0 +1,51 @@
+{
+  "drivers": [
+    {
+      "name": "Pascal Rodenberg",
+      "kuerzel": "PR",
+      "rolle": "CEO · Teamchef · Streamer",
+      "klassen": [
+        "GT3",
+        "GTP"
+      ],
+      "status": "aktiv",
+      "zitat": "Struktur, Pace und Community müssen zusammenpassen.",
+      "foto": "/img/drivers/pascal.webp"
+    },
+    {
+      "name": "Chris Patrick Lammers",
+      "kuerzel": "CL",
+      "rolle": "Fahrer · Sporting Advisor",
+      "klassen": [
+        "GT3"
+      ],
+      "status": "aktiv",
+      "zitat": "Rennintelligenz ist genauso wichtig wie reine Geschwindigkeit.",
+      "foto": "/img/drivers/chris.webp"
+    },
+    {
+      "name": "Paul Wiez",
+      "kuerzel": "PW",
+      "rolle": "Fahrer · Team Designer",
+      "klassen": [
+        "GT3",
+        "GTP"
+      ],
+      "status": "aktiv",
+      "zitat": "Design, Haltung und Rennfokus gehören für mich zusammen.",
+      "foto": "/img/drivers/paul.webp"
+    },
+    {
+      "name": "Tizian Belger",
+      "kuerzel": "TB",
+      "rolle": "Fahrer · Streamer",
+      "klassen": [
+        "GT3",
+        "GTP"
+      ],
+      "status": "inaktiv",
+      "zitat": "Pace auf der Strecke, Präsenz für die Community.",
+      "foto": "/img/drivers/tizian.webp"
+    }
+  ]
+}
