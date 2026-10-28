@@ -15,6 +15,16 @@
   };
   // Adresse einer Fahrerseite aus dem Namen, z. B. "Paul Wiez" -> "paul-wiez"
   const slugify = (s) => String(s || "").toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  // Renndauer: "24h", "6 h", "2:40h", "1h30", "45min" -> Minuten
+  const parseDur = (s) => {
+    const t = String(s || "").toLowerCase().replace(",", ".").trim(); if (!t) return null; let m;
+    if ((m = t.match(/^(\d+)\s*[:.]\s*(\d{1,2})\s*h?/))) return +m[1] * 60 + +m[2];
+    if ((m = t.match(/^(\d+(?:\.\d+)?)\s*h\w*\s*(?:(\d+)\s*m\w*)?$/))) return Math.round(+m[1] * 60) + (+m[2] || 0);
+    if ((m = t.match(/^(\d+)\s*m/))) return +m[1];
+    if ((m = t.match(/^(\d+(?:\.\d+)?)$/))) return Math.round(+m[1] * 60);
+    return null;
+  };
+  const durText = (r) => { const m = parseDur(r.dauer); if (!m) return r.dauer || ""; const h = Math.floor(m / 60), mi = m % 60; return h ? (mi ? `${h}:${String(mi).padStart(2, "0")} h` : `${h} h`) : `${mi} min`; };
   const cleanName = (c) => String(c).replace(/\s*\(.*\)$/, "").trim();
   const short = (name) => { const p = String(name).replace(/\s*\(.*\)$/, "").trim().split(/\s+/); return p.length > 1 ? p.slice(0, -1).map((x) => x[0] + ".").join(" ") + " " + p[p.length - 1] : name; };
 
@@ -31,6 +41,13 @@
   mb.addEventListener("click", () => setMenu(!bar.classList.contains("open")));
   $("mainnav").addEventListener("click", (e) => { if (e.target.closest("a")) setMenu(false); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(false); });
+
+  /* ---------- Kalender-Link kopieren ---------- */
+  $("cal-copy").addEventListener("click", async (e) => {
+    const b = e.currentTarget, url = "https://darklineperformance.de/kalender.ics";
+    try { await navigator.clipboard.writeText(url); b.textContent = "Kopiert ✓"; } catch (err) { window.prompt("Kalender-Link:", url); }
+    setTimeout(() => { b.textContent = "Link kopieren"; }, 2000);
+  });
 
   /* ---------- Einstellungen: Links ---------- */
   function applySettings() {
@@ -78,7 +95,7 @@
     if (n) {
       $("nextrace").href = "/rennen/" + n.id;
       $("nr-title").textContent = n.titel;
-      $("nr-meta").textContent = [parseDate(n.datum) ? fmt(n.datum) : "Datum folgt", n.startzeit ? n.startzeit + " Uhr" : "", n.serie, n.klasse].filter(Boolean).join(" · ");
+      $("nr-meta").textContent = [parseDate(n.datum) ? fmt(n.datum) : "Datum folgt", n.startzeit ? n.startzeit + " Uhr" : "", durText(n), n.serie, n.klasse].filter(Boolean).join(" · ");
       $("sess-text").textContent = "Nächstes Rennen: " + n.titel + (parseDate(n.datum) ? " · " + fmt(n.datum) : "");
       const start = startOf(n);
       const tick = () => {
@@ -141,7 +158,7 @@
     const up = upcoming();
     $("calendar").innerHTML = up.length ? up.map((r) => `<a href="/rennen/${esc(r.id)}">
         <span class="d">${esc(fmt(r.datum))}<small>${esc(r.startzeit ? r.startzeit + " Uhr" : "Uhrzeit folgt")}</small></span>
-        <span class="t">${esc(r.titel)}<small>${[r.serie, r.klasse, r.strecke].filter(Boolean).map(esc).join(" · ")}</small>${crewHtml(r)}</span>
+        <span class="t">${esc(r.titel)}<small>${[r.serie, r.klasse, durText(r), r.strecke].filter(Boolean).map(esc).join(" · ")}</small>${crewHtml(r)}</span>
         <span class="open lbl">Vorschau →</span></a>`).join("")
       : `<div class="empty">Das nächste Rennen ist in Planung. Ankündigungen kommen zuerst im Discord.</div>`;
   }
@@ -160,7 +177,7 @@
     $("results-meta").textContent = `${fin.length} Ergebnisse · ${upcoming().length} geplant`;
     $("results").innerHTML = fin.map((r) => `<li><a class="row" href="/rennen/${esc(r.id)}">
       <span class="fin ${+r.ziel <= 10 ? "top" : ""}">P${esc(r.ziel)}</span>
-      <div class="ev">${esc(r.titel)}<small>${[r.serie, r.klasse, fmt(r.datum), r.fahrzeug].filter(Boolean).map(esc).join(" · ")}${r.fazit ? " · " + esc(r.fazit) : ""}</small>${crewHtml(r).replace('class="crew"', 'class="crew"')}</div>
+      <div class="ev">${esc(r.titel)}<small>${[r.serie, r.klasse, fmt(r.datum), durText(r), r.fahrzeug].filter(Boolean).map(esc).join(" · ")}${r.fazit ? " · " + esc(r.fazit) : ""}</small>${crewHtml(r).replace('class="crew"', 'class="crew"')}</div>
       ${gainSvg(r)}
       <span class="open">${r.bericht && r.bericht.trim() ? "Rennbericht →" : "Details →"}</span></a></li>`).join("");
   }
@@ -274,13 +291,13 @@
         <div><span class="lbl">Start</span><b>${r.start ? "P" + esc(r.start) : "–"}</b></div>
         <div><span class="lbl">Ziel</span><b class="r">P${esc(r.ziel)}</b></div>
         <div><span class="lbl">Plätze</span><b class="${g > 0 ? "g" : ""}">${g == null ? "–" : (g >= 0 ? "+" : "−") + Math.abs(g)}</b></div></div>`
-      : `<div class="result-box"><div><span class="lbl">Datum</span><b>${esc(fmt(r.datum))}</b></div><div><span class="lbl">Start</span><b>${esc(r.startzeit || "–")}</b></div></div>`;
+      : `<div class="result-box"><div><span class="lbl">Datum</span><b>${esc(fmt(r.datum))}</b></div><div><span class="lbl">Start</span><b>${esc(r.startzeit || "–")}</b></div><div><span class="lbl">Dauer</span><b>${esc(durText(r) || "–")}</b></div></div>`;
     const related = D.posts.filter((p) => p.rennen === r.id);
     const body = md(r.bericht);
     return `<section class="dhero">${r.banner ? `<div class="bg"><img src="${esc(src(r.banner))}" alt=""></div>` : ""}
       <div class="wrap"><div><span class="eyb">${done ? "Rennbericht" : "Rennvorschau"} · ${esc(r.klasse || "")}</span>
       <h1 class="wide" id="d-title">${esc(r.titel)}</h1>
-      <div class="meta">${[r.serie, r.strecke, fmt(r.datum), r.startzeit ? r.startzeit + " Uhr" : "", r.fahrzeug].filter(Boolean).map(esc).join(" · ")}</div>
+      <div class="meta">${[r.serie, r.strecke, fmt(r.datum), r.startzeit ? r.startzeit + " Uhr" : "", durText(r) ? "Dauer " + durText(r) : "", r.fahrzeug].filter(Boolean).map(esc).join(" · ")}</div>
       ${shareBtn()}</div>${box}</div></section>
       <div class="wrap dbody"><article class="prose">${r.bericht_titel ? `<h2>${esc(r.bericht_titel)}</h2>` : ""}${body || `<p class="pending">${done ? "Der ausführliche Rennbericht folgt." : "Die Rennvorschau mit Lineup und Stream-Infos folgt."}</p>`}</article>
       <aside class="aside">

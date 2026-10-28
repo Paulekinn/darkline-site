@@ -521,3 +521,15 @@ footer nav a{display:inline-block;min-height:0;line-height:40px}
 .prose a.hrow:hover .ht{color:var(--red)}
 .dh-text h1{overflow-wrap:anywhere}
 @media (max-width:640px){.dh-text h1{font-size:clamp(1.7rem,8.2vw,2.6rem)}.dh-main{align-items:start}}
+
+/* Kalender abonnieren */
+.sub .cal-sub{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.calbtn{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;gap:8px;padding:9px 13px;background:var(--red);color:#fff;font:800 .72rem/1 var(--f-wide);font-variation-settings:"wdth" 115;text-transform:uppercase;transition:background .2s,color .2s}
+.calbtn::before{content:"";width:12px;height:12px;background:currentColor;-webkit-mask:linear-gradient(#000 0 0) top/100% 3px no-repeat,linear-gradient(#000 0 0) bottom/100% 2px no-repeat,linear-gradient(#000 0 0) left/2px 100% no-repeat,linear-gradient(#000 0 0) right/2px 100% no-repeat;mask:linear-gradient(#000 0 0) top/100% 3px no-repeat,linear-gradient(#000 0 0) bottom/100% 2px no-repeat,linear-gradient(#000 0 0) left/2px 100% no-repeat,linear-gradient(#000 0 0) right/2px 100% no-repeat}
+.calbtn:hover{background:var(--phos);color:var(--black)}
+.calbtn.ghost{background:transparent;box-shadow:inset 0 0 0 1.5px var(--rule);color:var(--phos)}
+.calbtn.ghost::before{display:none}
+.calbtn.ghost:hover{background:var(--phos);color:var(--black);box-shadow:none}
+.calbtn:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.sub:has(.cal-sub){flex-wrap:wrap;align-items:center;row-gap:12px}
+@media (max-width:640px){.sub .cal-sub{justify-content:flex-start;width:100%}}

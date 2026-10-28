@@ -103,3 +103,67 @@ for (const d of drivers) {
   });
 }
 console.log(`Seiten: ${races.length} Rennen, ${posts.length} News, ${drivers.length} Fahrer`);
+
+// ---------- Kalender zum Abonnieren: /kalender.ics ----------
+function parseDur(v) {
+  const t = String(v || "").toLowerCase().replace(",", ".").trim(); if (!t) return null; let m;
+  if ((m = t.match(/^(\d+)\s*[:.]\s*(\d{1,2})\s*h?/))) return +m[1] * 60 + +m[2];
+  if ((m = t.match(/^(\d+(?:\.\d+)?)\s*h\w*\s*(?:(\d+)\s*m\w*)?$/))) return Math.round(+m[1] * 60) + (+m[2] || 0);
+  if ((m = t.match(/^(\d+)\s*m/))) return +m[1];
+  if ((m = t.match(/^(\d+(?:\.\d+)?)$/))) return Math.round(+m[1] * 60);
+  return null;
+}
+const icsEsc = (s) => String(s || "").replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+const fold = (line) => { const out = []; let cur = ""; for (const ch of line) { if (Buffer.byteLength(cur + ch) > 74) { out.push(cur); cur = " " + ch; } else cur += ch; } out.push(cur); return out.join("\r\n"); };
+const pad = (n) => String(n).padStart(2, "0");
+const localStamp = (d) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00`;
+const dateStamp = (d) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}`;
+
+function buildIcs(races) {
+  const now = new Date();
+  const stamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
+  const lines = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Darkline Performance Motorsport//Rennkalender//DE", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    "X-WR-CALNAME:Darkline Performance Motorsport", "X-WR-TIMEZONE:Europe/Berlin", "REFRESH-INTERVAL;VALUE=DURATION:PT6H", "X-PUBLISHED-TTL:PT6H",
+    "BEGIN:VTIMEZONE", "TZID:Europe/Berlin",
+    "BEGIN:DAYLIGHT", "TZOFFSETFROM:+0100", "TZOFFSETTO:+0200", "TZNAME:CEST", "DTSTART:19700329T020000", "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU", "END:DAYLIGHT",
+    "BEGIN:STANDARD", "TZOFFSETFROM:+0200", "TZOFFSETTO:+0100", "TZNAME:CET", "DTSTART:19701025T030000", "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU", "END:STANDARD",
+    "END:VTIMEZONE",
+  ];
+  let n = 0;
+  for (const r of races) {
+    const dm = String(r.datum || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!dm) continue;
+    const done = r.status === "abgeschlossen" && r.ziel;
+    const tm = String(r.startzeit || "").match(/(\d{1,2})[:.](\d{2})/);
+    const dur = parseDur(r.dauer);
+    const ev = ["BEGIN:VEVENT", `UID:${r.id}@darklineperformance.de`, `DTSTAMP:${stamp}`];
+    if (tm) {
+      // Zeiten als lokale Zeit Europe/Berlin (Date wird nur als Rechenhilfe in UTC benutzt)
+      const start = new Date(Date.UTC(+dm[1], +dm[2] - 1, +dm[3], +tm[1], +tm[2]));
+      const end = new Date(start.getTime() + (dur || 120) * 60000);
+      ev.push(`DTSTART;TZID=Europe/Berlin:${localStamp(start)}`, `DTEND;TZID=Europe/Berlin:${localStamp(end)}`);
+    } else {
+      const day = new Date(Date.UTC(+dm[1], +dm[2] - 1, +dm[3]));
+      const days = dur ? Math.max(1, Math.ceil(dur / 1440)) : 1;
+      ev.push(`DTSTART;VALUE=DATE:${dateStamp(day)}`, `DTEND;VALUE=DATE:${dateStamp(new Date(day.getTime() + days * 864e5))}`);
+    }
+    const title = `DPM · ${r.titel}${done ? ` (P${r.ziel})` : ""}`;
+    const desc = [
+      [r.serie, r.klasse, r.dauer ? `Dauer ${r.dauer}` : ""].filter(Boolean).join(" · "),
+      (r.crew || []).length ? `Fahrer: ${r.crew.join(", ")}` : "",
+      r.fahrzeug ? `Fahrzeug: ${r.fahrzeug}` : "",
+      done ? `Ergebnis: P${r.ziel}${r.start ? ` (Start P${r.start})` : ""}` : "",
+      `${SITE}/rennen/${r.id}`,
+    ].filter(Boolean).join("\n");
+    ev.push(`SUMMARY:${icsEsc(title)}`, `DESCRIPTION:${icsEsc(desc)}`, `URL:${SITE}/rennen/${r.id}`);
+    if (r.strecke) ev.push(`LOCATION:${icsEsc(r.strecke + " (iRacing)")}`);
+    if (!done) ev.push("BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${icsEsc(r.titel + " startet in 1 Stunde")}`, "TRIGGER:-PT1H", "END:VALARM");
+    ev.push("END:VEVENT");
+    lines.push(...ev); n++;
+  }
+  lines.push("END:VCALENDAR");
+  fs.writeFileSync(path.join(ROOT, "kalender.ics"), lines.map(fold).join("\r\n") + "\r\n");
+  console.log(`kalender.ics: ${n} Termine`);
+}
+buildIcs(races);

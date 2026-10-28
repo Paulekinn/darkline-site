@@ -95,7 +95,12 @@
         <div class="doc-meta lbl" id="results-meta"></div>
         <p>Kommende Starts und gefahrene Rennen. Ein Rennen anklicken für den Rennbericht.</p>
       </div>
-      <div class="sub"><h3>Kalender</h3><span class="lbl">Kommende Rennen</span></div>
+      <div class="sub"><h3>Kalender</h3>
+        <div class="cal-sub">
+          <a class="calbtn" href="webcal://darklineperformance.de/kalender.ics">Kalender abonnieren</a>
+          <a class="calbtn ghost" href="https://calendar.google.com/calendar/r?cid=webcal://darklineperformance.de/kalender.ics">Google Kalender</a>
+          <button type="button" class="calbtn ghost" id="cal-copy">Link kopieren</button>
+        </div></div>
       <div class="cal" id="calendar"></div>
       <div class="sub"><h3>Ergebnisse</h3><span class="lbl">Start → Ziel</span></div>
       <ol class="class-list" id="results"></ol>

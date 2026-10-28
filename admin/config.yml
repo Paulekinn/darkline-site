@@ -72,7 +72,8 @@ collections:
       - { name: titel, label: Rennen, widget: string, hint: "z. B. 24 Hours of Spa" }
       - { name: status, label: Status, widget: select, options: [geplant, abgeschlossen], default: geplant, hint: "Geplant = Kalender und 'Nächstes Rennen'. Abgeschlossen = Klassement." }
       - { name: datum, label: Datum, widget: datetime, format: "YYYY-MM-DD", date_format: "DD.MM.YYYY", time_format: false, required: false }
-      - { name: startzeit, label: Startzeit, widget: string, required: false, hint: "z. B. 15:00" }
+      - { name: startzeit, label: Startzeit, widget: string, required: false, hint: "Deutsche Zeit, z. B. 15:00" }
+      - { name: dauer, label: Renndauer, widget: string, required: false, hint: "z. B. 24h, 6h, 2:40h oder 45min" }
       - { name: strecke, label: Strecke, widget: string, required: false }
       - { name: serie, label: Serie, widget: string, required: false }
       - { name: klasse, label: Klasse, widget: select, options: [GT3, GT4, LMP, GTP, Multiclass, Supercars, Andere], default: GT3 }
