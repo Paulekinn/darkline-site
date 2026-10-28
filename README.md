@@ -26,7 +26,7 @@ vercel.json         Header für Vercel
 3. Deploy.
 4. Domain umziehen: Im **alten** Vercel-Projekt unter Settings → Domains `darklineperformance.de` (und `www.`) entfernen, dann im **neuen** Projekt hinzufügen.
 
-> Achtung: Impressum und Datenschutz verlinken aktuell noch auf die alte Vercel-Seite. Bevor das alte Projekt gelöscht wird, die Texte übernehmen und die Links unter Admin → Einstellungen anpassen.
+> Impressum und Datenschutz liegen als `impressum.html` und `datenschutz.html` im Repo. Bei neuen Funktionen (Analytics, Einbettungen, Formulare) die Datenschutzerklärung anpassen.
 
 ## 3. Admin-Bereich benutzen
 

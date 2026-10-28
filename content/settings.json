@@ -6,6 +6,6 @@
   "twitch": "https://www.twitch.tv/darklineperformance",
   "instagram": "https://www.instagram.com/darkline.performancemotorsport",
   "tiktok": "https://www.tiktok.com/@darklineperformance",
-  "impressum": "https://darkline-performance.vercel.app/impressum",
-  "datenschutz": "https://darkline-performance.vercel.app/datenschutz"
+  "impressum": "/impressum",
+  "datenschutz": "/datenschutz"
 }

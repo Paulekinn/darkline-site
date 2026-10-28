@@ -300,3 +300,13 @@ body.locked{overflow:hidden}
 .aside a.link{display:inline-flex;font:800 .85rem/1 var(--f-wide);font-variation-settings:"wdth" 112;text-transform:uppercase;color:var(--red);text-decoration:none}
 .aside a.link:hover{text-decoration:underline}
 @media (max-width:860px){.dhero .wrap{grid-template-columns:1fr}.dbody{grid-template-columns:1fr}.result-box b{font-size:1.9rem}}
+
+/* RECHTSTEXTE */
+.legal{padding-block:clamp(48px,7vw,88px) 96px}
+.legal .doc-head{margin-bottom:40px}
+.legal .prose h2{font-size:1.35rem;margin:40px 0 10px}
+.legal .prose h2:first-child{margin-top:0}
+.legal .prose address{font-style:normal;line-height:1.6;margin:0 0 1.1em}
+.legal .stand{margin-top:40px;padding-top:14px;border-top:1px solid var(--rule)}
+.bar .back{display:flex;align-items:center;margin-left:auto;padding:0 16px;text-decoration:none;font:700 .78rem/1 var(--f-wide);font-variation-settings:"wdth" 110;text-transform:uppercase;border-left:1px solid var(--scan)}
+.bar .back:hover{background:var(--scan)}
