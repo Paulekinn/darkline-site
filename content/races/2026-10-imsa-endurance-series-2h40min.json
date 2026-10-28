@@ -1,5 +1,5 @@
 {
-  "titel": "IMSA Endurance Series 2h40min",
+  "titel": "IMSA Endurance Series",
   "status": "geplant",
   "datum": "2026-10-31",
   "startzeit": "19:00",
@@ -7,7 +7,7 @@
   "strecke": "Circuit des 24 Heures du Mans",
   "serie": "IMSA Endurance Series",
   "klasse": "GT3",
-  "fahrzeug": "",
+  "fahrzeug": "McLaren 720S GT3 EVO",
   "crew": [
     "Pascal Rodenberg",
     "Vanessa Peltré (Gast)"
