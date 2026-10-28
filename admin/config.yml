@@ -35,12 +35,16 @@ collections:
             widget: list
             summary: "{{fields.name}} · {{fields.status}}"
             fields:
-              - { name: name, label: Name, widget: string, hint: "Genau so schreiben wie bei den Rennen (für Starts und bestes Ergebnis)." }
+              - { name: name, label: Name, widget: string, hint: "Genau so schreiben wie bei den Rennen (für Statistik und Rennhistorie). Daraus entsteht auch die Adresse der Fahrerseite." }
               - { name: kuerzel, label: Kürzel, widget: string, hint: "z. B. PW" }
               - { name: rolle, label: Rolle, widget: string, hint: "z. B. Fahrer · Team Designer" }
               - { name: klassen, label: Klassen, widget: select, multiple: true, options: [GT3, GT4, LMP, GTP] }
               - { name: status, label: Status, widget: select, options: [aktiv, auf Probe, inaktiv], default: aktiv }
               - { name: zitat, label: Zitat, widget: text, required: false }
+              - { name: bio, label: Über den Fahrer, widget: text, required: false, hint: "Ein paar Sätze für die Fahrerseite" }
+              - { name: aufgaben, label: Aufgaben im Team, label_singular: Aufgabe, widget: list, required: false }
+              - { name: iracing, label: iRacing-Profil (Link), widget: string, required: false, hint: "z. B. https://members-ng.iracing.com/web/racing/profile?cust_id=…" }
+              - { name: stream, label: Stream-Kanal (Link), widget: string, required: false, hint: "Twitch oder YouTube, optional" }
               - { name: foto, label: Foto, widget: image, required: false, media_folder: /img/drivers, public_folder: /img/drivers, hint: "Quadratisch, mind. 600 × 600 px" }
 
   # ---------------- RENNEN ----------------

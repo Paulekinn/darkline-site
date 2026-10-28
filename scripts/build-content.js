@@ -36,6 +36,7 @@ function ogImage(img) {
 }
 
 const template = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+const slugify = (s) => String(s || "").toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 function writePage(dir, id, meta) {
   const url = `${SITE}/${dir}/${id}`;
   const tags = [
@@ -48,7 +49,7 @@ function writePage(dir, id, meta) {
     `<meta property="og:title" content="${esc(meta.title)}">`,
     `<meta property="og:description" content="${esc(meta.description)}">`,
     `<meta property="og:image" content="${esc(meta.image)}">`,
-    `<meta name="twitter:card" content="summary_large_image">`,
+    `<meta name="twitter:card" content="${meta.card || "summary_large_image"}">`,
     `<meta name="theme-color" content="#d3121b">`,
   ].join("\n");
   const html = template
@@ -66,7 +67,7 @@ function writePage(dir, id, meta) {
 const races = collect("races", "races.json", "races");
 const posts = collect("news", "news.json", "posts");
 
-for (const dir of ["rennen", "news"]) fs.rmSync(path.join(ROOT, dir), { recursive: true, force: true });
+for (const dir of ["rennen", "news", "fahrer"]) fs.rmSync(path.join(ROOT, dir), { recursive: true, force: true });
 
 for (const r of races) {
   const done = r.status === "abgeschlossen" && r.ziel;
@@ -88,4 +89,17 @@ for (const p of posts) {
     image: ogImage(p.bild),
   });
 }
-console.log(`Seiten: ${races.length} Rennen, ${posts.length} News`);
+const drivers = (JSON.parse(fs.readFileSync(path.join(ROOT, "content", "drivers.json"), "utf8")).drivers || []);
+const clean = (c) => String(c).replace(/\s*\(.*\)$/, "").trim();
+for (const d of drivers) {
+  const mine = races.filter((r) => r.status === "abgeschlossen" && r.ziel && (r.crew || []).some((c) => clean(c) === d.name));
+  const best = mine.length ? Math.min(...mine.map((r) => +r.ziel)) : null;
+  const facts = [d.rolle, (d.klassen || []).join(" / "), mine.length ? `${mine.length} Rennen` : "", best ? `Bestes Ergebnis P${best}` : ""].filter(Boolean).join(" · ");
+  writePage("fahrer", slugify(d.name), {
+    title: `${d.name} · ${BRAND}`,
+    description: facts + (d.zitat ? ` – „${d.zitat}“` : ""),
+    image: ogImage(d.foto),
+    card: "summary",
+  });
+}
+console.log(`Seiten: ${races.length} Rennen, ${posts.length} News, ${drivers.length} Fahrer`);

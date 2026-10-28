@@ -59,7 +59,7 @@ Beim Domain-Umzug `base_url` in `admin/config.yml` sowie Homepage- und Callback-
 
 | Bereich | Admin-Menü | Hinweise |
 |---|---|---|
-| Lineup | Fahrer | Status *aktiv/inaktiv*. Starts und bestes Ergebnis rechnet die Seite selbst aus den Rennen aus – dafür den Namen exakt gleich schreiben. |
+| Lineup + Fahrerseiten | Fahrer | Status *aktiv/auf Probe/inaktiv*. Jeder Fahrer bekommt automatisch eine Seite `/fahrer/vorname-nachname` mit Rennhistorie und Statistik; optional iRacing-Profil- und Stream-Link. Starts und bestes Ergebnis rechnet die Seite selbst aus den Rennen aus – dafür den Namen exakt gleich schreiben. |
 | Kalender | Rennen & Berichte | Status **geplant** → erscheint im Kalender und als „Nächstes Rennen“ oben. Bericht-Feld = Rennvorschau. |
 | Klassement | Rennen & Berichte | Status **abgeschlossen** + Zielposition → erscheint im Klassement. Startplatz eintragen für die Plätze-Grafik. Bericht-Feld = Rennbericht (Klick auf das Rennen öffnet ihn). |
 | News | News | Mit „Zugehöriges Rennen“ (Kennung des Rennens) werden News und Rennbericht verlinkt. |

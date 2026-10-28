@@ -13,6 +13,9 @@
     const html = window.marked ? window.marked.parse(String(text)) : "<p>" + esc(text).replace(/\n{2,}/g, "</p><p>") + "</p>";
     return window.DOMPurify ? window.DOMPurify.sanitize(html) : html;
   };
+  // Adresse einer Fahrerseite aus dem Namen, z. B. "Paul Wiez" -> "paul-wiez"
+  const slugify = (s) => String(s || "").toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const cleanName = (c) => String(c).replace(/\s*\(.*\)$/, "").trim();
   const short = (name) => { const p = String(name).replace(/\s*\(.*\)$/, "").trim().split(/\s+/); return p.length > 1 ? p.slice(0, -1).map((x) => x[0] + ".").join(" ") + " " + p[p.length - 1] : name; };
 
   async function load(name) {
@@ -46,13 +49,19 @@
     .sort((a, b) => (parseDate(b.datum) || 0) - (parseDate(a.datum) || 0));
   const upcoming = () => D.races.filter((r) => r.status !== "abgeschlossen" && (!parseDate(r.datum) || parseDate(r.datum) >= today))
     .sort((a, b) => (parseDate(a.datum) || new Date(9e15)) - (parseDate(b.datum) || new Date(9e15)));
+  const racesOf = (name) => finished().filter((r) => (r.crew || []).some((c) => cleanName(c) === name));
   const statsFor = (name) => {
-    const mine = finished().filter((r) => (r.crew || []).some((c) => c.replace(/\s*\(.*\)$/, "").trim() === name));
+    const mine = racesOf(name);
     const year = today.getFullYear();
     const starts = mine.filter((r) => { const d = parseDate(r.datum); return !d || d.getFullYear() === year; }).length;
     const best = mine.length ? Math.min(...mine.map((r) => +r.ziel)) : null;
-    return { starts, best };
+    const top10 = mine.filter((r) => +r.ziel <= 10).length;
+    const avg = mine.length ? mine.reduce((t, r) => t + +r.ziel, 0) / mine.length : null;
+    const gained = mine.filter((r) => r.start).reduce((t, r) => t + (+r.start - +r.ziel), 0);
+    const klassen = [...new Set(mine.map((r) => r.klasse).filter(Boolean))];
+    return { starts, total: mine.length, best, top10, avg, gained, klassen, mine };
   };
+  const driverByName = (name) => D.drivers.find((d) => d.name === cleanName(name));
 
   /* ---------- Pitwall: nächstes Rennen + Saisonbilanz ---------- */
   let cdTimer = null;
@@ -117,9 +126,9 @@
       return `<article class="slot ${on ? (trialD ? "trial" : "") : "off"}"><span class="gp" aria-hidden="true">${esc(d.kuerzel || "")}</span>
         <div class="card"><div class="ph">${d.foto ? `<img src="${esc(src(d.foto))}" alt="${esc(d.name)}" loading="lazy">` : ""}</div>
         <div class="bd"><div class="st"><span class="pill">${trialD ? "Auf Probe" : on ? "Aktiv" : "Inaktiv"}</span><span class="chips">${kl}</span></div>
-        <h3 class="wide">${esc(d.name)}</h3><span class="role">${esc(d.rolle || "")}</span>
+        <h3 class="wide"><a class="stretch" href="/fahrer/${slugify(d.name)}">${esc(d.name)}</a></h3><span class="role">${esc(d.rolle || "")}</span>
         ${d.zitat ? `<blockquote>${esc(d.zitat)}</blockquote>` : ""}
-        <div class="nums"><div><span class="lbl">Starts ${year}</span><b>${st.starts}</b></div><div><span class="lbl">Bestes Ergebnis</span><b>${st.best ? "P" + st.best : "–"}</b></div></div></div></div></article>`;
+        <div class="nums"><div><span class="lbl">Starts ${year}</span><b>${st.starts}</b></div><div><span class="lbl">Bestes Ergebnis</span><b>${st.best ? "P" + st.best : "–"}</b></div><span class="profile-go">Profil →</span></div></div></div></article>`;
     }).join("");
     if (s.open_seat !== false) {
       html += `<article class="slot open"><span class="gp" aria-hidden="true">—</span><div class="card"><span class="pill" style="color:var(--red)">Open Seat</span><h3 class="wide">Dein Platz?</h3><span class="role">${esc(s.open_seat_text || "Bewerbung offen")}</span><a href="#box">Jetzt bewerben →</a></div></article>`;
@@ -227,7 +236,7 @@
     document.body.classList.add("locked");
     $("d-close").focus({ preventScroll: true });
   }
-  const detailPath = () => location.pathname.match(/^\/(rennen|news)\/([^/]+)\/?$/);
+  const detailPath = () => location.pathname.match(/^\/(rennen|news|fahrer)\/([^/]+)\/?$/);
   function closeDetail(updateUrl) {
     if ($("detail").hidden) return;
     $("detail").hidden = true; document.body.classList.remove("locked");
@@ -243,7 +252,7 @@
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     const a = e.target.closest("a[href]"); if (!a) return;
     const href = a.getAttribute("href");
-    if (/^\/(rennen|news)\/[^/]+$/.test(href)) { e.preventDefault(); history.pushState(null, "", href); route(); return; }
+    if (/^\/(rennen|news|fahrer)\/[^/]+$/.test(href)) { e.preventDefault(); history.pushState(null, "", href); route(); return; }
     if (href.startsWith("#") && a.closest("#detail")) { e.preventDefault(); backTo = href.slice(1); closeDetail(true); }
   });
 
@@ -275,10 +284,45 @@
       ${shareBtn()}</div>${box}</div></section>
       <div class="wrap dbody"><article class="prose">${r.bericht_titel ? `<h2>${esc(r.bericht_titel)}</h2>` : ""}${body || `<p class="pending">${done ? "Der ausführliche Rennbericht folgt." : "Die Rennvorschau mit Lineup und Stream-Infos folgt."}</p>`}</article>
       <aside class="aside">
-        ${r.crew && r.crew.length ? `<div class="box"><span class="lbl">Fahrer</span><div class="crew">${r.crew.map((c) => `<span>${esc(c)}</span>`).join("")}</div></div>` : ""}
+        ${r.crew && r.crew.length ? `<div class="box"><span class="lbl">Fahrer</span><div class="crew">${r.crew.map((c) => driverByName(c) ? `<a href="/fahrer/${slugify(cleanName(c))}">${esc(c)}</a>` : `<span>${esc(c)}</span>`).join("")}</div></div>` : ""}
         ${r.fazit ? `<div class="box"><span class="lbl">Kurzfazit</span><p style="margin:0">${esc(r.fazit)}</p></div>` : ""}
         ${related.length ? `<div class="box"><span class="lbl">Passende News</span>${related.map((p) => `<a class="link" href="/news/${esc(p.id)}">${esc(p.titel)} →</a>`).join("")}</div>` : ""}
         <div class="box"><a class="link" href="#klassement">← Zum Klassement</a></div>
+      </aside></div>`;
+  }
+  function driverDetail(d) {
+    const st = statsFor(d.name), on = d.status !== "inaktiv", trialD = d.status === "auf Probe";
+    const kl = (d.klassen || []).map((c) => `<i class="${c === "GTP" ? "gtp" : ""}">${esc(c)}</i>`).join("");
+    const links = [d.iracing ? `<a class="hbtn" href="${esc(d.iracing)}">iRacing-Profil ↗</a>` : "", d.stream ? `<a class="hbtn ghost" href="${esc(d.stream)}">Stream ↗</a>` : ""].join("");
+    const hist = st.mine.map((r) => { const g = r.start ? r.start - r.ziel : null;
+      return `<a class="hrow" href="/rennen/${esc(r.id)}"><span class="hd">${esc(parseDate(r.datum) ? fmt(r.datum) : "–")}</span>
+        <span class="ht">${esc(r.titel)}<small>${[r.serie, r.klasse].filter(Boolean).map(esc).join(" · ")}</small></span>
+        <span class="hp ${+r.ziel <= 10 ? "top" : ""}">P${esc(r.ziel)}</span>
+        <span class="hg ${g > 0 ? "up" : g < 0 ? "dn" : ""}">${g == null ? "" : (g > 0 ? "+" : g < 0 ? "−" : "±") + Math.abs(g)}</span></a>`; }).join("");
+    return `<section class="dhero driver-hero ${on ? (trialD ? "trial" : "") : "off"}">
+      <div class="wrap"><div class="dh-main">
+        <div class="dh-photo">${d.foto ? `<img src="${esc(src(d.foto))}" alt="${esc(d.name)}">` : ""}<span>${esc(d.kuerzel || "")}</span></div>
+        <div class="dh-text"><span class="eyb"><span class="pill">${trialD ? "Auf Probe" : on ? "Aktiv" : "Inaktiv"}</span> · Fahrerprofil</span>
+          <h1 class="wide" id="d-title">${esc(d.name)}</h1>
+          <div class="meta">${esc(d.rolle || "")}</div>
+          <div class="dh-row"><span class="chips">${kl}</span></div>
+          <div class="dh-row">${links}${shareBtn()}</div></div></div>
+        <div class="result-box"><div><span class="lbl">Rennen</span><b>${st.total}</b></div><div><span class="lbl">Bestes</span><b class="r">${st.best ? "P" + st.best : "–"}</b></div><div><span class="lbl">Top 10</span><b>${st.top10}</b></div></div>
+      </div></section>
+      <div class="wrap dbody"><article class="prose">
+        ${d.zitat ? `<blockquote>${esc(d.zitat)}</blockquote>` : ""}
+        ${d.bio ? `<p>${esc(d.bio)}</p>` : ""}
+        <h2 style="margin-top:36px">Rennhistorie</h2>
+        ${hist ? `<div class="hist">${hist}</div>` : `<p class="pending">Noch keine gewerteten Rennen für Darkline.</p>`}
+      </article>
+      <aside class="aside">
+        ${(d.aufgaben || []).length ? `<div class="box"><span class="lbl">Aufgaben im Team</span><div class="crew">${d.aufgaben.map((t) => `<span>${esc(t)}</span>`).join("")}</div></div>` : ""}
+        <div class="box"><span class="lbl">Statistik</span><dl class="dstats">
+          <div><dt>Ø Zielposition</dt><dd>${st.avg ? "P" + st.avg.toFixed(1).replace(".", ",") : "–"}</dd></div>
+          <div><dt>Plätze gutgemacht</dt><dd class="${st.gained > 0 ? "up" : ""}">${st.total ? (st.gained > 0 ? "+" : "") + st.gained : "–"}</dd></div>
+          <div><dt>Gefahrene Klassen</dt><dd>${st.klassen.length ? st.klassen.map(esc).join(", ") : "–"}</dd></div>
+        </dl></div>
+        <div class="box"><a class="link" href="#lineup">← Zum Lineup</a></div>
       </aside></div>`;
   }
   function newsDetail(p) {
@@ -302,6 +346,7 @@
     if (m) {
       const id = decodeURIComponent(m[2]);
       if (m[1] === "rennen") { const r = D.races.find((x) => x.id === id); if (r) { document.title = r.titel + (r.ziel && r.status === "abgeschlossen" ? " – P" + r.ziel : "") + " · Darkline Performance Motorsport"; return openDetail(raceDetail(r), "klassement"); } }
+      if (m[1] === "fahrer") { const d = D.drivers.find((x) => slugify(x.name) === id); if (d) { document.title = d.name + " · Darkline Performance Motorsport"; return openDetail(driverDetail(d), "lineup"); } }
       if (m[1] === "news") { const p = D.posts.find((x) => x.id === id); if (p) { document.title = p.titel + " · Darkline Performance Motorsport"; return openDetail(newsDetail(p), "news"); } }
     }
     document.title = baseTitle;

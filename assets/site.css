@@ -469,3 +469,55 @@ footer nav a{display:inline-block;min-height:0;line-height:40px}
 .share{all:unset;cursor:pointer;justify-self:start;display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:11px 16px;border:1.5px solid var(--scan);background:rgba(8,9,10,.6);font:800 .78rem/1 var(--f-wide);font-variation-settings:"wdth" 115;text-transform:uppercase;color:var(--phos);transition:background .2s,border-color .2s,color .2s}
 .share:hover{background:var(--phos);border-color:var(--phos);color:var(--black)}
 .share:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+
+/* Lineup-Karten klickbar */
+.slot .card{position:relative}
+.slot h3 a.stretch{color:inherit;text-decoration:none}
+.slot h3 a.stretch::after{content:"";position:absolute;inset:0;z-index:1}
+.slot h3 a.stretch:focus-visible{outline:none}
+.slot .card:has(a.stretch:focus-visible){outline:2px solid var(--red);outline-offset:2px}
+.slot:not(.open) .card{transition:background .2s,transform .2s}
+.slot:not(.open) .card:hover{background:#1a1e20}
+.nums .profile-go{margin-left:auto;align-self:end;font:600 .7rem/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--phos-dim);transition:color .2s}
+.slot .card:hover .profile-go{color:var(--red)}
+
+/* FAHRERSEITE */
+.driver-hero .wrap{align-items:center}
+.dh-main{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:28px;align-items:center}
+.dh-photo{position:relative;aspect-ratio:1;overflow:hidden;background:#000;border-left:4px solid var(--red)}
+.driver-hero.trial .dh-photo{border-left-color:#ffb020}
+.driver-hero.off .dh-photo{border-left-color:var(--phos-dim)}
+.driver-hero.off .dh-photo img{filter:grayscale(1) brightness(.75)}
+.dh-photo img{width:100%;height:100%;object-fit:cover;object-position:center 20%}
+.dh-photo span{position:absolute;left:0;bottom:0;padding:6px 10px;background:var(--black);font:900 1rem/1 var(--f-wide);font-variation-settings:"wdth" 125;color:var(--phos)}
+.dh-text{display:grid;gap:10px;min-width:0}
+.dh-text .eyb{display:flex;align-items:center;gap:8px;color:var(--phos-dim)}
+.dh-text .eyb .pill{color:var(--phos)}
+.driver-hero.trial .pill::before{background:#ffb020;box-shadow:0 0 8px #ffb020}
+.driver-hero.off .pill::before{background:var(--phos-dim);box-shadow:none}
+.dh-text h1{margin:0;font-size:clamp(2.2rem,6vw,4.6rem)}
+.dh-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.dh-row .share{margin-top:0}
+.dh-row .hbtn{padding:11px 16px;font-size:.78rem}
+.hist{display:grid;border-top:2px solid var(--ink);margin-top:8px}
+.hrow{display:grid;grid-template-columns:6.4rem minmax(0,1fr) 3.4rem 3.4rem;gap:14px;align-items:center;padding:13px 4px;border-bottom:1px solid var(--rule);text-decoration:none;color:inherit;transition:background .15s}
+.hrow:hover{background:#181c1e}
+.hrow .hd{font:500 .78rem var(--f-mono);color:var(--muted)}
+.hrow .ht{font:800 1rem/1.15 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase}
+.hrow .ht small{display:block;margin-top:3px;font:400 .72rem var(--f-mono);letter-spacing:.03em;text-transform:none;color:var(--muted)}
+.hrow .hp{font:900 1.3rem/1 var(--f-wide);font-variation-settings:"wdth" 125;text-align:right}
+.hrow .hp.top{color:var(--red)}
+.hrow .hg{font:600 .85rem var(--f-mono);text-align:right;color:var(--muted)}
+.hrow .hg.up{color:#3fd277}.hrow .hg.dn{color:var(--red)}
+.dstats{display:grid;gap:10px;margin:0}
+.dstats div{display:flex;justify-content:space-between;gap:12px;padding-bottom:8px;border-bottom:1px solid var(--rule)}
+.dstats dt{font:500 .7rem/1.4 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.dstats dd{margin:0;font:800 1rem/1.2 var(--f-wide);font-variation-settings:"wdth" 110;text-align:right}
+.dstats dd.up{color:#3fd277}
+.aside .crew a{font:500 .66rem/1 var(--f-mono);padding:5px 6px;border:1px solid var(--rule);text-decoration:none;color:var(--phos);transition:border-color .2s,color .2s}
+.aside .crew a:hover{border-color:var(--red);color:var(--red)}
+@media (max-width:640px){.dh-main{grid-template-columns:110px minmax(0,1fr);gap:16px}.hrow{grid-template-columns:minmax(0,1fr) 3rem 3rem}.hrow .hd{grid-column:1/-1;margin-bottom:-6px}}
+.prose a.hrow{color:var(--phos)}
+.prose a.hrow:hover .ht{color:var(--red)}
+.dh-text h1{overflow-wrap:anywhere}
+@media (max-width:640px){.dh-text h1{font-size:clamp(1.7rem,8.2vw,2.6rem)}.dh-main{align-items:start}}
