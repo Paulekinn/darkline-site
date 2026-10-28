@@ -9,8 +9,8 @@
       "bild": "/img/cars/porsche.webp"
     },
     {
-      "marke": "Mercedes-AMG",
-      "modell": "GT3",
+      "marke": "Mercedes",
+      "modell": "AMG GT3",
       "klasse": "GT3",
       "motor": "V8",
       "antrieb": "Front-Mittel",

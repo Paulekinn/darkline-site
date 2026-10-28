@@ -162,18 +162,31 @@
 
   /* ---------- Garage ---------- */
   let selC = 0;
-  function renderCars() {
+  function renderCars(fromUser) {
     const cars = D.cars;
     $("cars-meta").textContent = `${cars.length} Team-Liverys`;
-    if (!cars.length) return;
-    selC = Math.min(selC, cars.length - 1);
-    $("carlist").innerHTML = cars.map((c, i) => `<li><button type="button" data-i="${i}" aria-pressed="${i === selC}"><span class="i">${String(i + 1).padStart(2, "0")}</span><span class="n">${esc(c.marke)} ${esc(c.modell)}</span></button></li>`).join("");
-    const c = cars[selC];
-    $("carimg").src = src(c.bild); $("carimg").alt = `${c.marke} ${c.modell} in Darkline-Livery`;
+    if (!cars.length) { $("showroom").hidden = true; return; }
+    selC = (selC + cars.length) % cars.length;
+    const c = cars[selC], pad = (n) => String(n).padStart(2, "0");
+    $("carlist").innerHTML = cars.map((x, i) => `<button type="button" role="tab" data-i="${i}" aria-selected="${i === selC}">
+      <span class="th">${x.bild ? `<img src="${esc(src(x.bild))}" alt="" loading="lazy">` : ""}</span>
+      <span class="tn"><span class="mono">${pad(i + 1)}</span>${esc(x.marke)} ${esc(x.modell)}</span></button>`).join("");
+    const img = $("carimg");
+    const swap = () => { img.src = src(c.bild); img.alt = `${c.marke} ${c.modell} in Darkline-Livery`; img.classList.remove("out"); };
+    if (fromUser && img.getAttribute("src")) { img.classList.add("out"); setTimeout(swap, 180); } else swap();
+    $("carcount").textContent = `${pad(selC + 1)} / ${pad(cars.length)}`;
     $("carmake").textContent = c.marke; $("carname").textContent = c.modell;
-    $("carspecs").innerHTML = [["Klasse", c.klasse], ["Motor", c.motor], ["Antrieb", c.antrieb]].filter((x) => x[1]).map((s) => `<div><span class="lbl">${s[0]}</span><b>${esc(s[1])}</b></div>`).join("");
+    $("carspecs").innerHTML = [["Klasse", c.klasse], ["Motor", c.motor], ["Antrieb", c.antrieb]].filter((x) => x[1]).map((s) => `<div><dt>${s[0]}</dt><dd>${esc(s[1])}</dd></div>`).join("");
+    $("car-prev").hidden = $("car-next").hidden = cars.length < 2;
   }
-  $("carlist").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { selC = +b.dataset.i; renderCars(); $("carlist").querySelector(`[data-i="${selC}"]`).focus(); } });
+  const goCar = (d) => { selC += d; renderCars(true); };
+  $("car-prev").addEventListener("click", () => goCar(-1));
+  $("car-next").addEventListener("click", () => goCar(1));
+  $("carlist").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { selC = +b.dataset.i; renderCars(true); $("carlist").querySelector(`[data-i="${selC}"]`).focus(); } });
+  $("showroom").addEventListener("keydown", (e) => { if (e.key === "ArrowRight") { e.preventDefault(); goCar(1); } if (e.key === "ArrowLeft") { e.preventDefault(); goCar(-1); } });
+  let tx = null;
+  $("carimg").parentElement.addEventListener("touchstart", (e) => { tx = e.touches[0].clientX; }, { passive: true });
+  $("carimg").parentElement.addEventListener("touchend", (e) => { if (tx == null) return; const dx = e.changedTouches[0].clientX - tx; if (Math.abs(dx) > 50) goCar(dx < 0 ? 1 : -1); tx = null; });
 
   /* ---------- Shop ---------- */
   function renderShop() {

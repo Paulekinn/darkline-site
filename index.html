@@ -96,15 +96,21 @@
         <div class="doc-meta lbl" id="cars-meta"></div>
         <p>Fahrzeug auswählen. Alle Liverys sind Teamdesigns von Paul Wiez und keinem Fahrer fest zugeordnet.</p>
       </div>
-      <div class="gsel">
-        <ul id="carlist"></ul>
-        <div class="stage">
+      <div class="showroom" id="showroom">
+        <div class="stage2">
+          <div class="spot" aria-hidden="true"></div>
           <img id="carimg" alt="" width="1440" height="960" decoding="async">
-          <div class="cap">
-            <div><span class="lbl" id="carmake"></span><h3 class="wide" id="carname"></h3></div>
-            <div class="specs" id="carspecs"></div>
-          </div>
+          <button type="button" class="nav-arrow prev" id="car-prev" aria-label="Vorheriges Fahrzeug">←</button>
+          <button type="button" class="nav-arrow next" id="car-next" aria-label="Nächstes Fahrzeug">→</button>
         </div>
+        <div class="carbar">
+          <div class="carid">
+            <span class="cnt mono" id="carcount">01 / 05</span>
+            <div><span class="lbl" id="carmake"></span><h3 class="wide" id="carname"></h3></div>
+          </div>
+          <dl class="carspecs" id="carspecs"></dl>
+        </div>
+        <div class="filmstrip" id="carlist" role="tablist" aria-label="Fahrzeug wählen"></div>
       </div>
     </div>
   </section>
