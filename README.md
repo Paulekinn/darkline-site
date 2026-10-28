@@ -32,15 +32,23 @@ vercel.json         Header für Vercel
 
 Aufruf: `https://www.darklineperformance.de/admin`
 
-**Anmeldung per Token (ohne zusätzlichen Server):**
+**Anmeldung mit GitHub (empfohlen):** Im Admin auf „Mit GitHub anmelden“ klicken. Der Login läuft über die Funktionen `api/auth.js` und `api/callback.js` in diesem Projekt.
 
-1. Jede Person, die pflegen soll, muss Mitglied (Collaborator) im GitHub-Repo sein.
-2. Auf GitHub: Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate new token.
-   - Repository access: *Only select repositories* → `darkline-site`
-   - Permissions → Repository permissions → **Contents: Read and write**
-3. Im Admin **„Mit Zugriffstoken anmelden“** wählen und den Token einfügen. (Der Button „Mit GitHub anmelden“ funktioniert erst mit dem optionalen OAuth-Helfer unten.)
+Einmalige Einrichtung:
+1. GitHub → Settings → Developer settings → **OAuth Apps → New OAuth App**
+   - Homepage URL: `https://darkline-site.vercel.app`
+   - Authorization callback URL: `https://darkline-site.vercel.app/api/callback`
+2. Client ID kopieren und ein **Client Secret** erzeugen.
+3. In Vercel → Projekt `darkline-site` → Settings → Environment Variables anlegen:
+   - `GITHUB_CLIENT_ID` = Client ID
+   - `GITHUB_CLIENT_SECRET` = Client Secret
+   - optional `ALLOWED_GITHUB_USERS` = erlaubte GitHub-Namen, Komma-getrennt (z. B. `Paulekinn,pascal-xyz`)
+4. Neu deployen (Deployments → Redeploy).
 
-Optional bequemer („Login with GitHub“-Button): einen OAuth-Helfer wie `sveltia-cms-auth` (Cloudflare Worker) einrichten und dessen Adresse als `base_url` unter `backend` in `admin/config.yml` eintragen.
+Wer pflegen soll, braucht ein GitHub-Konto mit Schreibrechten im Repo (Collaborator).
+Beim Domain-Umzug `base_url` in `admin/config.yml` sowie Homepage- und Callback-URL der OAuth App auf die neue Domain ändern.
+
+**Alternative ohne Einrichtung:** „Mit Zugriffstoken anmelden“ mit einem Fine-grained Token (Repository `darkline-site`, Contents: Read and write).
 
 **Ablauf:** Inhalt ändern → Speichern. Das CMS macht daraus einen Commit, Vercel veröffentlicht automatisch. Nach ca. 30–60 Sekunden ist die Änderung live.
 

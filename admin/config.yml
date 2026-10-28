@@ -5,6 +5,9 @@ backend:
   name: github
   repo: Paulekinn/darkline-site
   branch: main
+  # GitHub-Login über die eigene Vercel-Funktion (api/auth.js, api/callback.js)
+  base_url: https://darkline-site.vercel.app
+  auth_endpoint: api/auth
   commit_messages:
     update: "Admin: {{collection}} aktualisiert"
 
