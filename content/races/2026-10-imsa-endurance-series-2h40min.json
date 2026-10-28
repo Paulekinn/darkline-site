@@ -1,0 +1,20 @@
+{
+  "titel": "IMSA Endurance Series 2h40min",
+  "status": "geplant",
+  "datum": "2026-10-31",
+  "startzeit": "19:00",
+  "strecke": "Circuit des 24 Heures du Mans",
+  "serie": "IMSA Endurance Series",
+  "klasse": "GT3",
+  "fahrzeug": "",
+  "crew": [
+    "Pascal Rodenberg",
+    "Vanessa Peltré (Gast)"
+  ],
+  "start": null,
+  "ziel": null,
+  "fazit": "",
+  "banner": "/img/races/seriesid_419.png",
+  "bericht_titel": "",
+  "bericht": ""
+}
