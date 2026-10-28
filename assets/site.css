@@ -464,3 +464,8 @@ footer nav a{display:inline-flex;align-items:center;min-height:40px}
 .slot.trial .pill::before{background:#ffb020;box-shadow:0 0 8px #ffb020}
 footer nav{align-items:center;row-gap:0}footer nav > span{display:inline-block;line-height:40px}
 footer nav a{display:inline-block;min-height:0;line-height:40px}
+
+/* Teilen-Button in Rennbericht und News */
+.share{all:unset;cursor:pointer;justify-self:start;display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:11px 16px;border:1.5px solid var(--scan);background:rgba(8,9,10,.6);font:800 .78rem/1 var(--f-wide);font-variation-settings:"wdth" 115;text-transform:uppercase;color:var(--phos);transition:background .2s,border-color .2s,color .2s}
+.share:hover{background:var(--phos);border-color:var(--phos);color:var(--black)}
+.share:focus-visible{outline:2px solid var(--red);outline-offset:2px}

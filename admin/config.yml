@@ -55,7 +55,7 @@ collections:
     delete: true
     identifier_field: titel
     slug: "{{year}}-{{month}}-{{slug}}"
-    preview_path: "/#rennen-{{slug}}"
+    preview_path: "/rennen/{{slug}}"
     summary: "{{datum}} · {{titel}} · {{status}}"
     sortable_fields:
       fields: [datum, titel, status]
@@ -92,7 +92,7 @@ collections:
     delete: true
     identifier_field: titel
     slug: "{{year}}-{{month}}-{{slug}}"
-    preview_path: "/#news-{{slug}}"
+    preview_path: "/news/{{slug}}"
     summary: "{{datum}} · {{kategorie}} · {{titel}}"
     sortable_fields:
       fields: [datum, titel, kategorie]

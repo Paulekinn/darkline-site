@@ -68,7 +68,7 @@ Beim Domain-Umzug `base_url` in `admin/config.yml` sowie Homepage- und Callback-
 | Partner | Partner | Helles Logo auf transparentem Hintergrund. |
 | Links, Open Seat | Einstellungen | Discord, E-Mail, Socials, Open Seat ein/aus. |
 
-Der **Dateiname** eines Rennens oder Beitrags wird Teil des Links (`/#rennen-spa-24h-2026`, `/#news-…`). Neue Einträge bekommen ihn automatisch (Jahr-Monat-Titel).
+Der **Dateiname** eines Rennens oder Beitrags wird zur eigenen Adresse (`/rennen/spa-24h-2026`, `/news/…`). Neue Einträge bekommen ihn automatisch (Jahr-Monat-Titel). Beim Deploy entsteht für jede Seite eine Vorschaukarte für Discord, WhatsApp & Co. (Bild = Banner bzw. News-Bild).
 
 ## Lokal ansehen
 

@@ -67,7 +67,7 @@
     const n = upcoming()[0];
     const s = D.settings || {};
     if (n) {
-      $("nextrace").href = "#rennen-" + n.id;
+      $("nextrace").href = "/rennen/" + n.id;
       $("nr-title").textContent = n.titel;
       $("nr-meta").textContent = [parseDate(n.datum) ? fmt(n.datum) : "Datum folgt", n.startzeit ? n.startzeit + " Uhr" : "", n.serie, n.klasse].filter(Boolean).join(" · ");
       $("sess-text").textContent = "Nächstes Rennen: " + n.titel + (parseDate(n.datum) ? " · " + fmt(n.datum) : "");
@@ -130,7 +130,7 @@
   /* ---------- Kalender + Klassement ---------- */
   function renderCalendar() {
     const up = upcoming();
-    $("calendar").innerHTML = up.length ? up.map((r) => `<a href="#rennen-${esc(r.id)}">
+    $("calendar").innerHTML = up.length ? up.map((r) => `<a href="/rennen/${esc(r.id)}">
         <span class="d">${esc(fmt(r.datum))}<small>${esc(r.startzeit ? r.startzeit + " Uhr" : "Uhrzeit folgt")}</small></span>
         <span class="t">${esc(r.titel)}<small>${[r.serie, r.klasse, r.strecke].filter(Boolean).map(esc).join(" · ")}</small>${crewHtml(r)}</span>
         <span class="open lbl">Vorschau →</span></a>`).join("")
@@ -149,7 +149,7 @@
   function renderResults() {
     const fin = finished();
     $("results-meta").textContent = `${fin.length} Ergebnisse · ${upcoming().length} geplant`;
-    $("results").innerHTML = fin.map((r) => `<li><a class="row" href="#rennen-${esc(r.id)}">
+    $("results").innerHTML = fin.map((r) => `<li><a class="row" href="/rennen/${esc(r.id)}">
       <span class="fin ${+r.ziel <= 10 ? "top" : ""}">P${esc(r.ziel)}</span>
       <div class="ev">${esc(r.titel)}<small>${[r.serie, r.klasse, fmt(r.datum), r.fahrzeug].filter(Boolean).map(esc).join(" · ")}${r.fazit ? " · " + esc(r.fazit) : ""}</small>${crewHtml(r).replace('class="crew"', 'class="crew"')}</div>
       ${gainSvg(r)}
@@ -160,7 +160,7 @@
   let newsShown = 6;
   function renderNews() {
     const posts = [...D.posts].sort((a, b) => (parseDate(b.datum) || 0) - (parseDate(a.datum) || 0));
-    $("news-grid").innerHTML = posts.slice(0, newsShown).map((p) => `<a class="news-card" href="#news-${esc(p.id)}">
+    $("news-grid").innerHTML = posts.slice(0, newsShown).map((p) => `<a class="news-card" href="/news/${esc(p.id)}">
       <div class="im">${p.bild ? `<img src="${esc(src(p.bild))}" alt="" loading="lazy">` : ""}</div>
       <div class="tx"><div class="k"><b>${esc(p.kategorie || "News")}</b><span class="lbl">${esc(fmt(p.datum))}</span></div>
       <h3>${esc(p.titel)}</h3>${p.teaser ? `<p>${esc(p.teaser)}</p>` : ""}</div></a>`).join("") ||
@@ -227,15 +227,36 @@
     document.body.classList.add("locked");
     $("d-close").focus({ preventScroll: true });
   }
-  function closeDetail(updateHash) {
+  const detailPath = () => location.pathname.match(/^\/(rennen|news)\/([^/]+)\/?$/);
+  function closeDetail(updateUrl) {
     if ($("detail").hidden) return;
     $("detail").hidden = true; document.body.classList.remove("locked");
-    if (updateHash) history.replaceState(null, "", "#" + backTo);
+    if (updateUrl && detailPath()) history.pushState(null, "", "/#" + backTo);
     const sec = document.getElementById(backTo); if (sec) sec.scrollIntoView({ block: "start" });
     if (lastFocus && lastFocus.focus) lastFocus.focus({ preventScroll: true });
   }
   $("d-close").addEventListener("click", () => closeDetail(true));
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDetail(true); });
+
+  // Interne Links auf Rennberichte/News ohne Neuladen öffnen
+  document.addEventListener("click", (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target.closest("a[href]"); if (!a) return;
+    const href = a.getAttribute("href");
+    if (/^\/(rennen|news)\/[^/]+$/.test(href)) { e.preventDefault(); history.pushState(null, "", href); route(); return; }
+    if (href.startsWith("#") && a.closest("#detail")) { e.preventDefault(); backTo = href.slice(1); closeDetail(true); }
+  });
+
+  // Teilen
+  const shareBtn = () => `<button type="button" class="share" data-share>Teilen ↗</button>`;
+  $("detail").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-share]"); if (!b) return;
+    const url = location.origin + location.pathname, title = document.title;
+    if (navigator.share) { try { await navigator.share({ title, url }); } catch (err) {} return; }
+    try { await navigator.clipboard.writeText(url); b.textContent = "Link kopiert ✓"; }
+    catch (err) { window.prompt("Link kopieren:", url); }
+    setTimeout(() => { b.textContent = "Teilen ↗"; }, 2000);
+  });
 
   function raceDetail(r) {
     const done = r.status === "abgeschlossen" && r.ziel;
@@ -250,12 +271,13 @@
     return `<section class="dhero">${r.banner ? `<div class="bg"><img src="${esc(src(r.banner))}" alt=""></div>` : ""}
       <div class="wrap"><div><span class="eyb">${done ? "Rennbericht" : "Rennvorschau"} · ${esc(r.klasse || "")}</span>
       <h1 class="wide" id="d-title">${esc(r.titel)}</h1>
-      <div class="meta">${[r.serie, r.strecke, fmt(r.datum), r.startzeit ? r.startzeit + " Uhr" : "", r.fahrzeug].filter(Boolean).map(esc).join(" · ")}</div></div>${box}</div></section>
+      <div class="meta">${[r.serie, r.strecke, fmt(r.datum), r.startzeit ? r.startzeit + " Uhr" : "", r.fahrzeug].filter(Boolean).map(esc).join(" · ")}</div>
+      ${shareBtn()}</div>${box}</div></section>
       <div class="wrap dbody"><article class="prose">${r.bericht_titel ? `<h2>${esc(r.bericht_titel)}</h2>` : ""}${body || `<p class="pending">${done ? "Der ausführliche Rennbericht folgt." : "Die Rennvorschau mit Lineup und Stream-Infos folgt."}</p>`}</article>
       <aside class="aside">
         ${r.crew && r.crew.length ? `<div class="box"><span class="lbl">Fahrer</span><div class="crew">${r.crew.map((c) => `<span>${esc(c)}</span>`).join("")}</div></div>` : ""}
         ${r.fazit ? `<div class="box"><span class="lbl">Kurzfazit</span><p style="margin:0">${esc(r.fazit)}</p></div>` : ""}
-        ${related.length ? `<div class="box"><span class="lbl">Passende News</span>${related.map((p) => `<a class="link" href="#news-${esc(p.id)}">${esc(p.titel)} →</a>`).join("")}</div>` : ""}
+        ${related.length ? `<div class="box"><span class="lbl">Passende News</span>${related.map((p) => `<a class="link" href="/news/${esc(p.id)}">${esc(p.titel)} →</a>`).join("")}</div>` : ""}
         <div class="box"><a class="link" href="#klassement">← Zum Klassement</a></div>
       </aside></div>`;
   }
@@ -264,21 +286,29 @@
     return `<section class="dhero">${p.bild ? `<div class="bg"><img src="${esc(src(p.bild))}" alt=""></div>` : ""}
       <div class="wrap"><div><span class="eyb">${esc(p.kategorie || "News")} · ${esc(fmt(p.datum))}</span>
       <h1 class="wide" id="d-title" style="font-size:clamp(2rem,5.5vw,4.2rem)">${esc(p.titel)}</h1>
-      ${p.teaser ? `<div class="meta" style="max-width:60ch;font-family:var(--f-wide);font-size:1rem;letter-spacing:0">${esc(p.teaser)}</div>` : ""}</div></div></section>
+      ${p.teaser ? `<div class="meta" style="max-width:60ch;font-family:var(--f-wide);font-size:1rem;letter-spacing:0">${esc(p.teaser)}</div>` : ""}
+      ${shareBtn()}</div></div></section>
       <div class="wrap dbody"><article class="prose">${md(p.inhalt) || `<p class="pending">Kein weiterer Text.</p>`}</article>
       <aside class="aside">
-        ${race ? `<div class="box"><span class="lbl">Zum Rennen</span><a class="link" href="#rennen-${esc(race.id)}">${esc(race.titel)}${race.ziel ? " · P" + esc(race.ziel) : ""} →</a></div>` : ""}
+        ${race ? `<div class="box"><span class="lbl">Zum Rennen</span><a class="link" href="/rennen/${esc(race.id)}">${esc(race.titel)}${race.ziel ? " · P" + esc(race.ziel) : ""} →</a></div>` : ""}
         <div class="box"><a class="link" href="#news">← Alle News</a></div>
       </aside></div>`;
   }
+  const baseTitle = document.title;
   function route() {
-    const h = decodeURIComponent(location.hash.slice(1));
-    let m;
-    if ((m = h.match(/^rennen-(.+)$/))) { const r = D.races.find((x) => x.id === m[1]); if (r) return openDetail(raceDetail(r), "klassement"); }
-    if ((m = h.match(/^news-(.+)$/))) { const p = D.posts.find((x) => x.id === m[1]); if (p) return openDetail(newsDetail(p), "news"); }
+    let m = detailPath();
+    const legacy = decodeURIComponent(location.hash.slice(1)).match(/^(rennen|news)-(.+)$/);
+    if (!m && legacy) { history.replaceState(null, "", "/" + legacy[1] + "/" + legacy[2]); m = detailPath(); }
+    if (m) {
+      const id = decodeURIComponent(m[2]);
+      if (m[1] === "rennen") { const r = D.races.find((x) => x.id === id); if (r) { document.title = r.titel + (r.ziel && r.status === "abgeschlossen" ? " – P" + r.ziel : "") + " · Darkline Performance Motorsport"; return openDetail(raceDetail(r), "klassement"); } }
+      if (m[1] === "news") { const p = D.posts.find((x) => x.id === id); if (p) { document.title = p.titel + " · Darkline Performance Motorsport"; return openDetail(newsDetail(p), "news"); } }
+    }
+    document.title = baseTitle;
     closeDetail(false);
   }
-  window.addEventListener("hashchange", route);
+  window.addEventListener("popstate", route);
+  window.addEventListener("hashchange", () => { if (/^#(rennen|news)-/.test(location.hash)) route(); });
 
   /* ---------- Start ---------- */
   (async function init() {
@@ -293,6 +323,6 @@
       shop: shop || {},
     };
     applySettings(); renderPitwall(); renderDrivers(); renderCalendar(); renderResults(); renderNews(); renderCars(); renderShop(); renderPartners();
-    if (/^(rennen|news)-/.test(location.hash.slice(1))) route();
+    if (detailPath() || /^#(rennen|news)-/.test(location.hash)) route();
   })();
 })();
