@@ -37,7 +37,7 @@ collections:
               - { name: name, label: Name, widget: string, hint: "Genau so schreiben wie bei den Rennen (für Starts und bestes Ergebnis)." }
               - { name: kuerzel, label: Kürzel, widget: string, hint: "z. B. PW" }
               - { name: rolle, label: Rolle, widget: string, hint: "z. B. Fahrer · Team Designer" }
-              - { name: klassen, label: Klassen, widget: select, multiple: true, options: [GT3, GTP] }
+              - { name: klassen, label: Klassen, widget: select, multiple: true, options: [GT3, GT4, LMP, GTP] }
               - { name: status, label: Status, widget: select, options: [aktiv, inaktiv], default: aktiv }
               - { name: zitat, label: Zitat, widget: text, required: false }
               - { name: foto, label: Foto, widget: image, required: false, media_folder: /img/drivers, public_folder: /img/drivers, hint: "Quadratisch, mind. 600 × 600 px" }
@@ -60,7 +60,7 @@ collections:
               - { name: titel, label: Rennen, widget: string, hint: "z. B. 24 Hours of Spa" }
               - { name: strecke, label: Strecke, widget: string, required: false }
               - { name: serie, label: Serie, widget: string, required: false }
-              - { name: klasse, label: Klasse, widget: select, options: [GT3, GTP, Multiclass, Supercars, Andere], default: GT3 }
+              - { name: klasse, label: Klasse, widget: select, options: [GT3, GT4, LMP, GTP, Multiclass, Supercars, Andere], default: GT3 }
               - { name: datum, label: Datum, widget: datetime, format: "YYYY-MM-DD", date_format: "DD.MM.YYYY", time_format: false, required: false }
               - { name: startzeit, label: Startzeit, widget: string, required: false, hint: "z. B. 15:00" }
               - { name: status, label: Status, widget: select, options: [geplant, abgeschlossen], default: geplant, hint: "Geplant = erscheint im Kalender. Abgeschlossen = erscheint im Klassement." }
@@ -112,7 +112,7 @@ collections:
             fields:
               - { name: marke, label: Marke, widget: string }
               - { name: modell, label: Modell, widget: string }
-              - { name: klasse, label: Klasse, widget: select, options: [GT3, GTP, Andere], default: GT3 }
+              - { name: klasse, label: Klasse, widget: select, options: [GT3, GT4, LMP, GTP, Andere], default: GT3 }
               - { name: motor, label: Motor, widget: string, required: false }
               - { name: antrieb, label: Antrieb, widget: string, required: false }
               - { name: bild, label: Livery-Bild, widget: image, media_folder: /img/cars, public_folder: /img/cars, hint: "Querformat 3:2, mind. 1440 px breit" }
