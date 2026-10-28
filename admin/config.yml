@@ -23,6 +23,7 @@ collections:
   # ---------------- FAHRER ----------------
   - name: team
     label: Fahrer
+    editor: { preview: false }
     files:
       - name: drivers
         label: Lineup (Fahrer)
@@ -43,62 +44,75 @@ collections:
               - { name: foto, label: Foto, widget: image, required: false, media_folder: /img/drivers, public_folder: /img/drivers, hint: "Quadratisch, mind. 600 × 600 px" }
 
   # ---------------- RENNEN ----------------
+  # Jedes Rennen ist eine eigene Datei in content/races/ (Dateiname = Link, z. B. /#rennen-spa-24h-2026)
   - name: rennen
     label: Rennen & Berichte
-    files:
-      - name: races
-        label: Kalender & Klassement
-        file: content/races.json
-        fields:
-          - name: races
-            label: Rennen
-            label_singular: Rennen
-            widget: list
-            summary: "{{fields.datum}} · {{fields.titel}} · {{fields.status}}"
-            fields:
-              - { name: id, label: Kennung, widget: string, pattern: ["^[a-z0-9-]+$", "Nur Kleinbuchstaben, Zahlen und Bindestriche"], hint: "Eindeutig, wird Teil des Links, z. B. spa-24h-2027" }
-              - { name: titel, label: Rennen, widget: string, hint: "z. B. 24 Hours of Spa" }
-              - { name: strecke, label: Strecke, widget: string, required: false }
-              - { name: serie, label: Serie, widget: string, required: false }
-              - { name: klasse, label: Klasse, widget: select, options: [GT3, GT4, LMP, GTP, Multiclass, Supercars, Andere], default: GT3 }
-              - { name: datum, label: Datum, widget: datetime, format: "YYYY-MM-DD", date_format: "DD.MM.YYYY", time_format: false, required: false }
-              - { name: startzeit, label: Startzeit, widget: string, required: false, hint: "z. B. 15:00" }
-              - { name: status, label: Status, widget: select, options: [geplant, abgeschlossen], default: geplant, hint: "Geplant = erscheint im Kalender. Abgeschlossen = erscheint im Klassement." }
-              - { name: start, label: Startplatz, widget: number, value_type: int, min: 1, required: false }
-              - { name: ziel, label: Zielposition, widget: number, value_type: int, min: 1, required: false }
-              - { name: fahrzeug, label: Fahrzeug, widget: string, required: false }
-              - { name: crew, label: Fahrer im Auto, label_singular: Fahrer, widget: list, required: false, hint: "Namen wie im Lineup. Gäste z. B. als 'Name (Gast)'." }
-              - { name: fazit, label: Kurzfazit, widget: string, required: false, hint: "Ein Satz für das Klassement" }
-              - { name: banner, label: Bannerbild, widget: image, required: false, media_folder: /img/races, public_folder: /img/races }
-              - { name: bericht_titel, label: Überschrift Bericht, widget: string, required: false }
-              - { name: bericht, label: Rennbericht / Vorschau, widget: markdown, required: false }
+    label_singular: Rennen
+    folder: content/races
+    extension: json
+    format: json
+    create: true
+    delete: true
+    identifier_field: titel
+    slug: "{{year}}-{{month}}-{{slug}}"
+    summary: "{{datum}} · {{titel}} · {{status}}"
+    sortable_fields:
+      fields: [datum, titel, status]
+      default: { field: datum, direction: descending }
+    view_filters:
+      - { label: Geplant, field: status, pattern: geplant }
+      - { label: Abgeschlossen, field: status, pattern: abgeschlossen }
+    editor: { preview: false }
+    fields:
+      - { name: titel, label: Rennen, widget: string, hint: "z. B. 24 Hours of Spa" }
+      - { name: status, label: Status, widget: select, options: [geplant, abgeschlossen], default: geplant, hint: "Geplant = Kalender und 'Nächstes Rennen'. Abgeschlossen = Klassement." }
+      - { name: datum, label: Datum, widget: datetime, format: "YYYY-MM-DD", date_format: "DD.MM.YYYY", time_format: false, required: false }
+      - { name: startzeit, label: Startzeit, widget: string, required: false, hint: "z. B. 15:00" }
+      - { name: strecke, label: Strecke, widget: string, required: false }
+      - { name: serie, label: Serie, widget: string, required: false }
+      - { name: klasse, label: Klasse, widget: select, options: [GT3, GT4, LMP, GTP, Multiclass, Supercars, Andere], default: GT3 }
+      - { name: fahrzeug, label: Fahrzeug, widget: string, required: false }
+      - { name: crew, label: Fahrer im Auto, label_singular: Fahrer, widget: list, required: false, hint: "Namen wie im Lineup. Gäste z. B. als 'Name (Gast)'." }
+      - { name: start, label: Startplatz, widget: number, value_type: int, min: 1, required: false }
+      - { name: ziel, label: Zielposition, widget: number, value_type: int, min: 1, required: false, hint: "Bei abgeschlossenen Rennen eintragen" }
+      - { name: fazit, label: Kurzfazit, widget: string, required: false, hint: "Ein Satz für das Klassement" }
+      - { name: banner, label: Bannerbild, widget: image, required: false, media_folder: /img/races, public_folder: /img/races }
+      - { name: bericht_titel, label: Überschrift Bericht, widget: string, required: false }
+      - { name: bericht, label: Rennbericht / Vorschau, widget: markdown, required: false }
 
   # ---------------- NEWS ----------------
   - name: news
     label: News
-    files:
-      - name: posts
-        label: Alle News
-        file: content/news.json
-        fields:
-          - name: posts
-            label: Beiträge
-            label_singular: Beitrag
-            widget: list
-            summary: "{{fields.datum}} · {{fields.titel}}"
-            fields:
-              - { name: id, label: Kennung, widget: string, pattern: ["^[a-z0-9-]+$", "Nur Kleinbuchstaben, Zahlen und Bindestriche"], hint: "Wird Teil des Links, z. B. spa-24h-vorschau" }
-              - { name: titel, label: Titel, widget: string }
-              - { name: kategorie, label: Kategorie, widget: select, options: [Rennvorschau, Rennbericht, Team, Fahrer, Partner], default: Team }
-              - { name: datum, label: Datum, widget: datetime, format: "YYYY-MM-DD", date_format: "DD.MM.YYYY", time_format: false }
-              - { name: teaser, label: Kurztext, widget: text, required: false }
-              - { name: bild, label: Bild, widget: image, required: false, media_folder: /img/news, public_folder: /img/news }
-              - { name: rennen, label: Zugehöriges Rennen (Kennung), widget: string, required: false, hint: "Optional, z. B. spa-24h-2026" }
-              - { name: inhalt, label: Text, widget: markdown, required: false }
+    label_singular: Beitrag
+    folder: content/news
+    extension: json
+    format: json
+    create: true
+    delete: true
+    identifier_field: titel
+    slug: "{{year}}-{{month}}-{{slug}}"
+    summary: "{{datum}} · {{kategorie}} · {{titel}}"
+    sortable_fields:
+      fields: [datum, titel, kategorie]
+      default: { field: datum, direction: descending }
+    view_filters:
+      - { label: Rennberichte, field: kategorie, pattern: Rennbericht }
+      - { label: Rennvorschauen, field: kategorie, pattern: Rennvorschau }
+      - { label: Team, field: kategorie, pattern: Team }
+    editor: { preview: false }
+    fields:
+      - { name: titel, label: Titel, widget: string }
+      - { name: kategorie, label: Kategorie, widget: select, options: [Rennvorschau, Rennbericht, Team, Fahrer, Partner], default: Team }
+      - { name: datum, label: Datum, widget: datetime, format: "YYYY-MM-DD", date_format: "DD.MM.YYYY", time_format: false }
+      - { name: teaser, label: Kurztext, widget: text, required: false }
+      - { name: bild, label: Bild, widget: image, required: false, media_folder: /img/news, public_folder: /img/news }
+      - { name: rennen, label: Zugehöriges Rennen, widget: relation, collection: rennen, value_field: "{{slug}}", search_fields: [titel], display_fields: ["{{datum}} · {{titel}}"], required: false }
+      - { name: inhalt, label: Text, widget: markdown, required: false }
 
   # ---------------- GARAGE ----------------
   - name: garage
     label: Garage
+    editor: { preview: false }
     files:
       - name: cars
         label: Fahrzeuge
@@ -120,6 +134,7 @@ collections:
   # ---------------- SHOP ----------------
   - name: shop
     label: Shop
+    editor: { preview: false }
     files:
       - name: products
         label: Darkline Wear
@@ -142,6 +157,7 @@ collections:
   # ---------------- PARTNER ----------------
   - name: partner
     label: Partner
+    editor: { preview: false }
     files:
       - name: partners
         label: Partner
@@ -162,6 +178,7 @@ collections:
   # ---------------- EINSTELLUNGEN ----------------
   - name: einstellungen
     label: Einstellungen
+    editor: { preview: false }
     files:
       - name: settings
         label: Links & Recruiting

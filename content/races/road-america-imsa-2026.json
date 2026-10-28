@@ -1,0 +1,19 @@
+{
+  "titel": "Road America",
+  "strecke": "Road America",
+  "serie": "IMSA Endurance Series",
+  "klasse": "GT3",
+  "datum": "2026-07-18",
+  "startzeit": "09:00",
+  "status": "abgeschlossen",
+  "start": 6,
+  "ziel": 10,
+  "fahrzeug": "Mercedes-AMG GT3",
+  "crew": [
+    "Tizian Belger"
+  ],
+  "fazit": "2:40 Stunden Renndistanz, 26 Teams am Start.",
+  "banner": "/img/races/road-america.webp",
+  "bericht_titel": "Solider GT3-Einsatz in der IMSA Endurance Series",
+  "bericht": "Tizian Belger absolvierte am 18.07.2026 ein 2 Stunden und 40 Minuten langes Rennen auf Road America in der IMSA Endurance Series.\n\nGefahren wurde der Mercedes-AMG GT3. Insgesamt gingen 26 Teams an den Start, entsprechend eng war das Feld über die gesamte Renndistanz.\n\nTizian startete von P6 und hielt sich lange im vorderen Bereich des GT3-Feldes. Am Ende stand nach einem intensiven Rennen ein solider 10. Platz. Auch wenn durch Startplatz 6 mehr möglich schien, bringt der Einsatz wichtige Rennkilometer, Erfahrung und Daten für die kommenden GT3-Rennen."
+}

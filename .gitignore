@@ -1,2 +1,4 @@
 .DS_Store
 node_modules/
+content/races.json
+content/news.json

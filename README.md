@@ -6,7 +6,10 @@ Statische Website ohne Build-Schritt. Alle Inhalte (Fahrer, Rennen mit Berichten
 index.html          Seite
 assets/site.css     Design
 assets/site.js      lädt content/*.json und baut die Seite auf
-content/            drivers.json · races.json · news.json · cars.json · settings.json
+content/            drivers.json · cars.json · shop.json · partners.json · settings.json
+content/races/      ein Rennen pro Datei (Dateiname = Link)
+content/news/       ein Beitrag pro Datei
+scripts/            build-content.js fasst Rennen und News beim Deploy zusammen
 img/                Logo, Fahrerfotos, Liverys, Partnerlogos, Rennbanner
 img/news/ …         Bilder aus dem Admin landen im passenden Unterordner
 admin/              Admin-Bereich (Sveltia CMS) + config.yml
@@ -65,11 +68,12 @@ Beim Domain-Umzug `base_url` in `admin/config.yml` sowie Homepage- und Callback-
 | Partner | Partner | Helles Logo auf transparentem Hintergrund. |
 | Links, Open Seat | Einstellungen | Discord, E-Mail, Socials, Open Seat ein/aus. |
 
-Die **Kennung** eines Rennens oder Beitrags wird Teil des Links (`/#rennen-spa-24h-2026`, `/#news-…`) und sollte nach dem Veröffentlichen nicht mehr geändert werden.
+Der **Dateiname** eines Rennens oder Beitrags wird Teil des Links (`/#rennen-spa-24h-2026`, `/#news-…`). Neue Einträge bekommen ihn automatisch (Jahr-Monat-Titel).
 
 ## Lokal ansehen
 
 ```
+node scripts/build-content.js
 python3 -m http.server 8000
 ```
 Dann `http://localhost:8000` öffnen (direkt per Doppelklick funktioniert es nicht, weil die Inhalte nachgeladen werden).

@@ -1,0 +1,20 @@
+{
+  "titel": "6 Hours of the Glen",
+  "strecke": "Watkins Glen",
+  "serie": "GT3 Endurance",
+  "klasse": "GT3",
+  "datum": "",
+  "startzeit": "",
+  "status": "abgeschlossen",
+  "start": null,
+  "ziel": 5,
+  "fahrzeug": "",
+  "crew": [
+    "Paul Wiez",
+    "Chris Patrick Lammers"
+  ],
+  "fazit": "Erstes Endurance-Rennen, starke Leistung.",
+  "banner": "/img/races/watkins-glen.webp",
+  "bericht_titel": "Sauberes Endurance-Debüt mit starkem Ergebnis",
+  "bericht": ""
+}
