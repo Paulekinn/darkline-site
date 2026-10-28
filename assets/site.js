@@ -63,7 +63,7 @@
       $("nextrace").href = "#rennen-" + n.id;
       $("nr-title").textContent = n.titel;
       $("nr-meta").textContent = [parseDate(n.datum) ? fmt(n.datum) : "Datum folgt", n.startzeit ? n.startzeit + " Uhr" : "", n.serie, n.klasse].filter(Boolean).join(" · ");
-      $("sess-text").textContent = "Saison " + year + " · Nächstes Rennen: " + n.titel + (parseDate(n.datum) ? " · " + fmt(n.datum) : "");
+      $("sess-text").textContent = "Nächstes Rennen: " + n.titel + (parseDate(n.datum) ? " · " + fmt(n.datum) : "");
       const start = startOf(n);
       const tick = () => {
         const ms = start ? start - new Date() : -1;
@@ -78,7 +78,7 @@
       $("nr-title").textContent = "In Planung";
       $("nr-meta").textContent = "Termine kündigen wir zuerst im Discord an →";
       $("nr-cd").hidden = true;
-      $("sess-text").textContent = "Saison " + year + " · Nächstes Rennen in Planung";
+      $("sess-text").textContent = "Nächstes Rennen: in Planung";
     }
     const fin = finished();
     const thisYear = fin.filter((r) => { const d = parseDate(r.datum); return !d || d.getFullYear() === year; });
