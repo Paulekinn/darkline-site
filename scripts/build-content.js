@@ -55,6 +55,7 @@ function writePage(dir, id, meta) {
   const html = template
     .replace(/<title>[\s\S]*?<\/title>\n?/, "")
     .replace(/<meta name="description"[^>]*>\n?/, "")
+    .replace(/<link rel="canonical"[^>]*>\n?/, "")
     .replace(/<meta property="og:[^>]*>\n?/g, "")
     .replace(/<meta name="twitter:card"[^>]*>\n?/, "")
     .replace(/<meta name="theme-color"[^>]*>\n?/, "")
@@ -103,6 +104,26 @@ for (const d of drivers) {
   });
 }
 console.log(`Seiten: ${races.length} Rennen, ${posts.length} News, ${drivers.length} Fahrer`);
+
+// ---------- Sitemap für Suchmaschinen: /sitemap.xml ----------
+const sitemapUrls = [
+  { loc: `${SITE}/` },
+  ...races.map((r) => ({ loc: `${SITE}/rennen/${r.id}`, lastmod: r.datum })),
+  ...posts.map((p) => ({ loc: `${SITE}/news/${p.id}`, lastmod: p.datum })),
+  ...drivers.map((d) => ({ loc: `${SITE}/fahrer/${slugify(d.name)}` })),
+  { loc: `${SITE}/impressum` },
+  { loc: `${SITE}/datenschutz` },
+];
+fs.writeFileSync(path.join(ROOT, "sitemap.xml"), [
+  '<?xml version="1.0" encoding="UTF-8"?>',
+  '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+  ...sitemapUrls.map((u) => {
+    const lm = String(u.lastmod || "").match(/^\d{4}-\d{2}-\d{2}/);
+    return `  <url><loc>${esc(u.loc)}</loc>${lm ? `<lastmod>${lm[0]}</lastmod>` : ""}</url>`;
+  }),
+  "</urlset>",
+].join("\n") + "\n");
+console.log(`sitemap.xml: ${sitemapUrls.length} Adressen`);
 
 // ---------- Kalender zum Abonnieren: /kalender.ics ----------
 function parseDur(v) {
