@@ -24,23 +24,23 @@ vercel.json         Header für Vercel
 
 ## 2. Mit Vercel verbinden
 
-1. Erledigt: Vercel-Projekt `darkline-site` ist mit dem Repo verbunden, jeder Push auf `main` geht live (https://darkline-site.vercel.app).
+1. Erledigt: Vercel-Projekt `darkline-site` ist mit dem Repo verbunden, jeder Push auf `main` geht live (https://darklineperformance.de).
 2. Framework Preset: **Other**. Build Command und Output Directory leer lassen.
 3. Deploy.
-4. Domain umziehen: Im **alten** Vercel-Projekt unter Settings → Domains `darklineperformance.de` (und `www.`) entfernen, dann im **neuen** Projekt hinzufügen.
+4. Erledigt: `darklineperformance.de` hängt am Projekt `darkline-site`, `www.` leitet darauf weiter. DNS liegt bei IONOS (A-Record auf Vercel).
 
 > Impressum und Datenschutz liegen als `impressum.html` und `datenschutz.html` im Repo. Bei neuen Funktionen (Analytics, Einbettungen, Formulare) die Datenschutzerklärung anpassen.
 
 ## 3. Admin-Bereich benutzen
 
-Aufruf: `https://www.darklineperformance.de/admin`
+Aufruf: `https://darklineperformance.de/admin`
 
 **Anmeldung mit GitHub (empfohlen):** Im Admin auf „Mit GitHub anmelden“ klicken. Der Login läuft über die Funktionen `api/auth.js` und `api/callback.js` in diesem Projekt.
 
 Einmalige Einrichtung:
 1. GitHub → Settings → Developer settings → **OAuth Apps → New OAuth App**
-   - Homepage URL: `https://darkline-site.vercel.app`
-   - Authorization callback URL: `https://darkline-site.vercel.app/api/callback`
+   - Homepage URL: `https://darklineperformance.de`
+   - Authorization callback URL: `https://darklineperformance.de/api/callback`
 2. Client ID kopieren und ein **Client Secret** erzeugen.
 3. In Vercel → Projekt `darkline-site` → Settings → Environment Variables anlegen:
    - `GITHUB_CLIENT_ID` = Client ID

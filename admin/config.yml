@@ -6,7 +6,7 @@ backend:
   repo: Paulekinn/darkline-site
   branch: main
   # GitHub-Login über die eigene Vercel-Funktion (api/auth.js, api/callback.js)
-  base_url: https://darkline-site.vercel.app
+  base_url: https://darklineperformance.de
   auth_endpoint: api/auth
   commit_messages:
     update: "Admin: {{collection}} aktualisiert"
@@ -15,9 +15,8 @@ backend:
 media_folder: img
 public_folder: /img
 
-# Solange die Domain noch nicht umgezogen ist, auf die Vercel-Adresse zeigen
-site_url: https://darkline-site.vercel.app
-display_url: https://darkline-site.vercel.app
+site_url: https://darklineperformance.de
+display_url: https://darklineperformance.de
 logo_url: /img/brand/logo.webp
 
 collections:
