@@ -15,8 +15,9 @@ backend:
 media_folder: img
 public_folder: /img
 
-site_url: https://www.darklineperformance.de
-display_url: https://www.darklineperformance.de
+# Solange die Domain noch nicht umgezogen ist, auf die Vercel-Adresse zeigen
+site_url: https://darkline-site.vercel.app
+display_url: https://darkline-site.vercel.app
 logo_url: /img/brand/logo.webp
 
 collections:
@@ -55,6 +56,7 @@ collections:
     delete: true
     identifier_field: titel
     slug: "{{year}}-{{month}}-{{slug}}"
+    preview_path: "/#rennen-{{slug}}"
     summary: "{{datum}} · {{titel}} · {{status}}"
     sortable_fields:
       fields: [datum, titel, status]
@@ -91,6 +93,7 @@ collections:
     delete: true
     identifier_field: titel
     slug: "{{year}}-{{month}}-{{slug}}"
+    preview_path: "/#news-{{slug}}"
     summary: "{{datum}} · {{kategorie}} · {{titel}}"
     sortable_fields:
       fields: [datum, titel, kategorie]
