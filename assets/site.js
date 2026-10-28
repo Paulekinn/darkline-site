@@ -104,17 +104,19 @@
 
   /* ---------- Lineup ---------- */
   function renderDrivers() {
-    const list = [...D.drivers].sort((a, b) => (a.status === "inaktiv") - (b.status === "inaktiv"));
-    const active = list.filter((d) => d.status !== "inaktiv").length;
+    const rank = { aktiv: 0, "auf Probe": 1, inaktiv: 2 };
+    const list = [...D.drivers].sort((a, b) => (rank[a.status] ?? 0) - (rank[b.status] ?? 0));
+    const active = list.filter((d) => (d.status || "aktiv") === "aktiv").length;
+    const trial = list.filter((d) => d.status === "auf Probe").length;
     const s = D.settings || {};
     const year = today.getFullYear();
-    $("entries-meta").textContent = `${list.length} Fahrer · ${active} aktiv${s.open_seat !== false ? " · 1 Open Seat" : ""}`;
+    $("entries-meta").textContent = `${list.length} Fahrer · ${active} aktiv${trial ? " · " + trial + " auf Probe" : ""}${s.open_seat !== false ? " · 1 Open Seat" : ""}`;
     let html = list.map((d) => {
-      const st = statsFor(d.name), on = d.status !== "inaktiv";
+      const st = statsFor(d.name), on = d.status !== "inaktiv", trialD = d.status === "auf Probe";
       const kl = (d.klassen || []).map((c) => `<i class="${c === "GTP" ? "gtp" : ""}">${esc(c)}</i>`).join("");
-      return `<article class="slot ${on ? "" : "off"}"><span class="gp" aria-hidden="true">${esc(d.kuerzel || "")}</span>
+      return `<article class="slot ${on ? (trialD ? "trial" : "") : "off"}"><span class="gp" aria-hidden="true">${esc(d.kuerzel || "")}</span>
         <div class="card"><div class="ph">${d.foto ? `<img src="${esc(src(d.foto))}" alt="${esc(d.name)}" loading="lazy">` : ""}</div>
-        <div class="bd"><div class="st"><span class="pill">${on ? "Aktiv" : "Inaktiv"}</span><span class="chips">${kl}</span></div>
+        <div class="bd"><div class="st"><span class="pill">${trialD ? "Auf Probe" : on ? "Aktiv" : "Inaktiv"}</span><span class="chips">${kl}</span></div>
         <h3 class="wide">${esc(d.name)}</h3><span class="role">${esc(d.rolle || "")}</span>
         ${d.zitat ? `<blockquote>${esc(d.zitat)}</blockquote>` : ""}
         <div class="nums"><div><span class="lbl">Starts ${year}</span><b>${st.starts}</b></div><div><span class="lbl">Bestes Ergebnis</span><b>${st.best ? "P" + st.best : "–"}</b></div></div></div></div></article>`;

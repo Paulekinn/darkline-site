@@ -38,7 +38,7 @@ collections:
               - { name: kuerzel, label: Kürzel, widget: string, hint: "z. B. PW" }
               - { name: rolle, label: Rolle, widget: string, hint: "z. B. Fahrer · Team Designer" }
               - { name: klassen, label: Klassen, widget: select, multiple: true, options: [GT3, GT4, LMP, GTP] }
-              - { name: status, label: Status, widget: select, options: [aktiv, inaktiv], default: aktiv }
+              - { name: status, label: Status, widget: select, options: [aktiv, auf Probe, inaktiv], default: aktiv }
               - { name: zitat, label: Zitat, widget: text, required: false }
               - { name: foto, label: Foto, widget: image, required: false, media_folder: /img/drivers, public_folder: /img/drivers, hint: "Quadratisch, mind. 600 × 600 px" }
 

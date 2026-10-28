@@ -458,3 +458,7 @@ main > section + section{border-top:1px solid var(--scan)}
   .fin{font-size:1.75rem}
 }
 footer nav a{display:inline-flex;align-items:center;min-height:40px}
+
+/* Fahrer auf Probe */
+.slot.trial .card{border-left-color:#ffb020}
+.slot.trial .pill::before{background:#ffb020;box-shadow:0 0 8px #ffb020}
