@@ -8,8 +8,9 @@ backend:
   commit_messages:
     update: "Admin: {{collection}} aktualisiert"
 
-media_folder: img/uploads
-public_folder: /img/uploads
+# Alle Bilder liegen unter img/ (auch in Unterordnern) – so findet der Admin sie für die Vorschau
+media_folder: img
+public_folder: /img
 
 site_url: https://www.darklineperformance.de
 display_url: https://www.darklineperformance.de
@@ -36,7 +37,7 @@ collections:
               - { name: klassen, label: Klassen, widget: select, multiple: true, options: [GT3, GTP] }
               - { name: status, label: Status, widget: select, options: [aktiv, inaktiv], default: aktiv }
               - { name: zitat, label: Zitat, widget: text, required: false }
-              - { name: foto, label: Foto, widget: image, required: false, hint: "Quadratisch, mind. 600 × 600 px" }
+              - { name: foto, label: Foto, widget: image, required: false, media_folder: /img/drivers, public_folder: /img/drivers, hint: "Quadratisch, mind. 600 × 600 px" }
 
   # ---------------- RENNEN ----------------
   - name: rennen
@@ -65,7 +66,7 @@ collections:
               - { name: fahrzeug, label: Fahrzeug, widget: string, required: false }
               - { name: crew, label: Fahrer im Auto, label_singular: Fahrer, widget: list, required: false, hint: "Namen wie in der Nennliste. Gäste z. B. als 'Name (Gast)'." }
               - { name: fazit, label: Kurzfazit, widget: string, required: false, hint: "Ein Satz für das Klassement" }
-              - { name: banner, label: Bannerbild, widget: image, required: false }
+              - { name: banner, label: Bannerbild, widget: image, required: false, media_folder: /img/races, public_folder: /img/races }
               - { name: bericht_titel, label: Überschrift Bericht, widget: string, required: false }
               - { name: bericht, label: Rennbericht / Vorschau, widget: markdown, required: false }
 
@@ -88,7 +89,7 @@ collections:
               - { name: kategorie, label: Kategorie, widget: select, options: [Rennvorschau, Rennbericht, Team, Fahrer, Partner], default: Team }
               - { name: datum, label: Datum, widget: datetime, format: "YYYY-MM-DD", date_format: "DD.MM.YYYY", time_format: false }
               - { name: teaser, label: Kurztext, widget: text, required: false }
-              - { name: bild, label: Bild, widget: image, required: false }
+              - { name: bild, label: Bild, widget: image, required: false, media_folder: /img/news, public_folder: /img/news }
               - { name: rennen, label: Zugehöriges Rennen (Kennung), widget: string, required: false, hint: "Optional, z. B. spa-24h-2026" }
               - { name: inhalt, label: Text, widget: markdown, required: false }
 
@@ -111,7 +112,7 @@ collections:
               - { name: klasse, label: Klasse, widget: select, options: [GT3, GTP, Andere], default: GT3 }
               - { name: motor, label: Motor, widget: string, required: false }
               - { name: antrieb, label: Antrieb, widget: string, required: false }
-              - { name: bild, label: Livery-Bild, widget: image, hint: "Querformat 3:2, mind. 1440 px breit" }
+              - { name: bild, label: Livery-Bild, widget: image, media_folder: /img/cars, public_folder: /img/cars, hint: "Querformat 3:2, mind. 1440 px breit" }
 
   # ---------------- EINSTELLUNGEN ----------------
   - name: einstellungen

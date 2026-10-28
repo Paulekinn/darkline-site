@@ -8,7 +8,7 @@ assets/site.css     Design
 assets/site.js      lädt content/*.json und baut die Seite auf
 content/            drivers.json · races.json · news.json · cars.json · settings.json
 img/                Logo, Fahrerfotos, Liverys, Partnerlogos, Rennbanner
-img/uploads/        hier landen Bilder, die im Admin hochgeladen werden
+img/news/ …         Bilder aus dem Admin landen im passenden Unterordner
 admin/              Admin-Bereich (Sveltia CMS) + config.yml
 vercel.json         Header für Vercel
 ```
