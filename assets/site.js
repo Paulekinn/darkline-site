@@ -172,28 +172,72 @@
     return `<div class="gain"><svg aria-hidden="true"><line x1="2%" y1="17" x2="98%" y2="17" stroke="var(--rule)" stroke-width="2"/>${ticks}${line}<circle cx="${px(r.ziel)}%" cy="17" r="6" fill="var(--ink)"/></svg>
       <div class="gl"><span>${r.start ? "Start P" + r.start : "Start –"}</span><b class="${g == null ? "" : g >= 0 ? "up" : "dn"}">${g == null ? "Ziel P" + r.ziel : (g >= 0 ? "+" : "−") + Math.abs(g) + (Math.abs(g) === 1 ? " Platz" : " Plätze")}</b><span>P1 ← · → P${MAXP}</span></div></div>`;
   }
+  const RESULTS_MAX = 5;
+  let resultsOpen = false;
   function renderResults() {
     const fin = finished();
     $("results-meta").textContent = `${fin.length} Ergebnisse · ${upcoming().length} geplant`;
-    $("results").innerHTML = fin.map((r) => `<li><a class="row" href="/rennen/${esc(r.id)}">
+    $("results").innerHTML = fin.map((r, i) => `<li${i >= RESULTS_MAX ? ' class="extra" hidden' : ""}><a class="row" href="/rennen/${esc(r.id)}">
       <span class="fin ${+r.ziel <= 10 ? "top" : ""}">P${esc(r.ziel)}</span>
       <div class="ev">${esc(r.titel)}<small>${[r.serie, r.klasse, fmt(r.datum), durText(r), r.fahrzeug].filter(Boolean).map(esc).join(" · ")}${r.fazit ? " · " + esc(r.fazit) : ""}</small>${crewHtml(r).replace('class="crew"', 'class="crew"')}</div>
       ${gainSvg(r)}
       <span class="open">${r.bericht && r.bericht.trim() ? "Rennbericht →" : "Details →"}</span></a></li>`).join("");
+    const extra = Math.max(0, fin.length - RESULTS_MAX);
+    $("results-more").hidden = extra === 0;
+    $("results-more-btn").textContent = resultsOpen ? "Weniger anzeigen" : `Alle Ergebnisse anzeigen (+${extra})`;
+    $("results").querySelectorAll("li.extra").forEach((li) => { li.hidden = !resultsOpen; });
   }
+  $("results-more-btn").addEventListener("click", () => {
+    resultsOpen = !resultsOpen; renderResults();
+    if (!resultsOpen) $("klassement").scrollIntoView({ block: "start" });
+  });
 
-  /* ---------- News ---------- */
-  let newsShown = 6;
+  /* ---------- News: Slider mit 3 sichtbaren Beiträgen, läuft automatisch ---------- */
+  const NEWS_MAX = 12;
+  let newsTimer = null, newsPausedUntil = 0, newsHover = false;
+  const track = $("news-grid");
+  const perView = () => { const c = track.querySelector(".news-card"); return c ? Math.max(1, Math.round(track.clientWidth / (c.getBoundingClientRect().width + 18))) : 1; };
+  const stepW = () => { const c = track.querySelector(".news-card"); return c ? c.getBoundingClientRect().width + 18 : track.clientWidth; };
+  const curIdx = () => Math.round(track.scrollLeft / stepW());
+  const maxIdx = () => Math.max(0, track.querySelectorAll(".news-card").length - perView());
+  function goNews(i, user) {
+    const m = maxIdx(); i = i > m ? 0 : i < 0 ? m : i;
+    track.scrollTo({ left: i * stepW(), behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    if (user) newsPausedUntil = Date.now() + 15000;
+  }
+  function updateDots() {
+    const m = maxIdx(), c = Math.min(curIdx(), m);
+    $("news-ctrl").hidden = m === 0;
+    $("news-dots").innerHTML = Array.from({ length: m + 1 }, (_, i) => `<button type="button" role="tab" aria-label="Position ${i + 1}" aria-selected="${i === c}" data-i="${i}"></button>`).join("");
+  }
   function renderNews() {
-    const posts = [...D.posts].sort((a, b) => (parseDate(b.datum) || 0) - (parseDate(a.datum) || 0));
-    $("news-grid").innerHTML = posts.slice(0, newsShown).map((p) => `<a class="news-card" href="/news/${esc(p.id)}">
+    const posts = [...D.posts].sort((a, b) => (parseDate(b.datum) || 0) - (parseDate(a.datum) || 0)).slice(0, NEWS_MAX);
+    track.innerHTML = posts.map((p) => `<a class="news-card" href="/news/${esc(p.id)}">
       <div class="im">${p.bild ? `<img src="${esc(src(p.bild))}" alt="" loading="lazy">` : ""}</div>
       <div class="tx"><div class="k"><b>${esc(p.kategorie || "News")}</b><span class="lbl">${esc(fmt(p.datum))}</span></div>
       <h3>${esc(p.titel)}</h3>${p.teaser ? `<p>${esc(p.teaser)}</p>` : ""}</div></a>`).join("") ||
       `<div style="padding:22px;color:var(--muted)">Noch keine News.</div>`;
-    $("news-more").hidden = posts.length <= newsShown;
+    track.scrollLeft = 0; updateDots();
+    clearInterval(newsTimer);
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      newsTimer = setInterval(() => {
+        if (newsHover || document.hidden || Date.now() < newsPausedUntil || !$("detail").hidden || maxIdx() === 0) return;
+        goNews(curIdx() + 1);
+      }, 6000);
+    }
   }
-  $("news-more-btn").addEventListener("click", () => { newsShown += 6; renderNews(); });
+  let scrollT = null;
+  track.addEventListener("scroll", () => { clearTimeout(scrollT); scrollT = setTimeout(updateDots, 80); }, { passive: true });
+  $("news-prev").addEventListener("click", () => goNews(curIdx() - 1, true));
+  $("news-next").addEventListener("click", () => goNews(curIdx() + 1, true));
+  $("news-dots").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) goNews(+b.dataset.i, true); });
+  $("news-car").addEventListener("mouseenter", () => { newsHover = true; });
+  $("news-car").addEventListener("mouseleave", () => { newsHover = false; });
+  $("news-car").addEventListener("focusin", () => { newsHover = true; });
+  $("news-car").addEventListener("focusout", () => { newsHover = false; });
+  track.addEventListener("touchstart", () => { newsPausedUntil = Date.now() + 15000; }, { passive: true });
+  track.addEventListener("keydown", (e) => { if (e.key === "ArrowRight") { e.preventDefault(); goNews(curIdx() + 1, true); } if (e.key === "ArrowLeft") { e.preventDefault(); goNews(curIdx() - 1, true); } });
+  window.addEventListener("resize", () => { clearTimeout(scrollT); scrollT = setTimeout(updateDots, 150); });
 
   /* ---------- Garage ---------- */
   let selC = 0;

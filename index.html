@@ -72,8 +72,14 @@
         <div class="doc-meta lbl">Aus der Box</div>
         <p>Rennvorschauen, Rennberichte und Neuigkeiten aus dem Team.</p>
       </div>
-      <div class="news-grid" id="news-grid"></div>
-      <div class="more" id="news-more" hidden><button type="button" id="news-more-btn">Ältere News anzeigen</button></div>
+      <div class="news-car" id="news-car" aria-roledescription="Karussell" aria-label="News">
+        <div class="news-grid" id="news-grid" tabindex="0"></div>
+      </div>
+      <div class="car-ctrl" id="news-ctrl" hidden>
+        <button type="button" class="cbt" id="news-prev" aria-label="Vorherige News">←</button>
+        <div class="dots" id="news-dots" role="tablist" aria-label="News-Position"></div>
+        <button type="button" class="cbt" id="news-next" aria-label="Nächste News">→</button>
+      </div>
     </div>
   </section>
 
@@ -104,6 +110,7 @@
       <div class="cal" id="calendar"></div>
       <div class="sub"><h3>Ergebnisse</h3><span class="lbl">Start → Ziel</span></div>
       <ol class="class-list" id="results"></ol>
+      <div class="more" id="results-more" hidden><button type="button" id="results-more-btn"></button></div>
     </div>
   </section>
 
