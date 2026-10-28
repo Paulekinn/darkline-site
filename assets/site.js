@@ -22,6 +22,13 @@
 
   let D = { drivers: [], races: [], posts: [], cars: [], settings: {} };
 
+  /* ---------- Mobiles Menü ---------- */
+  const bar = document.querySelector(".bar"), mb = $("menu-btn");
+  const setMenu = (o) => { bar.classList.toggle("open", o); mb.setAttribute("aria-expanded", o); mb.setAttribute("aria-label", o ? "Menü schließen" : "Menü öffnen"); };
+  mb.addEventListener("click", () => setMenu(!bar.classList.contains("open")));
+  $("mainnav").addEventListener("click", (e) => { if (e.target.closest("a")) setMenu(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(false); });
+
   /* ---------- Einstellungen: Links ---------- */
   function applySettings() {
     const s = D.settings || {};
