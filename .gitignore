@@ -2,7 +2,7 @@
 node_modules/
 content/races.json
 content/news.json
-rennen/
-news/
-fahrer/
-kalender.ics
+/rennen/
+/news/
+/fahrer/
+/kalender.ics
