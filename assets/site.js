@@ -175,6 +175,27 @@
   }
   $("carlist").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { selC = +b.dataset.i; renderCars(); $("carlist").querySelector(`[data-i="${selC}"]`).focus(); } });
 
+  /* ---------- Shop ---------- */
+  function renderShop() {
+    const s = D.shop || {}, st = D.settings || {};
+    $("shop-intro").textContent = s.intro || "";
+    const flag = (x) => (x === "Verfügbar" ? "ok" : x === "Ausverkauft" ? "out" : "");
+    $("shop-grid").innerHTML = (s.products || []).map((p) => {
+      const href = p.link || (st.email ? "mailto:" + st.email + "?subject=" + encodeURIComponent("Merch-Anfrage: " + p.name) : "#box");
+      return `<article class="product"><div class="im">${p.bild ? `<img src="${esc(src(p.bild))}" alt="${esc(p.name)} von Darkline" loading="lazy">` : ""}${p.status ? `<span class="flag ${flag(p.status)}">${esc(p.status)}</span>` : ""}</div>
+        <div class="tx"><span class="line">${esc(p.linie || "Teamwear")}</span><h3>${esc(p.name)}</h3>
+        <div class="row"><span class="price">${esc(p.preis || "")}</span><a class="ask" href="${esc(href)}">${p.link ? "Zum Shop →" : "Anfragen →"}</a></div></div></article>`;
+    }).join("");
+  }
+
+  /* ---------- Partner ---------- */
+  function renderPartners() {
+    $("partner-list").innerHTML = (D.partners || []).map((p) => `<a class="pcard" href="${esc(p.url || "#partner")}">
+      <span class="plate">${p.logo ? `<img src="${esc(src(p.logo))}" alt="${esc(p.name)}" loading="lazy">` : `<b>${esc(p.name)}</b>`}</span>
+      <span class="info"><span class="k">${esc(p.kategorie || "Partner")}</span><b>${esc(p.name)}</b><span>${esc(p.beschreibung || "")}</span></span>
+      <span class="go">${p.url ? esc(p.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")) + " ↗" : ""}</span></a>`).join("");
+  }
+
   /* ---------- Detailansicht: Rennbericht / News ---------- */
   let lastFocus = null, backTo = "";
   function openDetail(html, back) {
@@ -239,15 +260,17 @@
 
   /* ---------- Start ---------- */
   (async function init() {
-    const [drivers, races, news, cars, settings] = await Promise.all(["drivers", "races", "news", "cars", "settings"].map(load));
+    const [drivers, races, news, cars, settings, partners, shop] = await Promise.all(["drivers", "races", "news", "cars", "settings", "partners", "shop"].map(load));
     D = {
       drivers: (drivers && drivers.drivers) || [],
       races: (races && races.races) || [],
       posts: (news && news.posts) || [],
       cars: (cars && cars.cars) || [],
       settings: settings || {},
+      partners: (partners && partners.partners) || [],
+      shop: shop || {},
     };
-    applySettings(); renderPitwall(); renderDrivers(); renderCalendar(); renderResults(); renderNews(); renderCars();
+    applySettings(); renderPitwall(); renderDrivers(); renderCalendar(); renderResults(); renderNews(); renderCars(); renderShop(); renderPartners();
     if (/^(rennen|news)-/.test(location.hash.slice(1))) route();
   })();
 })();

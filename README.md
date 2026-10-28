@@ -53,6 +53,8 @@ Optional bequemer („Login with GitHub“-Button): einen OAuth-Helfer wie `svel
 | Klassement | Rennen & Berichte | Status **abgeschlossen** + Zielposition → erscheint im Klassement. Startplatz eintragen für die Plätze-Grafik. Bericht-Feld = Rennbericht (Klick auf das Rennen öffnet ihn). |
 | News | News | Mit „Zugehöriges Rennen“ (Kennung des Rennens) werden News und Rennbericht verlinkt. |
 | Garage | Garage | Livery-Bilder im Querformat 3:2. |
+| Shop | Shop | Status „Coming soon/Verfügbar/Ausverkauft“, optional Preis und Shop-Link (sonst Anfrage per E-Mail). |
+| Partner | Partner | Helles Logo auf transparentem Hintergrund. |
 | Links, Open Seat | Einstellungen | Discord, E-Mail, Socials, Open Seat ein/aus. |
 
 Die **Kennung** eines Rennens oder Beitrags wird Teil des Links (`/#rennen-spa-24h-2026`, `/#news-…`) und sollte nach dem Veröffentlichen nicht mehr geändert werden.

@@ -114,6 +114,48 @@ collections:
               - { name: antrieb, label: Antrieb, widget: string, required: false }
               - { name: bild, label: Livery-Bild, widget: image, media_folder: /img/cars, public_folder: /img/cars, hint: "Querformat 3:2, mind. 1440 px breit" }
 
+  # ---------------- SHOP ----------------
+  - name: shop
+    label: Shop
+    files:
+      - name: products
+        label: Darkline Wear
+        file: content/shop.json
+        fields:
+          - { name: intro, label: Einleitungstext, widget: text, required: false }
+          - name: products
+            label: Produkte
+            label_singular: Produkt
+            widget: list
+            summary: "{{fields.name}} · {{fields.status}}"
+            fields:
+              - { name: name, label: Name, widget: string }
+              - { name: linie, label: Linie, widget: string, required: false, hint: "z. B. Classic, Paddock, Lifestyle" }
+              - { name: status, label: Status, widget: select, options: ["Coming soon", "Verfügbar", "Ausverkauft"], default: "Coming soon" }
+              - { name: preis, label: Preis, widget: string, required: false, hint: "z. B. 29,90 €" }
+              - { name: bild, label: Bild, widget: image, media_folder: /img/shop, public_folder: /img/shop, hint: "Hochformat 4:5" }
+              - { name: link, label: Shop-Link, widget: string, required: false, hint: "Leer lassen = Button 'Anfragen' per E-Mail" }
+
+  # ---------------- PARTNER ----------------
+  - name: partner
+    label: Partner
+    files:
+      - name: partners
+        label: Partner
+        file: content/partners.json
+        fields:
+          - name: partners
+            label: Partner
+            label_singular: Partner
+            widget: list
+            summary: "{{fields.name}}"
+            fields:
+              - { name: name, label: Name, widget: string }
+              - { name: kategorie, label: Art der Partnerschaft, widget: string, required: false, hint: "z. B. Hardware-Partner" }
+              - { name: beschreibung, label: Kurzbeschreibung, widget: string, required: false }
+              - { name: logo, label: Logo, widget: image, media_folder: /img/partners, public_folder: /img/partners, hint: "Helles Logo mit transparentem Hintergrund (PNG oder SVG)" }
+              - { name: url, label: Website, widget: string, required: false }
+
   # ---------------- EINSTELLUNGEN ----------------
   - name: einstellungen
     label: Einstellungen

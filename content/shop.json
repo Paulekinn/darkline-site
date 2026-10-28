@@ -1,0 +1,37 @@
+{
+  "intro": "Erste Teamwear ist in Vorbereitung. Der Shop wird später angebunden: Bestellung und Zahlung laufen dann über eine sichere Plattform, der Versand bleibt direkt bei Darkline.",
+  "products": [
+    {
+      "name": "Team Shirt",
+      "linie": "Classic",
+      "status": "Coming soon",
+      "preis": "",
+      "bild": "/img/shop/shirt.webp",
+      "link": ""
+    },
+    {
+      "name": "Polo Shirt",
+      "linie": "Paddock",
+      "status": "Coming soon",
+      "preis": "",
+      "bild": "/img/shop/polo.webp",
+      "link": ""
+    },
+    {
+      "name": "Hoodie",
+      "linie": "Lifestyle",
+      "status": "Coming soon",
+      "preis": "",
+      "bild": "/img/shop/hoodie.webp",
+      "link": ""
+    },
+    {
+      "name": "Zipper",
+      "linie": "Teamwear",
+      "status": "Coming soon",
+      "preis": "",
+      "bild": "/img/shop/zipper.webp",
+      "link": ""
+    }
+  ]
+}

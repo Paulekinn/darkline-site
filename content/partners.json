@@ -1,0 +1,25 @@
+{
+  "partners": [
+    {
+      "name": "Sim-Lab",
+      "kategorie": "Hardware-Partner",
+      "beschreibung": "Simracing-Cockpits und Hardware.",
+      "logo": "/img/partners/sim-lab.png",
+      "url": "https://sim-lab.eu/"
+    },
+    {
+      "name": "Pat Media",
+      "kategorie": "Media-Partner",
+      "beschreibung": "Film und Content.",
+      "logo": "/img/partners/pat-media.png",
+      "url": "https://pat-media.at/"
+    },
+    {
+      "name": "Amadee",
+      "kategorie": "Partner",
+      "beschreibung": "Software für Musikschulen.",
+      "logo": "/img/partners/amadee.png",
+      "url": "https://amadee.de/"
+    }
+  ]
+}
