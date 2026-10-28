@@ -22,7 +22,7 @@ collections:
     label: Fahrer
     files:
       - name: drivers
-        label: Nennliste (Fahrer)
+        label: Lineup (Fahrer)
         file: content/drivers.json
         fields:
           - name: drivers
@@ -64,7 +64,7 @@ collections:
               - { name: start, label: Startplatz, widget: number, value_type: int, min: 1, required: false }
               - { name: ziel, label: Zielposition, widget: number, value_type: int, min: 1, required: false }
               - { name: fahrzeug, label: Fahrzeug, widget: string, required: false }
-              - { name: crew, label: Fahrer im Auto, label_singular: Fahrer, widget: list, required: false, hint: "Namen wie in der Nennliste. Gäste z. B. als 'Name (Gast)'." }
+              - { name: crew, label: Fahrer im Auto, label_singular: Fahrer, widget: list, required: false, hint: "Namen wie im Lineup. Gäste z. B. als 'Name (Gast)'." }
               - { name: fazit, label: Kurzfazit, widget: string, required: false, hint: "Ein Satz für das Klassement" }
               - { name: banner, label: Bannerbild, widget: image, required: false, media_folder: /img/races, public_folder: /img/races }
               - { name: bericht_titel, label: Überschrift Bericht, widget: string, required: false }

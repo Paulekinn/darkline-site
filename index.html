@@ -17,7 +17,7 @@
     <div class="sess"><i></i><span id="sess-text">Saison läuft</span></div>
     <nav aria-label="Hauptnavigation">
       <a href="#news">News</a>
-      <a href="#nennliste">Nennliste</a>
+      <a href="#lineup">Lineup</a>
       <a href="#klassement">Klassement</a>
       <a href="#garage">Garage</a>
       <a href="#partner">Partner</a>
@@ -35,15 +35,18 @@
       <p class="lead"><b>Darkline Performance Motorsport</b> ist ein iRacing-Team für Langstrecke in GT3 und GTP. Wir teilen uns Autos über zwölf und vierundzwanzig Stunden, fahren sauber und bringen sie heil ins Ziel.</p>
       <div class="hero-cta">
         <a class="hbtn" data-link="discord" href="https://discord.gg/QP2rKy6n8U">Discord beitreten →</a>
-        <a class="hbtn ghost" href="#nennliste">Zur Nennliste</a>
+        <a class="hbtn ghost" href="#lineup">Zum Lineup</a>
       </div>
     </div>
-    <div class="strip">
+    <div class="pitwall">
       <div class="wrap">
-        <div><span class="lbl">Plattform</span><b>iRacing</b></div>
-        <div><span class="lbl">Klassen</span><b>GT3 · GTP</b></div>
-        <div><span class="lbl" id="best-lbl">Bestes Ergebnis</span><b id="best-val">–</b></div>
-        <div><span class="lbl">Nächstes Rennen</span><b class="r" id="next-val">In Planung</b></div>
+        <a class="nextrace" id="nextrace" href="#klassement">
+          <span class="nr-k"><i></i>Nächstes Rennen</span>
+          <span class="nr-t wide" id="nr-title">In Planung</span>
+          <span class="nr-m" id="nr-meta">Termine kündigen wir zuerst im Discord an.</span>
+          <span class="nr-cd" id="nr-cd" hidden></span>
+        </a>
+        <div class="season" id="season" aria-label="Saisonbilanz"></div>
       </div>
     </div>
   </section>
@@ -60,10 +63,10 @@
     </div>
   </section>
 
-  <section class="sheet grid-sec" id="nennliste">
+  <section class="sheet grid-sec" id="lineup">
     <div class="wrap">
       <div class="doc-head">
-        <h2 class="wide">Nennliste</h2>
+        <h2 class="wide">Lineup</h2>
         <div class="doc-meta lbl" id="entries-meta"></div>
         <p>Die Startaufstellung von Darkline: wer fährt, welche Klasse und welche Aufgabe im Team.</p>
       </div>

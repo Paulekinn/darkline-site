@@ -47,28 +47,55 @@
     return { starts, best };
   };
 
-  /* ---------- Hero-Leiste ---------- */
-  function renderStrip() {
+  /* ---------- Pitwall: nächstes Rennen + Saisonbilanz ---------- */
+  let cdTimer = null;
+  function startOf(r) {
+    const d = parseDate(r.datum); if (!d) return null;
+    const m = String(r.startzeit || "").match(/(\d{1,2})[:.](\d{2})/);
+    if (m) d.setHours(+m[1], +m[2]); else d.setHours(23, 59);
+    return d;
+  }
+  function renderPitwall() {
     const year = today.getFullYear();
+    const n = upcoming()[0];
+    const s = D.settings || {};
+    if (n) {
+      $("nextrace").href = "#rennen-" + n.id;
+      $("nr-title").textContent = n.titel;
+      $("nr-meta").textContent = [parseDate(n.datum) ? fmt(n.datum) : "Datum folgt", n.startzeit ? n.startzeit + " Uhr" : "", n.serie, n.klasse].filter(Boolean).join(" · ");
+      $("sess-text").textContent = "Saison " + year + " · Nächstes Rennen: " + n.titel + (parseDate(n.datum) ? " · " + fmt(n.datum) : "");
+      const start = startOf(n);
+      const tick = () => {
+        const ms = start ? start - new Date() : -1;
+        if (!start || ms <= 0) { $("nr-cd").hidden = true; return; }
+        const d = Math.floor(ms / 864e5), h = Math.floor(ms / 36e5) % 24, mi = Math.floor(ms / 6e4) % 60;
+        $("nr-cd").innerHTML = [[d, "Tage"], [h, "Std"], [mi, "Min"]].map(([v, l]) => `<span><b>${String(v).padStart(2, "0")}</b><small>${l}</small></span>`).join("");
+        $("nr-cd").hidden = false;
+      };
+      tick(); clearInterval(cdTimer); cdTimer = setInterval(tick, 30000);
+    } else {
+      $("nextrace").href = s.discord || "#klassement";
+      $("nr-title").textContent = "In Planung";
+      $("nr-meta").textContent = "Termine kündigen wir zuerst im Discord an →";
+      $("nr-cd").hidden = true;
+      $("sess-text").textContent = "Saison " + year + " · Nächstes Rennen in Planung";
+    }
     const fin = finished();
     const thisYear = fin.filter((r) => { const d = parseDate(r.datum); return !d || d.getFullYear() === year; });
     const pool = thisYear.length ? thisYear : fin;
-    if (pool.length) {
-      const b = pool.reduce((a, r) => (+r.ziel < +a.ziel ? r : a));
-      $("best-lbl").textContent = thisYear.length ? "Bestes Ergebnis " + year : "Bestes Ergebnis";
-      $("best-val").textContent = "P" + b.ziel + " · " + b.titel;
-    }
-    const n = upcoming()[0];
-    if (n) {
-      $("next-val").innerHTML = `<a href="#rennen-${esc(n.id)}" style="color:inherit;text-decoration:none">${esc(n.titel)} · ${esc(parseDate(n.datum) ? fmt(n.datum) : "Datum folgt")}</a>`;
-      $("sess-text").textContent = "Saison " + year + " · Nächstes Rennen: " + n.titel + (parseDate(n.datum) ? " · " + fmt(n.datum) : "");
-    } else {
-      $("next-val").textContent = "In Planung";
-      $("sess-text").textContent = "Saison " + year + " · Nächstes Rennen in Planung";
-    }
+    const label = thisYear.length ? " " + year : "";
+    const best = pool.length ? pool.reduce((a, r) => (+r.ziel < +a.ziel ? r : a)) : null;
+    const top10 = pool.filter((r) => +r.ziel <= 10).length;
+    const gained = pool.filter((r) => r.start).reduce((t, r) => t + (+r.start - +r.ziel), 0);
+    $("season").innerHTML = [
+      [pool.length, "Rennen" + label, ""],
+      [best ? "P" + best.ziel : "–", "Bestes Ergebnis" + (best ? " · <em>" + esc(best.titel) + "</em>" : ""), "r"],
+      [top10, "Top-10-Ergebnisse", ""],
+      [(gained > 0 ? "+" : "") + gained, "Plätze gutgemacht", gained > 0 ? "g" : ""],
+    ].map(([v, l, c]) => `<div><b class="${c}">${esc(v)}</b><small>${l}</small></div>`).join("");
   }
 
-  /* ---------- Nennliste ---------- */
+  /* ---------- Lineup ---------- */
   function renderDrivers() {
     const list = [...D.drivers].sort((a, b) => (a.status === "inaktiv") - (b.status === "inaktiv"));
     const active = list.filter((d) => d.status !== "inaktiv").length;
@@ -220,7 +247,7 @@
       cars: (cars && cars.cars) || [],
       settings: settings || {},
     };
-    applySettings(); renderStrip(); renderDrivers(); renderCalendar(); renderResults(); renderNews(); renderCars();
+    applySettings(); renderPitwall(); renderDrivers(); renderCalendar(); renderResults(); renderNews(); renderCars();
     if (/^(rennen|news)-/.test(location.hash.slice(1))) route();
   })();
 })();

@@ -48,7 +48,7 @@ Optional bequemer („Login with GitHub“-Button): einen OAuth-Helfer wie `svel
 
 | Bereich | Admin-Menü | Hinweise |
 |---|---|---|
-| Nennliste | Fahrer | Status *aktiv/inaktiv*. Starts und bestes Ergebnis rechnet die Seite selbst aus den Rennen aus – dafür den Namen exakt gleich schreiben. |
+| Lineup | Fahrer | Status *aktiv/inaktiv*. Starts und bestes Ergebnis rechnet die Seite selbst aus den Rennen aus – dafür den Namen exakt gleich schreiben. |
 | Kalender | Rennen & Berichte | Status **geplant** → erscheint im Kalender und als „Nächstes Rennen“ oben. Bericht-Feld = Rennvorschau. |
 | Klassement | Rennen & Berichte | Status **abgeschlossen** + Zielposition → erscheint im Klassement. Startplatz eintragen für die Plätze-Grafik. Bericht-Feld = Rennbericht (Klick auf das Rennen öffnet ihn). |
 | News | News | Mit „Zugehöriges Rennen“ (Kennung des Rennens) werden News und Rennbericht verlinkt. |
