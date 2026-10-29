@@ -97,8 +97,26 @@
         row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
         body.append(row);
       });
-      box.replaceChildren(el("div", { className: "scroll" }, el("table", { className: "tracks" }, [el("thead", null, head), body])));
+      var search = el("input", { type: "search", className: "search", placeholder: "Strecke suchen …", autocomplete: "off" });
+      search.setAttribute("aria-label", "Strecke suchen");
+      var none = el("p", { className: "msg", textContent: "Keine Strecke gefunden.", hidden: true });
+      search.addEventListener("input", function () { filterTracks(search.value, none); });
+      box.replaceChildren(search, el("div", { className: "scroll" }, el("table", { className: "tracks" }, [el("thead", null, head), body])), none);
     }).catch(function (e) { message(box, e.message, true); });
+  }
+
+  // Blendet Strecken aus, deren Name oder Variante den Suchtext nicht enthält.
+  function filterTracks(text, none) {
+    var q = text.trim().toLowerCase();
+    var shown = 0;
+    document.querySelectorAll("#rl-tracks tr.trk").forEach(function (row) {
+      var hit = !q || row.querySelector("td.name").textContent.toLowerCase().indexOf(q) !== -1;
+      row.hidden = !hit;
+      var detail = row.nextElementSibling;
+      if (detail && detail.classList.contains("detail")) detail.hidden = !hit;
+      if (hit) shown++;
+    });
+    none.hidden = shown > 0;
   }
 
   function toggleTrack(track, row) {
