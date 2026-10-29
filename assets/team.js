@@ -40,11 +40,12 @@
     return n;
   }
 
+  // Fehler werden dort angezeigt, wo geladen wurde. Kein automatischer Seitenwechsel.
   function api(path) {
     return fetch(path, { credentials: "same-origin", cache: "no-store" }).then(function (r) {
-      if (r.status === 401) { location.href = "/team"; throw new Error("Nicht angemeldet"); }
-      return r.json().then(function (d) {
-        if (!r.ok) throw new Error(d.error || "Fehler beim Laden.");
+      if (r.status === 401) throw new Error("Deine Anmeldung ist abgelaufen. Bitte die Seite neu laden und erneut anmelden. (Code 401)");
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (!r.ok) throw new Error((d.error || "Fehler beim Laden.") + " (Code " + r.status + ")");
         return d;
       });
     });
