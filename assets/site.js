@@ -49,6 +49,13 @@
     setTimeout(() => { b.textContent = "Link kopieren"; }, 2000);
   });
 
+  /* ---------- Bewerbungsvorlage kopieren ---------- */
+  document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
+    const text = $(b.dataset.copy).textContent;
+    try { await navigator.clipboard.writeText(text); b.textContent = "Kopiert ✓"; } catch (err) { window.prompt("Vorlage kopieren:", text); }
+    setTimeout(() => { b.textContent = "Vorlage kopieren"; }, 2000);
+  }));
+
   /* ---------- Einstellungen: Links ---------- */
   function applySettings() {
     const s = D.settings || {};
@@ -58,6 +65,8 @@
       a.href = k === "email" ? "mailto:" + v : v;
     });
     document.querySelectorAll("[data-text]").forEach((el) => { const v = s[el.dataset.text]; if (v) el.textContent = v; });
+    // Open Seat im CMS ausgeschaltet: Bewerbungen bleiben möglich, aber ohne Versprechen eines freien Cockpits
+    if (s.open_seat === false && $("box-title")) $("box-title").textContent = "Initiativ bewerben.";
     $("year").textContent = today.getFullYear();
   }
 
