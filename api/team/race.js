@@ -1,7 +1,8 @@
-// Rennbericht für den Teambereich: Auswertung eines Teamrennens aus Garage 61.
+// Rennbericht für den Admin-Bereich (/admin/rennbericht): Auswertung eines Teamrennens aus Garage 61.
+// Zugang nur mit der GitHub-Anmeldung des CMS (siehe _lib/admin.js), nicht über den Discord-Login des Teambereichs.
 // GET ?datum=YYYY-MM-DD → Garage-61-Events rund um diesen Tag (Kandidaten für das Teamrennen)
 // GET ?event=<ID>       → Auswertung der Rennsession: Stints, Fahrer, Boxenstopps, Wetter (einen Tag gemerkt)
-const { requireSession } = require("../_lib/session");
+const { requireAdmin } = require("../_lib/admin");
 const { g61Get, cached, items, teamSlug, sendError } = require("../_lib/g61");
 
 const ID = /^[0-9A-Za-z]{20,32}$/;
@@ -132,8 +133,8 @@ async function analyse(id) {
 
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "private, no-store");
-  if (!requireSession(req, res)) return;
   try {
+    if (!(await requireAdmin(req, res))) return;
     const q = req.query || {};
     if (q.event !== undefined) {
       if (!ID.test(q.event)) return res.status(400).json({ error: "Ungültiges Event." });

@@ -5,8 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title>Darkline Admin</title>
+  <style>
+    /* Eigene Werkzeuge neben dem CMS, unten links über der Oberfläche */
+    .dpm-tools{position:fixed;left:12px;bottom:12px;z-index:2147483000;display:flex;gap:6px}
+    .dpm-tools a{padding:8px 12px;border-radius:6px;background:#d3121b;color:#fff;font:600 12px/1 system-ui,sans-serif;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+    .dpm-tools a:hover{background:#a50e15}
+  </style>
 </head>
 <body>
+  <nav class="dpm-tools" aria-label="Werkzeuge"><a href="/admin/rennbericht">Rennbericht erstellen</a></nav>
   <!-- Sveltia CMS: liest die Einstellungen aus admin/config.yml -->
   <script src="https://unpkg.com/@sveltia/cms/dist/sveltia-cms.js" type="module"></script>
 </body>
