@@ -267,9 +267,10 @@
     var laps = function (x) { return "· " + x.laps + " Runden"; };
 
     // Balkenliste einer Karte. Einträge mit Fahrer-Aufschlüsselung (x.by) lassen sich aufklappen.
-    var bars = function (title, items, sub) {
+    // Mit "limit" werden zuerst nur so viele Einträge gezeigt, der Rest über "Alle anzeigen".
+    var bars = function (title, items, sub, limit) {
       var top = items.reduce(function (m, x) { return Math.max(m, x.time); }, 0) || 1;
-      return el("div", { className: "wb-card" }, [el("h4", { textContent: title })].concat(items.map(function (x) {
+      var rows = items.map(function (x) {
         var row = hbar(x, top, sub);
         if (!x.by || !x.by.length) return row;
         var subTop = x.by[0].time;
@@ -288,14 +289,30 @@
         row.addEventListener("click", toggle);
         row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
         return el("div", { className: "hbar-group" }, [row, detail]);
-      })));
+      });
+      var card = el("div", { className: "wb-card" }, [el("h4", { textContent: title })]);
+      if (!limit || rows.length <= limit) {
+        card.append.apply(card, rows);
+        return card;
+      }
+      var more = el("div", { className: "hbar-more", hidden: true }, rows.slice(limit));
+      var btn = el("button", { type: "button", className: "wb-more", textContent: "Alle anzeigen (" + rows.length + ")" });
+      btn.setAttribute("aria-expanded", "false");
+      btn.addEventListener("click", function () {
+        var open = more.hidden;
+        more.hidden = !open;
+        btn.setAttribute("aria-expanded", String(open));
+        btn.textContent = open ? "Weniger anzeigen" : "Alle anzeigen (" + rows.length + ")";
+      });
+      card.append.apply(card, rows.slice(0, limit).concat(more, btn));
+      return card;
     };
     var share = function (x) { return "· " + Math.round(x.time / w.time * 100) + " %"; };
     var grid = el("div", { className: "wb-grid" }, [
       bars("Fahrzeit pro Fahrer", w.drivers, laps),
       bars("Training, Quali, Rennen", w.sessions, share),
-      bars("Meistgefahrene Strecken", w.tracks, laps),
-      bars("Meistgefahrene Autos", w.cars, laps)
+      bars("Meistgefahrene Strecken", w.tracks, laps, 5),
+      bars("Meistgefahrene Autos", w.cars, laps, 5)
     ]);
 
     box.replaceChildren(trend, axis, head, kpis, grid);

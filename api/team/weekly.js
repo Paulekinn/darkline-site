@@ -4,7 +4,6 @@ const { requireSession } = require("../_lib/session");
 const { g61Get, cached, teamSlug, tracks, cars, sendError } = require("../_lib/g61");
 
 const WEEKS = 8;
-const TOP = 5;
 
 const iso = (d) => d.toISOString().slice(0, 10);
 
@@ -85,7 +84,8 @@ async function report() {
       const s = _sessions.get(k);
       return s ? rank(new Map([[k, s]]))[0] : { name: sessionNames[k], time: 0, laps: 0, by: [] };
     });
-    return { ...w, drivers: rank(_drivers), sessions, tracks: rank(_tracks, TOP), cars: rank(_cars, TOP) };
+    // Alle Strecken und Autos; die Seite zeigt zuerst die Top 5 und den Rest per "Alle anzeigen"
+    return { ...w, drivers: rank(_drivers), sessions, tracks: rank(_tracks), cars: rank(_cars) };
   });
 }
 
