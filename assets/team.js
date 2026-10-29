@@ -775,15 +775,17 @@
       return corners.concat(sectors).filter(function (v) { return zoomCode(v) === code; })[0] || null;
     };
     // Adresse immer auf dem aktuellen Stand halten, damit sie direkt geteilt werden kann
-    var shareUrl = function () {
+    var shareQuery = function () {
       var q = new URLSearchParams({ strecke: $("tm-track").value, auto: $("tm-car").value, a: A.id });
       if (B) q.set("b", B.id);
       if (zoomCode(view)) q.set("zoom", zoomCode(view));
-      return "#telemetrie?" + q.toString();
+      return q.toString();
     };
+    var shareUrl = function () { return "#telemetrie?" + shareQuery(); };
     var copy = el("button", { type: "button", className: "tm-copy", textContent: "Link kopieren" });
     copy.addEventListener("click", function () {
-      var url = location.origin + location.pathname + shareUrl();
+      // /vergleich liefert Discord eine Vorschau (Strecke, Fahrer, Zeiten) und leitet dann hierher weiter
+      var url = location.origin + "/vergleich?" + shareQuery();
       var done = function () { copy.textContent = "Link kopiert ✓"; setTimeout(function () { copy.textContent = "Link kopieren"; }, 2000); };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function () { window.prompt("Link zum Kopieren:", url); });
       else window.prompt("Link zum Kopieren:", url);
