@@ -28,6 +28,7 @@
     $("loading").hidden = true;
     $("area").hidden = false;
     loadTracks();
+    loadWeekly();
   }
 
   // ---------------------------------------------------------------- Hilfen
@@ -179,6 +180,107 @@
       ]),
       el("div", { className: "scroll" }, el("table", null, [el("thead", null, head), el("tbody", null, rows)]))
     ]);
+  }
+
+  // ---------------------------------------------------------------- Wochenbericht
+
+  function isoWeek(day) {
+    var d = new Date(day + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() + 3 - ((d.getUTCDay() + 6) % 7));
+    var jan4 = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    return 1 + Math.round(((d - jan4) / 86400000 - 3 + ((jan4.getUTCDay() + 6) % 7)) / 7);
+  }
+
+  function shortDay(day) {
+    var p = day.split("-");
+    return p[2] + "." + p[1] + ".";
+  }
+
+  function delta(now, before, unit) {
+    if (!before) return now ? "neu gegenüber Vorwoche" : "wie Vorwoche";
+    var pct = Math.round((now - before) / before * 100);
+    return (pct > 0 ? "+" : pct < 0 ? "−" : "±") + Math.abs(pct) + " % zur Vorwoche";
+  }
+
+  function loadWeekly() {
+    var box = $("wb");
+    api("/api/team/weekly").then(function (d) {
+      var weeks = d.weeks;
+      // Standard: laufende Woche, außer sie ist noch leer, dann die letzte Woche mit Fahrzeit
+      var sel = weeks.length - 1;
+      if (!weeks[sel].time) for (var i = sel; i >= 0; i--) if (weeks[i].time) { sel = i; break; }
+      renderWeekly(box, weeks, sel);
+    }).catch(function (e) { message(box, e.message, true); });
+  }
+
+  function renderWeekly(box, weeks, sel) {
+    var max = Math.max.apply(null, weeks.map(function (w) { return w.time; })) || 1;
+    var last = weeks.length - 1;
+
+    var trend = el("div", { className: "wb-trend" });
+    var axis = el("div", { className: "wb-axis" });
+    weeks.forEach(function (w, i) {
+      var label = "KW " + isoWeek(w.start);
+      var col = el("button", { type: "button", className: "wb-col", title: label + ": " + hours(w.time) + " · " + w.laps + " Runden" }, [
+        el("span", { className: "v", textContent: w.time ? Math.round(w.time / 3600) + " h" : "–" }),
+        el("span", { className: "bar-fill" })
+      ]);
+      col.lastChild.style.height = Math.max(1, w.time / max * 100) + "%";
+      col.setAttribute("aria-pressed", String(i === sel));
+      col.setAttribute("aria-label", label + ", " + hours(w.time) + ", " + w.laps + " Runden");
+      col.addEventListener("click", function () { renderWeekly(box, weeks, i); });
+      trend.append(col);
+      axis.append(el("span", { className: i === sel ? "on" : "", textContent: i === last ? "Jetzt" : label }));
+    });
+
+    var w = weeks[sel], prev = weeks[sel - 1];
+    var head = el("div", { className: "wb-head" }, [
+      el("h3", { textContent: "KW " + isoWeek(w.start) + (sel === last ? " · laufende Woche" : "") }),
+      el("span", { textContent: shortDay(w.start) + " – " + shortDay(w.end) })
+    ]);
+
+    var kpi = function (label, value, sub) {
+      return el("div", { className: "wb-kpi" }, [el("span", { className: "lbl", textContent: label }), el("b", { textContent: value }), el("span", { className: "delta", textContent: sub })]);
+    };
+    var kpis = el("div", { className: "wb-kpis" }, [
+      kpi("Fahrzeit", hours(w.time), prev ? delta(w.time, prev.time) : ""),
+      kpi("Runden", String(w.laps), prev ? delta(w.laps, prev.laps) : ""),
+      kpi("Saubere Runden", w.laps ? Math.round(w.clean / w.laps * 100) + " %" : "–", w.clean + " von " + w.laps),
+      kpi("Aktive Fahrer", String(w.drivers.length), w.events + " Sessions")
+    ]);
+
+    if (!w.time) {
+      box.replaceChildren(trend, axis, head, el("p", { className: "msg", textContent: "In dieser Woche ist niemand aus dem Team gefahren." }));
+      return;
+    }
+
+    // Balkenliste: alle Balken einer Karte auf derselben Skala (größter Wert = volle Breite)
+    var bars = function (title, items, sub) {
+      var top = items.reduce(function (m, x) { return Math.max(m, x.time); }, 0) || 1;
+      return el("div", { className: "wb-card" }, [el("h4", { textContent: title })].concat(items.map(function (x) {
+        var fill = el("i");
+        fill.style.width = (x.time / top * 100) + "%";
+        return el("div", { className: "hbar" }, [
+          el("span", { className: "lab" }, [x.name].concat(x.variant ? el("small", { textContent: x.variant }) : [])),
+          el("span", { className: "val" }, [hours(x.time) + " ", el("small", { textContent: sub(x) })]),
+          el("span", { className: "track" }, fill)
+        ]);
+      })));
+    };
+    var sessions = [
+      { name: "Training", time: w.sessions.training },
+      { name: "Qualifying", time: w.sessions.quali },
+      { name: "Rennen", time: w.sessions.rennen }
+    ];
+    var share = function (x) { return "· " + Math.round(x.time / w.time * 100) + " %"; };
+    var grid = el("div", { className: "wb-grid" }, [
+      bars("Fahrzeit pro Fahrer", w.drivers, function (x) { return "· " + x.laps + " Runden"; }),
+      bars("Training, Quali, Rennen", sessions, share),
+      bars("Meistgefahrene Strecken", w.tracks, function (x) { return "· " + x.laps + " Runden"; }),
+      bars("Meistgefahrene Autos", w.cars, function (x) { return "· " + x.laps + " Runden"; })
+    ]);
+
+    box.replaceChildren(trend, axis, head, kpis, grid);
   }
 
   $("logout").addEventListener("click", function () {
