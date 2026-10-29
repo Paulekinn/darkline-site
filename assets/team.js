@@ -70,28 +70,50 @@
 
   // ---------------------------------------------------------------- Rangliste
 
+  // Eine Zeile pro Strecke. Klick klappt darunter die Bestzeiten auf (nur eine Strecke gleichzeitig offen).
   function loadTracks() {
     var box = $("rl-tracks");
     api("/api/team/leaderboard").then(function (d) {
       if (!d.tracks.length) return message(box, "In den letzten " + d.days + " Tagen ist niemand aus dem Team gefahren.");
-      box.replaceChildren.apply(box, d.tracks.map(function (t) {
-        var b = el("button", { type: "button", className: "chip" }, [
-          el("b", { textContent: t.name }),
-          el("span", { textContent: hours(t.time) + " · " + t.laps + " Runden · " + t.drivers + " Fahrer" })
+      var head = el("tr", null, [
+        el("th", { textContent: "Strecke" }),
+        el("th", { className: "n", textContent: "Fahrzeit" }),
+        el("th", { className: "n opt", textContent: "Runden" }),
+        el("th", { className: "n opt", textContent: "Fahrer" }),
+        el("th", { className: "n", textContent: "Zuletzt" })
+      ]);
+      var body = el("tbody");
+      d.tracks.forEach(function (t) {
+        var row = el("tr", { className: "trk", tabIndex: 0 }, [
+          el("td", { className: "name" }, [el("b", { textContent: t.name })].concat(t.variant ? el("small", { textContent: t.variant }) : [])),
+          el("td", { className: "n", textContent: hours(t.time) }),
+          el("td", { className: "n opt", textContent: String(t.laps) }),
+          el("td", { className: "n opt", textContent: String(t.drivers) }),
+          el("td", { className: "n", textContent: day(t.last) })
         ]);
-        b.setAttribute("aria-pressed", "false");
-        b.addEventListener("click", function () { selectTrack(t, b); });
-        return b;
-      }));
+        row.setAttribute("aria-expanded", "false");
+        var toggle = function () { toggleTrack(t, row); };
+        row.addEventListener("click", toggle);
+        row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+        body.append(row);
+      });
+      box.replaceChildren(el("div", { className: "scroll" }, el("table", { className: "tracks" }, [el("thead", null, head), body])));
     }).catch(function (e) { message(box, e.message, true); });
   }
 
-  function selectTrack(track, button) {
-    document.querySelectorAll("#rl-tracks .chip").forEach(function (c) { c.setAttribute("aria-pressed", String(c === button)); });
-    var box = $("rl-cars");
-    box.replaceChildren(el("p", { className: "lbl", textContent: "Lade Bestzeiten auf " + track.name + " …" }));
+  function toggleTrack(track, row) {
+    var wasOpen = row.getAttribute("aria-expanded") === "true";
+    document.querySelectorAll("#rl-tracks tr.detail").forEach(function (r) { r.remove(); });
+    document.querySelectorAll("#rl-tracks tr.trk").forEach(function (r) { r.setAttribute("aria-expanded", "false"); });
+    if (wasOpen) return;
+
+    row.setAttribute("aria-expanded", "true");
+    var box = el("div", { className: "cars" }, el("p", { className: "lbl", textContent: "Lade Bestzeiten …" }));
+    var cell = el("td", null, box);
+    cell.colSpan = 5;
+    row.after(el("tr", { className: "detail" }, cell));
     api("/api/team/leaderboard?track=" + encodeURIComponent(track.id)).then(function (d) {
-      if (!d.cars.length) return message(box, "Für " + track.name + " sind keine Runden des Teams sichtbar.");
+      if (!d.cars.length) return message(box, "Für diese Strecke sind keine Runden des Teams sichtbar.");
       box.replaceChildren.apply(box, d.cars.map(function (car) { return carTable(car); }));
     }).catch(function (e) { message(box, e.message, true); });
   }

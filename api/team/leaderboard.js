@@ -13,7 +13,8 @@ async function trackOverview() {
   const names = await tracks();
   const byTrack = new Map();
   for (const r of stats.drivingStatistics || []) {
-    const t = byTrack.get(r.track) || { id: r.track, name: names.get(r.track) || `Strecke ${r.track}`, time: 0, laps: 0, drivers: new Set(), last: "" };
+    const info = names.get(r.track) || { name: `Strecke ${r.track}`, variant: "" };
+    const t = byTrack.get(r.track) || { id: r.track, name: info.name, variant: info.variant, time: 0, laps: 0, drivers: new Set(), last: "" };
     t.time += r.timeOnTrack;
     t.laps += r.lapsDriven;
     if (r.user) t.drivers.add(r.user);

@@ -47,7 +47,8 @@ const items = (data) => (Array.isArray(data) ? data : data.items || []);
 const trackLabel = (t) => (t.variant ? `${t.name} (${t.variant})` : t.name);
 
 // Namen von Strecken und Autos ändern sich selten: einen Tag merken.
-const tracks = () => cached("tracks", 86400, async () => new Map(items(await g61Get("/tracks")).map((t) => [t.id, trackLabel(t)])));
+// Strecken: ID → { name, variant }
+const tracks = () => cached("tracks", 86400, async () => new Map(items(await g61Get("/tracks")).map((t) => [t.id, { name: t.name, variant: t.variant || "" }])));
 const cars = () => cached("cars", 86400, async () => new Map(items(await g61Get("/cars")).map((c) => [c.id, c.name])));
 
 // Einheitliche Fehlerantwort für die Daten-Funktionen.
