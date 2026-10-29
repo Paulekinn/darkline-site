@@ -5,7 +5,7 @@ const { requireSession } = require("../_lib/session");
 const { g61Get, g61Text, cached, sendError } = require("../_lib/g61");
 
 const N = 1000;      // Punkte über die Runde
-const MAP_STEP = 4;  // jeder 4. Punkt für die Streckenkarte
+const MAP_STEP = 1;  // GPS für die Streckenkarte: jeder Punkt (ca. alle 4 m), damit die Karte beim Zoom die Fahrlinie zeigt
 
 const round = (v, digits) => Math.round(v * 10 ** digits) / 10 ** digits;
 

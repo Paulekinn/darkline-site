@@ -500,7 +500,8 @@
     return el("div", { className: "tm-chart" }, [el("span", { className: "tm-name", textContent: name }), svg].concat(labels));
   }
 
-  // Streckenkarte aus den GPS-Punkten von Runde A: Kurvennummern, hervorgehobener Abschnitt, Positionspunkte A und B
+  // Streckenkarte aus den GPS-Punkten. Ganze Runde: Strecke mit Kurvennummern und Positionspunkten.
+  // Im Zoom: Ausschnitt um den Abschnitt, Strecke in ungefähr echter Breite, Fahrlinien von A und B, Bremspunkte als Kreise.
   function trackMap(A, B, corners) {
     var lat = A.points.lat, lon = A.points.lon;
     var k = Math.cos(lat.reduce(function (s, v) { return s + v; }, 0) / lat.length * Math.PI / 180);
@@ -509,33 +510,97 @@
     // Ausschnitt in der Form der Strecke (längste Seite = 200), damit die Karte den Platz voll ausnutzt
     var size = 200, pad = 14, s = (size - 2 * pad) / Math.max(maxX - minX, maxY - minY);
     var vw = (maxX - minX) * s + 2 * pad, vh = (maxY - minY) * s + 2 * pad;
+    var fullBox = "0 0 " + vw.toFixed(1) + " " + vh.toFixed(1);
+    var unitsPerMeter = s / 111320; // 1 Grad Breite ≈ 111,32 km
     var px = function (la, lo) { return [(lo * k - minX) * s + pad, (-la - minY) * s + pad]; };
-    var at = function (L, i) { var j = Math.min(L.points.lat.length - 1, Math.round(i / 4)); return px(L.points.lat[j], L.points.lon[j]); };
-    var line = function (j0, j1) {
+    // Rundenpunkt i (0…999 wie in den Diagrammen) → Kartenpunkt; die Karte darf gröber aufgelöst sein
+    var idx = function (L, i) { var len = L.points.lat.length; return Math.min(len - 1, Math.round(i * (len - 1) / (L.points.t.length - 1))); };
+    var at = function (L, i) { var j = idx(L, i); return px(L.points.lat[j], L.points.lon[j]); };
+    var pathOf = function (L, i0, i1) {
       var out = [];
-      for (var j = j0; j <= j1; j++) out.push(px(lat[j], lon[j]).map(function (v) { return v.toFixed(1); }).join(","));
-      return out.join(" ");
+      for (var j = idx(L, i0); j <= idx(L, i1); j++) out.push(px(L.points.lat[j], L.points.lon[j]));
+      return out;
     };
-    var hl = svgEl("polyline", { fill: "none", stroke: "#b8c0bd", "stroke-width": 7, "stroke-linejoin": "round", "stroke-linecap": "round", "vector-effect": "non-scaling-stroke" });
-    var start = px(lat[0], lon[0]);
+    var str = function (pts) { return pts.map(function (p) { return p[0].toFixed(2) + "," + p[1].toFixed(2); }).join(" "); };
+    var poly = function (stroke, width) {
+      return svgEl("polyline", { fill: "none", stroke: stroke, "stroke-width": width, "stroke-linejoin": "round", "stroke-linecap": "round", "vector-effect": "non-scaling-stroke" });
+    };
+
+    var track = poly("#3a4144", 7);
+    track.setAttribute("points", str(pathOf(A, 0, A.points.t.length - 1)));
+    var lineA = poly(COLOR_A, 2.5), lineB = B ? poly(COLOR_B, 2.5) : null;
+    var brakes = svgEl("g");
+    var p0 = px(lat[0], lon[0]);
+    var start = svgEl("circle", { cx: p0[0].toFixed(1), cy: p0[1].toFixed(1), fill: "#ffd400" });
     var nums = corners.filter(function (c) { return c.num; }).map(function (c) {
       var p = at(A, c.apex);
-      return svgEl("text", { x: p[0].toFixed(1), y: (p[1] - 6).toFixed(1), "text-anchor": "middle", "font-size": 7, fill: "#8a9390", "font-family": "IBM Plex Mono, monospace" }, String(c.num));
+      return { p: p, node: svgEl("text", { x: p[0].toFixed(2), "text-anchor": "middle", fill: "#8a9390", "font-family": "IBM Plex Mono, monospace" }, String(c.num)) };
     });
-    var dotA = svgEl("circle", { r: 5, fill: COLOR_A, stroke: "#111416", "stroke-width": 2 });
-    var dotB = B ? svgEl("circle", { r: 5, fill: COLOR_B, stroke: "#111416", "stroke-width": 2 }) : null;
-    var svg = svgEl("svg", { viewBox: "0 0 " + vw.toFixed(1) + " " + vh.toFixed(1), role: "img", "aria-label": "Streckenkarte" }, [
-      svgEl("polyline", { points: line(0, lat.length - 1), fill: "none", stroke: "#3a4144", "stroke-width": 7, "stroke-linejoin": "round", "stroke-linecap": "round", "vector-effect": "non-scaling-stroke" }),
-      hl,
-      svgEl("circle", { cx: start[0].toFixed(1), cy: start[1].toFixed(1), r: 3, fill: "#ffd400" })
-    ].concat(nums, dotB ? [dotB] : [], dotA));
-    var place = function (dot, L, i) { var p = at(L, i); dot.setAttribute("cx", p[0].toFixed(1)); dot.setAttribute("cy", p[1].toFixed(1)); };
-    return {
-      node: el("div", { className: "tm-map" }, svg),
-      move: function (i) { place(dotA, A, i); if (dotB) place(dotB, B, i); },
-      highlight: function (view, full) {
-        hl.setAttribute("points", full ? "" : line(Math.floor(view.i0 / 4), Math.min(lat.length - 1, Math.ceil(view.i1 / 4))));
+    var dotA = svgEl("circle", { fill: COLOR_A, stroke: "#111416" });
+    var dotB = B ? svgEl("circle", { fill: COLOR_B, stroke: "#111416" }) : null;
+    var svg = svgEl("svg", { viewBox: fullBox, role: "img", "aria-label": "Streckenkarte" },
+      [track].concat(lineB ? [lineB] : [], lineA, brakes, start, nums.map(function (n) { return n.node; }), dotB ? [dotB] : [], dotA));
+    var note = el("span", { className: "tm-map-note", hidden: true, textContent: "Fahrlinie A und B · ○ = Bremspunkt" });
+
+    var bOnA = brakeOnsets(A.points.brake), bOnB = B ? brakeOnsets(B.points.brake) : [];
+
+    // Punkte, Schrift und Markierungen wachsen nicht mit dem Zoom mit (sc = Anteil des Ausschnitts an der ganzen Karte)
+    function scaleMarks(sc) {
+      [dotA, dotB].forEach(function (d) { if (d) { d.setAttribute("r", 5 * sc); d.setAttribute("stroke-width", 2 * sc); } });
+      start.setAttribute("r", 3 * sc);
+      nums.forEach(function (n) { n.node.setAttribute("font-size", 7 * sc); n.node.setAttribute("y", (n.p[1] - 6 * sc).toFixed(2)); });
+    }
+
+    function zoomTo(view, full) {
+      if (full) {
+        svg.setAttribute("viewBox", fullBox);
+        track.setAttribute("stroke-width", 7);
+        track.setAttribute("vector-effect", "non-scaling-stroke");
+        lineA.setAttribute("points", "");
+        if (lineB) lineB.setAttribute("points", "");
+        brakes.replaceChildren();
+        note.hidden = true;
+        scaleMarks(1);
+        return;
       }
+      // Etwas Anfahrt davor (ca. 60 m, damit frühere Bremspunkte sichtbar sind). Bei einer Kurve nur bis kurz nach
+      // dem Scheitelpunkt, sonst wäre die folgende Gerade im Bild und die Kurve selbst zu klein.
+      var j0 = Math.max(0, view.i0 - 15);
+      var j1 = view.num && view.apex != null ? Math.min(view.i1, view.apex + Math.max(25, view.apex - view.i0)) : view.i1;
+      var pa = pathOf(A, j0, j1), pb = B ? pathOf(B, j0, j1) : [];
+      var all = pa.concat(pb);
+      var x0 = Math.min.apply(null, all.map(function (p) { return p[0]; })), x1 = Math.max.apply(null, all.map(function (p) { return p[0]; }));
+      var y0 = Math.min.apply(null, all.map(function (p) { return p[1]; })), y1 = Math.max.apply(null, all.map(function (p) { return p[1]; }));
+      var m = Math.max(x1 - x0, y1 - y0, 40 * unitsPerMeter) * 0.18 + 15 * unitsPerMeter;
+      var bw = x1 - x0 + 2 * m, bh = y1 - y0 + 2 * m;
+      svg.setAttribute("viewBox", [(x0 - m).toFixed(2), (y0 - m).toFixed(2), bw.toFixed(2), bh.toFixed(2)].join(" "));
+      var sc = Math.max(bw, bh) / Math.max(vw, vh);
+      // Strecke in ungefähr echter Breite (12 m), aber nie dünner als die Linien darauf
+      track.removeAttribute("vector-effect");
+      track.setAttribute("stroke-width", Math.max(12 * unitsPerMeter, 3 * sc).toFixed(3));
+      lineA.setAttribute("points", str(pa));
+      if (lineB) lineB.setAttribute("points", str(pb));
+      var marks = [];
+      [[bOnA, A, COLOR_A], [bOnB, B, COLOR_B]].forEach(function (x) {
+        if (!x[1]) return;
+        x[0].filter(function (i) { return i >= j0 && i <= j1; }).forEach(function (i) {
+          var p = at(x[1], i);
+          marks.push(svgEl("circle", { cx: p[0].toFixed(2), cy: p[1].toFixed(2), r: 4 * sc, fill: "none", stroke: x[2], "stroke-width": 2, "vector-effect": "non-scaling-stroke" }));
+        });
+      });
+      brakes.replaceChildren.apply(brakes, marks);
+      note.hidden = false;
+      scaleMarks(sc);
+    }
+
+    scaleMarks(1);
+    return {
+      node: el("div", { className: "tm-map" }, [svg, note]),
+      move: function (i) {
+        var a = at(A, i); dotA.setAttribute("cx", a[0].toFixed(2)); dotA.setAttribute("cy", a[1].toFixed(2));
+        if (dotB) { var b = at(B, i); dotB.setAttribute("cx", b[0].toFixed(2)); dotB.setAttribute("cy", b[1].toFixed(2)); }
+      },
+      highlight: zoomTo
     };
   }
 
