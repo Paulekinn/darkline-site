@@ -438,16 +438,17 @@
     var k = Math.cos(lat.reduce(function (s, v) { return s + v; }, 0) / lat.length * Math.PI / 180);
     var xs = lon.map(function (v) { return v * k; }), ys = lat.map(function (v) { return -v; });
     var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs), minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+    // Ausschnitt in der Form der Strecke (längste Seite = 200), damit die Karte den Platz voll ausnutzt
     var size = 200, pad = 10, s = (size - 2 * pad) / Math.max(maxX - minX, maxY - minY);
-    var ox = (size - (maxX - minX) * s) / 2, oy = (size - (maxY - minY) * s) / 2;
-    var px = function (la, lo) { return [((lo * k - minX) * s + ox).toFixed(1), ((-la - minY) * s + oy).toFixed(1)]; };
+    var vw = (maxX - minX) * s + 2 * pad, vh = (maxY - minY) * s + 2 * pad;
+    var px = function (la, lo) { return [((lo * k - minX) * s + pad).toFixed(1), ((-la - minY) * s + pad).toFixed(1)]; };
     var pts = lat.map(function (la, i) { return px(la, lon[i]).join(","); }).join(" ");
     var start = px(lat[0], lon[0]);
     var dotA = svgEl("circle", { r: 5, fill: COLOR_A, stroke: "#111416", "stroke-width": 2 });
     var dotB = B ? svgEl("circle", { r: 5, fill: COLOR_B, stroke: "#111416", "stroke-width": 2 }) : null;
-    var svg = svgEl("svg", { viewBox: "0 0 " + size + " " + size, role: "img", "aria-label": "Streckenkarte" }, [
-      svgEl("polyline", { points: pts, fill: "none", stroke: "#3a4144", "stroke-width": 4, "stroke-linejoin": "round", "stroke-linecap": "round" }),
-      svgEl("rect", { x: start[0] - 2, y: start[1] - 6, width: 4, height: 12, fill: "#ffd400" })
+    var svg = svgEl("svg", { viewBox: "0 0 " + vw.toFixed(1) + " " + vh.toFixed(1), role: "img", "aria-label": "Streckenkarte" }, [
+      svgEl("polyline", { points: pts, fill: "none", stroke: "#3a4144", "stroke-width": 7, "stroke-linejoin": "round", "stroke-linecap": "round", "vector-effect": "non-scaling-stroke" }),
+      svgEl("circle", { cx: start[0], cy: start[1], r: 3, fill: "#ffd400" })
     ].concat(dotB ? [dotB] : [], dotA));
     var place = function (dot, L, i) {
       var j = Math.min(L.points.lat.length - 1, Math.floor(i / 4));
