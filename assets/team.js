@@ -417,7 +417,7 @@
   // Liniendiagramm über die Runde. series: [{ values, color }], Index 0…999 = Rundenposition
   function lineChart(name, height, series, min, max, opts) {
     opts = opts || {};
-    var top = 20, bottom = 6, n = series[0].values.length;
+    var top = 26, bottom = 8, n = series[0].values.length;
     var y = function (v) { return top + (1 - (v - min) / (max - min || 1)) * (height - top - bottom); };
     var svg = svgEl("svg", { viewBox: "0 0 1000 " + height, preserveAspectRatio: "none", height: height, "aria-hidden": "true" });
     if (opts.zero) svg.append(svgEl("line", { x1: 0, x2: 1000, y1: y(0), y2: y(0), stroke: "#3a4144", "stroke-dasharray": "4 4", "vector-effect": "non-scaling-stroke" }));
@@ -470,14 +470,14 @@
     var delta = Q ? Q.t.map(function (t, i) { return Math.round((t - P.t[i]) * 1000) / 1000; }) : null;
     if (delta) {
       var dMax = Math.max(0.1, Math.max.apply(null, delta.map(Math.abs)));
-      charts.push(lineChart("Abstand B zu A (s) · oben = B langsamer", 90, [{ values: delta, color: COLOR_B }], -dMax, dMax, { zero: true }));
+      charts.push(lineChart("Abstand B zu A (s) · oben = B langsamer", 130, [{ values: delta, color: COLOR_B }], -dMax, dMax, { zero: true }));
     }
     var sp = range("speed");
-    charts.push(lineChart("Speed (km/h)", 160, both("speed"), Math.floor(sp[0] / 10) * 10, Math.ceil(sp[1] / 10) * 10));
-    charts.push(lineChart("Gas (%)", 64, both("throttle"), 0, 100));
-    charts.push(lineChart("Bremse (%)", 64, both("brake"), 0, 100));
+    charts.push(lineChart("Speed (km/h)", 260, both("speed"), Math.floor(sp[0] / 10) * 10, Math.ceil(sp[1] / 10) * 10));
+    charts.push(lineChart("Gas (%)", 110, both("throttle"), 0, 100));
+    charts.push(lineChart("Bremse (%)", 110, both("brake"), 0, 100));
     var g = range("gear");
-    charts.push(lineChart("Gang", 64, both("gear"), Math.max(0, g[0] - 0.5), g[1] + 0.5, { step: true }));
+    charts.push(lineChart("Gang", 100, both("gear"), Math.max(0, g[0] - 0.5), g[1] + 0.5, { step: true }));
 
     var len = A.length;
     var axis = el("div", { className: "tm-axis" }, [0, 0.25, 0.5, 0.75, 1].map(function (f) { return el("span", { textContent: Math.round(len * f) + " m" }); }));
@@ -527,10 +527,10 @@
       el("div", null, [el("span", { textContent: "Differenz" }), (B.lapTime - A.lapTime >= 0 ? "+" : "−") + Math.abs(B.lapTime - A.lapTime).toFixed(3) + " s"])
     ] : []));
 
-    $("tm-view").replaceChildren(
+    $("tm-view").replaceChildren(el("div", { className: "tm-wide" }, [
       el("div", { className: "tm-keys" }, [key("a", A, "A")].concat(B ? key("b", B, "B") : [])),
       el("div", { className: "tm-layout" }, [box, el("div", { className: "tm-side" }, [map.node, sum])])
-    );
+    ]));
   }
 
   $("logout").addEventListener("click", function () {
