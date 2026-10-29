@@ -1159,25 +1159,25 @@
     ]);
     setMode(false);
 
-    var drivers = raTable(["Fahrer", "Stints", "Runden", "Fahrzeit", "Beste", "Typisch", "Konstanz", "Abflüge", "Verlust"],
+    var drivers = raTable(["Fahrer", "Stints", "Runden", "Fahrzeit", "Beste", "Typisch", "Zum Team", "Konstanz", "Abflüge", "Verlust"],
       a.drivers.map(function (d, i) {
         return {
-          cells: [d.driver, String(d.stints), String(d.laps), hours(d.time), raLap(d.best), raLap(d.median), d.spread == null ? "–" : "±" + raSec(d.spread, 2), String(d.offtracks),
+          cells: [d.driver, String(d.stints), String(d.laps), hours(d.time), raLap(d.best), raLap(d.median), raSigned(d.vsTeam), d.spread == null ? "–" : "±" + raSec(d.spread, 2), String(d.offtracks),
             raSec(d.lossTime) + " (" + d.lossLaps + ")"],
           color: colors[d.driver],
           onClick: function () { focusDriver(ra.focus === i ? null : i); }
         };
-      }), { opt: [1, 3, 4, 7] });
+      }), { opt: [1, 3, 4, 8] });
 
-    var stints = raTable(["Stint", "Runden", "Dauer", "Typisch", "Konstanz", "Abbau", "Sprit/Runde"],
+    var stints = raTable(["Stint", "Runden", "Dauer", "Typisch", "Zum Team", "Konstanz", "Abbau", "Sprit/Runde"],
       a.stints.map(function (s) {
         return {
-          cells: [s.nr + " · " + s.driver, s.from + "–" + s.to + " (" + s.laps + ")", hours(s.time), raLap(s.median), s.spread == null ? "–" : "±" + raSec(s.spread, 2),
+          cells: [s.nr + " · " + s.driver, s.from + "–" + s.to + " (" + s.laps + ")", hours(s.time), raLap(s.median), raSigned(s.vsTeam), s.spread == null ? "–" : "±" + raSec(s.spread, 2),
             raSigned(s.fade), s.fuelPerLap ? String(s.fuelPerLap).replace(".", ",") + " l" : "–"],
           color: colors[s.driver],
           onClick: function (tr) { markRows(tr, s.from, s.to); }
         };
-      }), { opt: [2, 4, 6] });
+      }), { opt: [2, 5, 7] });
 
     // lange Stopps (deutlich über dem üblichen Stopp) markieren: meist Reparatur oder Strafe
     var usual = (function () {
@@ -1209,7 +1209,7 @@
     };
     var grid = el("div", { className: "ra-grid" }, [
       card("Fahrervergleich · Zeile anklicken zum Hervorheben", drivers,
-        "Typisch = Median der sauberen Runden ohne Box und Startrunde. Konstanz = typische Abweichung davon. Verlust = Zeit in Runden, die über 2 % langsamer als das Umfeld waren (Anzahl in Klammern).", true),
+        "Typisch = Median der sauberen Runden ohne Box und Startrunde. Zum Team = faire Pace: jede saubere Runde gegen die Teamkollegen, die in den 40 Runden davor und danach bei gleich nasser Strecke gefahren sind (minus = schneller). So zählen Nacht, Regen und Gummi für alle gleich. Konstanz = typische Abweichung vom Median. Verlust = Zeit in Runden, die über 2 % langsamer als das Umfeld waren (Anzahl in Klammern).", true),
       card("Stints · Zeile anklicken zum Markieren", stints,
         "Abbau = Schnitt der letzten 5 gegen die ersten 5 sauberen Runden des Stints (plus = am Ende langsamer, z. B. durch Reifen). Erst ab 12 sauberen Runden.", true),
       card("Boxenstopps", stops,

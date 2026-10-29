@@ -170,6 +170,10 @@
 
   var sec = function (v) { return v == null ? "–" : v.toFixed(3).replace(".", ",") + " s"; };
   var lt = function (v) { return v == null ? "–" : lapTime(v); };
+  var signed = function (v) { return v == null ? "–" : (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v).toFixed(1).replace(".", ",") + " s"; };
+  // längere Dauern als m:ss min, kürzere in Sekunden
+  var span = function (s) { var m = Math.floor(s / 60); return s < 90 ? Math.round(s) + " Sekunden" : m + ":" + String(Math.round(s - m * 60)).padStart(2, "0") + " Minuten"; };
+  var stopCount = function (a) { return a.stops ? a.stops.length : a.pits; };
 
   function renderRace(race, a) {
     var kpi = function (label, value, sub) {
@@ -177,7 +181,7 @@
     };
     var kpis = el("div", { className: "wb-kpis" }, [
       kpi("Renndauer", hours(a.duration), germanDate(a.start.slice(0, 10))),
-      kpi("Runden", String(a.laps), a.stints.length + " Stints · " + a.pits + " Boxenstopps"),
+      kpi("Runden", String(a.laps), a.stints.length + " Stints · " + stopCount(a) + " Boxenstopps"),
       kpi("Schnellste Runde", lt(a.bestLap && a.bestLap.time), a.bestLap ? a.bestLap.driver + " · Runde " + a.bestLap.lap : ""),
       kpi("Saubere Runden", Math.round(a.cleanShare * 100) + " %", a.offtracks + " Ausrutscher")
     ]);
@@ -192,8 +196,8 @@
         ]))
       ]);
     };
-    var drivers = table("Fahrer", ["Fahrer", "Stints", "Runden", "Fahrzeit", "Bestzeit", "Ø Runde", "Konstanz", "Ausrutscher"],
-      a.drivers.map(function (d) { return [d.driver, String(d.stints), String(d.laps), hours(d.time), lt(d.best), lt(d.median), d.spread == null ? "–" : "±" + sec(d.spread), String(d.offtracks)]; }));
+    var drivers = table("Fahrer", ["Fahrer", "Stints", "Runden", "Fahrzeit", "Bestzeit", "Ø Runde", "Zum Team", "Konstanz", "Ausrutscher"],
+      a.drivers.map(function (d) { return [d.driver, String(d.stints), String(d.laps), hours(d.time), lt(d.best), lt(d.median), signed(d.vsTeam), d.spread == null ? "–" : "±" + sec(d.spread), String(d.offtracks)]; }));
     var stints = table("Stints", ["Fahrer", "Nr.", "Beginn", "Runden", "Dauer", "Bestzeit", "Ø Runde", "Boxenstopps"],
       a.stints.map(function (s) {
         return [s.driver, String(s.nr), new Date(s.start).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }), s.from + "–" + s.to, hours(s.time), lt(s.best), lt(s.median), String(s.pits)];
@@ -250,7 +254,7 @@
     var top = a.drivers[0];
     var verlauf = (names.length > 1 ? "Den Start übernahm " + first.driver + " und fuhr im ersten Stint " + first.laps + " Runden. " : "") +
       "Über " + dauer + " absolvierte das Team " + a.laps + " Runden" + (names.length > 1 ? ", verteilt auf " + a.stints.length + " Stints" : "") +
-      " mit " + a.pits + (a.pits === 1 ? " Boxenstopp." : " Boxenstopps.");
+      " mit " + stopCount(a) + (stopCount(a) === 1 ? " Boxenstopp." : " Boxenstopps.");
     if (names.length > 1) verlauf += " Die meiste Zeit am Steuer verbrachte " + top.driver + " mit " + hours(top.time) + " in " + top.stints + (top.stints === 1 ? " Stint." : " Stints.");
     p.push(verlauf);
 
@@ -259,7 +263,27 @@
       if (a.medianLap) pace += " Die typische Rennrunde lag bei " + lapTime(a.medianLap) + ".";
       var steady = a.drivers.filter(function (d) { return d.spread != null && d.laps >= 10; }).sort(function (x, y) { return x.spread - y.spread; })[0];
       if (steady && names.length > 1) pace += " Am konstantesten war " + steady.driver + " mit einer typischen Abweichung von nur ±" + sec(steady.spread) + ".";
+      // faire Pace: gegen die Teamkollegen im selben Zeitraum, Bedingungen herausgerechnet
+      var strong = a.drivers.filter(function (d) { return d.vsTeam != null && d.laps >= 10; }).sort(function (x, y) { return x.vsTeam - y.vsTeam; })[0];
+      if (strong && names.length > 1 && strong.vsTeam <= -0.2) {
+        pace += " Rechnet man Tageszeit und Streckenbedingungen heraus, hatte " + strong.driver + " die stärkste Pace: im Schnitt " +
+          Math.abs(strong.vsTeam).toFixed(1).replace(".", ",") + " Sekunden pro Runde schneller als die Teamkollegen im selben Zeitraum.";
+      }
       p.push(pace);
+    }
+
+    // Boxenstopps und Zeitverluste (nur Teamwerte, keine Schuldzuweisung an einzelne Fahrer)
+    if (a.stops && a.stops.length) {
+      var changes = a.stops.filter(function (s) { return s.change; }).length;
+      var losses = a.stops.map(function (s) { return s.loss; }).filter(function (x) { return x != null; }).sort(function (x, y) { return x - y; });
+      var usual = losses.length ? losses[Math.floor(losses.length / 2)] : null;
+      var box = "In der Box war das Team " + a.stops.length + "-mal" + (changes ? ", davon " + changes + "-mal mit Fahrerwechsel" : "") + ".";
+      if (usual) box += " Ein normaler Stopp kostete rund " + span(usual) + " gegenüber einer Runde auf der Strecke.";
+      var long = a.stops.filter(function (s) { return usual && s.loss > usual * 1.6; }).sort(function (x, y) { return y.loss - x.loss; });
+      if (long.length === 1) box += " Deutlich länger dauerte nur der Stopp in Runde " + long[0].lap + ", er kostete etwa " + span(long[0].loss) + ".";
+      else if (long.length > 1) box += " " + long.length + " Stopps dauerten deutlich länger als üblich, der längste in Runde " + long[0].lap + " kostete etwa " + span(long[0].loss) + ".";
+      if (a.lossTime >= 5) box += " Abseits der Box kosteten langsame Runden, Verkehr und Zwischenfälle zusammen rund " + span(a.lossTime) + ".";
+      p.push(box);
     }
 
     var w = a.weather;

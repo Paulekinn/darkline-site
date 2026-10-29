@@ -125,6 +125,25 @@ async function analyse(id) {
     return near.length >= 5 ? median(near) : raceMedian;
   };
 
+  // Faire Pace: jede saubere Runde gegen die sauberen Runden der Teamkollegen in den 40 Runden davor und danach
+  // (gut 1,5 Stunden), nur bei gleich nasser Strecke. So zählen Nacht, Regen und Gummi auf der Strecke für alle gleich.
+  // Runden ohne Vergleich (z. B. als Einziger im Nassen) bleiben außen vor. Minus = schneller als das Team.
+  const vsTeam = laps.map((l, i) => {
+    if (!racing(l)) return null;
+    const near = [];
+    for (let j = Math.max(0, i - 40); j <= Math.min(laps.length - 1, i + 40); j++) {
+      const o = laps[j];
+      if (racing(o) && o.driver.slug !== l.driver.slug && (o.trackWetness || 0) === (l.trackWetness || 0)) near.push(o.lapTime);
+    }
+    return near.length >= 8 ? l.lapTime - median(near) : null;
+  });
+  const relOf = (pick) => {
+    const v = laps.map((l, i) => (pick(l) ? vsTeam[i] : null)).filter((x) => x != null);
+    return v.length >= 5 ? r3(median(v)) : null;
+  };
+  drivers.forEach((d) => { d.vsTeam = relOf((l) => name(l.driver) === d.driver); });
+  stintOut.forEach((s, i) => { const set = new Set(stints[i].laps); s.vsTeam = relOf((l) => set.has(l)); });
+
   // Boxenstopps: Zeit von der Einfahrtsrunde bis zur nächsten normalen Runde, minus so viele normale Runden.
   // Über die Startzeiten gerechnet, damit auch fehlende Runden (z. B. beim Fahrerwechsel) richtig zählen.
   const stops = [];
@@ -205,7 +224,7 @@ module.exports = async (req, res) => {
     const q = req.query || {};
     if (q.event !== undefined) {
       if (!ID.test(q.event)) return res.status(400).json({ error: "Ungültiges Event." });
-      return res.status(200).json(await cached(`race2:${q.event}`, 86400, () => analyse(q.event)));
+      return res.status(200).json(await cached(`race3:${q.event}`, 86400, () => analyse(q.event)));
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(q.datum || "")) return res.status(400).json({ error: "Datum fehlt (JJJJ-MM-TT)." });
     return res.status(200).json({ events: await cached(`events:${q.datum}`, 900, () => candidates(q.datum)) });
