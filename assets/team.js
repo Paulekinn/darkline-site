@@ -1041,12 +1041,18 @@
     }).catch(function (e) { if (ra.event === id) message($("ra-view"), e.message, true); });
   }
 
-  // Tabelle mit anklickbaren Zeilen. rows: { cells: [...], color, pressed, onClick }
-  function raTable(head, rows) {
+  // Tabelle mit anklickbaren Zeilen. rows: { cells: [...], color, onClick }
+  // opts.text: Spalten mit Text (links, dürfen umbrechen), opts.opt: Spalten, die auf schmalen Bildschirmen wegfallen
+  function raTable(head, rows, opts) {
+    opts = opts || {};
+    var cls = function (i) {
+      if (i === 0) return "ra-nm";
+      return (opts.text && opts.text.indexOf(i) !== -1 ? "ra-txt" : "num") + (opts.opt && opts.opt.indexOf(i) !== -1 ? " ra-opt" : "");
+    };
     var body = el("tbody", null, rows.map(function (r) {
       var tr = el("tr", { tabIndex: 0 }, r.cells.map(function (c, i) {
         if (i === 0) return el("td", { className: "ra-nm" }, [r.color ? el("i", { style: "background:" + r.color }) : "", c]);
-        return el("td", { className: "num" }, c);
+        return el("td", { className: cls(i) }, c);
       }));
       if (r.onClick) {
         tr.addEventListener("click", function () { r.onClick(tr); });
@@ -1055,7 +1061,7 @@
       return tr;
     }));
     var table = el("table", { className: "ra-table" }, [
-      el("thead", null, el("tr", null, head.map(function (h, i) { return el("th", { className: i ? "num" : "", textContent: h }); }))),
+      el("thead", null, el("tr", null, head.map(function (h, i) { return el("th", { className: i ? cls(i) : "", textContent: h }); }))),
       body
     ]);
     return el("div", { className: "ra-scroll" }, table);
@@ -1113,12 +1119,30 @@
     };
 
     ra.chart = paceChart(a, colors);
+    // Umschalter: Stint-Pace (übersichtlich) oder alle Einzelrunden mit Zwischenfällen
+    var note = el("p", { className: "ra-note" });
+    var modeBtns = [["Stint-Pace", false], ["Alle Runden", true]].map(function (m) {
+      var b = el("button", { type: "button", className: "ra-mode", textContent: m[0] });
+      b.addEventListener("click", function () { setMode(m[1]); });
+      return b;
+    });
+    var setMode = function (all) {
+      modeBtns.forEach(function (b, k) { b.setAttribute("aria-pressed", String(k === (all ? 1 : 0))); });
+      note.textContent = all
+        ? "● saubere Runde · ○ Runde mit Abflug oder Zwischenfall · ▲ langsamer als der sichtbare Bereich · Linie = typische Runde des Stints · gestrichelt = Boxenstopp · blau hinterlegt = Regen"
+        : "Dicke Linie = typische Rundenzeit des Stints, blasse Punkte = Einzelrunden · gestrichelt = Boxenstopp · blau hinterlegt = Regen · Fahrer anklicken zeigt dessen Runden";
+      ra.chart.allLaps(all);
+    };
     var paceCard = el("div", { className: "ra-card" }, [
-      el("h4", { textContent: "Rundenzeiten im Rennverlauf · Fahrer anklicken zum Hervorheben" }),
+      el("div", { className: "ra-card-head" }, [
+        el("h4", { textContent: "Rundenzeiten im Rennverlauf" }),
+        el("div", { className: "ra-modes" }, modeBtns)
+      ]),
       keys,
       ra.chart.node,
-      el("p", { className: "ra-note", textContent: "● saubere Runde · ○ Runde mit Abflug oder Zwischenfall · ▲ langsamer als der sichtbare Bereich · Linie = typische Runde des Stints · senkrechte Striche = Boxenstopps · blau hinterlegt = Regen" })
+      note
     ]);
+    setMode(false);
 
     var drivers = raTable(["Fahrer", "Stints", "Runden", "Fahrzeit", "Beste", "Typisch", "Konstanz", "Abflüge", "Verlust"],
       a.drivers.map(function (d, i) {
@@ -1128,7 +1152,7 @@
           color: colors[d.driver],
           onClick: function () { focusDriver(ra.focus === i ? null : i); }
         };
-      }));
+      }), { opt: [1, 3, 4, 7] });
 
     var stints = raTable(["Stint", "Runden", "Dauer", "Typisch", "Konstanz", "Abbau", "Sprit/Runde"],
       a.stints.map(function (s) {
@@ -1138,7 +1162,7 @@
           color: colors[s.driver],
           onClick: function (tr) { markRows(tr, s.from, s.to); }
         };
-      }));
+      }), { opt: [2, 4, 6] });
 
     // lange Stopps (deutlich über dem üblichen Stopp) markieren: meist Reparatur oder Strafe
     var usual = (function () {
@@ -1153,7 +1177,7 @@
             el("span", null, [raSec(s.loss), long ? el("span", { className: "ra-tag", textContent: "lang" }) : ""])],
           onClick: function (tr) { markRows(tr, s.lap, s.lap + 1); }
         };
-      })) : el("p", { className: "msg", textContent: "Keine Boxenstopps aufgezeichnet." });
+      }), { text: [2], opt: [1, 3] }) : el("p", { className: "msg", textContent: "Keine Boxenstopps aufgezeichnet." });
 
     var top = a.losses.slice(0, 10);
     var losses = top.length ? raTable(["Runde", "Rennzeit", "Fahrer", "Zeit", "Verlust", "Grund"],
@@ -1163,7 +1187,7 @@
           color: colors[x.driver],
           onClick: function (tr) { markRows(tr, x.lap, x.lap); }
         };
-      })) : el("p", { className: "msg", textContent: "Keine Runde war deutlich langsamer als das Umfeld." });
+      }), { text: [2, 5], opt: [1, 3] }) : el("p", { className: "msg", textContent: "Keine Runde war deutlich langsamer als das Umfeld." });
 
     var card = function (title, content, note, wide) {
       return el("div", { className: "ra-card" + (wide ? " ra-wide" : "") }, [el("h4", { textContent: title }), content].concat(note ? el("p", { className: "ra-note", textContent: note }) : []));
@@ -1199,20 +1223,21 @@
     var pace = rows.filter(racing).map(function (r) { return r[2]; }).sort(function (x, y) { return x - y; });
     if (!pace.length) pace = rows.map(function (r) { return r[2]; }).filter(function (v) { return v > 0; }).sort(function (x, y) { return x - y; });
     var lo = Math.floor((pace[0] || 60) - 0.5);
-    var hi = Math.ceil(Math.min(pace[Math.floor(pace.length * 0.97)] + 1.5, (a.medianLap || pace[0]) * 1.08));
+    var hi = Math.ceil(Math.min(pace[Math.floor(pace.length * 0.92)] + 1, (a.medianLap || pace[0]) * 1.05));
     if (!(hi > lo + 2)) hi = lo + 3;
     var temps = a.lapRows.filter(function (r) { return typeof r[4] === "number"; });
     var tMin = Math.floor(Math.min.apply(null, temps.map(function (r) { return r[4]; })) - 1);
     var tMax = Math.ceil(Math.max.apply(null, temps.map(function (r) { return r[4]; })) + 1);
     var stintAt = function (lap) { return a.stints.filter(function (s) { return lap >= s.from && lap <= s.to; })[0]; };
     var marked = null, focus = null, lastW = 0;
+    var allLaps = false; // Standard: Stint-Pace im Vordergrund, Einzelrunden nur blass im Hintergrund
     var geo = null;
 
     function draw() {
       var W = Math.max(280, Math.round(wrap.clientWidth || 900));
       lastW = W;
       var L = 50, R = 10, T = 10;
-      var H1 = Math.round(Math.min(420, Math.max(220, W * 0.34)));
+      var H1 = Math.round(Math.min(460, Math.max(240, W * 0.38)));
       var stripY = T + H1 + 26, stripH = 12;
       var tT = stripY + stripH + 30, H2 = temps.length ? 70 : 0;
       var H = tT + H2 + 22;
@@ -1241,14 +1266,14 @@
       }
       var ls = [5, 10, 20, 25, 50, 100, 200].filter(function (s) { return maxLap / s <= (W < 600 ? 5 : 10); })[0] || 500;
       for (var n = 0; n <= maxLap; n += ls) {
-        svg.append(svgEl("line", { x1: x(n), x2: x(n), y1: T, y2: T + H1, stroke: "#1b1f21" }));
+        svg.append(svgEl("line", { x1: x(n), x2: x(n), y1: T + H1, y2: T + H1 + 4, stroke: "#3a4144" }));
         svg.append(svgEl("text", { x: x(n), y: T + H1 + 16, "text-anchor": "middle" }, String(n)));
       }
       svg.append(svgEl("text", { x: W - R, y: T + H1 + 16, "text-anchor": "end" }, "Runde"));
 
       // Boxenstopps
       a.stops.forEach(function (s) {
-        svg.append(svgEl("line", { x1: x(s.lap), x2: x(s.lap), y1: T, y2: T + H1, stroke: s.change ? "#59625f" : "#3a4144", "stroke-dasharray": "3 3" }));
+        svg.append(svgEl("line", { x1: x(s.lap), x2: x(s.lap), y1: T, y2: T + H1, stroke: "#2a2f31", "stroke-dasharray": "2 4" }));
       });
 
       // Punkte je Fahrer
@@ -1257,19 +1282,20 @@
         if (r[3] & 3 || !(r[2] > 0)) return; // Boxenrunden zeigen die senkrechten Striche
         var c = colors[names[r[1]]], g = groups[r[1]];
         if (!g) return;
-        if (r[2] > hi) g.append(svgEl("path", { d: "M" + (x(r[0]) - 3) + " " + (T + 6) + "h6l-3 -5z", fill: c }));
-        else if (r[3] & 8) g.append(svgEl("circle", { cx: x(r[0]), cy: y(r[2]), r: 2.4, fill: c }));
+        if (r[2] > hi) { if (allLaps) g.append(svgEl("path", { d: "M" + (x(r[0]) - 3) + " " + (T + 6) + "h6l-3 -5z", fill: c })); }
+        else if (r[3] & 8 || !allLaps) g.append(svgEl("circle", { cx: x(r[0]), cy: y(r[2]), r: allLaps ? 2.4 : 1.8, fill: c }));
         else g.append(svgEl("circle", { cx: x(r[0]), cy: y(r[2]), r: 2.6, fill: "none", stroke: c, "stroke-width": 1.4 }));
       });
-      groups.forEach(function (g) { svg.append(g); });
+      groups.forEach(function (g) { g.setAttribute("class", allLaps ? "" : "ra-faint"); svg.append(g); });
 
       // typische Runde je Stint als Linie, mit dunklem Rand gegen die Punkte
       a.stints.forEach(function (s) {
         if (s.median == null) return;
         var d = names.indexOf(s.driver);
         var g = svgEl("g", { "data-d": d });
-        g.append(svgEl("line", { x1: x(s.from), x2: x(s.to), y1: y(s.median), y2: y(s.median), stroke: "#101315", "stroke-width": 5, "stroke-linecap": "round" }));
-        g.append(svgEl("line", { x1: x(s.from), x2: x(s.to), y1: y(s.median), y2: y(s.median), stroke: colors[s.driver], "stroke-width": 2.5, "stroke-linecap": "round" }));
+        var sw = allLaps ? 2.5 : 4;
+        g.append(svgEl("line", { x1: x(s.from), x2: x(s.to), y1: y(s.median), y2: y(s.median), stroke: "#101315", "stroke-width": sw + 3, "stroke-linecap": "round" }));
+        g.append(svgEl("line", { x1: x(s.from), x2: x(s.to), y1: y(s.median), y2: y(s.median), stroke: colors[s.driver], "stroke-width": sw, "stroke-linecap": "round" }));
         svg.append(g);
       });
 
@@ -1304,7 +1330,8 @@
 
     function applyFocus() {
       holder.querySelectorAll("[data-d]").forEach(function (g) {
-        g.style.opacity = focus == null || Number(g.getAttribute("data-d")) === focus ? "" : ".12";
+        // hervorgehobener Fahrer: auch seine Einzelrunden voll zeigen
+        g.style.opacity = focus == null ? "" : Number(g.getAttribute("data-d")) === focus ? "1" : ".12";
       });
     }
 
@@ -1352,6 +1379,7 @@
       node: wrap,
       draw: draw,
       focus: function (i) { focus = i; applyFocus(); },
+      allLaps: function (on) { allLaps = on; draw(); },
       mark: function (m) { marked = m; draw(); if (m) wrap.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
     };
   }
