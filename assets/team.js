@@ -479,6 +479,9 @@
 
   // ---- Analyse: Sektoren und Kurven-Abschnitte (Grenzen aus Runde A) ----
 
+  // Abstände in Rundenpunkten sind für 1000 Punkte pro Runde gedacht; per() rechnet sie auf die echte Auflösung um
+  var per = function (n, k) { return Math.max(1, Math.round(k * n / 1000)); };
+
   // Erster Punkt, an dem die Runde die Zeit t erreicht
   function indexAtTime(times, t) {
     for (var i = 0; i < times.length; i++) if (times[i] >= t) return i;
@@ -501,10 +504,10 @@
 
   // Bremspunkte: Bremse steigt über 15 %. Liegen zwei näher als 2 % der Runde beieinander, zählen sie als eine Kurve.
   function brakeOnsets(brake) {
-    var on = false, out = [];
+    var on = false, out = [], gap = per(brake.length, 20);
     brake.forEach(function (b, i) {
       if (!on && b >= 15) {
-        if (!out.length || i - out[out.length - 1] > 20) out.push(i);
+        if (!out.length || i - out[out.length - 1] > gap) out.push(i);
         on = true;
       } else if (on && b < 5) on = false;
     });
@@ -518,7 +521,7 @@
     if (!on.length) return [];
     var bOn = Q ? brakeOnsets(Q.brake) : [];
     var minAt = function (arr, i0, i1) { var m = i0; for (var i = i0; i <= i1; i++) if (arr[i] < arr[m]) m = i; return m; };
-    var segs = (on[0] > 10 ? [{ i0: 0, i1: on[0], start: true }] : []).concat(on.map(function (i0, k) {
+    var segs = (on[0] > per(n, 10) ? [{ i0: 0, i1: on[0], start: true }] : []).concat(on.map(function (i0, k) {
       return { i0: i0, i1: k + 1 < on.length ? on[k + 1] : n - 1, num: k + 1 };
     }));
     return segs.map(function (s) {
@@ -529,7 +532,7 @@
       if (Q) {
         c.minB = s.start ? Q.speed[s.i0] : Q.speed[minAt(Q.speed, s.i0, look)];
         c.gain = Math.round((delta[s.i1] - delta[s.i0]) * 1000) / 1000;
-        var near = s.start ? null : bOn.filter(function (j) { return Math.abs(j - s.i0) <= 30; })[0];
+        var near = s.start ? null : bOn.filter(function (j) { return Math.abs(j - s.i0) <= per(n, 30); })[0];
         if (near != null) c.brakeDiff = P.m[near] - P.m[s.i0]; // negativ = B bremst früher
       }
       return c;
@@ -537,6 +540,32 @@
   }
 
   var signed = function (v, digits) { return (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v).toFixed(digits); };
+
+  // Weiche Linie durch die Punkte i0…i1 (monotone kubische Kurve: rund, schießt aber nie über die Messwerte hinaus,
+  // Gas und Bremse bleiben also zwischen 0 und 100 %). Im Zoom sieht man so den Verlauf statt Ecken zwischen Messpunkten.
+  function smoothPath(i0, i1, xf, yf) {
+    var xs = [], ys = [];
+    for (var i = i0; i <= i1; i++) { xs.push(+xf(i)); ys.push(yf(i)); }
+    var n = xs.length;
+    if (n < 3) return xs.map(function (v, k) { return (k ? "L" : "M") + v + " " + ys[k]; }).join("");
+    var dk = [], m = [];
+    for (var k = 0; k < n - 1; k++) dk.push((ys[k + 1] - ys[k]) / ((xs[k + 1] - xs[k]) || 1));
+    m[0] = dk[0];
+    m[n - 1] = dk[n - 2];
+    for (k = 1; k < n - 1; k++) m[k] = dk[k - 1] * dk[k] <= 0 ? 0 : (dk[k - 1] + dk[k]) / 2;
+    for (k = 0; k < n - 1; k++) {
+      if (dk[k] === 0) { m[k] = m[k + 1] = 0; continue; }
+      var a = m[k] / dk[k], b = m[k + 1] / dk[k], h = a * a + b * b;
+      if (h > 9) { var t = 3 / Math.sqrt(h); m[k] = t * a * dk[k]; m[k + 1] = t * b * dk[k]; }
+    }
+    var f = function (v) { return v.toFixed(1); };
+    var d = "M" + f(xs[0]) + " " + f(ys[0]);
+    for (k = 0; k < n - 1; k++) {
+      var dx = (xs[k + 1] - xs[k]) / 3;
+      d += "C" + f(xs[k] + dx) + " " + f(ys[k] + m[k] * dx) + " " + f(xs[k + 1] - dx) + " " + f(ys[k + 1] - m[k + 1] * dx) + " " + f(xs[k + 1]) + " " + f(ys[k + 1]);
+    }
+    return d;
+  }
 
   // Liniendiagramm für den sichtbaren Bereich view = { i0, i1 }. marks: senkrechte Linien mit Beschriftung.
   function lineChart(name, height, series, min, max, view, opts) {
@@ -554,10 +583,12 @@
     if (opts.zero) svg.append(svgEl("line", { x1: 0, x2: 1000, y1: y(0), y2: y(0), stroke: "#3a4144", "stroke-dasharray": "4 4", "vector-effect": "non-scaling-stroke" }));
     series.forEach(function (s) {
       var d = "";
-      for (var i = view.i0; i <= view.i1; i++) {
-        var xx = x(i), yy = y(s.values[i]);
-        if (opts.step && i > view.i0) d += "H" + xx + "V" + yy; else d += (i > view.i0 ? "L" : "M") + xx + " " + yy;
-      }
+      if (opts.step) {
+        for (var i = view.i0; i <= view.i1; i++) {
+          var xx = x(i), yy = y(s.values[i]);
+          d += i > view.i0 ? "H" + xx + "V" + yy : "M" + xx + " " + yy;
+        }
+      } else d = smoothPath(view.i0, view.i1, x, function (i) { return +y(s.values[i]); });
       svg.append(svgEl("path", { d: d, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "vector-effect": "non-scaling-stroke" }));
     });
     return el("div", { className: "tm-chart" }, [el("span", { className: "tm-name", textContent: name }), svg].concat(labels));
@@ -660,8 +691,9 @@
       }
       // Etwas Anfahrt davor (ca. 60 m, damit frühere Bremspunkte sichtbar sind). Bei einer Kurve nur bis kurz nach
       // dem Scheitelpunkt, sonst wäre die folgende Gerade im Bild und die Kurve selbst zu klein.
-      var j0 = Math.max(0, view.i0 - 15);
-      var j1 = view.num && view.apex != null ? Math.min(view.i1, view.apex + Math.max(25, view.apex - view.i0)) : view.i1;
+      var np = A.points.t.length;
+      var j0 = Math.max(0, view.i0 - per(np, 15));
+      var j1 = view.num && view.apex != null ? Math.min(view.i1, view.apex + Math.max(per(np, 25), view.apex - view.i0)) : view.i1;
       setLines(j0, j1);
       var all = pathOf(A, j0, j1).concat(B ? pathOf(B, j0, j1) : []);
       var x0 = Math.min.apply(null, all.map(function (p) { return p[0]; })), x1 = Math.max.apply(null, all.map(function (p) { return p[0]; }));
@@ -760,19 +792,22 @@
     var reset = el("button", { type: "button", className: "tm-reset", textContent: "Ganze Runde ↺" });
     reset.addEventListener("click", function () { zoom(full); });
 
-    // Zoom als kurzer Code für den Link: k7 = Kurve 7, start, s2 = Sektor 2, r120-340 = aufgezogener Bereich
+    // Zoom als kurzer Code für den Link: k7 = Kurve 7, start, s2 = Sektor 2, r120-340 = aufgezogener Bereich.
+    // Bereiche immer in Promille der Runde (0…999), damit Links unabhängig von der Auflösung gültig bleiben.
+    var toMille = function (i) { return Math.round(i * 999 / (n - 1)); };
+    var fromMille = function (v) { return Math.max(0, Math.min(n - 1, Math.round(v * (n - 1) / 999))); };
     var zoomCode = function (v) {
       if (v === full) return "";
       if (v.num) return "k" + v.num;
       if (v.name === "Start") return "start";
       if (v.short) return v.short.toLowerCase();
-      return "r" + v.i0 + "-" + v.i1;
+      return "r" + toMille(v.i0) + "-" + toMille(v.i1);
     };
     var fromCode = function (code) {
       var m = /^r(\d+)-(\d+)$/.exec(code);
       if (m) {
-        var a = Math.max(0, Math.min(n - 1, +m[1])), b = Math.max(0, Math.min(n - 1, +m[2]));
-        return b - a >= 8 ? { i0: a, i1: b, name: "Ausschnitt" } : null;
+        var a = fromMille(+m[1]), b = fromMille(+m[2]);
+        return b - a >= per(n, 8) ? { i0: a, i1: b, name: "Ausschnitt" } : null;
       }
       return corners.concat(sectors).filter(function (v) { return zoomCode(v) === code; })[0] || null;
     };
@@ -877,7 +912,7 @@
       var p = pos(e), a = Math.min(drag.i, p.i), b = Math.max(drag.i, p.i);
       drag = null;
       sel.hidden = true;
-      if (b - a >= 8) zoom({ i0: a, i1: b, name: "Ausschnitt" });
+      if (b - a >= per(n, 8)) zoom({ i0: a, i1: b, name: "Ausschnitt" });
     });
     box.addEventListener("pointerleave", function () { if (!drag) { cursor.hidden = true; tip.hidden = true; } });
     box.addEventListener("dblclick", function () { zoom(full); });

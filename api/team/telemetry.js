@@ -1,10 +1,11 @@
 // Telemetrie einer Runde für den Vergleich im Teambereich.
-// GET ?lap=<ID> → Rundendaten, verdichtet auf 1000 Punkte über die Runde, GPS auf 2000 (statt ca. 5000 Messpunkte, ~800 KB CSV).
-// Runden ändern sich nicht, deshalb wird das Ergebnis einen Tag gemerkt.
+// GET ?lap=<ID> → Rundendaten auf 4000 Punkte über die Runde, GPS auf 2000 (Garage 61 zeichnet mit 60 Hz auf,
+// je nach Rundenlänge ca. 5000–8000 Messpunkte, ~800 KB CSV). Runden ändern sich nicht, deshalb wird das Ergebnis einen Tag gemerkt.
 const { requireSession } = require("../_lib/session");
 const { g61Get, g61Text, cached, sendError } = require("../_lib/g61");
 
-const N = 1000;      // Punkte über die Runde
+// Punkte über die Runde: nah an der echten Aufzeichnung, damit kurze Eingaben (Antippen der Bremse, Gas lupfen) sichtbar bleiben
+const N = 4000;
 const MAP_N = 2000;  // GPS-Punkte für die Streckenkarte (ca. alle 2 m), damit die Fahrlinie auch stark gezoomt glatt ist
 
 const round = (v, digits) => Math.round(v * 10 ** digits) / 10 ** digits;
@@ -108,7 +109,7 @@ module.exports = async (req, res) => {
   const id = String(req.query.lap || "");
   if (!/^[0-9A-Za-z]{20,32}$/.test(id)) return res.status(400).json({ error: "Ungültige Runde." });
   try {
-    return res.status(200).json(await cached(`tele:${id}`, 86400, () => lapTelemetry(id)));
+    return res.status(200).json(await cached(`tele4k:${id}`, 86400, () => lapTelemetry(id)));
   } catch (e) {
     if (e.status === 403) return res.status(403).json({ error: "Diese Runde teilt der Fahrer nicht in Garage 61." });
     if (e.status === 404) return res.status(404).json({ error: "Runde nicht gefunden." });
