@@ -108,6 +108,22 @@
 .hbar .val small{color:var(--muted)}
 .hbar .track{grid-column:1/-1;height:6px;background:#1b1f21;border-radius:0 3px 3px 0}
 .hbar .track i{display:block;height:100%;background:var(--red);border-radius:0 3px 3px 0}
+.hbar-group{margin-bottom:12px}
+.hbar-group:last-child{margin-bottom:0}
+.hbar-group > .hbar{margin-bottom:0}
+.hbar.has-by{cursor:pointer;margin-inline:-8px;padding:6px 8px}
+.hbar.has-by:hover{background:#181c1e}
+.hbar.has-by:focus-visible{outline:2px solid var(--phos);outline-offset:0}
+.hbar.has-by .lab::before{content:"▸ ";color:var(--muted)}
+.hbar.has-by[aria-expanded="true"]{background:#181c1e}
+.hbar.has-by[aria-expanded="true"] .lab::before{content:"▾ ";color:var(--red)}
+.hbar-by{margin:2px -8px 0;padding:10px 8px 10px 22px;background:#0c0e0f;border-left:2px solid var(--red)}
+.hbar.hbar-sub{margin-bottom:10px}
+.hbar.hbar-sub:last-child{margin-bottom:0}
+.hbar.hbar-sub .lab{font-size:.82rem;font-weight:600}
+.hbar.hbar-sub .val{font-size:.74rem}
+.hbar.hbar-sub .track{height:4px}
+.hbar.hbar-sub .track i{background:#8a9390}
 @media (max-width:820px){.wb-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.wb-grid{grid-template-columns:1fr}}
 @media (max-width:640px){.wb-col .v{font-size:.56rem}.wb-trend{padding-inline:6px}.wb-axis{padding-inline:6px}}
 @media (max-width:640px){.bar .who span{display:none}}

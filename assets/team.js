@@ -254,30 +254,48 @@
       return;
     }
 
-    // Balkenliste: alle Balken einer Karte auf derselben Skala (größter Wert = volle Breite)
+    // Eine Balkenzeile: Name links, Wert rechts, Balken darunter (Breite relativ zu "top")
+    var hbar = function (x, top, sub, cls) {
+      var fill = el("i");
+      fill.style.width = (top ? x.time / top * 100 : 0) + "%";
+      return el("div", { className: "hbar" + (cls ? " " + cls : "") }, [
+        el("span", { className: "lab" }, [x.name].concat(x.variant ? el("small", { textContent: x.variant }) : [])),
+        el("span", { className: "val" }, [hours(x.time) + " ", el("small", { textContent: sub(x) })]),
+        el("span", { className: "track" }, fill)
+      ]);
+    };
+    var laps = function (x) { return "· " + x.laps + " Runden"; };
+
+    // Balkenliste einer Karte. Einträge mit Fahrer-Aufschlüsselung (x.by) lassen sich aufklappen.
     var bars = function (title, items, sub) {
       var top = items.reduce(function (m, x) { return Math.max(m, x.time); }, 0) || 1;
       return el("div", { className: "wb-card" }, [el("h4", { textContent: title })].concat(items.map(function (x) {
-        var fill = el("i");
-        fill.style.width = (x.time / top * 100) + "%";
-        return el("div", { className: "hbar" }, [
-          el("span", { className: "lab" }, [x.name].concat(x.variant ? el("small", { textContent: x.variant }) : [])),
-          el("span", { className: "val" }, [hours(x.time) + " ", el("small", { textContent: sub(x) })]),
-          el("span", { className: "track" }, fill)
-        ]);
+        var row = hbar(x, top, sub);
+        if (!x.by || !x.by.length) return row;
+        var subTop = x.by[0].time;
+        var detail = el("div", { className: "hbar-by", hidden: true }, x.by.map(function (d) {
+          return hbar(d, subTop, function (y) { return "· " + y.laps + " Runden · " + Math.round(y.time / x.time * 100) + " %"; }, "hbar-sub");
+        }));
+        row.classList.add("has-by");
+        row.tabIndex = 0;
+        row.setAttribute("role", "button");
+        row.setAttribute("aria-expanded", "false");
+        var toggle = function () {
+          var open = row.getAttribute("aria-expanded") !== "true";
+          row.setAttribute("aria-expanded", String(open));
+          detail.hidden = !open;
+        };
+        row.addEventListener("click", toggle);
+        row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+        return el("div", { className: "hbar-group" }, [row, detail]);
       })));
     };
-    var sessions = [
-      { name: "Training", time: w.sessions.training },
-      { name: "Qualifying", time: w.sessions.quali },
-      { name: "Rennen", time: w.sessions.rennen }
-    ];
     var share = function (x) { return "· " + Math.round(x.time / w.time * 100) + " %"; };
     var grid = el("div", { className: "wb-grid" }, [
-      bars("Fahrzeit pro Fahrer", w.drivers, function (x) { return "· " + x.laps + " Runden"; }),
-      bars("Training, Quali, Rennen", sessions, share),
-      bars("Meistgefahrene Strecken", w.tracks, function (x) { return "· " + x.laps + " Runden"; }),
-      bars("Meistgefahrene Autos", w.cars, function (x) { return "· " + x.laps + " Runden"; })
+      bars("Fahrzeit pro Fahrer", w.drivers, laps),
+      bars("Training, Quali, Rennen", w.sessions, share),
+      bars("Meistgefahrene Strecken", w.tracks, laps),
+      bars("Meistgefahrene Autos", w.cars, laps)
     ]);
 
     box.replaceChildren(trend, axis, head, kpis, grid);

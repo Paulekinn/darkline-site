@@ -21,9 +21,24 @@ function addDays(day, n) {
   return iso(d);
 }
 
-// Summiert Fahrzeit und Runden pro Schlüssel, sortiert absteigend nach Fahrzeit
+// Sortiert absteigend nach Fahrzeit. Bei Einträgen mit Fahrer-Aufschlüsselung (_by) wird diese als "by" mitgegeben.
 function rank(map, limit) {
-  return [...map.values()].sort((a, b) => b.time - a.time).slice(0, limit);
+  return [...map.values()]
+    .sort((a, b) => b.time - a.time)
+    .slice(0, limit)
+    .map(({ _by, ...x }) => (_by ? { ...x, by: rank(_by) } : x));
+}
+
+// Zählt eine Statistikzeile in einen Eintrag (Strecke, Auto, Sessionart) und in dessen Fahrer-Aufschlüsselung
+function add(map, key, init, r, driver) {
+  const e = map.get(key) || { ...init, time: 0, laps: 0, _by: new Map() };
+  e.time += r.timeOnTrack;
+  e.laps += r.lapsDriven;
+  const d = e._by.get(driver.slug) || { name: driver.name, time: 0, laps: 0 };
+  d.time += r.timeOnTrack;
+  d.laps += r.lapsDriven;
+  e._by.set(driver.slug, d);
+  map.set(key, e);
 }
 
 async function report() {
@@ -39,10 +54,10 @@ async function report() {
   const weeks = Array.from({ length: WEEKS }, (_, i) => {
     const start = addDays(firstMonday, 7 * i);
     return { start, end: addDays(start, 6), time: 0, laps: 0, clean: 0, events: 0,
-      sessions: { training: 0, quali: 0, rennen: 0 }, _drivers: new Map(), _tracks: new Map(), _cars: new Map() };
+      _drivers: new Map(), _sessions: new Map(), _tracks: new Map(), _cars: new Map() };
   });
   const byStart = new Map(weeks.map((w) => [w.start, w]));
-  const sessionKey = { 1: "training", 2: "quali", 3: "rennen" };
+  const sessionNames = { 1: "Training", 2: "Qualifying", 3: "Rennen" };
 
   for (const r of stats.drivingStatistics || []) {
     const w = byStart.get(mondayOf(r.day));
@@ -51,29 +66,27 @@ async function report() {
     w.laps += r.lapsDriven;
     w.clean += r.cleanLapsDriven;
     w.events += r.events;
-    if (sessionKey[r.sessionType]) w.sessions[sessionKey[r.sessionType]] += r.timeOnTrack;
 
     const slug = r.user || "?";
-    const d = w._drivers.get(slug) || { name: names.get(slug) || slug, time: 0, laps: 0, clean: 0 };
+    const driver = { slug, name: names.get(slug) || slug };
+    const d = w._drivers.get(slug) || { name: driver.name, time: 0, laps: 0, clean: 0 };
     d.time += r.timeOnTrack; d.laps += r.lapsDriven; d.clean += r.cleanLapsDriven;
     w._drivers.set(slug, d);
 
+    if (sessionNames[r.sessionType]) add(w._sessions, r.sessionType, { name: sessionNames[r.sessionType] }, r, driver);
     const tInfo = trackNames.get(r.track) || { name: `Strecke ${r.track}`, variant: "" };
-    const t = w._tracks.get(r.track) || { name: tInfo.name, variant: tInfo.variant, time: 0, laps: 0 };
-    t.time += r.timeOnTrack; t.laps += r.lapsDriven;
-    w._tracks.set(r.track, t);
-
-    const c = w._cars.get(r.car) || { name: carNames.get(r.car) || `Auto ${r.car}`, time: 0, laps: 0 };
-    c.time += r.timeOnTrack; c.laps += r.lapsDriven;
-    w._cars.set(r.car, c);
+    add(w._tracks, r.track, { name: tInfo.name, variant: tInfo.variant }, r, driver);
+    add(w._cars, r.car, { name: carNames.get(r.car) || `Auto ${r.car}` }, r, driver);
   }
 
-  return weeks.map(({ _drivers, _tracks, _cars, ...w }) => ({
-    ...w,
-    drivers: rank(_drivers),
-    tracks: rank(_tracks, TOP),
-    cars: rank(_cars, TOP),
-  }));
+  return weeks.map(({ _drivers, _sessions, _tracks, _cars, ...w }) => {
+    // Training, Quali, Rennen immer in dieser Reihenfolge, auch wenn eine Sessionart fehlt
+    const sessions = [1, 2, 3].map((k) => {
+      const s = _sessions.get(k);
+      return s ? rank(new Map([[k, s]]))[0] : { name: sessionNames[k], time: 0, laps: 0, by: [] };
+    });
+    return { ...w, drivers: rank(_drivers), sessions, tracks: rank(_tracks, TOP), cars: rank(_cars, TOP) };
+  });
 }
 
 module.exports = async (req, res) => {
