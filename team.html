@@ -23,12 +23,17 @@
 .gate p{margin:0 0 24px;color:#c4cbc8}
 .gate .err{margin:0 0 24px;padding:12px 14px;background:rgba(211,18,27,.14);border-left:3px solid var(--red);color:var(--ink)}
 .tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-.tile{background:var(--paper);padding:22px;border-left:4px solid var(--red);display:grid;gap:10px;align-content:start}
+/* Kacheln = Navigation zwischen den Bereichen; die aktive ist hervorgehoben */
+.tile{background:var(--paper);padding:22px;border-left:4px solid var(--rule);display:grid;gap:10px;align-content:start;text-decoration:none;color:inherit;transition:background .15s,border-color .15s}
+.tile:hover{background:#181c1e}
+.tile:focus-visible{outline:2px solid var(--phos);outline-offset:2px}
+.tile[aria-current="page"]{background:#181c1e;border-left-color:var(--red)}
 .tile h3{font:900 1.3rem/1.05 var(--f-wide);font-variation-settings:"wdth" 118;text-transform:uppercase}
 .tile p{margin:0;color:#c4cbc8;font-size:.95rem}
 .tile .soon{font:500 .68rem/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-.tile a{color:var(--red);font:700 .78rem/1 var(--f-wide);font-variation-settings:"wdth" 110;text-transform:uppercase;text-decoration:none}
-.tile .soon.on{color:var(--red)}
+.tile[aria-current="page"] .soon{color:var(--red)}
+@media (max-width:900px){.tile p{display:none}.tile{padding:14px 16px}}
+@media (max-width:900px){.tiles{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px}.tile h3{font-size:.95rem}}
 @media (max-width:900px){.tiles{grid-template-columns:1fr}}
 .block{margin-top:56px}
 .block > h2{font-size:clamp(1.8rem,4vw,2.8rem);margin-bottom:8px}
@@ -157,6 +162,8 @@
 .tm-reset{background:none;border:0;padding:0;cursor:pointer;font:700 .76rem/1 var(--f-wide);font-variation-settings:"wdth" 110;text-transform:uppercase;color:var(--red)}
 .tm-reset:hover{color:var(--ink)}
 .tm-hint{margin-left:auto;font:500 .7rem/1.2 var(--f-mono);color:var(--muted)}
+.tm-copy{padding:8px 12px;background:var(--red);border:0;cursor:pointer;font:700 .74rem/1 var(--f-wide);font-variation-settings:"wdth" 110;text-transform:uppercase;color:#fff}
+.tm-copy:hover{background:var(--phos);color:var(--black)}
 .tm-charts{user-select:none}
 .tm-mark{position:absolute;top:26px;transform:translateX(-50%);padding:1px 4px;background:var(--paper);font:600 .7rem/1 var(--f-mono);color:var(--muted);pointer-events:none}
 .tm-mark.strong{color:var(--ink);top:auto;bottom:6px}
@@ -235,26 +242,23 @@
   </section>
 
   <section id="area" hidden>
-    <div class="tiles">
-      <article class="tile" id="tile-rangliste">
-        <span class="soon on">Verfügbar</span>
+    <nav class="tiles" aria-label="Bereiche">
+      <a class="tile" id="tile-rangliste" href="/team#rangliste" data-tab="rangliste">
+        <span class="soon">01</span>
         <h3>Rangliste</h3>
         <p>Team-Bestzeiten pro Strecke und Auto.</p>
-        <a href="/team#rangliste">Zur Rangliste ↓</a>
-      </article>
-      <article class="tile" id="tile-wochenbericht">
-        <span class="soon on">Verfügbar</span>
+      </a>
+      <a class="tile" id="tile-wochenbericht" href="/team#wochenbericht" data-tab="wochenbericht">
+        <span class="soon">02</span>
         <h3>Wochenbericht</h3>
         <p>Fahrzeit, Runden und Fahrer mit Verlauf über die letzten 8 Wochen.</p>
-        <a href="/team#wochenbericht">Zum Wochenbericht ↓</a>
-      </article>
-      <article class="tile" id="tile-telemetrie">
-        <span class="soon on">Verfügbar</span>
+      </a>
+      <a class="tile" id="tile-telemetrie" href="/team#telemetrie" data-tab="telemetrie">
+        <span class="soon">03</span>
         <h3>Telemetrie</h3>
-        <p>Zwei Runden vergleichen: Speed, Gas, Bremse und Gang über die Strecke.</p>
-        <a href="/team#telemetrie">Zur Telemetrie ↓</a>
-      </article>
-    </div>
+        <p>Zwei Runden vergleichen: Sektoren, Kurven, Speed, Gas, Bremse und Gang.</p>
+      </a>
+    </nav>
 
     <section class="block" id="rangliste">
       <h2 class="wide">Rangliste</h2>

@@ -11,12 +11,15 @@
   };
   var $ = function (id) { return document.getElementById(id); };
 
+  var AFTER_LOGIN = "dpm_team_ziel"; // geteilter Link (#telemetrie?…), der nach dem Discord-Login wieder geöffnet wird
+
   function showGate() {
+    try { if (location.hash.length > 1) sessionStorage.setItem(AFTER_LOGIN, location.hash); } catch (e) { /* ohne Speicher: Startansicht */ }
     var code = new URLSearchParams(location.search).get("fehler");
     if (code) {
       $("gate-error").textContent = ERRORS[code] || ERRORS.technik;
       $("gate-error").hidden = false;
-      history.replaceState(null, "", "/team");
+      history.replaceState(null, "", location.pathname);
     }
     $("loading").hidden = true;
     $("gate").hidden = false;
@@ -27,8 +30,50 @@
     $("who").hidden = false;
     $("loading").hidden = true;
     $("area").hidden = false;
+    try {
+      var target = sessionStorage.getItem(AFTER_LOGIN);
+      sessionStorage.removeItem(AFTER_LOGIN);
+      if (target && location.hash.length <= 1) history.replaceState(null, "", location.pathname + target);
+    } catch (e) { /* ohne Speicher: Startansicht */ }
+    document.querySelectorAll(".tiles [data-tab]").forEach(function (a) {
+      a.addEventListener("click", function (e) {
+        e.preventDefault();
+        if (location.hash.split("?")[0] !== "#" + a.dataset.tab) history.pushState(null, "", location.pathname + "#" + a.dataset.tab); // Pfad nötig wegen <base href="/">
+        route();
+      });
+    });
+    window.addEventListener("popstate", route);
+    window.addEventListener("hashchange", route);
     loadTracks();
-    loadWeekly();
+    route();
+  }
+
+  // ---------------------------------------------------------------- Bereiche
+  // Die Adresse bestimmt den sichtbaren Bereich: #rangliste (Standard), #wochenbericht, #telemetrie?strecke=…&auto=…&a=…&b=…&zoom=…
+
+  var TABS = ["rangliste", "wochenbericht", "telemetrie"];
+  var weeklyLoaded = false;
+
+  function route() {
+    var parts = location.hash.slice(1).split("?");
+    var tab = TABS.indexOf(parts[0]) === -1 ? "rangliste" : parts[0];
+    TABS.forEach(function (t) {
+      $(t).hidden = t !== tab;
+      if (t === tab) $("tile-" + t).setAttribute("aria-current", "page"); else $("tile-" + t).removeAttribute("aria-current");
+    });
+    if (tab === "wochenbericht" && !weeklyLoaded) {
+      weeklyLoaded = true;
+      loadWeekly();
+    }
+    if (tab === "telemetrie" && parts[1]) {
+      var q = new URLSearchParams(parts[1]);
+      var share = { track: Number(q.get("strecke")), car: Number(q.get("auto")), a: q.get("a") || "", b: q.get("b") || "", zoom: q.get("zoom") || "" };
+      // nur neu laden, wenn der Link etwas anderes zeigt als die aktuelle Auswahl
+      if (share.track && share.a && (share.a !== $("tm-lap-a").value || share.b !== $("tm-lap-b").value)) {
+        tm.share = share;
+        if (tm.ready) openShare();
+      }
+    }
   }
 
   // ---------------------------------------------------------------- Hilfen
@@ -214,6 +259,7 @@
     var box = $("wb");
     api("/api/team/weekly").then(function (d) {
       var weeks = d.weeks;
+      if (!weeks || !weeks.length) return message(box, "Keine Daten für den Wochenbericht.");
       // Standard: laufende Woche, außer sie ist noch leer, dann die letzte Woche mit Fahrzeit
       var sel = weeks.length - 1;
       if (!weeks[sel].time) for (var i = sel; i >= 0; i--) if (weeks[i].time) { sel = i; break; }
@@ -355,6 +401,16 @@
     $("tm-car").onchange = function () { fillLaps(Number(this.value)); };
     $("tm-lap-a").onchange = $("tm-lap-b").onchange = showCompare;
     message($("tm-view"), "Strecke und Auto wählen. Verglichen werden die Bestzeiten der Fahrer, die ihre Telemetrie in Garage 61 teilen.");
+    tm.ready = true;
+    if (tm.share) openShare();
+  }
+
+  // Geteilten Link öffnen: Strecke, Auto und Runden vorauswählen; den Zoom setzt renderCompare
+  function openShare() {
+    var s = tm.share;
+    if (!s || !s.track) return;
+    $("tm-track").value = String(s.track);
+    loadCompareCars(s.track, s.car);
   }
 
   // Aus der Rangliste: Strecke und Auto vorauswählen und zur Telemetrie springen
@@ -362,6 +418,8 @@
     var b = el("button", { type: "button", className: "tm-open", textContent: "Telemetrie vergleichen ↓" });
     b.addEventListener("click", function (e) {
       e.stopPropagation();
+      history.pushState(null, "", location.pathname + "#telemetrie");
+      route();
       $("tm-track").value = String(trackId);
       loadCompareCars(trackId, carId);
       $("telemetrie").scrollIntoView({ behavior: "smooth" });
@@ -390,8 +448,11 @@
     var car = tm.cars.filter(function (c) { return c.id === carId; })[0];
     if (!car) return;
     var opts = car.laps.map(function (l) { return { value: l.id, label: l.driver + " · " + lapTime(l.time) }; });
-    fillSelect($("tm-lap-a"), opts, opts[0].value);
-    fillSelect($("tm-lap-b"), [{ value: "", label: "– keine –" }].concat(opts), opts[1] ? opts[1].value : "");
+    var has = function (id) { return opts.some(function (o) { return o.value === id; }); };
+    var s = tm.share;
+    // aus einem geteilten Link, sonst schnellste und zweitschnellste Runde
+    fillSelect($("tm-lap-a"), opts, s && has(s.a) ? s.a : opts[0].value);
+    fillSelect($("tm-lap-b"), [{ value: "", label: "– keine –" }].concat(opts), s && (s.b === "" || has(s.b)) ? s.b : opts[1] ? opts[1].value : "");
     showCompare();
   }
 
@@ -697,8 +758,40 @@
     var reset = el("button", { type: "button", className: "tm-reset", textContent: "Ganze Runde ↺" });
     reset.addEventListener("click", function () { zoom(full); });
 
+    // Zoom als kurzer Code für den Link: k7 = Kurve 7, start, s2 = Sektor 2, r120-340 = aufgezogener Bereich
+    var zoomCode = function (v) {
+      if (v === full) return "";
+      if (v.num) return "k" + v.num;
+      if (v.name === "Start") return "start";
+      if (v.short) return v.short.toLowerCase();
+      return "r" + v.i0 + "-" + v.i1;
+    };
+    var fromCode = function (code) {
+      var m = /^r(\d+)-(\d+)$/.exec(code);
+      if (m) {
+        var a = Math.max(0, Math.min(n - 1, +m[1])), b = Math.max(0, Math.min(n - 1, +m[2]));
+        return b - a >= 8 ? { i0: a, i1: b, name: "Ausschnitt" } : null;
+      }
+      return corners.concat(sectors).filter(function (v) { return zoomCode(v) === code; })[0] || null;
+    };
+    // Adresse immer auf dem aktuellen Stand halten, damit sie direkt geteilt werden kann
+    var shareUrl = function () {
+      var q = new URLSearchParams({ strecke: $("tm-track").value, auto: $("tm-car").value, a: A.id });
+      if (B) q.set("b", B.id);
+      if (zoomCode(view)) q.set("zoom", zoomCode(view));
+      return "#telemetrie?" + q.toString();
+    };
+    var copy = el("button", { type: "button", className: "tm-copy", textContent: "Link kopieren" });
+    copy.addEventListener("click", function () {
+      var url = location.origin + location.pathname + shareUrl();
+      var done = function () { copy.textContent = "Link kopiert ✓"; setTimeout(function () { copy.textContent = "Link kopieren"; }, 2000); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function () { window.prompt("Link zum Kopieren:", url); });
+      else window.prompt("Link zum Kopieren:", url);
+    });
+
     function draw() {
       var isFull = view === full;
+      if (!$("telemetrie").hidden) history.replaceState(null, "", location.pathname + shareUrl());
       var charts = [];
       if (delta) {
         // im Zoom: Abstand ab Beginn des Ausschnitts, damit Gewinn und Verlust darin direkt ablesbar sind
@@ -841,10 +934,15 @@
     $("tm-view").replaceChildren(el("div", { className: "tm-wide" }, [
       el("div", { className: "tm-keys" }, [key("a", A, "A")].concat(B ? key("b", B, "B") : [])),
       sectorBar || "",
-      el("div", { className: "tm-zoombar" }, [viewName, reset, el("span", { className: "tm-hint", textContent: "Bereich mit der Maus aufziehen zum Zoomen · Doppelklick = ganze Runde" })]),
+      el("div", { className: "tm-zoombar" }, [viewName, reset, el("span", { className: "tm-hint", textContent: "Bereich mit der Maus aufziehen zum Zoomen · Doppelklick = ganze Runde" }), copy]),
       el("div", { className: "tm-layout" }, [box, el("div", { className: "tm-side" }, [map.node, sum])]),
       cornerTable || ""
     ]));
+    // geteilter Link: dessen Zoom übernehmen, danach gilt wieder die normale Auswahl
+    var s = tm.share;
+    tm.share = null;
+    var start = s && s.zoom && s.a === A.id ? fromCode(s.zoom) : null;
+    if (start) view = start;
     draw();
   }
 
