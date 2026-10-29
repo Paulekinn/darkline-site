@@ -510,10 +510,9 @@
     // Ausschnitt in der Form der Strecke (längste Seite = 200), damit die Karte den Platz voll ausnutzt
     var size = 200, pad = 14, s = (size - 2 * pad) / Math.max(maxX - minX, maxY - minY);
     var vw = (maxX - minX) * s + 2 * pad, vh = (maxY - minY) * s + 2 * pad;
-    var fullBox = "0 0 " + vw.toFixed(1) + " " + vh.toFixed(1);
     var unitsPerMeter = s / 111320; // 1 Grad Breite ≈ 111,32 km
     var px = function (la, lo) { return [(lo * k - minX) * s + pad, (-la - minY) * s + pad]; };
-    // Rundenpunkt i (0…999 wie in den Diagrammen) → Kartenpunkt; die Karte darf gröber aufgelöst sein
+    // Rundenpunkt i (0…999 wie in den Diagrammen) → Kartenpunkt; die Karte ist feiner aufgelöst (2000 GPS-Punkte)
     var idx = function (L, i) { var len = L.points.lat.length; return Math.min(len - 1, Math.round(i * (len - 1) / (L.points.t.length - 1))); };
     var at = function (L, i) { var j = idx(L, i); return px(L.points.lat[j], L.points.lon[j]); };
     var pathOf = function (L, i0, i1) {
@@ -538,67 +537,131 @@
     });
     var dotA = svgEl("circle", { fill: COLOR_A, stroke: "#111416" });
     var dotB = B ? svgEl("circle", { fill: COLOR_B, stroke: "#111416" }) : null;
-    var svg = svgEl("svg", { viewBox: fullBox, role: "img", "aria-label": "Streckenkarte" },
+    var svg = svgEl("svg", { viewBox: "0 0 " + vw.toFixed(1) + " " + vh.toFixed(1), role: "img", "aria-label": "Streckenkarte" },
       [track].concat(lineB ? [lineB] : [], lineA, brakes, start, nums.map(function (n) { return n.node; }), dotB ? [dotB] : [], dotA));
     var note = el("span", { className: "tm-map-note", hidden: true, textContent: "Fahrlinie A und B · ○ = Bremspunkt" });
 
     var bOnA = brakeOnsets(A.points.brake), bOnB = B ? brakeOnsets(B.points.brake) : [];
+    var fullBox = { x: 0, y: 0, w: vw, h: vh };
+    var home = fullBox, box = fullBox, lapView = true;
+    var MIN = 25 * unitsPerMeter; // engster Zoom: ca. 25 m Kartenbreite
 
-    // Punkte, Schrift und Markierungen wachsen nicht mit dem Zoom mit (sc = Anteil des Ausschnitts an der ganzen Karte)
-    function scaleMarks(sc) {
+    // Ausschnitt anwenden. Punkte, Schrift und Kreise behalten ihre Größe (sc = Anteil des Ausschnitts an der ganzen Karte).
+    function apply(b) {
+      box = b;
+      svg.setAttribute("viewBox", [b.x, b.y, b.w, b.h].map(function (v) { return v.toFixed(3); }).join(" "));
+      var sc = Math.max(b.w, b.h) / Math.max(vw, vh);
+      var near = sc < 0.6;
+      // nah dran: Strecke in ungefähr echter Breite (12 m), nie dünner als die Linien darauf; weit weg: feste 7 px
+      if (near) {
+        track.removeAttribute("vector-effect");
+        track.setAttribute("stroke-width", Math.max(12 * unitsPerMeter, 3 * sc).toFixed(4));
+      } else {
+        track.setAttribute("vector-effect", "non-scaling-stroke");
+        track.setAttribute("stroke-width", 7);
+      }
+      // Fahrlinien und Bremspunkte: im Diagramm-Zoom immer, bei der ganzen Runde erst, wenn man in die Karte hineinzoomt
+      var lines = near || !lapView;
+      [lineA, lineB, brakes].forEach(function (n) { if (n) n.style.display = lines ? "" : "none"; });
+      note.hidden = !lines;
       [dotA, dotB].forEach(function (d) { if (d) { d.setAttribute("r", 5 * sc); d.setAttribute("stroke-width", 2 * sc); } });
       start.setAttribute("r", 3 * sc);
-      nums.forEach(function (n) { n.node.setAttribute("font-size", 7 * sc); n.node.setAttribute("y", (n.p[1] - 6 * sc).toFixed(2)); });
+      nums.forEach(function (n) { n.node.setAttribute("font-size", 7 * sc); n.node.setAttribute("y", (n.p[1] - 6 * sc).toFixed(3)); });
+      [].forEach.call(brakes.children, function (c) { c.setAttribute("r", 4 * sc); });
+      zoomOut.disabled = b === fullBox;
     }
 
+    // Fahrlinien und Bremspunkte für den Bereich j0…j1 (Rundenpunkte wie in den Diagrammen)
+    function setLines(j0, j1) {
+      lineA.setAttribute("points", str(pathOf(A, j0, j1)));
+      if (lineB) lineB.setAttribute("points", str(pathOf(B, j0, j1)));
+      var marks = [];
+      [[bOnA, A, COLOR_A], [bOnB, B, COLOR_B]].forEach(function (x) {
+        if (!x[1]) return;
+        x[0].filter(function (i) { return i >= j0 && i <= j1; }).forEach(function (i) {
+          var p = at(x[1], i);
+          marks.push(svgEl("circle", { cx: p[0].toFixed(3), cy: p[1].toFixed(3), fill: "none", stroke: x[2], "stroke-width": 2, "vector-effect": "non-scaling-stroke" }));
+        });
+      });
+      brakes.replaceChildren.apply(brakes, marks);
+    }
+
+    // Ausschnitt passend zum Diagramm-Zoom
     function zoomTo(view, full) {
+      lapView = full;
       if (full) {
-        svg.setAttribute("viewBox", fullBox);
-        track.setAttribute("stroke-width", 7);
-        track.setAttribute("vector-effect", "non-scaling-stroke");
-        lineA.setAttribute("points", "");
-        if (lineB) lineB.setAttribute("points", "");
-        brakes.replaceChildren();
-        note.hidden = true;
-        scaleMarks(1);
+        setLines(0, A.points.t.length - 1);
+        home = fullBox;
+        apply(home);
         return;
       }
       // Etwas Anfahrt davor (ca. 60 m, damit frühere Bremspunkte sichtbar sind). Bei einer Kurve nur bis kurz nach
       // dem Scheitelpunkt, sonst wäre die folgende Gerade im Bild und die Kurve selbst zu klein.
       var j0 = Math.max(0, view.i0 - 15);
       var j1 = view.num && view.apex != null ? Math.min(view.i1, view.apex + Math.max(25, view.apex - view.i0)) : view.i1;
-      var pa = pathOf(A, j0, j1), pb = B ? pathOf(B, j0, j1) : [];
-      var all = pa.concat(pb);
+      setLines(j0, j1);
+      var all = pathOf(A, j0, j1).concat(B ? pathOf(B, j0, j1) : []);
       var x0 = Math.min.apply(null, all.map(function (p) { return p[0]; })), x1 = Math.max.apply(null, all.map(function (p) { return p[0]; }));
       var y0 = Math.min.apply(null, all.map(function (p) { return p[1]; })), y1 = Math.max.apply(null, all.map(function (p) { return p[1]; }));
       var m = Math.max(x1 - x0, y1 - y0, 40 * unitsPerMeter) * 0.18 + 15 * unitsPerMeter;
-      var bw = x1 - x0 + 2 * m, bh = y1 - y0 + 2 * m;
-      svg.setAttribute("viewBox", [(x0 - m).toFixed(2), (y0 - m).toFixed(2), bw.toFixed(2), bh.toFixed(2)].join(" "));
-      var sc = Math.max(bw, bh) / Math.max(vw, vh);
-      // Strecke in ungefähr echter Breite (12 m), aber nie dünner als die Linien darauf
-      track.removeAttribute("vector-effect");
-      track.setAttribute("stroke-width", Math.max(12 * unitsPerMeter, 3 * sc).toFixed(3));
-      lineA.setAttribute("points", str(pa));
-      if (lineB) lineB.setAttribute("points", str(pb));
-      var marks = [];
-      [[bOnA, A, COLOR_A], [bOnB, B, COLOR_B]].forEach(function (x) {
-        if (!x[1]) return;
-        x[0].filter(function (i) { return i >= j0 && i <= j1; }).forEach(function (i) {
-          var p = at(x[1], i);
-          marks.push(svgEl("circle", { cx: p[0].toFixed(2), cy: p[1].toFixed(2), r: 4 * sc, fill: "none", stroke: x[2], "stroke-width": 2, "vector-effect": "non-scaling-stroke" }));
-        });
-      });
-      brakes.replaceChildren.apply(brakes, marks);
-      note.hidden = false;
-      scaleMarks(sc);
+      home = { x: x0 - m, y: y0 - m, w: x1 - x0 + 2 * m, h: y1 - y0 + 2 * m };
+      apply(home);
     }
 
-    scaleMarks(1);
+    // Eigener Karten-Zoom um einen Punkt (Kartenkoordinaten), f < 1 = näher heran
+    function zoomAt(cx, cy, f) {
+      var w = box.w * f, h = box.h * f, big = Math.max(w, h);
+      if (big < MIN) { w *= MIN / big; h *= MIN / big; }
+      if (Math.max(w, h) >= Math.max(vw, vh)) return apply(fullBox);
+      apply({ x: cx - (cx - box.x) * (w / box.w), y: cy - (cy - box.y) * (h / box.h), w: w, h: h });
+    }
+    // Bildschirmposition → Kartenkoordinaten (das SVG ist zentriert eingepasst)
+    function toMap(e) {
+      var r = svg.getBoundingClientRect(), k2 = Math.min(r.width / box.w, r.height / box.h);
+      var ox = (r.width - box.w * k2) / 2, oy = (r.height - box.h * k2) / 2;
+      return { x: box.x + (e.clientX - r.left - ox) / k2, y: box.y + (e.clientY - r.top - oy) / k2, k: k2 };
+    }
+    var center = function () { return [box.x + box.w / 2, box.y + box.h / 2]; };
+
+    svg.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var p = toMap(e);
+      zoomAt(p.x, p.y, e.deltaY < 0 ? 0.8 : 1.25);
+    }, { passive: false });
+    var pan = null;
+    svg.addEventListener("pointerdown", function (e) {
+      if (e.pointerType === "touch" || e.button !== 0) return; // am Handy: Buttons, damit die Seite scrollbar bleibt
+      pan = { x: e.clientX, y: e.clientY, box: box, k: toMap(e).k };
+      svg.setPointerCapture(e.pointerId);
+      svg.classList.add("panning");
+    });
+    svg.addEventListener("pointermove", function (e) {
+      if (!pan) return;
+      apply({ x: pan.box.x - (e.clientX - pan.x) / pan.k, y: pan.box.y - (e.clientY - pan.y) / pan.k, w: pan.box.w, h: pan.box.h });
+    });
+    var endPan = function () { pan = null; svg.classList.remove("panning"); };
+    svg.addEventListener("pointerup", endPan);
+    svg.addEventListener("pointercancel", endPan);
+    svg.addEventListener("dblclick", function () { apply(home); });
+
+    var tool = function (label, title, fn) {
+      var b = el("button", { type: "button", textContent: label, title: title });
+      b.setAttribute("aria-label", title);
+      b.addEventListener("click", fn);
+      return b;
+    };
+    var zoomIn = tool("+", "Karte vergrößern", function () { var c = center(); zoomAt(c[0], c[1], 0.66); });
+    var zoomOut = tool("−", "Karte verkleinern", function () { var c = center(); zoomAt(c[0], c[1], 1.5); });
+    var zoomHome = tool("⟲", "Karte zurücksetzen", function () { apply(home); });
+    var tools = el("div", { className: "tm-map-tools" }, [zoomIn, zoomOut, zoomHome]);
+
+    setLines(0, A.points.t.length - 1);
+    apply(fullBox);
     return {
-      node: el("div", { className: "tm-map" }, [svg, note]),
+      node: el("div", { className: "tm-map" }, [svg, tools, note]),
       move: function (i) {
-        var a = at(A, i); dotA.setAttribute("cx", a[0].toFixed(2)); dotA.setAttribute("cy", a[1].toFixed(2));
-        if (dotB) { var b = at(B, i); dotB.setAttribute("cx", b[0].toFixed(2)); dotB.setAttribute("cy", b[1].toFixed(2)); }
+        var a = at(A, i); dotA.setAttribute("cx", a[0].toFixed(3)); dotA.setAttribute("cy", a[1].toFixed(3));
+        if (dotB) { var b = at(B, i); dotB.setAttribute("cx", b[0].toFixed(3)); dotB.setAttribute("cy", b[1].toFixed(3)); }
       },
       highlight: zoomTo
     };

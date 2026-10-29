@@ -1,11 +1,11 @@
 // Telemetrie einer Runde für den Vergleich im Teambereich.
-// GET ?lap=<ID> → Rundendaten, verdichtet auf 1000 Punkte über die Runde (statt ca. 5000 Messpunkte, ~800 KB CSV).
+// GET ?lap=<ID> → Rundendaten, verdichtet auf 1000 Punkte über die Runde, GPS auf 2000 (statt ca. 5000 Messpunkte, ~800 KB CSV).
 // Runden ändern sich nicht, deshalb wird das Ergebnis einen Tag gemerkt.
 const { requireSession } = require("../_lib/session");
 const { g61Get, g61Text, cached, sendError } = require("../_lib/g61");
 
 const N = 1000;      // Punkte über die Runde
-const MAP_STEP = 1;  // GPS für die Streckenkarte: jeder Punkt (ca. alle 4 m), damit die Karte beim Zoom die Fahrlinie zeigt
+const MAP_N = 2000;  // GPS-Punkte für die Streckenkarte (ca. alle 2 m), damit die Fahrlinie auch stark gezoomt glatt ist
 
 const round = (v, digits) => Math.round(v * 10 ** digits) / 10 ** digits;
 
@@ -69,10 +69,16 @@ function resample(rows, lapTime) {
     out.brake.push(Math.round(mix("brake") * 100));
     out.gear.push(f < 0.5 ? a.gear : b.gear);            // Gang nicht mitteln
     out.steer.push(round(mix("steer") * 180 / Math.PI, 1)); // rad → Grad
-    if (j % MAP_STEP === 0) {
-      out.lat.push(round(mix("lat"), 6));
-      out.lon.push(round(mix("lon"), 6));
-    }
+  }
+  // GPS für die Karte feiner als die Diagramme, damit die Fahrlinie auch stark gezoomt glatt bleibt
+  k = 0;
+  for (let j = 0; j < MAP_N; j++) {
+    const g = j / (MAP_N - 1);
+    while (k < rows.length - 2 && rows[k + 1].d < g) k++;
+    const a = rows[k], b = rows[k + 1];
+    const f = Math.min(1, Math.max(0, (g - a.d) / (b.d - a.d)));
+    out.lat.push(round(a.lat + (b.lat - a.lat) * f, 7));
+    out.lon.push(round(a.lon + (b.lon - a.lon) * f, 7));
   }
   return { length: Math.round(dist), points: out };
 }

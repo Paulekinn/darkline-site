@@ -193,6 +193,12 @@
 .tm-map{flex:1;min-height:240px;position:relative;background:var(--paper)}
 .tm-map svg{position:absolute;inset:14px;display:block;width:calc(100% - 28px);height:calc(100% - 28px)}
 .tm-map-note{position:absolute;left:14px;bottom:10px;font:500 .66rem/1.2 var(--f-mono);color:var(--muted);pointer-events:none}
+.tm-map svg{cursor:grab}
+.tm-map svg.panning{cursor:grabbing}
+.tm-map-tools{position:absolute;top:10px;right:10px;z-index:1;display:grid;gap:2px}
+.tm-map-tools button{width:32px;height:32px;background:#050606;border:1px solid var(--scan);color:var(--ink);font:600 1rem/1 var(--f-mono);cursor:pointer}
+.tm-map-tools button:hover{background:#181c1e}
+.tm-map-tools button:disabled{opacity:.35;cursor:default}
 .tm-sum{background:var(--paper);padding:14px 16px;display:grid;gap:10px}
 .tm-sum div{display:flex;justify-content:space-between;gap:12px;font:500 .88rem/1.25 var(--f-mono)}
 .tm-sum div span{color:var(--muted)}
