@@ -1,8 +1,9 @@
-// Rennbericht für den Admin-Bereich (/admin/rennbericht): Auswertung eines Teamrennens aus Garage 61.
-// Zugang nur mit der GitHub-Anmeldung des CMS (siehe _lib/admin.js), nicht über den Discord-Login des Teambereichs.
+// Auswertung eines Teamrennens aus Garage 61, für den Rennbericht im Admin (/admin/rennbericht, GitHub-Anmeldung)
+// und die Rennanalyse im Teambereich (/team#rennanalyse, Discord-Anmeldung).
 // GET ?datum=YYYY-MM-DD → Garage-61-Events rund um diesen Tag (Kandidaten für das Teamrennen)
 // GET ?event=<ID>       → Auswertung der Rennsession: Stints, Fahrer, Boxenstopps, Wetter (einen Tag gemerkt)
 const { requireAdmin } = require("../_lib/admin");
+const { requireSession } = require("../_lib/session");
 const { g61Get, cached, items, teamSlug, sendError } = require("../_lib/g61");
 
 const ID = /^[0-9A-Za-z]{20,32}$/;
@@ -70,6 +71,10 @@ async function analyse(id) {
   }
   const stintOut = stints.map((s, i) => {
     const pace = s.laps.filter(racing).map((l) => l.lapTime);
+    const fuel = s.laps.filter((l) => racing(l) && l.fuelUsed > 0).map((l) => l.fuelUsed);
+    // Tempoabbau: Mittel der letzten 5 gegen die ersten 5 sauberen Runden (positiv = am Ende langsamer)
+    const avg = (a) => a.reduce((t, v) => t + v, 0) / a.length;
+    const fade = pace.length >= 12 ? avg(pace.slice(-5)) - avg(pace.slice(0, 5)) : null;
     return {
       nr: i + 1,
       driver: s.driver,
@@ -80,6 +85,9 @@ async function analyse(id) {
       time: r1(s.laps.reduce((t, l) => t + (l.lapTime > 0 ? l.lapTime : 0), 0)),
       best: r3(pace.length ? Math.min(...pace) : null),
       median: r3(median(pace)),
+      spread: r3(spread(pace)),
+      fade: r3(fade),
+      fuelPerLap: r1(median(fuel)),
       pits: s.pits,
     };
   });
@@ -106,6 +114,57 @@ async function analyse(id) {
   const first = laps[0], last = laps[laps.length - 1];
   const ends = new Date(new Date(last.startTime).getTime() + Math.max(0, last.lapTime) * 1000);
   const temps = (k) => laps.map((l) => l[k]).filter((v) => typeof v === "number");
+  const raceMedian = median(pace.map((l) => l.lapTime));
+  const t0 = new Date(first.startTime).getTime();
+  const at = (l) => (new Date(l.startTime).getTime() - t0) / 1000;
+  // Tempo der Umgebung: Median der sauberen Runden in den 15 Runden um eine Runde herum (egal welcher Fahrer).
+  // So zählen Regen, Nacht oder Gummi auf der Strecke nicht als Zeitverlust, nur was langsamer als das Umfeld war.
+  const localPace = (i) => {
+    const near = [];
+    for (let j = Math.max(0, i - 7); j <= Math.min(laps.length - 1, i + 7); j++) if (j !== i && racing(laps[j])) near.push(laps[j].lapTime);
+    return near.length >= 5 ? median(near) : raceMedian;
+  };
+
+  // Boxenstopps: Zeit von der Einfahrtsrunde bis zur nächsten normalen Runde, minus so viele normale Runden.
+  // Über die Startzeiten gerechnet, damit auch fehlende Runden (z. B. beim Fahrerwechsel) richtig zählen.
+  const stops = [];
+  for (let i = 0; i < laps.length; i++) {
+    if (!laps[i].pitIn) continue;
+    let k = i + 1;
+    while (k < laps.length && (laps[k].pitIn || laps[k].pitOut)) k++;
+    if (k >= laps.length) break;
+    const ref = localPace(k);
+    const span = laps.slice(i, k + 1);
+    stops.push({
+      lap: laps[i].lapNumber,
+      time: r1(at(laps[i])),
+      from: name(laps[i].driver),
+      to: name(laps[k].driver),
+      change: laps[i].driver.slug !== laps[k].driver.slug,
+      loss: ref ? r1(Math.max(0, at(laps[k]) - at(laps[i]) - (laps[k].lapNumber - laps[i].lapNumber) * ref)) : null,
+      fuel: r1(Math.max(0, ...span.map((l) => l.fuelAdded || 0))),
+    });
+    i = k - 1;
+  }
+
+  // Zeitverluste auf der Strecke: Runden (ohne Box), die mehr als 2 % langsamer sind als das Umfeld
+  const losses = [];
+  laps.forEach((l, i) => {
+    if (l.pitIn || l.pitOut || l.incomplete || l.lapNumber <= 1 || !(l.lapTime > 0)) return;
+    const ref = localPace(i);
+    if (!ref || l.lapTime <= ref * 1.02) return;
+    losses.push({ lap: l.lapNumber, time: r1(at(l)), driver: name(l.driver), lapTime: r3(l.lapTime), loss: r3(l.lapTime - ref),
+      reason: l.offtrack ? "Abflug" : l.clean ? "Langsame Runde" : "Zwischenfall" });
+  });
+  const lossBy = new Map();
+  losses.forEach((x) => { const d = lossBy.get(x.driver) || { count: 0, loss: 0 }; d.count++; d.loss += x.loss; lossBy.set(x.driver, d); });
+  drivers.forEach((d) => { const x = lossBy.get(d.driver) || { count: 0, loss: 0 }; d.lossLaps = x.count; d.lossTime = r1(x.loss); });
+
+  // Alle Rennrunden kompakt für das Pace-Diagramm: [Runde, Fahrer-Index, Rundenzeit, Merker, Streckentemperatur, Sekunden seit Start]
+  // Merker: 1 Boxeneinfahrt, 2 Boxenausfahrt, 4 Abflug, 8 sauber, 16 unvollständig, 32 Regen
+  const driverIndex = new Map(drivers.map((d, i) => [d.driver, i]));
+  const lapRows = laps.map((l) => [l.lapNumber, driverIndex.get(name(l.driver)), r3(l.lapTime), (l.pitIn ? 1 : 0) | (l.pitOut ? 2 : 0) | (l.offtrack ? 4 : 0) |
+    (l.clean ? 8 : 0) | (l.incomplete ? 16 : 0) | (l.precipitation > 0 ? 32 : 0), r1(l.trackTemp), Math.round(at(l))]);
 
   return {
     ...base,
@@ -128,17 +187,25 @@ async function analyse(id) {
     },
     drivers,
     stints: stintOut,
+    stops,
+    stopLoss: r1(stops.reduce((t, s) => t + (s.loss || 0), 0)),
+    losses: losses.sort((a, b) => b.loss - a.loss),
+    lossTime: r1(losses.reduce((t, x) => t + x.loss, 0)),
+    lapRows,
   };
 }
 
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "private, no-store");
   try {
-    if (!(await requireAdmin(req, res))) return;
+    // Admin (Rennbericht, GitHub-Anmeldung im Authorization-Header) oder Teambereich (Rennanalyse, Discord-Cookie)
+    if (req.headers && req.headers.authorization) {
+      if (!(await requireAdmin(req, res))) return;
+    } else if (!requireSession(req, res)) return;
     const q = req.query || {};
     if (q.event !== undefined) {
       if (!ID.test(q.event)) return res.status(400).json({ error: "Ungültiges Event." });
-      return res.status(200).json(await cached(`race:${q.event}`, 86400, () => analyse(q.event)));
+      return res.status(200).json(await cached(`race2:${q.event}`, 86400, () => analyse(q.event)));
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(q.datum || "")) return res.status(400).json({ error: "Datum fehlt (JJJJ-MM-TT)." });
     return res.status(200).json({ events: await cached(`events:${q.datum}`, 900, () => candidates(q.datum)) });

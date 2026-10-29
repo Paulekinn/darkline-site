@@ -49,9 +49,10 @@
   }
 
   // ---------------------------------------------------------------- Bereiche
-  // Die Adresse bestimmt den sichtbaren Bereich: #rangliste (Standard), #wochenbericht, #telemetrie?strecke=…&auto=…&a=…&b=…&zoom=…
+  // Die Adresse bestimmt den sichtbaren Bereich: #rangliste (Standard), #wochenbericht, #telemetrie?strecke=…&auto=…&a=…&b=…&zoom=…,
+  // #rennanalyse?event=…
 
-  var TABS = ["rangliste", "wochenbericht", "telemetrie"];
+  var TABS = ["rangliste", "wochenbericht", "telemetrie", "rennanalyse"];
   var weeklyLoaded = false;
 
   function route() {
@@ -65,6 +66,7 @@
       weeklyLoaded = true;
       loadWeekly();
     }
+    if (tab === "rennanalyse") initRace(new URLSearchParams(parts[1] || "").get("event") || "");
     if (tab === "telemetrie" && parts[1]) {
       var q = new URLSearchParams(parts[1]);
       var share = { track: Number(q.get("strecke")), car: Number(q.get("auto")), a: q.get("a") || "", b: q.get("b") || "", zoom: q.get("zoom") || "" };
@@ -107,7 +109,7 @@
   }
 
   function hours(sec) {
-    var h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+    var total = Math.round(sec / 60), h = Math.floor(total / 60), m = total % 60; // erst runden, sonst „60 min“
     return h ? h + " h " + String(m).padStart(2, "0") + " min" : m + " min";
   }
 
@@ -946,6 +948,412 @@
     var start = s && s.zoom && s.a === A.id ? fromCode(s.zoom) : null;
     if (start) view = start;
     draw();
+  }
+
+  // ---------------------------------------------------------------- Rennanalyse
+  // Auswertung eines Teamrennens aus Garage 61. Rennen aus dem Kalender wählen, die passende Session wird gesucht.
+  // Adresse: #rennanalyse?event=<Garage-61-Event>, damit sich eine Analyse als Link teilen lässt.
+
+  var ra = { loaded: false, races: [], event: "", focus: null, chart: null };
+  // Farben je Fahrer (feste Reihenfolge, Fahrer mit der meisten Fahrzeit zuerst)
+  var RA_COLORS = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"];
+
+  var raSec = function (v, digits) { return v == null ? "–" : v.toFixed(digits == null ? 1 : digits).replace(".", ",") + " s"; };
+  var raSigned = function (v) { return v == null ? "–" : (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v).toFixed(1).replace(".", ",") + " s"; };
+  var raLap = function (v) { return v == null || !(v > 0) ? "–" : lapTime(v); };
+  // Rennuhr: Zeit seit dem Start als h:mm
+  var raClock = function (sec) { return Math.floor(sec / 3600) + ":" + String(Math.floor(sec % 3600 / 60)).padStart(2, "0") + " h"; };
+  // längere Dauern als m:ss min (z. B. Zeit in der Box)
+  var raMinutes = function (sec) { var m = Math.floor(sec / 60); return m + ":" + String(Math.round(sec - m * 60)).padStart(2, "0") + " min"; };
+
+  function germanDate(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
+    return m ? m[3] + "." + m[2] + "." + m[1] : "";
+  }
+
+  function initRace(eventId) {
+    if (eventId && eventId !== ra.event) showRaceAnalysis(eventId);
+    if (ra.loaded) return;
+    ra.loaded = true;
+    $("ra-race").addEventListener("change", pickRaceEntry);
+    $("ra-date").addEventListener("change", function () { if (this.value) findRaceEvents(this.value); });
+    $("ra-event").addEventListener("change", function () { if (this.value) openRaceEvent(this.value); });
+    fetch("/content/races.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (d) {
+      ra.races = (d.races || []).filter(function (r) { return r.status === "abgeschlossen"; })
+        .sort(function (a, b) { return String(b.datum || "").localeCompare(String(a.datum || "")); });
+      fillSelect($("ra-race"), [{ value: "", label: ra.races.length ? "Rennen wählen …" : "Noch kein abgeschlossenes Rennen" }].concat(ra.races.map(function (r) {
+        return { value: r.id, label: (r.datum ? germanDate(r.datum) + " · " : "") + r.titel };
+      })), "");
+      $("ra-race").disabled = !ra.races.length;
+      $("ra-date").disabled = false;
+      if (!ra.event) message($("ra-view"), "Wähle oben ein abgeschlossenes Rennen aus dem Kalender oder direkt einen Renntag. Die passende Session aus Garage 61 wird automatisch gesucht.");
+    }).catch(function () {
+      $("ra-date").disabled = false;
+      if (!ra.event) message($("ra-view"), "Der Rennkalender konnte nicht geladen werden. Den Renntag kannst du oben trotzdem wählen.", true);
+    });
+  }
+
+  function raceEntry() {
+    return ra.races.filter(function (r) { return r.id === $("ra-race").value; })[0] || null;
+  }
+
+  function pickRaceEntry() {
+    var race = raceEntry();
+    fillSelect($("ra-event"), []);
+    if (!race) return message($("ra-view"), "Wähle oben ein abgeschlossenes Rennen.");
+    $("ra-date").value = race.datum ? String(race.datum).slice(0, 10) : "";
+    if ($("ra-date").value) findRaceEvents($("ra-date").value);
+    else message($("ra-view"), "Für dieses Rennen ist im Kalender kein Datum eingetragen. Bitte den Renntag oben auswählen.");
+  }
+
+  function findRaceEvents(datum) {
+    var race = raceEntry();
+    message($("ra-view"), "Suche Sessions in Garage 61 …");
+    api("/api/team/race?datum=" + encodeURIComponent(datum)).then(function (d) {
+      if (!d.events.length) { fillSelect($("ra-event"), []); return message($("ra-view"), "An diesem Tag hat Garage 61 keine Session des Teams aufgezeichnet."); }
+      // Fahrer aus dem Kalender (ohne Zusätze wie „(Gast)") mit denen der Session abgleichen
+      var crew = (race && race.crew || []).map(function (c) { return c.replace(/\s*\(.*\)\s*$/, "").toLowerCase(); });
+      var score = function (e) {
+        var hits = e.drivers.filter(function (n) { return crew.some(function (c) { return c.split(" ")[0] === n.toLowerCase().split(" ")[0]; }); }).length;
+        return hits * 1000 + (e.official ? 500 : 0) + e.laps;
+      };
+      var list = d.events.slice().sort(function (a, b) { return score(b) - score(a); });
+      fillSelect($("ra-event"), list.map(function (e) {
+        var t = new Date(e.start).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+        return { value: e.id, label: t + " · " + e.track + " · " + e.laps + " Runden · " + e.drivers.join(", ") };
+      }), list[0].id);
+      openRaceEvent(list[0].id);
+    }).catch(function (e) { message($("ra-view"), e.message, true); });
+  }
+
+  function openRaceEvent(id) {
+    history.replaceState(null, "", location.pathname + "#rennanalyse?event=" + encodeURIComponent(id));
+    showRaceAnalysis(id);
+  }
+
+  function showRaceAnalysis(id) {
+    ra.event = id;
+    message($("ra-view"), "Werte das Rennen aus … Bei 24 Stunden kann das einen Moment dauern.");
+    api("/api/team/race?event=" + encodeURIComponent(id)).then(function (a) {
+      if (ra.event !== id) return; // inzwischen anderes Rennen gewählt
+      if (a.empty) return message($("ra-view"), "In dieser Session gibt es keine Rennrunden. Wähle oben eine andere Session.");
+      renderRaceAnalysis(a);
+    }).catch(function (e) { if (ra.event === id) message($("ra-view"), e.message, true); });
+  }
+
+  // Tabelle mit anklickbaren Zeilen. rows: { cells: [...], color, pressed, onClick }
+  function raTable(head, rows) {
+    var body = el("tbody", null, rows.map(function (r) {
+      var tr = el("tr", { tabIndex: 0 }, r.cells.map(function (c, i) {
+        if (i === 0) return el("td", { className: "ra-nm" }, [r.color ? el("i", { style: "background:" + r.color }) : "", c]);
+        return el("td", { className: "num" }, c);
+      }));
+      if (r.onClick) {
+        tr.addEventListener("click", function () { r.onClick(tr); });
+        tr.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); r.onClick(tr); } });
+      }
+      return tr;
+    }));
+    var table = el("table", { className: "ra-table" }, [
+      el("thead", null, el("tr", null, head.map(function (h, i) { return el("th", { className: i ? "num" : "", textContent: h }); }))),
+      body
+    ]);
+    return el("div", { className: "ra-scroll" }, table);
+  }
+
+  // Klick auf eine Zeile markiert die Runden im Diagramm, zweiter Klick hebt die Markierung auf
+  function markRows(tr, from, to) {
+    var on = tr.getAttribute("aria-pressed") !== "true";
+    document.querySelectorAll("#ra-view .ra-table tr[aria-pressed]").forEach(function (r) { r.removeAttribute("aria-pressed"); });
+    if (on) tr.setAttribute("aria-pressed", "true");
+    ra.chart.mark(on ? { from: from, to: to } : null);
+  }
+
+  function renderRaceAnalysis(a) {
+    var box = $("ra-view");
+    var entry = raceEntry();
+    ra.focus = null;
+    var colors = {};
+    a.drivers.forEach(function (d, i) { colors[d.driver] = RA_COLORS[i % RA_COLORS.length]; });
+
+    var when = new Date(a.start).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    var head = el("div", { className: "wb-head" }, [
+      el("h3", { textContent: entry ? entry.titel : a.track }),
+      el("span", { textContent: [entry ? a.track : "", a.car, when + " Uhr"].filter(Boolean).join(" · ") })
+    ]);
+
+    var kpi = function (label, value, sub) {
+      return el("div", { className: "wb-kpi" }, [el("span", { className: "lbl", textContent: label }), el("b", { textContent: value }), el("span", { className: "delta", textContent: sub })]);
+    };
+    var changes = a.stops.filter(function (s) { return s.change; }).length;
+    var w = a.weather;
+    var kpis = el("div", { className: "wb-kpis" }, [
+      kpi("Renndauer", hours(a.duration), a.laps + " Runden · " + a.drivers.length + " Fahrer"),
+      kpi("Boxenstopps", String(a.stops.length), changes + " mit Fahrerwechsel"),
+      kpi("Zeit in der Box", raMinutes(a.stopLoss || 0), "Verlust gegenüber normalen Runden"),
+      kpi("Verlust auf der Strecke", raMinutes(a.lossTime || 0), a.losses.length + " Runden langsamer als das Umfeld"),
+      kpi("Schnellste Runde", a.bestLap ? lapTime(a.bestLap.time) : "–", a.bestLap ? a.bestLap.driver + " · Runde " + a.bestLap.lap : ""),
+      kpi("Typische Runde", raLap(a.medianLap), "Median aller sauberen Runden"),
+      kpi("Sprit pro Runde", a.fuelPerLap ? String(a.fuelPerLap).replace(".", ",") + " l" : "–", "Median der sauberen Runden"),
+      kpi("Streckentemperatur", w.trackStart != null ? Math.round(w.trackStart) + " → " + Math.round(w.trackEnd) + " °C" : "–",
+        w.trackMin != null ? "min " + Math.round(w.trackMin) + " · max " + Math.round(w.trackMax) + " °C" + (w.rain ? " · Regen" : "") : "")
+    ]);
+
+    // Fahrer-Buttons: heben einen Fahrer im Diagramm hervor
+    var keys = el("div", { className: "ra-keys" }, a.drivers.map(function (d, i) {
+      var b = el("button", { type: "button", className: "ra-key" }, [el("i", { style: "background:" + colors[d.driver] }), d.driver]);
+      b.setAttribute("aria-pressed", "false");
+      b.addEventListener("click", function () { focusDriver(ra.focus === i ? null : i); });
+      return b;
+    }));
+    var focusDriver = function (i) {
+      ra.focus = i;
+      keys.querySelectorAll("button").forEach(function (b, k) { b.setAttribute("aria-pressed", String(k === i)); });
+      ra.chart.focus(i);
+    };
+
+    ra.chart = paceChart(a, colors);
+    var paceCard = el("div", { className: "ra-card" }, [
+      el("h4", { textContent: "Rundenzeiten im Rennverlauf · Fahrer anklicken zum Hervorheben" }),
+      keys,
+      ra.chart.node,
+      el("p", { className: "ra-note", textContent: "● saubere Runde · ○ Runde mit Abflug oder Zwischenfall · ▲ langsamer als der sichtbare Bereich · Linie = typische Runde des Stints · senkrechte Striche = Boxenstopps · blau hinterlegt = Regen" })
+    ]);
+
+    var drivers = raTable(["Fahrer", "Stints", "Runden", "Fahrzeit", "Beste", "Typisch", "Konstanz", "Abflüge", "Verlust"],
+      a.drivers.map(function (d, i) {
+        return {
+          cells: [d.driver, String(d.stints), String(d.laps), hours(d.time), raLap(d.best), raLap(d.median), d.spread == null ? "–" : "±" + raSec(d.spread, 2), String(d.offtracks),
+            raSec(d.lossTime) + " (" + d.lossLaps + ")"],
+          color: colors[d.driver],
+          onClick: function () { focusDriver(ra.focus === i ? null : i); }
+        };
+      }));
+
+    var stints = raTable(["Stint", "Runden", "Dauer", "Typisch", "Konstanz", "Abbau", "Sprit/Runde"],
+      a.stints.map(function (s) {
+        return {
+          cells: [s.nr + " · " + s.driver, s.from + "–" + s.to + " (" + s.laps + ")", hours(s.time), raLap(s.median), s.spread == null ? "–" : "±" + raSec(s.spread, 2),
+            raSigned(s.fade), s.fuelPerLap ? String(s.fuelPerLap).replace(".", ",") + " l" : "–"],
+          color: colors[s.driver],
+          onClick: function (tr) { markRows(tr, s.from, s.to); }
+        };
+      }));
+
+    // lange Stopps (deutlich über dem üblichen Stopp) markieren: meist Reparatur oder Strafe
+    var usual = (function () {
+      var v = a.stops.map(function (s) { return s.loss; }).filter(function (x) { return x != null; }).sort(function (x, y) { return x - y; });
+      return v.length ? v[Math.floor(v.length / 2)] : null;
+    })();
+    var stops = a.stops.length ? raTable(["Runde", "Rennzeit", "Fahrer", "Sprit", "Verlust"],
+      a.stops.map(function (s) {
+        var long = usual && s.loss > usual * 1.6;
+        return {
+          cells: ["Runde " + s.lap, raClock(s.time), s.change ? s.from + " → " + s.to : s.from + " (kein Wechsel)", s.fuel ? String(s.fuel).replace(".", ",") + " l" : "–",
+            el("span", null, [raSec(s.loss), long ? el("span", { className: "ra-tag", textContent: "lang" }) : ""])],
+          onClick: function (tr) { markRows(tr, s.lap, s.lap + 1); }
+        };
+      })) : el("p", { className: "msg", textContent: "Keine Boxenstopps aufgezeichnet." });
+
+    var top = a.losses.slice(0, 10);
+    var losses = top.length ? raTable(["Runde", "Rennzeit", "Fahrer", "Zeit", "Verlust", "Grund"],
+      top.map(function (x) {
+        return {
+          cells: ["Runde " + x.lap, raClock(x.time), x.driver, lapTime(x.lapTime), "+" + raSec(x.loss), x.reason],
+          color: colors[x.driver],
+          onClick: function (tr) { markRows(tr, x.lap, x.lap); }
+        };
+      })) : el("p", { className: "msg", textContent: "Keine Runde war deutlich langsamer als das Umfeld." });
+
+    var card = function (title, content, note, wide) {
+      return el("div", { className: "ra-card" + (wide ? " ra-wide" : "") }, [el("h4", { textContent: title }), content].concat(note ? el("p", { className: "ra-note", textContent: note }) : []));
+    };
+    var grid = el("div", { className: "ra-grid" }, [
+      card("Fahrervergleich · Zeile anklicken zum Hervorheben", drivers,
+        "Typisch = Median der sauberen Runden ohne Box und Startrunde. Konstanz = typische Abweichung davon. Verlust = Zeit in Runden, die über 2 % langsamer als das Umfeld waren (Anzahl in Klammern).", true),
+      card("Stints · Zeile anklicken zum Markieren", stints,
+        "Abbau = Schnitt der letzten 5 gegen die ersten 5 sauberen Runden des Stints (plus = am Ende langsamer, z. B. durch Reifen). Erst ab 12 sauberen Runden.", true),
+      card("Boxenstopps", stops,
+        "Verlust = Zeit von der Einfahrt bis zur ersten normalen Runde, abzüglich der Rundenzeit im Umfeld. „lang“ = deutlich länger als üblich, oft Reparatur oder Strafe."),
+      card("Größte Zeitverluste auf der Strecke", losses,
+        "Runden ohne Boxenstopp, die über 2 % langsamer waren als die sauberen Runden des Teams davor und danach. Regen oder Nacht zählen so nicht mit. „Langsame Runde“ = sauber, aber langsam, z. B. Verkehr oder Gelbphase." +
+        (a.losses.length > top.length ? " Gezeigt: die 10 größten von " + a.losses.length + "." : ""))
+    ]);
+
+    box.replaceChildren(head, kpis, paceCard, grid);
+    ra.chart.draw();
+  }
+
+  // Rundenzeiten über das Rennen (Punkte je Fahrer), darunter die Stints als Band und die Streckentemperatur.
+  // Wird in echter Pixelbreite gezeichnet, damit die Schrift auch auf dem Handy lesbar bleibt.
+  function paceChart(a, colors) {
+    var wrap = el("div", { className: "ra-chart" });
+    var tip = el("div", { className: "tm-tip", hidden: true });
+    var holder = el("div");
+    wrap.append(holder, tip);
+
+    var names = a.drivers.map(function (d) { return d.driver; });
+    var rows = a.lapRows.filter(function (r) { return r[0] >= 1 && !(r[3] & 16); });
+    var maxLap = Math.max.apply(null, a.lapRows.map(function (r) { return r[0]; })) || 1;
+    var racing = function (r) { return (r[3] & 8) && !(r[3] & 3) && r[0] > 1 && r[2] > 0; };
+    var pace = rows.filter(racing).map(function (r) { return r[2]; }).sort(function (x, y) { return x - y; });
+    if (!pace.length) pace = rows.map(function (r) { return r[2]; }).filter(function (v) { return v > 0; }).sort(function (x, y) { return x - y; });
+    var lo = Math.floor((pace[0] || 60) - 0.5);
+    var hi = Math.ceil(Math.min(pace[Math.floor(pace.length * 0.97)] + 1.5, (a.medianLap || pace[0]) * 1.08));
+    if (!(hi > lo + 2)) hi = lo + 3;
+    var temps = a.lapRows.filter(function (r) { return typeof r[4] === "number"; });
+    var tMin = Math.floor(Math.min.apply(null, temps.map(function (r) { return r[4]; })) - 1);
+    var tMax = Math.ceil(Math.max.apply(null, temps.map(function (r) { return r[4]; })) + 1);
+    var stintAt = function (lap) { return a.stints.filter(function (s) { return lap >= s.from && lap <= s.to; })[0]; };
+    var marked = null, focus = null, lastW = 0;
+    var geo = null;
+
+    function draw() {
+      var W = Math.max(280, Math.round(wrap.clientWidth || 900));
+      lastW = W;
+      var L = 50, R = 10, T = 10;
+      var H1 = Math.round(Math.min(420, Math.max(220, W * 0.34)));
+      var stripY = T + H1 + 26, stripH = 12;
+      var tT = stripY + stripH + 30, H2 = temps.length ? 70 : 0;
+      var H = tT + H2 + 22;
+      var x = function (lap) { return L + lap / maxLap * (W - L - R); };
+      var y = function (t) { return T + (hi - Math.min(hi, Math.max(lo, t))) / (hi - lo) * H1; };
+      var y2 = function (t) { return tT + (tMax - t) / (tMax - tMin || 1) * H2; };
+      geo = { L: L, R: R, W: W, x: x };
+      var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, "class": "ra-svg" });
+
+      // Regen hinterlegen
+      var run = null;
+      a.lapRows.concat([[maxLap + 1, 0, 0, 0]]).forEach(function (r) {
+        var wet = r[3] & 32;
+        if (wet && !run) run = { from: r[0] };
+        if (!wet && run) {
+          svg.append(svgEl("rect", { x: x(run.from), y: T, width: Math.max(2, x(r[0]) - x(run.from)), height: H1, fill: "rgba(57,135,229,.12)" }));
+          run = null;
+        }
+      });
+
+      // Raster: Rundenzeiten links, Runden unten
+      var range = hi - lo, step = range > 24 ? 5 : range > 12 ? 2 : 1;
+      for (var v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+        svg.append(svgEl("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: "#1b1f21" }));
+        svg.append(svgEl("text", { x: L - 6, y: y(v) + 4, "text-anchor": "end" }, lapTime(v).replace(/\.000$/, "")));
+      }
+      var ls = [5, 10, 20, 25, 50, 100, 200].filter(function (s) { return maxLap / s <= (W < 600 ? 5 : 10); })[0] || 500;
+      for (var n = 0; n <= maxLap; n += ls) {
+        svg.append(svgEl("line", { x1: x(n), x2: x(n), y1: T, y2: T + H1, stroke: "#1b1f21" }));
+        svg.append(svgEl("text", { x: x(n), y: T + H1 + 16, "text-anchor": "middle" }, String(n)));
+      }
+      svg.append(svgEl("text", { x: W - R, y: T + H1 + 16, "text-anchor": "end" }, "Runde"));
+
+      // Boxenstopps
+      a.stops.forEach(function (s) {
+        svg.append(svgEl("line", { x1: x(s.lap), x2: x(s.lap), y1: T, y2: T + H1, stroke: s.change ? "#59625f" : "#3a4144", "stroke-dasharray": "3 3" }));
+      });
+
+      // Punkte je Fahrer
+      var groups = names.map(function (_, i) { return svgEl("g", { "data-d": i }); });
+      rows.forEach(function (r) {
+        if (r[3] & 3 || !(r[2] > 0)) return; // Boxenrunden zeigen die senkrechten Striche
+        var c = colors[names[r[1]]], g = groups[r[1]];
+        if (!g) return;
+        if (r[2] > hi) g.append(svgEl("path", { d: "M" + (x(r[0]) - 3) + " " + (T + 6) + "h6l-3 -5z", fill: c }));
+        else if (r[3] & 8) g.append(svgEl("circle", { cx: x(r[0]), cy: y(r[2]), r: 2.4, fill: c }));
+        else g.append(svgEl("circle", { cx: x(r[0]), cy: y(r[2]), r: 2.6, fill: "none", stroke: c, "stroke-width": 1.4 }));
+      });
+      groups.forEach(function (g) { svg.append(g); });
+
+      // typische Runde je Stint als Linie, mit dunklem Rand gegen die Punkte
+      a.stints.forEach(function (s) {
+        if (s.median == null) return;
+        var d = names.indexOf(s.driver);
+        var g = svgEl("g", { "data-d": d });
+        g.append(svgEl("line", { x1: x(s.from), x2: x(s.to), y1: y(s.median), y2: y(s.median), stroke: "#101315", "stroke-width": 5, "stroke-linecap": "round" }));
+        g.append(svgEl("line", { x1: x(s.from), x2: x(s.to), y1: y(s.median), y2: y(s.median), stroke: colors[s.driver], "stroke-width": 2.5, "stroke-linecap": "round" }));
+        svg.append(g);
+      });
+
+      // Stints als Band
+      svg.append(svgEl("text", { x: L - 6, y: stripY + 10, "text-anchor": "end" }, "Stints"));
+      a.stints.forEach(function (s) {
+        svg.append(svgEl("rect", { "data-d": names.indexOf(s.driver), x: x(s.from), y: stripY, width: Math.max(1, x(s.to + 1) - x(s.from) - 2), height: stripH, rx: 2, fill: colors[s.driver] }));
+      });
+
+      // Streckentemperatur
+      if (H2) {
+        svg.append(svgEl("text", { x: L, y: tT - 10 }, "Streckentemperatur"));
+        [tMin, tMax].forEach(function (t) {
+          svg.append(svgEl("line", { x1: L, x2: W - R, y1: y2(t), y2: y2(t), stroke: "#1b1f21" }));
+          svg.append(svgEl("text", { x: L - 6, y: y2(t) + 4, "text-anchor": "end" }, t + " °C"));
+        });
+        svg.append(svgEl("polyline", { points: temps.map(function (r) { return x(r[0]).toFixed(1) + "," + y2(r[4]).toFixed(1); }).join(" "), fill: "none", stroke: "#c4cbc8", "stroke-width": 2, "stroke-linejoin": "round" }));
+      }
+
+      // markierte Runden (aus den Tabellen)
+      if (marked) {
+        var x0 = x(marked.from), x1 = x(marked.to + (marked.to > marked.from ? 1 : 0));
+        svg.append(svgEl("rect", { x: Math.min(x0, x1) - 2, y: T, width: Math.max(4, Math.abs(x1 - x0) + 4), height: (H2 ? tT + H2 : stripY + stripH) - T, fill: "rgba(232,236,234,.08)", stroke: "rgba(232,236,234,.5)" }));
+      }
+
+      var cursor = svgEl("line", { y1: T, y2: H2 ? tT + H2 : stripY + stripH, stroke: "rgba(232,236,234,.55)", visibility: "hidden" });
+      svg.append(cursor);
+      geo.cursor = cursor;
+      holder.replaceChildren(svg);
+      applyFocus();
+    }
+
+    function applyFocus() {
+      holder.querySelectorAll("[data-d]").forEach(function (g) {
+        g.style.opacity = focus == null || Number(g.getAttribute("data-d")) === focus ? "" : ".12";
+      });
+    }
+
+    // Hover: nächstgelegene Runde mit allen Angaben
+    function hover(e) {
+      if (!geo) return;
+      var rect = holder.getBoundingClientRect();
+      var px = e.clientX - rect.left;
+      var lap = Math.round((px - geo.L) / (geo.W - geo.L - geo.R) * maxLap);
+      if (lap < 0 || lap > maxLap) return leave();
+      var r = null;
+      a.lapRows.forEach(function (row) { if (!r || Math.abs(row[0] - lap) < Math.abs(r[0] - lap)) r = row; });
+      if (!r) return leave();
+      var s = stintAt(r[0]);
+      var flags = [r[3] & 1 ? "Box rein" : "", r[3] & 2 ? "Box raus" : "", r[3] & 4 ? "Abflug" : "", !(r[3] & 8) && !(r[3] & 4) ? "Zwischenfall" : "", r[3] & 32 ? "Regen" : ""].filter(Boolean);
+      var line = function (k, v) { return el("tr", null, [el("td", { textContent: k }), el("td", { textContent: v })]); };
+      tip.replaceChildren(
+        el("b", { textContent: "Runde " + r[0] + " · nach " + raClock(r[5] || 0) }),
+        el("table", null, [
+          line("Fahrer", names[r[1]] || "–"),
+          line("Zeit", raLap(r[2])),
+          s && s.median && r[2] > 0 && !(r[3] & 3) ? line("zum Stint", raSigned(r[2] - s.median)) : "",
+          typeof r[4] === "number" ? line("Strecke", Math.round(r[4]) + " °C") : "",
+          flags.length ? line("Hinweis", flags.join(", ")) : ""
+        ])
+      );
+      tip.hidden = false;
+      var cx = geo.x(r[0]);
+      geo.cursor.setAttribute("x1", cx);
+      geo.cursor.setAttribute("x2", cx);
+      geo.cursor.setAttribute("visibility", "visible");
+      var tw = tip.offsetWidth;
+      tip.style.left = (cx + 16 + tw > geo.W ? Math.max(0, cx - 16 - tw) : cx + 16) + "px";
+    }
+    function leave() {
+      tip.hidden = true;
+      if (geo && geo.cursor) geo.cursor.setAttribute("visibility", "hidden");
+    }
+    holder.addEventListener("pointermove", hover);
+    holder.addEventListener("pointerleave", leave);
+
+    if (window.ResizeObserver) new ResizeObserver(function () { if (wrap.isConnected && Math.abs(wrap.clientWidth - lastW) > 4) draw(); }).observe(wrap);
+
+    return {
+      node: wrap,
+      draw: draw,
+      focus: function (i) { focus = i; applyFocus(); },
+      mark: function (m) { marked = m; draw(); if (m) wrap.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+    };
   }
 
   $("logout").addEventListener("click", function () {

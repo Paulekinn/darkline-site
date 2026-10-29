@@ -72,7 +72,7 @@ Der **Dateiname** eines Rennens oder Beitrags wird zur eigenen Adresse (`/rennen
 
 ## Teambereich (/team)
 
-Interner Bereich mit Rangliste, Wochenbericht und Telemetrie aus Garage 61. Anmeldung mit Discord: Zugang hat, wer auf unserem Discord-Server ist und eine der freigeschalteten Rollen hat (Teammitglied, VIP).
+Interner Bereich mit Rangliste, Wochenbericht, Telemetrie und Rennanalyse aus Garage 61. Anmeldung mit Discord: Zugang hat, wer auf unserem Discord-Server ist und eine der freigeschalteten Rollen hat (Teammitglied, VIP).
 
 ```
 api/discord-login.js      startet die Discord-Anmeldung
@@ -81,7 +81,8 @@ api/team/session.js       wer ist angemeldet? / abmelden
 api/team/leaderboard.js   Rangliste: Strecken der letzten 4 Wochen, Bestzeiten pro Auto
 api/team/weekly.js        Wochenbericht: 8 Wochen aus der Team-Statistik
 api/team/telemetry.js     Telemetrie einer Runde, verdichtet auf 1000 Punkte
-api/team/race.js          Rennbericht: Sessions am Renntag, Auswertung (Stints, Fahrer, Stopps, Wetter)
+api/team/race.js          Rennbericht (Admin) und Rennanalyse (Teambereich): Sessions am Renntag, Auswertung
+                          (Stints, Fahrer, Boxenstopps, Zeitverluste, alle Runden fürs Pace-Diagramm, Wetter)
 api/team/preview.js       Vorschau für geteilte Vergleichslinks (/vergleich), Weiterleitung in den Teambereich
 api/_lib/session.js       signiertes Cookie (keine Datenbank)
 api/_lib/g61.js           Garage-61-Zugriff mit Zwischenspeicher
