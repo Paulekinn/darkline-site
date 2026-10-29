@@ -144,18 +144,23 @@
         <div class="stage2">
           <div class="spot" aria-hidden="true"></div>
           <img id="carimg" alt="" width="1440" height="960" decoding="async">
+          <span class="cnt mono" id="carcount">01 / 05</span>
+          <button type="button" class="car-zoom" id="car-zoom" aria-label="Livery im Vollbild ansehen">⤢ Vollbild</button>
           <button type="button" class="nav-arrow prev" id="car-prev" aria-label="Vorheriges Fahrzeug">←</button>
           <button type="button" class="nav-arrow next" id="car-next" aria-label="Nächstes Fahrzeug">→</button>
-        </div>
-        <div class="carbar">
-          <div class="carid">
-            <span class="cnt mono" id="carcount">01 / 05</span>
-            <div><span class="lbl" id="carmake"></span><h3 class="wide" id="carname"></h3></div>
+          <div class="carinfo">
+            <span class="lbl" id="carmake"></span>
+            <h3 class="wide" id="carname"></h3>
+            <dl class="carspecs" id="carspecs"></dl>
+            <p class="carraces" id="carraces" hidden></p>
           </div>
-          <dl class="carspecs" id="carspecs"></dl>
         </div>
         <div class="filmstrip" id="carlist" role="tablist" aria-label="Fahrzeug wählen"></div>
       </div>
+      <dialog class="car-lightbox" id="car-lightbox" aria-label="Livery im Vollbild">
+        <img id="car-lightbox-img" alt="">
+        <button type="button" class="car-lightbox-close" id="car-lightbox-close" aria-label="Vollbild schließen">✕</button>
+      </dialog>
     </div>
   </section>
 

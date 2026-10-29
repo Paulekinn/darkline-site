@@ -265,8 +265,27 @@
     $("carcount").textContent = `${pad(selC + 1)} / ${pad(cars.length)}`;
     $("carmake").textContent = c.marke; $("carname").textContent = c.modell;
     $("carspecs").innerHTML = [["Klasse", c.klasse], ["Motor", c.motor], ["Antrieb", c.antrieb]].filter((x) => x[1]).map((s) => `<div><dt>${s[0]}</dt><dd>${esc(s[1])}</dd></div>`).join("");
+    // Im Einsatz: Rennen aus dem Kalender, bei denen dieses Fahrzeug eingetragen ist
+    const used = carRaces(c);
+    $("carraces").hidden = !used.length;
+    $("carraces").innerHTML = used.length ? "Im Einsatz: " + used.slice(0, 3).map((r) =>
+      r.status === "geplant" ? `<b>${esc(r.titel)}</b> am ${esc(fmt(r.datum))}` : `<b>${esc(r.titel)}</b>${r.ziel ? " · P" + esc(r.ziel) : ""}`).join(" · ") : "";
     $("car-prev").hidden = $("car-next").hidden = cars.length < 2;
+    if ($("car-lightbox").open) $("car-lightbox-img").src = src(c.bild);
   }
+  // Rennen, deren Feld "Fahrzeug" zu Marke und Modell passt (z. B. "Mercedes-AMG GT3 2020" ↔ Mercedes · AMG GT3)
+  const words = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9äöüß]+/g, " ").trim().split(" ").filter((w) => w.length > 1);
+  function carRaces(car) {
+    const need = words(car.marke).slice(0, 1).concat(words(car.modell));
+    if (!need.length) return [];
+    return D.races.filter((r) => { const have = words(r.fahrzeug); return have.length && need.every((w) => have.some((h) => h === w || h.startsWith(w))); })
+      .sort((a, b) => (a.status === "geplant") - (b.status === "geplant") || String(b.datum || "").localeCompare(String(a.datum || "")));
+  }
+  // Vollbild: das Bild in Originalgröße, Pfeiltasten wechseln das Auto, Klick oder Esc schließt
+  $("car-zoom").addEventListener("click", () => { const c = D.cars[selC]; if (!c) return; $("car-lightbox-img").src = src(c.bild); $("car-lightbox-img").alt = `${c.marke} ${c.modell} in Darkline-Livery`; $("car-lightbox").showModal(); });
+  $("car-lightbox-close").addEventListener("click", () => $("car-lightbox").close());
+  $("car-lightbox").addEventListener("click", (e) => { if (e.target === $("car-lightbox") || e.target === $("car-lightbox-img")) $("car-lightbox").close(); });
+  $("car-lightbox").addEventListener("keydown", (e) => { if (e.key === "ArrowRight") goCar(1); if (e.key === "ArrowLeft") goCar(-1); });
   const goCar = (d) => { selC += d; renderCars(true); };
   $("car-prev").addEventListener("click", () => goCar(-1));
   $("car-next").addEventListener("click", () => goCar(1));

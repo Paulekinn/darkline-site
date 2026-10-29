@@ -421,33 +421,60 @@ main > section + section{border-top:1px solid var(--scan)}
 
 /* GARAGE – Showroom */
 .showroom{padding-top:32px;display:grid;gap:0}
-.stage2{position:relative;aspect-ratio:16/9;width:100%;overflow:hidden;background:#07090a;border:1px solid var(--scan);border-bottom:0;isolation:isolate}
+/* Bühne: flach genug, dass Bild, Name und Auswahl ohne Scrollen auf den Bildschirm passen */
+.stage2{position:relative;height:clamp(300px,52vh,600px);width:100%;overflow:hidden;background:#07090a;border:1px solid var(--scan);isolation:isolate}
 .stage2 .spot{position:absolute;inset:0;z-index:-1;background:radial-gradient(60% 55% at 50% 58%,rgba(211,18,27,.18),transparent 70%),linear-gradient(180deg,transparent 62%,rgba(255,255,255,.03) 62%),repeating-linear-gradient(90deg,transparent 0 79px,rgba(255,255,255,.035) 79px 80px)}
-.stage2 img{width:100%;height:100%;object-fit:contain;transition:opacity .18s ease,transform .5s cubic-bezier(.2,.7,.2,1)}
+.stage2 img{width:100%;height:100%;object-fit:cover;object-position:center 62%;transition:opacity .18s ease,transform .5s cubic-bezier(.2,.7,.2,1)}
 .stage2 img.out{opacity:0;transform:translateX(-14px)}
-.stage2::after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 60px 6px #07090a}
+.stage2::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(7,9,10,.55) 0,transparent 22%,transparent 48%,rgba(7,9,10,.94) 100%),linear-gradient(90deg,rgba(7,9,10,.55) 0,transparent 55%)}
+.stage2 .cnt{position:absolute;top:18px;left:22px;z-index:2;font-size:.8rem;letter-spacing:.12em;color:var(--phos)}
+.car-zoom{all:unset;cursor:pointer;position:absolute;top:14px;right:16px;z-index:2;padding:8px 12px;background:rgba(8,9,10,.72);border:1px solid var(--scan);font:600 .72rem/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--phos);transition:background .2s,border-color .2s}
+.car-zoom:hover{background:var(--red);border-color:var(--red)}
+.car-zoom:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.carinfo{position:absolute;left:0;right:0;bottom:0;z-index:2;display:grid;gap:10px;justify-items:start;padding:0 clamp(18px,3vw,34px) clamp(18px,2.6vw,28px);pointer-events:none}
+.carinfo .lbl{color:var(--red);font-weight:600}
+.carinfo h3{font-size:clamp(2rem,5vw,4rem);line-height:.9;text-shadow:0 2px 18px rgba(0,0,0,.6)}
+.carinfo .carspecs{gap:6px}
+.carinfo .carspecs div{display:flex;gap:8px;align-items:baseline;padding:7px 11px;border:1px solid rgba(232,236,234,.22);background:rgba(8,9,10,.55)}
+.carinfo .carspecs dd{margin:0;font-size:.82rem}
+.carraces{margin:2px 0 0;font:500 .78rem/1.4 var(--f-mono);color:var(--phos-dim)}
+.carraces b{color:var(--phos);font-weight:600}
+.car-lightbox{width:min(96vw,1800px);max-width:none;max-height:94vh;padding:0;border:1px solid var(--scan);background:#050606}
+.car-lightbox::backdrop{background:rgba(0,0,0,.85)}
+.car-lightbox img{display:block;width:100%;height:auto;max-height:94vh;object-fit:contain}
+.car-lightbox-close{all:unset;cursor:pointer;position:absolute;top:10px;right:10px;display:grid;place-items:center;width:42px;height:42px;background:rgba(8,9,10,.8);border:1px solid var(--scan);color:var(--phos);font:700 1rem/1 var(--f-mono)}
+.car-lightbox-close:hover{background:var(--red);border-color:var(--red)}
 .nav-arrow{all:unset;cursor:pointer;position:absolute;top:50%;z-index:2;transform:translateY(-50%);display:grid;place-items:center;width:52px;height:52px;background:rgba(8,9,10,.72);border:1px solid var(--scan);color:var(--phos);font:700 1.2rem/1 var(--f-mono);transition:background .2s,border-color .2s}
 .nav-arrow:hover{background:var(--red);border-color:var(--red)}
 .nav-arrow:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .nav-arrow.prev{left:16px}.nav-arrow.next{right:16px}
-.carbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:18px 32px;padding:22px 24px;background:linear-gradient(90deg,#14171a,#0e1011);border:1px solid var(--scan);border-left:4px solid var(--red)}
-.carid{display:flex;align-items:flex-end;gap:22px;min-width:0}
-.carid .cnt{font-size:.8rem;color:var(--phos-dim);padding-bottom:6px;white-space:nowrap}
-.carid h3{font-size:clamp(2rem,4.6vw,3.6rem);margin-top:6px}
 .carspecs{display:flex;flex-wrap:wrap;gap:0;margin:0}
-.carspecs div{padding:4px 22px;border-left:1px solid var(--scan)}
 .carspecs dt{font:500 .64rem/1 var(--f-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--phos-dim)}
 .carspecs dd{margin:8px 0 0;font:800 1.15rem/1 var(--f-wide);font-variation-settings:"wdth" 112;text-transform:uppercase;color:var(--phos)}
-.filmstrip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,1fr);gap:10px;margin-top:12px;overflow-x:auto;scrollbar-width:thin;padding-bottom:4px}
+.filmstrip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,1fr);gap:8px;margin-top:8px;overflow-x:auto;scrollbar-width:thin;padding-bottom:4px}
 .filmstrip button{all:unset;box-sizing:border-box;cursor:pointer;display:grid;gap:0;background:var(--paper);border:1px solid var(--scan);border-top:3px solid transparent;transition:border-color .2s,opacity .2s;opacity:.62;min-width:0}
 .filmstrip button:hover{opacity:1}
 .filmstrip button[aria-selected="true"]{opacity:1;border-top-color:var(--red)}
 .filmstrip button:focus-visible{outline:2px solid var(--red);outline-offset:2px}
-.filmstrip .th{aspect-ratio:16/9;overflow:hidden;background:#07090a}
+.filmstrip .th{aspect-ratio:16/7;overflow:hidden;background:#07090a}
 .filmstrip .th img{width:100%;height:100%;object-fit:cover}
 .filmstrip .tn{display:flex;gap:8px;align-items:baseline;padding:10px 12px;font:800 .78rem/1.2 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .filmstrip .tn .mono{font-size:.66rem;color:var(--red);font-weight:500}
-@media (max-width:700px){.stage2{aspect-ratio:3/2}.nav-arrow{width:42px;height:42px}.nav-arrow.prev{left:8px}.nav-arrow.next{right:8px}.carbar{padding:18px 16px}.carspecs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%}.carspecs div{padding:4px 12px}.carspecs div:first-child{border-left:0;padding-left:0}.carspecs dd{font-size:.95rem}.carid{gap:14px}}
+/* Handy: Infos unter dem Bild, damit das Auto frei bleibt */
+@media (max-width:700px){
+  .stage2{height:auto}
+  .stage2 img{height:auto;aspect-ratio:4/3}
+  .stage2::after{bottom:auto;height:calc((100vw - 32px) * .75);background:linear-gradient(180deg,rgba(7,9,10,.55) 0,transparent 24%)}
+  .nav-arrow{width:40px;height:40px;top:calc((100vw - 32px) * .375)}
+  .nav-arrow.prev{left:8px}.nav-arrow.next{right:8px}
+  .stage2 .cnt{top:14px;left:14px}
+  .car-zoom{top:10px;right:10px;padding:7px 10px}
+  .carinfo{position:static;gap:8px;padding:16px;background:linear-gradient(90deg,#14171a,#0e1011);border-top:3px solid var(--red)}
+  .carinfo h3{font-size:clamp(1.8rem,9vw,2.4rem);text-shadow:none}
+  .carinfo .carspecs div{padding:5px 8px}
+  .carinfo .carspecs dt{display:none}
+  .carinfo .carspecs dd{font-size:.72rem}
+}
 
 /* ---------- MOBIL ---------- */
 .menu-btn{display:none}
