@@ -32,7 +32,7 @@
 
   // ---------------------------------------------------------------- Hilfen
 
-  // Baut ein Element: el("td", { className: "t" }, "1:38.270")
+  // Baut ein Element: el("td", { className: "time" }, "1:38.270")
   function el(tag, props, children) {
     var n = document.createElement(tag);
     if (props) Object.keys(props).forEach(function (k) { n[k] = props[k]; });
@@ -78,19 +78,19 @@
       if (!d.tracks.length) return message(box, "In den letzten " + d.days + " Tagen ist niemand aus dem Team gefahren.");
       var head = el("tr", null, [
         el("th", { textContent: "Strecke" }),
-        el("th", { className: "n", textContent: "Fahrzeit" }),
-        el("th", { className: "n opt", textContent: "Runden" }),
-        el("th", { className: "n opt", textContent: "Fahrer" }),
-        el("th", { className: "n", textContent: "Zuletzt" })
+        el("th", { className: "num", textContent: "Fahrzeit" }),
+        el("th", { className: "num opt", textContent: "Runden" }),
+        el("th", { className: "num opt", textContent: "Fahrer" }),
+        el("th", { className: "num", textContent: "Zuletzt" })
       ]);
       var body = el("tbody");
       d.tracks.forEach(function (t) {
         var row = el("tr", { className: "trk", tabIndex: 0 }, [
           el("td", { className: "name" }, [el("b", { textContent: t.name })].concat(t.variant ? el("small", { textContent: t.variant }) : [])),
-          el("td", { className: "n", textContent: hours(t.time) }),
-          el("td", { className: "n opt", textContent: String(t.laps) }),
-          el("td", { className: "n opt", textContent: String(t.drivers) }),
-          el("td", { className: "n", textContent: day(t.last) })
+          el("td", { className: "num", textContent: hours(t.time) }),
+          el("td", { className: "num opt", textContent: String(t.laps) }),
+          el("td", { className: "num opt", textContent: String(t.drivers) }),
+          el("td", { className: "num", textContent: day(t.last) })
         ]);
         row.setAttribute("aria-expanded", "false");
         var toggle = function () { toggleTrack(t, row); };
@@ -114,7 +114,7 @@
       var hit = !q || row.querySelector("td.name").textContent.toLowerCase().indexOf(q) !== -1;
       row.hidden = !hit;
       var detail = row.nextElementSibling;
-      if (detail && detail.classList.contains("detail")) detail.hidden = !hit;
+      if (detail && detail.classList.contains("trk-open")) detail.hidden = !hit;
       if (hit) shown++;
     });
     none.hidden = shown > 0;
@@ -122,7 +122,7 @@
 
   function toggleTrack(track, row) {
     var wasOpen = row.getAttribute("aria-expanded") === "true";
-    document.querySelectorAll("#rl-tracks tr.detail").forEach(function (r) { r.remove(); });
+    document.querySelectorAll("#rl-tracks tr.trk-open").forEach(function (r) { r.remove(); });
     document.querySelectorAll("#rl-tracks tr.trk").forEach(function (r) { r.setAttribute("aria-expanded", "false"); });
     if (wasOpen) return;
 
@@ -131,7 +131,7 @@
     var cell = el("td", null, box);
     cell.addEventListener("click", function (e) { e.stopPropagation(); });
     cell.colSpan = 5;
-    row.after(el("tr", { className: "detail" }, cell));
+    row.after(el("tr", { className: "trk-open" }, cell));
     api("/api/team/leaderboard?track=" + encodeURIComponent(track.id)).then(function (d) {
       if (!d.cars.length) return message(box, "Für diese Strecke sind keine Runden des Teams sichtbar.");
       showCars(box, d.cars);
@@ -165,7 +165,7 @@
       return el("tr", { className: i === 0 ? "p1" : "" }, [
         el("td", { className: "pos", textContent: String(i + 1) }),
         el("td", { className: "drv", textContent: l.driver }),
-        el("td", { className: "t", textContent: lapTime(l.time) }),
+        el("td", { className: "time", textContent: lapTime(l.time) }),
         el("td", { className: "gap", textContent: i === 0 ? "" : "+" + (l.time - best).toFixed(3) }),
         el("td", { textContent: day(l.date) }),
         el("td", { className: "gap", textContent: l.trackTemp != null ? Math.round(l.trackTemp) + " °C" : "" })
