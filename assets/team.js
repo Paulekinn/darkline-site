@@ -987,6 +987,8 @@
       $("ra-race").disabled = !ra.races.length;
       $("ra-date").disabled = false;
       if (!ra.event) message($("ra-view"), "Wähle oben ein abgeschlossenes Rennen aus dem Kalender oder direkt einen Renntag. Die passende Session aus Garage 61 wird automatisch gesucht.");
+      // per Link geöffnete Analyse war schneller als der Kalender: jetzt Rennen zuordnen (Start/Ziel)
+      else if (ra.analysis && !raceEntry() && matchEntry(ra.analysis)) renderRaceAnalysis(ra.analysis);
     }).catch(function () {
       $("ra-date").disabled = false;
       if (!ra.event) message($("ra-view"), "Der Rennkalender konnte nicht geladen werden. Den Renntag kannst du oben trotzdem wählen.", true);
@@ -995,6 +997,18 @@
 
   function raceEntry() {
     return ra.races.filter(function (r) { return r.id === $("ra-race").value; })[0] || null;
+  }
+
+  // Analyse ohne gewähltes Rennen (geteilter Link): Kalendereintrag über das Datum finden.
+  // Renndatum ist deutsche Zeit, Garage 61 UTC, daher ±1 Tag; nur bei genau einem Treffer.
+  function matchEntry(a) {
+    var t = new Date(a.start).getTime();
+    var hits = ra.races.filter(function (r) {
+      return r.datum && Math.abs(new Date(String(r.datum).slice(0, 10) + "T12:00:00Z").getTime() - t) < 1.5 * 86400000;
+    });
+    if (hits.length !== 1) return null;
+    $("ra-race").value = hits[0].id;
+    return hits[0];
   }
 
   function pickRaceEntry() {
@@ -1077,7 +1091,8 @@
 
   function renderRaceAnalysis(a) {
     var box = $("ra-view");
-    var entry = raceEntry();
+    ra.analysis = a;
+    var entry = raceEntry() || matchEntry(a);
     ra.focus = null;
     var colors = {};
     a.drivers.forEach(function (d, i) { colors[d.driver] = RA_COLORS[i % RA_COLORS.length]; });
@@ -1204,8 +1219,28 @@
         (a.losses.length > top.length ? " Gezeigt: die 10 größten von " + a.losses.length + "." : ""))
     ]);
 
-    box.replaceChildren(head, kpis, paceCard, grid);
+    box.replaceChildren(head, positions(entry), kpis, paceCard, grid);
     ra.chart.draw();
+  }
+
+  // Start- und Zielposition aus dem Kalender (Garage 61 kennt keine Positionen)
+  function positions(entry) {
+    if (!entry) return "";
+    var start = Number(entry.start) || null, ziel = Number(entry.ziel) || null;
+    if (!start && !ziel) {
+      return el("p", { className: "ra-pos-hint", textContent: "Start- und Zielposition fehlen im Kalender. Im Admin beim Rennen eintragen, dann erscheinen sie hier." });
+    }
+    var diff = start && ziel ? start - ziel : null;
+    var txt = diff == null ? (ziel ? "Startplatz nicht eingetragen" : "Zielposition nicht eingetragen")
+      : diff > 0 ? diff + (diff === 1 ? " Platz" : " Plätze") + " gutgemacht"
+      : diff < 0 ? -diff + (diff === -1 ? " Platz" : " Plätze") + " verloren" : "Position gehalten";
+    var pos = function (label, v) { return el("div", null, [el("span", { className: "lbl", textContent: label }), el("b", { textContent: v ? "P" + v : "–" })]); };
+    return el("div", { className: "ra-pos" }, [
+      pos("Start", start),
+      el("span", { className: "ra-pos-arrow", textContent: "→", ariaHidden: "true" }),
+      pos("Ziel", ziel),
+      el("div", { className: "ra-pos-sum" }, [el("b", { textContent: txt }), el("span", { textContent: [entry.klasse ? "Klasse " + entry.klasse : "", entry.fazit || ""].filter(Boolean).join(" · ") })])
+    ]);
   }
 
   // Rundenzeiten über das Rennen (Punkte je Fahrer), darunter die Stints als Band und die Streckentemperatur.
