@@ -59,6 +59,13 @@
 .tracks tr.detail .car h3{font-size:.95rem}
 @media (max-width:640px){.tracks > thead .opt,.tracks tr.trk .opt{display:none}.tracks > thead th,.tracks tr.trk td{padding-inline:10px}}
 .cars{display:grid;gap:12px;padding-top:4px}
+.cartabs{display:flex;flex-wrap:wrap;gap:6px}
+.cartabs button{display:grid;gap:3px;text-align:left;padding:8px 12px;background:var(--sheet);border:0;border-bottom:2px solid transparent;cursor:pointer}
+.cartabs button b{font:700 .78rem/1.15 var(--f-wide);font-variation-settings:"wdth" 105;text-transform:uppercase}
+.cartabs button span{font:500 .66rem/1 var(--f-mono);color:var(--muted)}
+.cartabs button:hover{background:#101315}
+.cartabs button[aria-pressed="true"]{border-bottom-color:var(--red);background:#101315}
+.cartabs button[aria-pressed="true"] span{color:var(--ink)}
 .car{background:var(--paper)}
 .car header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--rule)}
 .car h3{font:900 1.15rem/1.1 var(--f-wide);font-variation-settings:"wdth" 115;text-transform:uppercase}

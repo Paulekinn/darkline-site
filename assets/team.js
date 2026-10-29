@@ -129,12 +129,34 @@
     row.setAttribute("aria-expanded", "true");
     var box = el("div", { className: "cars" }, el("p", { className: "lbl", textContent: "Lade Bestzeiten …" }));
     var cell = el("td", null, box);
+    cell.addEventListener("click", function (e) { e.stopPropagation(); });
     cell.colSpan = 5;
     row.after(el("tr", { className: "detail" }, cell));
     api("/api/team/leaderboard?track=" + encodeURIComponent(track.id)).then(function (d) {
       if (!d.cars.length) return message(box, "Für diese Strecke sind keine Runden des Teams sichtbar.");
-      box.replaceChildren.apply(box, d.cars.map(function (car) { return carTable(car); }));
+      showCars(box, d.cars);
     }).catch(function (e) { message(box, e.message, true); });
+  }
+
+  // Oben ein Button pro Auto, darunter nur die Tabelle des gewählten Autos (hält den Bereich kurz).
+  function showCars(box, cars) {
+    var table = el("div");
+    var tabs = el("div", { className: "cartabs" });
+    cars.forEach(function (car, i) {
+      var b = el("button", { type: "button" }, [
+        el("b", { textContent: car.name }),
+        el("span", { textContent: lapTime(car.laps[0].time) + " · " + car.laps.length + " Fahrer" })
+      ]);
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        tabs.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+        table.replaceChildren(carTable(car));
+      });
+      b.setAttribute("aria-pressed", String(i === 0));
+      tabs.append(b);
+    });
+    table.replaceChildren(carTable(cars[0]));
+    box.replaceChildren(tabs, table);
   }
 
   function carTable(car) {
