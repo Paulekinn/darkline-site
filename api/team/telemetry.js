@@ -87,6 +87,9 @@ async function lapTelemetry(id) {
     car: (lap.car && lap.car.name) || "",
     track: track.variant ? `${track.name} (${track.variant})` : track.name || "",
     lapTime: lap.lapTime,
+    // offizielle iRacing-Sektorzeiten (Sekunden); null, wenn sie fehlen oder unvollständig sind
+    sectors: Array.isArray(lap.sectors) && lap.sectors.length && lap.sectors.every((s) => s && !s.incomplete && s.sectorTime > 0)
+      ? lap.sectors.map((s) => round(s.sectorTime, 3)) : null,
     date: lap.startTime,
     trackTemp: lap.trackTemp,
     ...resample(readSamples(csv), lap.lapTime),
