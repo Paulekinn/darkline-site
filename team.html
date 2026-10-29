@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<base href="/">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Teambereich · Darkline Performance Motorsport</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/site.css">
+<style>
+.team{min-height:calc(100vh - 68px);padding-block:clamp(48px,7vw,88px) 96px}
+.team .doc-head{margin-bottom:40px}
+.bar .who{display:flex;align-items:center;gap:14px;margin-left:auto;padding:0 16px;border-left:1px solid var(--scan);font:500 .72rem/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--phos-dim)}
+.bar .who button{background:none;border:0;padding:0;cursor:pointer;font:700 .78rem/1 var(--f-wide);font-variation-settings:"wdth" 110;text-transform:uppercase;color:var(--phos)}
+.bar .who button:hover{color:var(--red)}
+.bar .who + .back{margin-left:0}
+.gate{max-width:560px;background:var(--paper);padding:clamp(24px,4vw,40px);border-left:4px solid var(--red)}
+.gate h2{font-size:clamp(1.6rem,3.6vw,2.4rem);margin-bottom:14px}
+.gate p{margin:0 0 24px;color:#c4cbc8}
+.gate .err{margin:0 0 24px;padding:12px 14px;background:rgba(211,18,27,.14);border-left:3px solid var(--red);color:var(--ink)}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.tile{background:var(--paper);padding:22px;border-left:4px solid var(--red);display:grid;gap:10px;align-content:start}
+.tile h3{font:900 1.3rem/1.05 var(--f-wide);font-variation-settings:"wdth" 118;text-transform:uppercase}
+.tile p{margin:0;color:#c4cbc8;font-size:.95rem}
+.tile .soon{font:500 .68rem/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+@media (max-width:900px){.tiles{grid-template-columns:1fr}}
+@media (max-width:640px){.bar .who span{display:none}}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="wrap">
+    <a class="logo" href="/" aria-label="Zur Startseite"><img src="img/brand/logo.webp" alt="Darkline Performance" width="900" height="216"></a>
+    <div class="who" id="who" hidden><span id="who-name"></span><button type="button" id="logout">Abmelden</button></div>
+    <a class="back" href="/">← Zur Startseite</a>
+  </div>
+</header>
+<main class="wrap team">
+  <div class="doc-head">
+    <h1 class="wide" style="margin:0;font-size:clamp(2.4rem,6vw,4.4rem)">Teambereich</h1>
+    <div class="doc-meta lbl">Nur für Teammitglieder</div>
+    <p>Bestzeiten, Wochenbericht und Telemetrie von Darkline Performance Motorsport, direkt aus Garage 61.</p>
+  </div>
+
+  <p class="lbl" id="loading">Lade …</p>
+
+  <section class="gate" id="gate" hidden>
+    <h2 class="wide">Anmelden</h2>
+    <p class="err" id="gate-error" hidden></p>
+    <p>Der Teambereich ist für Mitglieder unseres Discord-Servers mit der Rolle Teammitglied oder VIP. Melde dich mit deinem Discord-Konto an.</p>
+    <a class="hbtn" href="/api/discord-login">Mit Discord anmelden →</a>
+  </section>
+
+  <section id="area" hidden>
+    <div class="tiles">
+      <article class="tile" id="tile-rangliste">
+        <span class="soon">Kommt bald</span>
+        <h3>Rangliste</h3>
+        <p>Team-Bestzeiten pro Strecke und Auto.</p>
+      </article>
+      <article class="tile" id="tile-wochenbericht">
+        <span class="soon">Kommt bald</span>
+        <h3>Wochenbericht</h3>
+        <p>Fahrzeit, Runden und neue Bestzeiten mit Verlauf über die letzten Wochen.</p>
+      </article>
+      <article class="tile" id="tile-telemetrie">
+        <span class="soon">Kommt bald</span>
+        <h3>Telemetrie</h3>
+        <p>Zwei Runden vergleichen: Speed, Gas, Bremse und Gang über die Strecke.</p>
+      </article>
+    </div>
+  </section>
+</main>
+<footer>
+  <div class="chequer" aria-hidden="true"></div>
+  <div class="wrap">
+    <img src="img/brand/logo.webp" alt="Darkline Performance" width="900" height="216">
+    <nav><a href="/impressum">Impressum</a><a href="/datenschutz">Datenschutz</a><span>© 2026 Darkline Performance Motorsport</span></nav>
+  </div>
+</footer>
+<script src="assets/team.js"></script>
+</body>
+</html>

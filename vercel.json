@@ -26,6 +26,15 @@
       ]
     },
     {
+      "source": "/team",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
       "source": "/kalender.ics",
       "headers": [
         {

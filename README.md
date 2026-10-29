@@ -70,6 +70,30 @@ Beim Domain-Umzug `base_url` in `admin/config.yml` sowie Homepage- und Callback-
 
 Der **Dateiname** eines Rennens oder Beitrags wird zur eigenen Adresse (`/rennen/spa-24h-2026`, `/news/…`). Neue Einträge bekommen ihn automatisch (Jahr-Monat-Titel). Beim Deploy entsteht für jede Seite eine Vorschaukarte für Discord, WhatsApp & Co. (Bild = Banner bzw. News-Bild).
 
+## Teambereich (/team)
+
+Interner Bereich mit Rangliste, Wochenbericht und Telemetrie aus Garage 61. Anmeldung mit Discord: Zugang hat, wer auf unserem Discord-Server ist und eine der freigeschalteten Rollen hat (Teammitglied, VIP).
+
+```
+api/discord-login.js      startet die Discord-Anmeldung
+api/discord-callback.js   prüft Server und Rolle, setzt das Anmelde-Cookie
+api/team/session.js       wer ist angemeldet? / abmelden
+api/_lib/session.js       signiertes Cookie (keine Datenbank)
+team.html, assets/team.js Seite
+```
+
+Einmalige Einrichtung:
+1. Discord Developer Portal → Anwendung des Bots → **OAuth2 → Redirects**: `https://darklineperformance.de/api/discord-callback` eintragen (zum Testen zusätzlich die Vorschau-Adresse von Vercel mit `/api/discord-callback`).
+2. In Vercel → Projekt `darkline-site` → Settings → Environment Variables:
+   - `DISCORD_CLIENT_ID` = Application ID der Discord-Anwendung
+   - `DISCORD_CLIENT_SECRET` = Client Secret (OAuth2-Seite)
+   - `DISCORD_GUILD_ID` = Server-ID (Rechtsklick auf den Server → ID kopieren, Entwicklermodus nötig)
+   - `DISCORD_ROLE_IDS` = Rollen-IDs mit Zugang, Komma-getrennt (leer = jeder auf dem Server)
+   - `SESSION_SECRET` = zufällige Zeichenkette, mindestens 32 Zeichen
+3. Neu deployen.
+
+Die Rollen werden bei der Anmeldung geprüft. Wer eine Rolle verliert, bleibt bis zum Ablauf des Cookies (7 Tage) angemeldet.
+
 ## Lokal ansehen
 
 ```
