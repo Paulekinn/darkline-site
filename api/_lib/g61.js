@@ -17,15 +17,22 @@ function teamSlug() {
   return slug;
 }
 
-async function g61Get(path, params = {}) {
+async function g61Fetch(path, params = {}) {
   const token = process.env.GARAGE61_TOKEN;
   if (!token) throw new Error("GARAGE61_TOKEN fehlt in den Vercel-Umgebungsvariablen.");
   const qs = new URLSearchParams(params).toString();
   const r = await fetch(`${API}${path}${qs ? `?${qs}` : ""}`, { headers: { Authorization: `Bearer ${token}` } });
   if (r.status === 429) throw new RateLimited(Number(r.headers.get("retry-after")) || 60);
-  if (!r.ok) throw new Error(`Garage 61 antwortet mit ${r.status}.`);
-  return r.json();
+  if (!r.ok) {
+    const e = new Error(r.status === 403 ? "Garage 61 erlaubt keinen Zugriff darauf." : `Garage 61 antwortet mit ${r.status}.`);
+    e.status = r.status;
+    throw e;
+  }
+  return r;
 }
+
+const g61Get = async (path, params) => (await g61Fetch(path, params)).json();
+const g61Text = async (path, params) => (await g61Fetch(path, params)).text();
 
 // Liefert den gemerkten Wert, solange er jünger als ttl Sekunden ist, sonst wird fn() neu ausgeführt.
 // Läuft eine Abfrage schon, warten weitere Aufrufe auf dieselbe Antwort.
@@ -60,4 +67,4 @@ function sendError(res, e) {
   return res.status(500).json({ error: e.message || "Technischer Fehler." });
 }
 
-module.exports = { g61Get, cached, items, teamSlug, tracks, cars, trackLabel, sendError };
+module.exports = { g61Get, g61Text, cached, items, teamSlug, tracks, cars, trackLabel, sendError };

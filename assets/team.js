@@ -104,7 +104,11 @@
       var none = el("p", { className: "msg", textContent: "Keine Strecke gefunden.", hidden: true });
       search.addEventListener("input", function () { filterTracks(search.value, none); });
       box.replaceChildren(search, el("div", { className: "scroll" }, el("table", { className: "tracks" }, [el("thead", null, head), body])), none);
-    }).catch(function (e) { message(box, e.message, true); });
+      initTelemetry(d.tracks);
+    }).catch(function (e) {
+      message(box, e.message, true);
+      message($("tm-view"), e.message, true);
+    });
   }
 
   // Blendet Strecken aus, deren Name oder Variante den Suchtext nicht enthält.
@@ -135,12 +139,12 @@
     row.after(el("tr", { className: "trk-open" }, cell));
     api("/api/team/leaderboard?track=" + encodeURIComponent(track.id)).then(function (d) {
       if (!d.cars.length) return message(box, "Für diese Strecke sind keine Runden des Teams sichtbar.");
-      showCars(box, d.cars);
+      showCars(box, d.cars, track.id);
     }).catch(function (e) { message(box, e.message, true); });
   }
 
   // Oben ein Button pro Auto, darunter nur die Tabelle des gewählten Autos (hält den Bereich kurz).
-  function showCars(box, cars) {
+  function showCars(box, cars, trackId) {
     var table = el("div");
     var tabs = el("div", { className: "cartabs" });
     cars.forEach(function (car, i) {
@@ -151,16 +155,16 @@
       b.addEventListener("click", function (e) {
         e.stopPropagation();
         tabs.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
-        table.replaceChildren(carTable(car));
+        table.replaceChildren(carTable(car, trackId));
       });
       b.setAttribute("aria-pressed", String(i === 0));
       tabs.append(b);
     });
-    table.replaceChildren(carTable(cars[0]));
+    table.replaceChildren(carTable(cars[0], trackId));
     box.replaceChildren(tabs, table);
   }
 
-  function carTable(car) {
+  function carTable(car, trackId) {
     var best = car.laps[0].time;
     var rows = car.laps.map(function (l, i) {
       return el("tr", { className: i === 0 ? "p1" : "" }, [
@@ -176,7 +180,11 @@
     return el("article", { className: "car" }, [
       el("header", null, [
         el("h3", { textContent: car.name }),
-        el("a", { href: car.link, target: "_blank", rel: "noopener", textContent: "In Garage 61 öffnen ↗" })
+        el("span", { className: "car-links" }, [
+          car.laps.filter(function (l) { return l.telemetry; }).length >= 2
+            ? compareButton(trackId, car.id) : "",
+          el("a", { href: car.link, target: "_blank", rel: "noopener", textContent: "In Garage 61 öffnen ↗" })
+        ])
       ]),
       el("div", { className: "scroll" }, el("table", null, [el("thead", null, head), el("tbody", null, rows)]))
     ]);
@@ -316,6 +324,213 @@
     ]);
 
     box.replaceChildren(trend, axis, head, kpis, grid);
+  }
+
+  // ---------------------------------------------------------------- Telemetrie
+
+  var tm = { cars: [], laps: {} };
+  var SVG = "http://www.w3.org/2000/svg";
+
+  function svgEl(tag, attrs, children) {
+    var n = document.createElementNS(SVG, tag);
+    Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    [].concat(children || []).forEach(function (c) { n.append(c); });
+    return n;
+  }
+
+  function fillSelect(sel, options, value) {
+    sel.replaceChildren.apply(sel, options.map(function (o) { return el("option", { value: String(o.value), textContent: o.label }); }));
+    sel.disabled = !options.length;
+    if (value != null) sel.value = String(value);
+  }
+
+  function initTelemetry(tracks) {
+    fillSelect($("tm-track"), [{ value: "", label: "Strecke wählen …" }].concat(tracks.map(function (t) {
+      return { value: t.id, label: t.name + (t.variant ? " (" + t.variant + ")" : "") };
+    })), "");
+    fillSelect($("tm-car"), []);
+    fillSelect($("tm-lap-a"), []);
+    fillSelect($("tm-lap-b"), []);
+    $("tm-track").onchange = function () { if (this.value) loadCompareCars(Number(this.value)); };
+    $("tm-car").onchange = function () { fillLaps(Number(this.value)); };
+    $("tm-lap-a").onchange = $("tm-lap-b").onchange = showCompare;
+    message($("tm-view"), "Strecke und Auto wählen. Verglichen werden die Bestzeiten der Fahrer, die ihre Telemetrie in Garage 61 teilen.");
+  }
+
+  // Aus der Rangliste: Strecke und Auto vorauswählen und zur Telemetrie springen
+  function compareButton(trackId, carId) {
+    var b = el("button", { type: "button", className: "tm-open", textContent: "Telemetrie vergleichen ↓" });
+    b.addEventListener("click", function (e) {
+      e.stopPropagation();
+      $("tm-track").value = String(trackId);
+      loadCompareCars(trackId, carId);
+      $("telemetrie").scrollIntoView({ behavior: "smooth" });
+    });
+    return b;
+  }
+
+  function loadCompareCars(trackId, carId) {
+    fillSelect($("tm-car"), []);
+    fillSelect($("tm-lap-a"), []);
+    fillSelect($("tm-lap-b"), []);
+    message($("tm-view"), "Lade Runden …");
+    api("/api/team/leaderboard?track=" + encodeURIComponent(trackId)).then(function (d) {
+      tm.cars = d.cars.map(function (c) {
+        return { id: c.id, name: c.name, laps: c.laps.filter(function (l) { return l.telemetry; }) };
+      }).filter(function (c) { return c.laps.length; });
+      if (!tm.cars.length) return message($("tm-view"), "Auf dieser Strecke teilt niemand aus dem Team seine Telemetrie.");
+      var pick = tm.cars.some(function (c) { return c.id === carId; }) ? carId : tm.cars[0].id;
+      fillSelect($("tm-car"), tm.cars.map(function (c) { return { value: c.id, label: c.name + " · " + c.laps.length + " Fahrer" }; }), pick);
+      fillLaps(pick);
+    }).catch(function (e) { message($("tm-view"), e.message, true); });
+  }
+
+  // Runde A = schnellste, Runde B = zweitschnellste (sofern vorhanden)
+  function fillLaps(carId) {
+    var car = tm.cars.filter(function (c) { return c.id === carId; })[0];
+    if (!car) return;
+    var opts = car.laps.map(function (l) { return { value: l.id, label: l.driver + " · " + lapTime(l.time) }; });
+    fillSelect($("tm-lap-a"), opts, opts[0].value);
+    fillSelect($("tm-lap-b"), [{ value: "", label: "– keine –" }].concat(opts), opts[1] ? opts[1].value : "");
+    showCompare();
+  }
+
+  function telemetry(id) {
+    if (!tm.laps[id]) {
+      tm.laps[id] = api("/api/team/telemetry?lap=" + encodeURIComponent(id));
+      tm.laps[id].catch(function () { delete tm.laps[id]; });
+    }
+    return tm.laps[id];
+  }
+
+  function showCompare() {
+    var a = $("tm-lap-a").value, b = $("tm-lap-b").value;
+    if (!a) return;
+    message($("tm-view"), "Lade Telemetrie …");
+    Promise.all([telemetry(a), b && b !== a ? telemetry(b) : null]).then(function (r) {
+      renderCompare(r[0], r[1]);
+    }).catch(function (e) { message($("tm-view"), e.message, true); });
+  }
+
+  var COLOR_A = "#d3121b", COLOR_B = "#e8ecea";
+
+  // Liniendiagramm über die Runde. series: [{ values, color }], Index 0…999 = Rundenposition
+  function lineChart(name, height, series, min, max, opts) {
+    opts = opts || {};
+    var top = 20, bottom = 6, n = series[0].values.length;
+    var y = function (v) { return top + (1 - (v - min) / (max - min || 1)) * (height - top - bottom); };
+    var svg = svgEl("svg", { viewBox: "0 0 1000 " + height, preserveAspectRatio: "none", height: height, "aria-hidden": "true" });
+    if (opts.zero) svg.append(svgEl("line", { x1: 0, x2: 1000, y1: y(0), y2: y(0), stroke: "#3a4144", "stroke-dasharray": "4 4", "vector-effect": "non-scaling-stroke" }));
+    series.forEach(function (s) {
+      var d = "";
+      s.values.forEach(function (v, i) {
+        var x = (i / (n - 1) * 1000).toFixed(1), yy = y(v).toFixed(1);
+        if (opts.step && i) d += "H" + x + "V" + yy; else d += (i ? "L" : "M") + x + " " + yy;
+      });
+      svg.append(svgEl("path", { d: d, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "vector-effect": "non-scaling-stroke" }));
+    });
+    return el("div", { className: "tm-chart" }, [el("span", { className: "tm-name", textContent: name }), svg]);
+  }
+
+  // Streckenkarte aus den GPS-Punkten von Runde A, Punkte für die aktuelle Position beider Runden
+  function trackMap(A, B) {
+    var lat = A.points.lat, lon = A.points.lon;
+    var k = Math.cos(lat.reduce(function (s, v) { return s + v; }, 0) / lat.length * Math.PI / 180);
+    var xs = lon.map(function (v) { return v * k; }), ys = lat.map(function (v) { return -v; });
+    var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs), minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+    var size = 200, pad = 10, s = (size - 2 * pad) / Math.max(maxX - minX, maxY - minY);
+    var ox = (size - (maxX - minX) * s) / 2, oy = (size - (maxY - minY) * s) / 2;
+    var px = function (la, lo) { return [((lo * k - minX) * s + ox).toFixed(1), ((-la - minY) * s + oy).toFixed(1)]; };
+    var pts = lat.map(function (la, i) { return px(la, lon[i]).join(","); }).join(" ");
+    var start = px(lat[0], lon[0]);
+    var dotA = svgEl("circle", { r: 5, fill: COLOR_A, stroke: "#111416", "stroke-width": 2 });
+    var dotB = B ? svgEl("circle", { r: 5, fill: COLOR_B, stroke: "#111416", "stroke-width": 2 }) : null;
+    var svg = svgEl("svg", { viewBox: "0 0 " + size + " " + size, role: "img", "aria-label": "Streckenkarte" }, [
+      svgEl("polyline", { points: pts, fill: "none", stroke: "#3a4144", "stroke-width": 4, "stroke-linejoin": "round", "stroke-linecap": "round" }),
+      svgEl("rect", { x: start[0] - 2, y: start[1] - 6, width: 4, height: 12, fill: "#ffd400" })
+    ].concat(dotB ? [dotB] : [], dotA));
+    var place = function (dot, L, i) {
+      var j = Math.min(L.points.lat.length - 1, Math.floor(i / 4));
+      var p = px(L.points.lat[j], L.points.lon[j]);
+      dot.setAttribute("cx", p[0]); dot.setAttribute("cy", p[1]);
+    };
+    var move = function (i) { place(dotA, A, i); if (dotB) place(dotB, B, i); };
+    move(0);
+    return { node: el("div", { className: "tm-map" }, svg), move: move };
+  }
+
+  function renderCompare(A, B) {
+    var P = A.points, Q = B ? B.points : null, n = P.pct.length;
+    var both = function (key) { return [{ values: P[key], color: COLOR_A }].concat(Q ? [{ values: Q[key], color: COLOR_B }] : []).reverse(); };
+    var range = function (key) {
+      var all = P[key].concat(Q ? Q[key] : []);
+      return [Math.min.apply(null, all), Math.max.apply(null, all)];
+    };
+    var charts = [];
+    var delta = Q ? Q.t.map(function (t, i) { return Math.round((t - P.t[i]) * 1000) / 1000; }) : null;
+    if (delta) {
+      var dMax = Math.max(0.1, Math.max.apply(null, delta.map(Math.abs)));
+      charts.push(lineChart("Abstand B zu A (s) · oben = B langsamer", 90, [{ values: delta, color: COLOR_B }], -dMax, dMax, { zero: true }));
+    }
+    var sp = range("speed");
+    charts.push(lineChart("Speed (km/h)", 160, both("speed"), Math.floor(sp[0] / 10) * 10, Math.ceil(sp[1] / 10) * 10));
+    charts.push(lineChart("Gas (%)", 64, both("throttle"), 0, 100));
+    charts.push(lineChart("Bremse (%)", 64, both("brake"), 0, 100));
+    var g = range("gear");
+    charts.push(lineChart("Gang", 64, both("gear"), Math.max(0, g[0] - 0.5), g[1] + 0.5, { step: true }));
+
+    var len = A.length;
+    var axis = el("div", { className: "tm-axis" }, [0, 0.25, 0.5, 0.75, 1].map(function (f) { return el("span", { textContent: Math.round(len * f) + " m" }); }));
+    var cursor = el("div", { className: "tm-cursor", hidden: true });
+    var tip = el("div", { className: "tm-tip", hidden: true });
+    var box = el("div", { className: "tm-charts" }, charts.concat(axis, cursor, tip));
+    var map = trackMap(A, B);
+
+    var fmt = function (v, unit) { return v == null ? "–" : v + unit; };
+    box.addEventListener("pointermove", function (e) {
+      var r = box.getBoundingClientRect();
+      var inner = r.width - 28;
+      var f = Math.min(1, Math.max(0, (e.clientX - r.left - 14) / inner));
+      var i = Math.round(f * (n - 1));
+      var x = 14 + f * inner;
+      cursor.style.left = x + "px";
+      cursor.hidden = false;
+      var row = function (label, key, unit) {
+        return el("tr", null, [el("td", { textContent: label }), el("td", { textContent: fmt(P[key][i], unit) })].concat(Q ? el("td", { textContent: fmt(Q[key][i], unit) }) : []));
+      };
+      tip.replaceChildren(
+        el("b", { textContent: P.m[i] + " m" + (delta ? " · Abstand " + (delta[i] > 0 ? "+" : "") + delta[i].toFixed(3) + " s" : "") }),
+        el("table", null, [
+          el("tr", null, [el("td", { textContent: "" }), el("td", { className: "tm-a", textContent: "A" })].concat(Q ? el("td", { className: "tm-b", textContent: "B" }) : [])),
+          row("Speed", "speed", " km/h"), row("Gas", "throttle", " %"), row("Bremse", "brake", " %"), row("Gang", "gear", ""), row("Lenkung", "steer", "°")
+        ])
+      );
+      tip.hidden = false;
+      var w = tip.offsetWidth;
+      // rechts neben dem Cursor, sonst links davon, aber immer innerhalb der Diagrammfläche
+      var left = x + 12 + w > r.width ? x - 12 - w : x + 12;
+      tip.style.left = Math.max(4, Math.min(r.width - w - 4, left)) + "px";
+      map.move(i);
+    });
+    box.addEventListener("pointerleave", function () { cursor.hidden = true; tip.hidden = true; });
+
+    var key = function (cls, L, label) {
+      return el("div", { className: "tm-key" }, [el("i", { className: cls }), el("b", { textContent: label + " " + L.driver }), el("span", { textContent: lapTime(L.lapTime) + " · " + day(L.date) })]);
+    };
+    var sum = el("div", { className: "tm-sum" }, [
+      el("div", null, [el("span", { textContent: "Strecke" }), A.track]),
+      el("div", null, [el("span", { textContent: "Auto" }), A.car]),
+      el("div", null, [el("span", { textContent: "Länge (errechnet)" }), len + " m"]),
+      el("div", null, [el("span", { textContent: "Top-Speed A" }), Math.max.apply(null, P.speed) + " km/h"])
+    ].concat(B ? [
+      el("div", null, [el("span", { textContent: "Top-Speed B" }), Math.max.apply(null, Q.speed) + " km/h"]),
+      el("div", null, [el("span", { textContent: "Differenz" }), (B.lapTime - A.lapTime >= 0 ? "+" : "−") + Math.abs(B.lapTime - A.lapTime).toFixed(3) + " s"])
+    ] : []));
+
+    $("tm-view").replaceChildren(
+      el("div", { className: "tm-keys" }, [key("a", A, "A")].concat(B ? key("b", B, "B") : [])),
+      el("div", { className: "tm-layout" }, [box, el("div", { className: "tm-side" }, [map.node, sum])])
+    );
   }
 
   $("logout").addEventListener("click", function () {

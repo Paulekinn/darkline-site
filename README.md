@@ -78,7 +78,11 @@ Interner Bereich mit Rangliste, Wochenbericht und Telemetrie aus Garage 61. Anme
 api/discord-login.js      startet die Discord-Anmeldung
 api/discord-callback.js   prüft Server und Rolle, setzt das Anmelde-Cookie
 api/team/session.js       wer ist angemeldet? / abmelden
+api/team/leaderboard.js   Rangliste: Strecken der letzten 4 Wochen, Bestzeiten pro Auto
+api/team/weekly.js        Wochenbericht: 8 Wochen aus der Team-Statistik
+api/team/telemetry.js     Telemetrie einer Runde, verdichtet auf 1000 Punkte
 api/_lib/session.js       signiertes Cookie (keine Datenbank)
+api/_lib/g61.js           Garage-61-Zugriff mit Zwischenspeicher
 team.html, assets/team.js Seite
 ```
 
@@ -90,6 +94,8 @@ Einmalige Einrichtung:
    - `DISCORD_GUILD_ID` = Server-ID (Rechtsklick auf den Server → ID kopieren, Entwicklermodus nötig)
    - `DISCORD_ROLE_IDS` = Rollen-IDs mit Zugang, Komma-getrennt (leer = jeder auf dem Server)
    - `SESSION_SECRET` = zufällige Zeichenkette, mindestens 32 Zeichen
+   - `GARAGE61_TOKEN` = persönliches Token der Garage-61-Anwendung „Darkline Website“ (eigene Anwendung, damit sich Website und Bestzeiten-Bot kein Anfragelimit teilen)
+   - `G61_TEAM_SLUG` = `darkline-performance-motorsport`
 3. Neu deployen.
 
 Die Rollen werden bei der Anmeldung geprüft. Wer eine Rolle verliert, bleibt bis zum Ablauf des Cookies (7 Tage) angemeldet.
