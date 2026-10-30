@@ -372,6 +372,10 @@
     const body = md(r.bericht || (fallback && fallback.inhalt));
     const heading = r.bericht ? r.bericht_titel : fallback ? fallback.titel : r.bericht_titel;
     const twitch = (D.settings || {}).twitch;
+    // Streams der eingesetzten Fahrer (Feld "Stream" im Fahrerprofil), danach der Team-Kanal
+    const streams = (r.crew || []).map((c) => driverByName(c)).filter((d) => d && d.stream)
+      .map((d) => `<a class="link" href="${esc(d.stream)}" target="_blank" rel="noopener">${esc(d.name)} live ↗</a>`);
+    if (twitch) streams.push(`<a class="link" href="${esc(twitch)}" target="_blank" rel="noopener">Darkline-Teamkanal ↗</a>`);
     return `<section class="dhero">${r.banner ? `<div class="bg"><img src="${esc(src(r.banner))}" alt=""></div>` : ""}
       <div class="wrap"><div><span class="eyb">${done ? "Rennbericht" : "Rennvorschau"} · ${esc(r.klasse || "")}</span>
       <h1 class="wide" id="d-title">${esc(r.titel)}</h1>
@@ -381,7 +385,7 @@
       <aside class="aside">
         ${r.crew && r.crew.length ? `<div class="box"><span class="lbl">Fahrer</span><div class="crew">${r.crew.map((c) => driverByName(c) ? `<a href="/fahrer/${slugify(cleanName(c))}">${esc(c)}</a>` : `<span>${esc(c)}</span>`).join("")}</div></div>` : ""}
         ${r.fazit ? `<div class="box"><span class="lbl">Kurzfazit</span><p style="margin:0">${esc(r.fazit)}</p></div>` : ""}
-        ${twitch ? `<div class="box"><span class="lbl">${done ? "Twitch" : "Live auf Twitch"}</span><p style="margin:0 0 10px">${done ? "Unsere Rennen laufen live auf dem Darkline-Kanal." : `Wir übertragen das Rennen live${parseDate(r.datum) ? " am " + esc(fmt(r.datum)) : ""}${r.startzeit ? " ab " + esc(r.startzeit) + " Uhr" : ""}.`}</p><a class="link" href="${esc(twitch)}" target="_blank" rel="noopener">Zum Twitch-Kanal ↗</a></div>` : ""}
+        ${streams.length ? `<div class="box"><span class="lbl">${done ? "Twitch" : "Live auf Twitch"}</span><p style="margin:0 0 10px">${done ? "Unsere Rennen laufen live auf Twitch." : `Live dabei${parseDate(r.datum) ? " am " + esc(fmt(r.datum)) : ""}${r.startzeit ? " ab " + esc(r.startzeit) + " Uhr" : ""}.`}</p>${streams.join("")}</div>` : ""}
         ${related.length ? `<div class="box"><span class="lbl">Passende News</span>${related.map((p) => `<a class="link" href="/news/${esc(p.id)}">${esc(p.titel)} →</a>`).join("")}</div>` : ""}
         <div class="box"><a class="link" href="#klassement">← Zum Klassement</a></div>
       </aside></div>`;
