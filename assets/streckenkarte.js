@@ -50,7 +50,7 @@
   // Gleicher Ablauf wie das CMS: Fenster /api/auth → GitHub → /api/callback schickt den Zugang per postMessage zurück
   function githubLogin() {
     return new Promise(function (resolve, reject) {
-      var popup = window.open("/api/auth?provider=github&scope=repo", "github-login", "width=600,height=720");
+      var popup = window.open("/api/auth?provider=github&scope=public_repo", "github-login", "width=600,height=720");
       if (!popup) return reject(new Error("Das Anmeldefenster wurde blockiert. Bitte Pop-ups für diese Seite erlauben."));
       var onMessage = function (e) {
         if (e.origin !== location.origin || typeof e.data !== "string") return;

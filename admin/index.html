@@ -14,7 +14,9 @@
 </head>
 <body>
   <nav class="dpm-tools" aria-label="Werkzeuge"><a href="/admin/rennbericht">Rennbericht erstellen</a><a href="/admin/streckenkarte">Streckenkarte</a></nav>
-  <!-- Sveltia CMS: liest die Einstellungen aus admin/config.yml -->
-  <script src="https://unpkg.com/@sveltia/cms/dist/sveltia-cms.js" type="module"></script>
+  <!-- Sveltia CMS: liest die Einstellungen aus admin/config.yml.
+       Feste Version mit Prüfsumme (integrity): ein manipuliertes Paket würde der Browser nicht ausführen.
+       Update: Version anpassen und integrity neu berechnen (sha384 der Datei, base64). -->
+  <script src="https://unpkg.com/@sveltia/cms@0.256.0/dist/sveltia-cms.js" type="module" integrity="sha384-lRylhzY0xSvU9IJcFUXfRHodv1QdXeMmOJAI7rKRrb8yMd6MArFxGbdTQQvH/M7e" crossorigin="anonymous"></script>
 </body>
 </html>

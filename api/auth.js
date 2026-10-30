@@ -13,7 +13,8 @@ module.exports = (req, res) => {
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: `${origin}/api/callback`,
-    scope: "repo",
+    // public_repo reicht für das öffentliche Website-Repo; "repo" gäbe Zugriff auf alle privaten Repos des Kontos
+    scope: "public_repo",
     state,
   });
   res.redirect(302, `https://github.com/login/oauth/authorize?${params}`);
