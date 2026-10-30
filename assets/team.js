@@ -535,16 +535,29 @@
     var segs = (on[0] > per(n, 10) ? [{ i0: 0, i1: on[0], start: true }] : []).concat(on.map(function (i0, k) {
       return { i0: i0, i1: k + 1 < on.length ? on[k + 1] : n - 1, num: k + 1 };
     }));
+    // Entry = höchste Geschwindigkeit kurz vor dem Bremspunkt (ca. 1 % der Runde davor)
+    var topBefore = function (arr, i) { var m = arr[i]; for (var k = Math.max(0, i - per(n, 10)); k <= i; k++) if (arr[k] > m) m = arr[k]; return m; };
     return segs.map(function (s) {
       // Scheitelpunkt = langsamste Stelle im Abschnitt (am Ende, vor dem nächsten Bremspunkt, ist der Wagen wieder schnell)
       var look = s.i1;
       var apex = s.start ? s.i0 : minAt(P.speed, s.i0, look);
       var c = { name: s.start ? "Start" : "Kurve " + s.num, num: s.num, i0: s.i0, i1: s.i1, apex: apex, minA: P.speed[apex] };
+      // Exit = 100 m nach dem Scheitelpunkt von A, höchstens bis zum nächsten Bremspunkt; für A und B an derselben Stelle
+      var exit = apex;
+      while (exit < s.i1 && P.m[exit] < P.m[apex] + 100) exit++;
+      if (!s.start) {
+        c.entryA = topBefore(P.speed, s.i0);
+        c.exitA = P.speed[exit];
+      }
       if (Q) {
         c.minB = s.start ? Q.speed[s.i0] : Q.speed[minAt(Q.speed, s.i0, look)];
         c.gain = Math.round((delta[s.i1] - delta[s.i0]) * 1000) / 1000;
         var near = s.start ? null : bOn.filter(function (j) { return Math.abs(j - s.i0) <= per(n, 30); })[0];
         if (near != null) c.brakeDiff = P.m[near] - P.m[s.i0]; // negativ = B bremst früher
+        if (!s.start) {
+          c.entryB = topBefore(Q.speed, near != null ? near : s.i0); // vor dem eigenen Bremspunkt von B
+          c.exitB = Q.speed[exit];
+        }
       }
       return c;
     });
@@ -1029,19 +1042,30 @@
       return btn;
     })) : null;
 
-    // Kurventabelle: Zeitgewinn/-verlust pro Abschnitt, Min-Speed, Bremspunkt. Klick zoomt auf die Kurve.
+    // Kurventabelle: Zeitgewinn/-verlust pro Abschnitt, Entry-, Min- und Exit-Speed, Bremspunkt. Klick zoomt auf die Kurve.
     var cornerTable = null;
     if (corners.length) {
       var losses = Q ? corners.map(function (c) { return c.gain; }).sort(function (x, y) { return y - x; }) : [];
       var worst = losses.length ? losses[Math.min(2, losses.length - 1)] : Infinity;
-      var head = el("tr", null, ["Abschnitt", "Bereich", Q ? "B zu A" : null, "Min-Speed A", Q ? "Min-Speed B" : null, Q ? "Bremspunkt B" : null]
+      var speedHead = function (label) { return label + (Q ? " A / B" : ""); };
+      var head = el("tr", null, ["Abschnitt", "Bereich", Q ? "B zu A" : null, speedHead("Entry"), speedHead("Min"), speedHead("Exit"), Q ? "Bremspunkt B" : null]
         .filter(function (h) { return h !== null; }).map(function (h, k) { return el("th", { className: k > 1 ? "num" : "", textContent: h }); }));
+      // Geschwindigkeit A, mit B daneben und der Differenz B zu A (grün = B schneller, rot = B langsamer)
+      var speedCell = function (a, b) {
+        if (a == null) return el("td", { className: "num", textContent: "–" });
+        var parts = [String(Math.round(a))];
+        if (Q && b != null) {
+          var d = Math.round(b) - Math.round(a);
+          parts.push(el("span", { className: "tm-b-val", textContent: " / " + Math.round(b) }),
+            el("em", { className: "tm-dv" + (d > 0 ? " up" : d < 0 ? " down" : ""), textContent: d ? (d > 0 ? "+" : "−") + Math.abs(d) : "±0" }));
+        }
+        return el("td", { className: "num" }, parts);
+      };
       var rows = corners.map(function (c) {
         var cells = [el("td", { className: "tm-nm", textContent: c.name }), el("td", { textContent: P.m[c.i0] + "–" + P.m[c.i1] + " m" })];
         if (Q) cells.push(el("td", { className: "num tm-gain", textContent: signed(c.gain, 3) + " s" }));
-        cells.push(el("td", { className: "num", textContent: Math.round(c.minA) + " km/h" }));
+        cells.push(speedCell(c.entryA, c.entryB), speedCell(c.minA, c.minB), speedCell(c.exitA, c.exitB));
         if (Q) {
-          cells.push(el("td", { className: "num", textContent: Math.round(c.minB) + " km/h" }));
           cells.push(el("td", { className: "num", textContent: c.brakeDiff == null ? "–" : c.brakeDiff === 0 ? "gleich" : Math.abs(c.brakeDiff) + " m " + (c.brakeDiff < 0 ? "früher" : "später") }));
         }
         var tr = el("tr", { className: Q && c.gain > 0 && c.gain >= worst ? "tm-loss" : "", tabIndex: 0 }, cells);
@@ -1054,7 +1078,7 @@
       cornerTable = el("div", { className: "tm-corners" }, [
         el("h4", { textContent: "Kurven" + (Q ? " · B zu A: + = B verliert Zeit, die drei größten Verluste sind markiert" : "") }),
         el("div", { className: "scroll" }, el("table", null, [el("thead", null, head), el("tbody", null, rows)])),
-        el("p", { className: "lbl", textContent: "Abschnitt = vom Bremspunkt bis zum nächsten Bremspunkt (aus Runde A erkannt). Zeile anklicken zum Zoomen." })
+        el("p", { className: "lbl", textContent: "Abschnitt = vom Bremspunkt bis zum nächsten Bremspunkt (aus Runde A erkannt). Speed in km/h: Entry = höchste Geschwindigkeit vor dem eigenen Bremspunkt, Min = langsamste Stelle, Exit = 100 m nach dem Scheitelpunkt (für beide an derselben Stelle). Zeile anklicken zum Zoomen." })
       ]);
     }
 
