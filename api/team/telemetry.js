@@ -1,7 +1,7 @@
 // Telemetrie einer Runde für den Vergleich im Teambereich.
 // GET ?lap=<ID> → Rundendaten auf 4000 Punkte über die Runde, GPS auf 2000 (Garage 61 zeichnet mit 60 Hz auf,
 // je nach Rundenlänge ca. 5000–8000 Messpunkte, ~800 KB CSV). Runden ändern sich nicht, deshalb wird das Ergebnis einen Tag gemerkt.
-const { requireSession } = require("../_lib/session");
+const { requireAdminOrSession } = require("../_lib/admin"); // Teambereich oder Admin-Werkzeug (Streckenkarte)
 const { g61Get, g61Text, cached, sendError } = require("../_lib/g61");
 
 // Punkte über die Runde: nah an der echten Aufzeichnung, damit kurze Eingaben (Antippen der Bremse, Gas lupfen) sichtbar bleiben
@@ -105,7 +105,7 @@ async function lapTelemetry(id) {
 
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "private, no-store");
-  if (!requireSession(req, res)) return;
+  if (!(await requireAdminOrSession(req, res))) return;
   const id = String(req.query.lap || "");
   if (!/^[0-9A-Za-z]{20,32}$/.test(id)) return res.status(400).json({ error: "Ungültige Runde." });
   try {

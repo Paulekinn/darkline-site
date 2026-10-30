@@ -1,6 +1,7 @@
 // Zugang für Admin-Werkzeuge (z. B. /admin/rennbericht): dieselbe GitHub-Anmeldung wie im CMS.
 // Erlaubt ist, wer in ALLOWED_GITHUB_USERS steht; ist die Liste leer, wer Schreibrechte im Website-Repository hat.
 const crypto = require("crypto");
+const { requireSession } = require("./session");
 
 const REPO = process.env.GITHUB_REPO || "Paulekinn/darkline-site";
 const seen = new Map(); // Token-Hash → { login, until }, damit nicht jede Anfrage GitHub fragt
@@ -40,4 +41,10 @@ async function requireAdmin(req, res) {
   return login;
 }
 
-module.exports = { requireAdmin };
+// Admin-Werkzeuge (GitHub-Anmeldung im Authorization-Header) oder Teambereich (Discord-Cookie)
+async function requireAdminOrSession(req, res) {
+  if (req.headers && req.headers.authorization) return !!(await requireAdmin(req, res));
+  return !!requireSession(req, res);
+}
+
+module.exports = { requireAdmin, requireAdminOrSession };

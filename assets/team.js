@@ -466,12 +466,23 @@
     return tm.laps[id];
   }
 
+  // Eigene Streckenkarten aus dem Admin (Strecken-ID → Bild und drei Ecken); fehlt die Datei, gibt es eben keine
+  function trackMaps() {
+    if (!tm.trackMaps) {
+      tm.trackMaps = fetch("/content/trackmaps.json", { cache: "no-store" })
+        .then(function (r) { return r.ok ? r.json() : {}; })
+        .then(function (d) { return d.maps || {}; })
+        .catch(function () { return {}; });
+    }
+    return tm.trackMaps;
+  }
+
   function showCompare() {
     var a = $("tm-lap-a").value, b = $("tm-lap-b").value;
     if (!a) return;
     message($("tm-view"), "Lade Telemetrie …");
-    Promise.all([telemetry(a), b && b !== a ? telemetry(b) : null]).then(function (r) {
-      renderCompare(r[0], r[1]);
+    Promise.all([telemetry(a), b && b !== a ? telemetry(b) : null, trackMaps()]).then(function (r) {
+      renderCompare(r[0], r[1], r[2][$("tm-track").value] || null);
     }).catch(function (e) { message($("tm-view"), e.message, true); });
   }
 
@@ -650,9 +661,12 @@
 
   // Streckenkarte: Luftbild (Esri World Imagery) mit den GPS-Punkten der Runden darüber. iRacing liefert echte
   // Koordinaten der gescannten Strecken, die Fahrlinien liegen also auf dem echten Asphalt. Manche iRacing-Strecken
-  // sind älter als das Luftbild und verlaufen anders; dafür lässt sich das Luftbild abschalten (schematische Strecke).
+  // sind älter als das Luftbild und verlaufen anders; dafür gibt es die schematische Strecke und, wenn im Admin hinterlegt
+  // (/admin/streckenkarte), eine eigene Streckenkarte als Bild. Der Hintergrund lässt sich pro Strecke umschalten.
   // Ganze Runde: Fahrlinien, Kurvennummern und Positionspunkte. Im Zoom: Ausschnitt um den Abschnitt, Bremspunkte als Kreise.
-  function trackMap(A, B, corners, trackId) {
+  var BACKGROUNDS = { custom: "Streckenkarte", photo: "Luftbild", plan: "Schema · Strecke geschätzt" };
+
+  function trackMap(A, B, corners, trackId, custom) {
     if (tm.map) tm.map.remove(); // Karte des vorigen Vergleichs freigeben
     // Rundenpunkt i (wie in den Diagrammen) → GPS-Punkt; die Karte ist anders aufgelöst (2000 GPS-Punkte)
     var idx = function (R, i) { var len = R.points.lat.length; return Math.min(len - 1, Math.round(i * (len - 1) / (R.points.t.length - 1))); };
@@ -676,9 +690,19 @@
     var tiles = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
       maxNativeZoom: 19, maxZoom: 21, attribution: "Luftbild: Esri, Maxar, Earthstar Geographics"
     });
-    var imageryKey = "dpm-map-imagery:" + trackId;
-    var imagery = true;
-    try { imagery = localStorage.getItem(imageryKey) !== "0"; } catch (e) {}
+    // Eigene Streckenkarte aus dem Admin, unter dem Schema und den Fahrlinien
+    map.createPane("custom").style.zIndex = 300;
+    var customLayer = custom ? new L.RotatedImage(custom.image, custom.corners, { pane: "custom" }) : null;
+    // Hintergrund: mit eigener Karte nur sie und das Schema (kein Luftbild, das passt dort ja nicht), sonst Luftbild und Schema.
+    // Die Wahl gilt pro Strecke und bleibt im Browser; eine neu gespeicherte eigene Karte setzt sie zurück (Datum im Schlüssel).
+    var modes = custom ? ["custom", "plan"] : ["photo", "plan"];
+    var bgKey = "dpm-map-imagery:" + trackId + (custom ? ":" + custom.updated : "");
+    var bg = modes[0];
+    try {
+      var saved = localStorage.getItem(bgKey);
+      if (saved === "0") saved = "plan"; // frühere Einstellung „Luftbild aus“
+      if (modes.indexOf(saved) !== -1) bg = saved;
+    } catch (e) {}
 
     // Schematische Strecke in eigener Ebene unter den Fahrlinien, damit Ein- und Ausblenden die Reihenfolge nicht ändert
     map.createPane("plan").style.zIndex = 350;
@@ -740,8 +764,8 @@
       // Schematische Strecke in echter Breite; Ränder und Curbs erst, wenn die Strecke breit genug dafür ist
       var px = 1 / (40075016 * Math.cos(A.points.lat[0] * Math.PI / 180) / Math.pow(2, map.getZoom() + 8)); // Pixel pro Meter
       var wide = TRACK_W * px >= 14;
-      show(plan, !imagery);
-      show(detail, !imagery && wide);
+      show(plan, bg === "plan");
+      show(detail, bg === "plan" && wide);
       asphalt.setStyle({ weight: Math.max(7, TRACK_W * px) });
       var cw = Math.max(3, 1.5 * px), dash = Math.max(3, 3 * px).toFixed(1);
       curbs.forEach(function (c) { c[0].setStyle({ weight: cw }); c[1].setStyle({ weight: cw, dashArray: dash + " " + dash }); });
@@ -783,20 +807,22 @@
     var zoomIn = tool("+", "Karte vergrößern", function () { map.zoomIn(1); });
     var zoomOut = tool("−", "Karte verkleinern", function () { map.zoomOut(1); });
     var zoomHome = tool("⟲", "Karte zurücksetzen", function () { goHome(true); });
-    // Luftbild an/aus, die Wahl gilt pro Strecke und bleibt im Browser gespeichert
-    var photo = tool("▦", "Luftbild an/aus", function () {
-      imagery = !imagery;
-      try { imagery ? localStorage.removeItem(imageryKey) : localStorage.setItem(imageryKey, "0"); } catch (e) {}
-      setImagery();
+    // Hintergrund wechseln: Streckenkarte bzw. Luftbild ↔ Schema
+    var bgName = el("span", { className: "tm-map-bg" });
+    var bgButton = tool("▦", "Hintergrund wechseln", function () {
+      bg = modes[(modes.indexOf(bg) + 1) % modes.length];
+      try { bg === modes[0] ? localStorage.removeItem(bgKey) : localStorage.setItem(bgKey, bg); } catch (e) {}
+      setBackground();
     });
-    photo.className = "tm-photo";
-    function setImagery() {
-      show(tiles, imagery);
-      photo.setAttribute("aria-pressed", String(imagery));
-      host.classList.toggle("plan", !imagery);
+    function setBackground() {
+      show(tiles, bg === "photo");
+      if (customLayer) show(customLayer, bg === "custom");
+      host.classList.toggle("plan", bg === "plan");
+      bgName.textContent = BACKGROUNDS[bg];
+      bgButton.title = "Hintergrund wechseln (jetzt: " + BACKGROUNDS[bg] + ")";
       update();
     }
-    var tools = el("div", { className: "tm-map-tools" }, [zoomIn, zoomOut, zoomHome, photo]);
+    var tools = el("div", { className: "tm-map-tools" }, [zoomIn, zoomOut, zoomHome, bgButton]);
 
     map.on("zoomend", update);
     map.on("dblclick", function () { goHome(true); });
@@ -809,9 +835,9 @@
     ro.observe(host);
     tm.map = { remove: function () { ro.disconnect(); map.remove(); } };
     setLines(0, last);
-    setImagery();
+    setBackground();
     return {
-      node: el("div", { className: "tm-map" }, [host, tools, note]),
+      node: el("div", { className: "tm-map" }, [host, tools, note, bgName]),
       move: function (i) {
         dotA.setLatLng(at(A, i));
         if (dotB) dotB.setLatLng(at(B, i));
@@ -820,14 +846,14 @@
     };
   }
 
-  function renderCompare(A, B) {
+  function renderCompare(A, B, custom) {
     var P = A.points, Q = B ? B.points : null, n = P.pct.length;
     var delta = Q ? Q.t.map(function (t, i) { return Math.round((t - P.t[i]) * 1000) / 1000; }) : null;
     var sectors = sectorRanges(A, B);
     var corners = cornerRanges(A, B, delta);
     var full = { i0: 0, i1: n - 1, name: "Ganze Runde" };
     var view = full;
-    var map = trackMap(A, B, corners, $("tm-track").value);
+    var map = trackMap(A, B, corners, $("tm-track").value, custom);
     var both = function (key) { return [{ values: P[key], color: COLOR_A }].concat(Q ? [{ values: Q[key], color: COLOR_B }] : []).reverse(); };
     var range = function (arrs) {
       var lo = Infinity, hi = -Infinity;

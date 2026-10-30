@@ -68,6 +68,13 @@ Beim Domain-Umzug `base_url` in `admin/config.yml` sowie Homepage- und Callback-
 | Partner | Partner | Helles Logo auf transparentem Hintergrund. |
 | Links, Open Seat | Einstellungen | Discord, E-Mail, Socials, Open Seat ein/aus. |
 
+**Eigene Werkzeuge** (Buttons unten links im Admin, gleiche GitHub-Anmeldung):
+
+| Werkzeug | Wofür |
+|---|---|
+| `/admin/rennbericht` | Teamrennen aus Garage 61 auswerten und als News-Entwurf öffnen. |
+| `/admin/streckenkarte` | Eigene Streckenkarte für den Telemetrie-Vergleich. Für Strecken, deren iRacing-Version älter ist als das heutige Luftbild (z. B. Le Mans): Bild (Streckenplan, älteres Luftbild, Screenshot) hochladen und über die schnellste Team-Runde legen (rotes Quadrat = verschieben, weißer Punkt = drehen/vergrößern). Speichern legt das Bild unter `img/trackmaps/<Strecken-ID>.webp` und die Lage in `content/trackmaps.json` ab, als ein Commit. Im Teambereich ersetzt die Karte dann das Luftbild für diese Strecke ganz; der Button ▦ wechselt nur noch zum Schema. Nach jedem Speichern startet jeder wieder mit der Streckenkarte. Zur Auswahl stehen die Strecken, die das Team in den letzten 4 Wochen gefahren ist. |
+
 Der **Dateiname** eines Rennens oder Beitrags wird zur eigenen Adresse (`/rennen/spa-24h-2026`, `/news/…`). Neue Einträge bekommen ihn automatisch (Jahr-Monat-Titel). Beim Deploy entsteht für jede Seite eine Vorschaukarte für Discord, WhatsApp & Co. (Bild = Banner bzw. News-Bild).
 
 ## Teambereich (/team)
@@ -80,7 +87,8 @@ api/discord-callback.js   prüft Server und Rolle, setzt das Anmelde-Cookie
 api/team/session.js       wer ist angemeldet? / abmelden
 api/team/leaderboard.js   Rangliste: Strecken der letzten 4 Wochen, Bestzeiten pro Auto
 api/team/weekly.js        Wochenbericht: 8 Wochen aus der Team-Statistik
-api/team/telemetry.js     Telemetrie einer Runde, verdichtet auf 1000 Punkte
+api/team/telemetry.js     Telemetrie einer Runde, verdichtet auf 4000 Punkte (GPS für die Karte auf 2000)
+assets/map-image.js       gedrehtes Kartenbild (eigene Streckenkarten), auch im Admin genutzt
 api/team/race.js          Rennbericht (Admin) und Rennanalyse (Teambereich): Sessions am Renntag, Auswertung
                           (Stints, Fahrer, Boxenstopps, Zeitverluste, alle Runden fürs Pace-Diagramm, Wetter)
 api/team/preview.js       Vorschau für geteilte Vergleichslinks (/vergleich), Weiterleitung in den Teambereich

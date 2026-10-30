@@ -1,7 +1,8 @@
 // Rangliste für den Teambereich.
 // GET                 → Strecken, die das Team in den letzten 4 Wochen gefahren ist (eine Anfrage an die Team-Statistik)
 // GET ?track=<ID>     → Team-Bestzeiten auf dieser Strecke, pro Auto (erst beim Anklicken, 15 Minuten gemerkt)
-const { requireSession } = require("../_lib/session");
+// Auch für Admin-Werkzeuge (Streckenkarte) mit GitHub-Anmeldung.
+const { requireAdminOrSession } = require("../_lib/admin");
 const { g61Get, cached, items, teamSlug, tracks, cars, sendError } = require("../_lib/g61");
 
 const DAYS = 28;
@@ -62,8 +63,8 @@ async function trackBests(trackId) {
 
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "private, no-store");
-  if (!requireSession(req, res)) return;
   try {
+    if (!(await requireAdminOrSession(req, res))) return;
     const track = Number(req.query.track);
     if (req.query.track !== undefined) {
       if (!Number.isInteger(track) || track <= 0) return res.status(400).json({ error: "Ungültige Strecke." });
