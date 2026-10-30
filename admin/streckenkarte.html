@@ -33,6 +33,8 @@
 .sk-map .leaflet-control-attribution{background:rgba(5,6,6,.75);color:var(--muted);font:500 .6rem/1.5 var(--f-mono)}
 .sk-map .leaflet-control-attribution a{color:inherit}
 .sk-handle{width:16px;height:16px;margin:-8px 0 0 -8px;border:2px solid #fff;background:var(--red);box-shadow:0 0 0 2px #050606;cursor:move}
+.sk-map.picking .leaflet-container{cursor:crosshair}
+.sk-pin{width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:#fff;border:2px solid #050606;color:#050606;font:700 11px/16px var(--f-mono);text-align:center}
 .sk-handle.rot{border-radius:50%;background:#fff;border-color:var(--red);cursor:grab}
 .sk-tools{display:grid;align-content:start;gap:14px;background:var(--paper);padding:16px}
 .sk-tools h4{margin:0;font:500 .7rem/1.3 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
@@ -95,6 +97,7 @@
       <div class="sk-tools">
         <h4>1 · Hintergrund</h4>
         <div class="sk-source">
+          <label class="check"><input type="radio" name="sk-source" value="photo"> Aktuelles Luftbild (wie bisher)</label>
           <label class="check"><input type="radio" name="sk-source" value="wayback"> Luftbild-Archiv (älteres Esri-Luftbild)</label>
           <label class="check"><input type="radio" name="sk-source" value="image"> Eigenes Bild (Plan, SVG, Screenshot)</label>
         </div>
@@ -111,7 +114,7 @@
           <label class="sk-file">Bild wählen (PNG, JPG, WebP, SVG) …<input type="file" id="sk-file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg" multiple></label>
           <p class="sk-note">iRacing-Streckenkarte: alle SVG-Ebenen (background, active, pitroad, start-finish, turns …) zusammen auswählen, sie werden übereinandergelegt.</p>
           <p id="sk-file-info"></p>
-          <h4>2 · Ausrichten</h4>
+          <h4>Bild ausrichten</h4>
           <p>Rotes Quadrat ziehen = verschieben. Weißen Punkt ziehen = drehen und vergrößern. Die rote Linie ist die schnellste Runde des Teams.</p>
           <div class="row">
             <label><span class="lbl">Drehung (°)</span><input type="number" id="sk-rot" step="0.1" disabled></label>
@@ -120,12 +123,19 @@
           <label><span class="lbl">Deckkraft beim Ausrichten</span><input type="range" id="sk-opacity" min="0.2" max="1" step="0.05" value="0.7"></label>
           <label class="check"><input type="checkbox" id="sk-photo"> Aktuelles Luftbild darunter zeigen</label>
         </div>
+        <h4>2 · Linie korrigieren (falls nötig)</h4>
+        <p class="sk-note">Liegt die rote Linie gedreht oder verschoben neben der echten Strecke, sind die iRacing-Koordinaten ungenau. „Passpunkt setzen“, dann zuerst einen markanten Punkt auf der roten Linie anklicken (z. B. einen Kurvenscheitel) und danach die Stelle, an die er auf dem Luftbild gehört. Zwei bis drei Punkte weit auseinander reichen; die Korrektur gilt im Teambereich für alle Runden dieser Strecke.</p>
+        <div class="sk-actions">
+          <button type="button" class="rb-btn rb-ghost" id="sk-fix-add" disabled>Passpunkt setzen</button>
+          <button type="button" class="rb-btn rb-ghost" id="sk-fix-undo" disabled>Letzten entfernen</button>
+        </div>
+        <p class="sk-note" id="sk-fix-info"></p>
         <h4>Speichern</h4>
         <div class="sk-actions">
           <button type="button" class="rb-btn" id="sk-save" disabled>Speichern</button>
-          <button type="button" class="rb-btn rb-ghost" id="sk-delete" hidden>Karte entfernen</button>
+          <button type="button" class="rb-btn rb-ghost" id="sk-delete" hidden>Alles entfernen</button>
         </div>
-        <p class="sk-note">Speichern legt die Karte im Repository ab (ein Commit). Nach etwa einer Minute ist sie im Teambereich zu sehen und ersetzt dort für diese Strecke das aktuelle Luftbild.</p>
+        <p class="sk-note">Speichern legt Hintergrund und Korrektur im Repository ab (ein Commit). Nach etwa einer Minute gilt beides im Teambereich für diese Strecke.</p>
       </div>
     </div>
   </section>

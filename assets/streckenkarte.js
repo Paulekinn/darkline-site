@@ -184,9 +184,10 @@
 
   // ---------------------------------------------------------------- Editor
 
-  // source: "wayback" (Archiv-Luftbild) oder "image" (eigenes Bild); wbList/wbPick: Archivstände der Strecke und die Auswahl
+  // source: "photo" (aktuelles Luftbild), "wayback" (Archiv-Luftbild) oder "image" (eigenes Bild);
+  // wbList/wbPick: Archivstände der Strecke und die Auswahl; pairs: Passpunkte [[von, nach], …] zur Korrektur der Linie
   var sk = { tracks: [], maps: {}, track: null, map: null, image: null, place: null, overlay: null,
-    source: null, lapPts: null, wbList: null, wbPick: null, wbLayer: null, busy: false };
+    source: null, lapPts: null, wbList: null, wbPick: null, wbLayer: null, busy: false, pairs: [], picking: null };
 
   var trackName = function (t) { return t.name + (t.variant ? " (" + t.variant + ")" : ""); };
 
@@ -205,13 +206,15 @@
 
   function fillTracks(value) {
     fillSelect($("sk-track"), [{ value: "", label: "Strecke wählen …" }].concat(sk.tracks.map(function (t) {
-      return { value: t.id, label: trackName(t) + (sk.maps[t.id] ? " · eigene Karte ✓" : "") };
+      return { value: t.id, label: trackName(t) + (sk.maps[t.id] ? " · angepasst ✓" : "") };
     })), value);
   }
 
   function pickTrack(id) {
     sk.track = sk.tracks.filter(function (t) { return String(t.id) === id; })[0];
     sk.image = sk.place = sk.wbList = sk.wbPick = null;
+    sk.pairs = [];
+    setPicking(null);
     [sk.overlay, sk.wbLayer].forEach(function (l) { if (l) l.remove(); });
     sk.overlay = sk.wbLayer = null;
     $("sk-file").value = "";
@@ -263,7 +266,9 @@
       p.rot = ((p.rot + 540) % 360) - 180;
       refresh(sk.turn);
     });
-    $("sk-photo").onchange = function () { this.checked ? sk.photo.addTo(map) : sk.photo.remove(); };
+    $("sk-photo").onchange = showPhoto;
+    sk.pins = L.layerGroup().addTo(map);
+    map.on("click", pickPoint);
     $("sk-opacity").oninput = function () { if (sk.overlay) sk.overlay.setOpacity(+this.value); };
     $("sk-rot").onchange = function () { if (sk.place && this.value !== "") { sk.place.rot = +this.value; refresh(); } };
     $("sk-width").onchange = function () { if (sk.place && +this.value >= 10) { sk.place.w = +this.value; refresh(); } };
@@ -273,21 +278,26 @@
     $("sk-work").hidden = false;
     if (!sk.map) initMap();
     sk.map.invalidateSize();
+    // Rohdaten von iRacing; angezeigt wird die Linie mit der Korrektur aus den Passpunkten
     var pts = sk.lapPts = lap.points.lat.map(function (v, j) { return [v, lap.points.lon[j]]; });
-    sk.line.forEach(function (l) { l.setLatLngs(pts).addTo(sk.map); });
-    sk.start.setLatLng(pts[0]).addTo(sk.map);
+    sk.line.forEach(function (l) { l.addTo(sk.map); });
+    sk.start.addTo(sk.map);
     sk.bounds = L.latLngBounds(pts);
     sk.map.fitBounds(sk.bounds, { padding: [30, 30], animate: false });
     [sk.move, sk.turn].forEach(function (h) { h.remove(); });
+    drawLine();
     controls();
   }
 
-  // Vorhandene Karte dieser Strecke zum Weiterbearbeiten laden; ohne Karte mit dem Luftbild-Archiv beginnen
+  // Vorhandene Anpassung dieser Strecke zum Weiterbearbeiten laden; ohne Anpassung mit dem aktuellen Luftbild beginnen
   function loadExisting() {
     var saved = sk.maps[sk.track.id];
     $("sk-delete").hidden = !saved;
     $("sk-file-info").textContent = "";
-    if (!saved || saved.wayback) return setSource("wayback", saved ? saved.wayback.release : null);
+    sk.pairs = saved && saved.fix ? saved.fix.pairs.slice() : [];
+    drawLine();
+    if (!saved || !(saved.wayback || saved.image)) return setSource("photo");
+    if (saved.wayback) return setSource("wayback", saved.wayback.release);
     setSource("image");
     var img = new Image();
     img.onload = function () {
@@ -394,8 +404,66 @@
     [sk.overlay, sk.overlay && sk.move, sk.overlay && sk.turn].forEach(function (l) { if (l) src === "image" ? l.addTo(sk.map) : l.remove(); });
     if (sk.wbLayer) src === "wayback" ? sk.wbLayer.addTo(sk.map) : sk.wbLayer.remove();
     if (src === "wayback") loadWayback(release);
+    showPhoto();
     controls();
   }
+
+  // Aktuelles Luftbild: als Hintergrund, beim eigenen Bild auf Wunsch darunter
+  function showPhoto() {
+    var on = sk.source === "photo" || (sk.source === "image" && $("sk-photo").checked);
+    if (sk.map) on ? sk.photo.addTo(sk.map) : sk.photo.remove();
+  }
+
+  // ---------------------------------------------------------------- Linie korrigieren (Passpunkte)
+
+  // Referenzrunde mit der Korrektur aus den Passpunkten zeichnen, dazu die Zielpunkte als nummerierte Marken
+  function drawLine() {
+    if (!sk.map || !sk.lapPts) return;
+    var fix = L.dpmFix(sk.pairs);
+    var pts = fix ? sk.lapPts.map(function (p) { return fix(p[0], p[1]); }) : sk.lapPts;
+    sk.shown = pts;
+    sk.line.forEach(function (l) { l.setLatLngs(pts); });
+    sk.start.setLatLng(pts[0]);
+    sk.pins.clearLayers();
+    sk.pairs.forEach(function (p, i) {
+      sk.pins.addLayer(L.marker(p[1], { interactive: false, keyboard: false, icon: L.divIcon({ className: "sk-pin", html: String(i + 1), iconSize: null }) }));
+    });
+    var m = function (v) { return Math.round(v).toLocaleString("de-DE") + " m"; };
+    $("sk-fix-info").textContent = sk.picking === "from" ? "Jetzt einen Punkt auf der roten Linie anklicken."
+      : sk.picking === "to" ? "Jetzt die Stelle auf dem Luftbild anklicken, an die dieser Punkt gehört."
+      : !fix ? "Keine Korrektur."
+      : sk.pairs.length + " Passpunkt" + (sk.pairs.length === 1 ? " (nur verschieben)" : "e") + ": verschoben um " + m(fix.shift) +
+        (sk.pairs.length > 1 ? ", gedreht um " + fix.rot.toFixed(2).replace(".", ",") + "°, Maßstab " + (fix.scale * 100).toFixed(2).replace(".", ",") + " %" : "") + ".";
+    controls();
+  }
+
+  // null = aus, "from" = Punkt auf der Linie wählen, "to" = Zielstelle wählen
+  function setPicking(state) {
+    sk.picking = state;
+    $("sk-map").classList.toggle("picking", !!state);
+    $("sk-fix-add").textContent = state ? "Abbrechen" : "Passpunkt setzen";
+    // Beim Klicken auf Passpunkte das Bild nicht versehentlich verschieben
+    [sk.move, sk.turn].forEach(function (h) { if (h && h.dragging) state ? h.dragging.disable() : h.dragging.enable(); });
+    drawLine();
+  }
+
+  function pickPoint(e) {
+    if (sk.picking === "from") {
+      // nächster Punkt der angezeigten Linie; gespeichert wird der zugehörige Rohpunkt von iRacing
+      var best = -1, dist = Infinity, c = sk.map.latLngToContainerPoint(e.latlng);
+      sk.shown.forEach(function (p, j) { var d = sk.map.latLngToContainerPoint(p).distanceTo(c); if (d < dist) { dist = d; best = j; } });
+      if (dist > 25) return; // zu weit von der Linie weg
+      sk.from = sk.lapPts[best];
+      setPicking("to");
+    } else if (sk.picking === "to") {
+      var r = function (v) { return +v.toFixed(7); };
+      sk.pairs.push([[r(sk.from[0]), r(sk.from[1])], [r(e.latlng.lat), r(e.latlng.lng)]]);
+      setPicking(null);
+    }
+  }
+
+  $("sk-fix-add").addEventListener("click", function () { setPicking(sk.picking ? null : "from"); });
+  $("sk-fix-undo").addEventListener("click", function () { sk.pairs.pop(); drawLine(); });
 
   document.querySelectorAll("[name=sk-source]").forEach(function (r) {
     r.addEventListener("change", function () { if (this.checked && sk.track) setSource(this.value); });
@@ -502,7 +570,11 @@
   function controls() {
     var image = sk.source === "image" && !!sk.overlay;
     $("sk-rot").disabled = $("sk-width").disabled = !image;
-    $("sk-save").disabled = sk.busy || !(sk.source === "image" ? image : sk.wbPick);
+    // Speichern braucht einen fertigen Hintergrund; beim aktuellen Luftbild mindestens einen Passpunkt
+    var ready = sk.source === "image" ? image : sk.source === "wayback" ? !!sk.wbPick : sk.pairs.length > 0;
+    $("sk-save").disabled = sk.busy || !!sk.picking || !ready;
+    $("sk-fix-add").disabled = sk.busy || !sk.lapPts;
+    $("sk-fix-undo").disabled = sk.busy || !!sk.picking || !sk.pairs.length;
   }
 
   var imagePath = function (m) { return m && m.image ? m.image.replace(/^\//, "") : null; };
@@ -512,10 +584,11 @@
     var maps = JSON.parse(JSON.stringify(sk.maps));
     var files = {}, path = null;
     var entry = { name: trackName(t), updated: new Date().toISOString().slice(0, 19) + "Z" };
+    if (sk.pairs.length) entry.fix = { pairs: sk.pairs.slice() };
+    if (sk.source !== "image" && oldPath) files[oldPath] = null; // vorher eigenes Bild: Datei nicht liegen lassen
     if (sk.source === "wayback") {
       entry.wayback = { release: sk.wbPick.id, date: sk.wbPick.date };
-      if (oldPath) files[oldPath] = null; // vorher eigenes Bild: Datei nicht liegen lassen
-    } else {
+    } else if (sk.source === "image") {
       path = sk.image.blob ? "img/trackmaps/" + id + "." + (sk.image.blob.type === "image/webp" ? "webp" : "png") : oldPath;
       var round = function (p) { return [+p[0].toFixed(7), +p[1].toFixed(7)]; };
       entry.image = "/" + path;
@@ -537,7 +610,7 @@
       if (blob) sk.image.blob = null; // gespeichert; bei weiteren Änderungen nur noch die Lage
       fillTracks(id);
       $("sk-delete").hidden = false;
-      message($("sk-status"), "Gespeichert. In etwa einer Minute ist die Karte für " + trackName(t) + " im Teambereich zu sehen.", "ok");
+      message($("sk-status"), "Gespeichert. In etwa einer Minute gilt die Anpassung für " + trackName(t) + " im Teambereich.", "ok");
     }).catch(function (e) {
       message($("sk-status"), e.message, true);
     }).then(function () { sk.busy = false; controls(); });
@@ -545,7 +618,7 @@
 
   $("sk-delete").addEventListener("click", function () {
     var t = sk.track, id = String(t.id), old = sk.maps[id];
-    if (!old || !window.confirm("Eigene Karte für " + trackName(t) + " entfernen? Im Teambereich gibt es dann wieder das aktuelle Luftbild und das Schema.")) return;
+    if (!old || !window.confirm("Hintergrund und Linien-Korrektur für " + trackName(t) + " entfernen? Im Teambereich gilt dann wieder das aktuelle Luftbild mit den unkorrigierten iRacing-Koordinaten.")) return;
     var maps = JSON.parse(JSON.stringify(sk.maps));
     delete maps[id];
     var files = {};
@@ -555,11 +628,12 @@
     commit("Admin: Streckenkarte " + trackName(t) + " entfernt", files).then(function () {
       sk.maps = maps;
       fillTracks(id);
-      // Archiv-Auswahl bleibt als Vorschlag stehen, ein eigenes Bild wird verworfen
+      // Archiv-Auswahl bleibt als Vorschlag stehen; eigenes Bild und Passpunkte werden verworfen
       sk.image = sk.place = null;
+      sk.pairs = [];
       [sk.overlay, sk.move, sk.turn].forEach(function (l) { if (l) l.remove(); });
       sk.overlay = null;
-      controls();
+      drawLine();
       $("sk-delete").hidden = true;
       $("sk-file").value = "";
       $("sk-file-info").textContent = "";

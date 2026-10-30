@@ -669,6 +669,19 @@
 
   function trackMap(A, B, corners, trackId, custom) {
     if (tm.map) tm.map.remove(); // Karte des vorigen Vergleichs freigeben
+    // Im Admin hinterlegte Korrektur der iRacing-Koordinaten (Passpunkte): auf Kopien der GPS-Punkte anwenden,
+    // die Runden selbst bleiben für andere Vergleiche unverändert
+    var fix = custom && custom.fix ? L.dpmFix(custom.fix.pairs) : null;
+    var fixed = function (R) {
+      if (!R || !fix) return R;
+      var lat = [], lon = [];
+      R.points.lat.forEach(function (v, j) { var p = fix(v, R.points.lon[j]); lat.push(p[0]); lon.push(p[1]); });
+      return L.extend({}, R, { points: L.extend({}, R.points, { lat: lat, lon: lon }) });
+    };
+    A = fixed(A);
+    B = fixed(B);
+    // Eigener Hintergrund nur, wenn hinterlegt; eine Anpassung kann auch nur aus der Korrektur bestehen
+    if (custom && !custom.wayback && !custom.image) custom = null;
     // Rundenpunkt i (wie in den Diagrammen) → GPS-Punkt; die Karte ist anders aufgelöst (2000 GPS-Punkte)
     var idx = function (R, i) { var len = R.points.lat.length; return Math.min(len - 1, Math.round(i * (len - 1) / (R.points.t.length - 1))); };
     var ll = function (R, j) { return [R.points.lat[j], R.points.lon[j]]; };
