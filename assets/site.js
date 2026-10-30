@@ -365,16 +365,23 @@
         <div><span class="lbl">Plätze</span><b class="${g > 0 ? "g" : ""}">${g == null ? "–" : (g >= 0 ? "+" : "−") + Math.abs(g)}</b></div></div>`
       : `<div class="result-box"><div><span class="lbl">Datum</span><b>${esc(fmt(r.datum))}</b></div><div><span class="lbl">Start</span><b>${esc(r.startzeit || "–")}</b></div><div><span class="lbl">Dauer</span><b>${esc(durText(r) || "–")}</b></div></div>`;
     const related = D.posts.filter((p) => p.rennen === r.id);
-    const body = md(r.bericht);
+    // Ohne eigenen Bericht: Text der verknüpften News nehmen (vor dem Rennen die Vorschau, danach nur einen Rennbericht)
+    const fallback = r.bericht ? null : related
+      .filter((p) => p.inhalt && (done ? p.kategorie === "Rennbericht" : p.kategorie !== "Rennbericht"))
+      .sort((a, b) => (parseDate(b.datum) || 0) - (parseDate(a.datum) || 0))[0];
+    const body = md(r.bericht || (fallback && fallback.inhalt));
+    const heading = r.bericht ? r.bericht_titel : fallback ? fallback.titel : r.bericht_titel;
+    const twitch = (D.settings || {}).twitch;
     return `<section class="dhero">${r.banner ? `<div class="bg"><img src="${esc(src(r.banner))}" alt=""></div>` : ""}
       <div class="wrap"><div><span class="eyb">${done ? "Rennbericht" : "Rennvorschau"} · ${esc(r.klasse || "")}</span>
       <h1 class="wide" id="d-title">${esc(r.titel)}</h1>
       <div class="meta">${[r.serie, r.strecke, fmt(r.datum), r.startzeit ? r.startzeit + " Uhr" : "", durText(r) ? "Dauer " + durText(r) : "", r.fahrzeug].filter(Boolean).map(esc).join(" · ")}</div>
       ${shareBtn()}</div>${box}</div></section>
-      <div class="wrap dbody"><article class="prose">${r.bericht_titel ? `<h2>${esc(r.bericht_titel)}</h2>` : ""}${body || `<p class="pending">${done ? "Der ausführliche Rennbericht folgt." : "Die Rennvorschau mit Lineup und Stream-Infos folgt."}</p>`}</article>
+      <div class="wrap dbody"><article class="prose">${heading ? `<h2>${esc(heading)}</h2>` : ""}${body || `<p class="pending">${done ? "Der ausführliche Rennbericht folgt." : "Die Rennvorschau mit Lineup und Stream-Infos folgt."}</p>`}</article>
       <aside class="aside">
         ${r.crew && r.crew.length ? `<div class="box"><span class="lbl">Fahrer</span><div class="crew">${r.crew.map((c) => driverByName(c) ? `<a href="/fahrer/${slugify(cleanName(c))}">${esc(c)}</a>` : `<span>${esc(c)}</span>`).join("")}</div></div>` : ""}
         ${r.fazit ? `<div class="box"><span class="lbl">Kurzfazit</span><p style="margin:0">${esc(r.fazit)}</p></div>` : ""}
+        ${twitch ? `<div class="box"><span class="lbl">${done ? "Twitch" : "Live auf Twitch"}</span><p style="margin:0 0 10px">${done ? "Unsere Rennen laufen live auf dem Darkline-Kanal." : `Wir übertragen das Rennen live${parseDate(r.datum) ? " am " + esc(fmt(r.datum)) : ""}${r.startzeit ? " ab " + esc(r.startzeit) + " Uhr" : ""}.`}</p><a class="link" href="${esc(twitch)}" target="_blank" rel="noopener">Zum Twitch-Kanal ↗</a></div>` : ""}
         ${related.length ? `<div class="box"><span class="lbl">Passende News</span>${related.map((p) => `<a class="link" href="/news/${esc(p.id)}">${esc(p.titel)} →</a>`).join("")}</div>` : ""}
         <div class="box"><a class="link" href="#klassement">← Zum Klassement</a></div>
       </aside></div>`;
