@@ -35,6 +35,12 @@
 .sk-handle{width:16px;height:16px;margin:-8px 0 0 -8px;border:2px solid #fff;background:var(--red);box-shadow:0 0 0 2px #050606;cursor:move}
 .sk-map.picking .leaflet-container{cursor:crosshair}
 .sk-pin{width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:#fff;border:2px solid #050606;color:#050606;font:700 11px/16px var(--f-mono);text-align:center}
+.sk-name{padding:1px 5px;background:rgba(5,6,6,.85);border-left:2px solid var(--red);font:600 11px/16px var(--f-mono);color:#fff;white-space:nowrap}
+.sk-names{width:100%;border-collapse:collapse;font:500 .8rem/1.3 var(--f-mono)}
+.sk-names td{padding:5px 0;border-top:1px solid #1b1f21}
+.sk-names td:last-child{text-align:right}
+.sk-names button{background:none;border:0;color:var(--muted);font:inherit;cursor:pointer}
+.sk-names button:hover{color:var(--red)}
 .sk-handle.rot{border-radius:50%;background:#fff;border-color:var(--red);cursor:grab}
 .sk-tools{display:grid;align-content:start;gap:14px;background:var(--paper);padding:16px}
 .sk-tools h4{margin:0;font:500 .7rem/1.3 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
@@ -144,6 +150,12 @@
           <button type="button" class="rb-btn rb-ghost" id="sk-fix-undo" disabled>Letzten entfernen</button>
         </div>
         <p class="sk-note" id="sk-fix-info"></p>
+        <h4>3 · Kurvennamen (optional)</h4>
+        <p class="sk-note">„Kurvenname setzen“, dann auf die rote Linie in der Kurve klicken (am besten am Scheitelpunkt) und den Namen eingeben. Im Telemetrie-Vergleich bekommt jede erkannte Kurve den Namen der nächstgelegenen Markierung, z. B. „Mulsanne (K4)“.</p>
+        <div class="sk-actions">
+          <button type="button" class="rb-btn rb-ghost" id="sk-name-add" disabled>Kurvenname setzen</button>
+        </div>
+        <div id="sk-name-list"></div>
         <h4>Speichern</h4>
         <div class="sk-actions">
           <button type="button" class="rb-btn" id="sk-save" disabled>Speichern</button>

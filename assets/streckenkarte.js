@@ -187,7 +187,8 @@
   // source: "photo" (aktuelles Luftbild), "wayback" (Archiv-Luftbild) oder "image" (eigenes Bild);
   // wbList/wbPick: Archivstände der Strecke und die Auswahl; pairs: Passpunkte [[von, nach], …] zur Korrektur der Linie
   var sk = { tracks: [], maps: {}, track: null, map: null, image: null, place: null, overlay: null,
-    source: null, lapPts: null, wbList: null, wbPick: null, wbLayer: null, busy: false, pairs: [], picking: null };
+    source: null, lapPts: null, wbList: null, wbPick: null, wbLayer: null, busy: false, pairs: [], picking: null,
+    names: [] }; // names: Kurvennamen [{ pct: Position auf der Runde 0…1, name }]
 
   var trackName = function (t) { return t.name + (t.variant ? " (" + t.variant + ")" : ""); };
 
@@ -214,6 +215,7 @@
     sk.track = sk.tracks.filter(function (t) { return String(t.id) === id; })[0];
     sk.image = sk.place = sk.wbList = sk.wbPick = null;
     sk.pairs = [];
+    sk.names = [];
     setPicking(null);
     [sk.overlay, sk.wbLayer].forEach(function (l) { if (l) l.remove(); });
     sk.overlay = sk.wbLayer = null;
@@ -297,6 +299,7 @@
     $("sk-delete").hidden = !saved;
     $("sk-file-info").textContent = "";
     sk.pairs = saved && saved.fix ? saved.fix.pairs.slice() : [];
+    sk.names = saved && saved.names ? saved.names.slice() : [];
     drawLine();
     if (!saved || !(saved.wayback || saved.image)) return setSource("photo");
     if (saved.wayback) return setSource("wayback", saved.wayback.release);
@@ -430,6 +433,12 @@
     sk.pairs.forEach(function (p, i) {
       sk.pins.addLayer(L.marker(p[1], { interactive: false, keyboard: false, icon: L.divIcon({ className: "sk-pin", html: String(i + 1), iconSize: null }) }));
     });
+    // Kurvennamen an ihrer Stelle auf der (korrigierten) Linie
+    sk.names.forEach(function (n) {
+      sk.pins.addLayer(L.marker(pts[Math.round(n.pct * (pts.length - 1))], { interactive: false, keyboard: false,
+        icon: L.divIcon({ className: "sk-name", html: el("span", { textContent: n.name }), iconSize: null, iconAnchor: [-6, 8] }) }));
+    });
+    drawNames();
     var m = function (v) { return Math.round(v).toLocaleString("de-DE") + " m"; };
     $("sk-fix-info").textContent = sk.picking === "from" ? "Jetzt einen Punkt auf der roten Linie anklicken."
       : sk.picking === "to" ? "Jetzt die Stelle auf dem Luftbild anklicken, an die dieser Punkt gehört."
@@ -439,11 +448,28 @@
     controls();
   }
 
-  // null = aus, "from" = Punkt auf der Linie wählen, "to" = Zielstelle wählen
+  // Liste der Kurvennamen unter dem Button, mit Entfernen
+  function drawNames() {
+    $("sk-name-list").replaceChildren(!sk.names.length ? "" : el("table", { className: "sk-names" }, sk.names.map(function (n, i) {
+      var del = el("button", { type: "button", textContent: "entfernen" });
+      del.addEventListener("click", function () { sk.names.splice(i, 1); drawLine(); });
+      return el("tr", null, [el("td", { textContent: n.name }), el("td", { textContent: (n.pct * 100).toFixed(1).replace(".", ",") + " % der Runde" }), el("td", null, del)]);
+    })));
+  }
+
+  // nächster Punkt der angezeigten Linie zu einem Klick; null, wenn zu weit weg
+  function nearestOnLine(latlng) {
+    var best = -1, dist = Infinity, c = sk.map.latLngToContainerPoint(latlng);
+    sk.shown.forEach(function (p, j) { var d = sk.map.latLngToContainerPoint(p).distanceTo(c); if (d < dist) { dist = d; best = j; } });
+    return dist > 25 ? null : best;
+  }
+
+  // null = aus, "from" = Punkt auf der Linie wählen, "to" = Zielstelle wählen, "name" = Stelle für einen Kurvennamen
   function setPicking(state) {
     sk.picking = state;
     $("sk-map").classList.toggle("picking", !!state);
-    $("sk-fix-add").textContent = state ? "Abbrechen" : "Passpunkt setzen";
+    $("sk-fix-add").textContent = state === "from" || state === "to" ? "Abbrechen" : "Passpunkt setzen";
+    $("sk-name-add").textContent = state === "name" ? "Abbrechen" : "Kurvenname setzen";
     // Beim Klicken auf Passpunkte das Bild nicht versehentlich verschieben
     [sk.move, sk.turn].forEach(function (h) { if (h && h.dragging) state ? h.dragging.disable() : h.dragging.enable(); });
     drawLine();
@@ -452,19 +478,29 @@
   function pickPoint(e) {
     if (sk.picking === "from") {
       // nächster Punkt der angezeigten Linie; gespeichert wird der zugehörige Rohpunkt von iRacing
-      var best = -1, dist = Infinity, c = sk.map.latLngToContainerPoint(e.latlng);
-      sk.shown.forEach(function (p, j) { var d = sk.map.latLngToContainerPoint(p).distanceTo(c); if (d < dist) { dist = d; best = j; } });
-      if (dist > 25) return; // zu weit von der Linie weg
+      var best = nearestOnLine(e.latlng);
+      if (best == null) return; // zu weit von der Linie weg
       sk.from = sk.lapPts[best];
       setPicking("to");
     } else if (sk.picking === "to") {
       var r = function (v) { return +v.toFixed(7); };
       sk.pairs.push([[r(sk.from[0]), r(sk.from[1])], [r(e.latlng.lat), r(e.latlng.lng)]]);
       setPicking(null);
+    } else if (sk.picking === "name") {
+      // gespeichert wird die Position auf der Runde (0…1), unabhängig von Auto, Fahrer und Korrektur
+      var j = nearestOnLine(e.latlng);
+      if (j == null) return;
+      var name = (window.prompt("Name der Kurve, z. B. Dunlop-Schikane:") || "").trim().slice(0, 40);
+      if (name) {
+        sk.names.push({ pct: +(j / (sk.shown.length - 1)).toFixed(5), name: name });
+        sk.names.sort(function (a, b) { return a.pct - b.pct; });
+      }
+      setPicking(null);
     }
   }
 
   $("sk-fix-add").addEventListener("click", function () { setPicking(sk.picking ? null : "from"); });
+  $("sk-name-add").addEventListener("click", function () { setPicking(sk.picking ? null : "name"); });
   $("sk-fix-undo").addEventListener("click", function () { sk.pairs.pop(); drawLine(); });
 
   document.querySelectorAll("[name=sk-source]").forEach(function (r) {
@@ -573,7 +609,8 @@
     var image = sk.source === "image" && !!sk.overlay;
     $("sk-rot").disabled = $("sk-width").disabled = !image;
     // Speichern braucht einen fertigen Hintergrund; beim aktuellen Luftbild mindestens einen Passpunkt
-    var ready = sk.source === "image" ? image : sk.source === "wayback" ? !!sk.wbPick : sk.pairs.length > 0;
+    var ready = sk.source === "image" ? image : sk.source === "wayback" ? !!sk.wbPick : sk.pairs.length > 0 || sk.names.length > 0;
+    $("sk-name-add").disabled = sk.busy || !sk.lapPts || sk.picking === "from" || sk.picking === "to";
     $("sk-save").disabled = sk.busy || !!sk.picking || !ready;
     $("sk-fix-add").disabled = sk.busy || !sk.lapPts;
     $("sk-fix-undo").disabled = sk.busy || !!sk.picking || !sk.pairs.length;
@@ -587,6 +624,7 @@
     var files = {}, path = null;
     var entry = { name: trackName(t), updated: new Date().toISOString().slice(0, 19) + "Z" };
     if (sk.pairs.length) entry.fix = { pairs: sk.pairs.slice() };
+    if (sk.names.length) entry.names = sk.names.slice();
     if (sk.source !== "image" && oldPath) files[oldPath] = null; // vorher eigenes Bild: Datei nicht liegen lassen
     if (sk.source === "wayback") {
       entry.wayback = { release: sk.wbPick.id, date: sk.wbPick.date };
@@ -633,6 +671,7 @@
       // Archiv-Auswahl bleibt als Vorschlag stehen; eigenes Bild und Passpunkte werden verworfen
       sk.image = sk.place = null;
       sk.pairs = [];
+      sk.names = [];
       [sk.overlay, sk.move, sk.turn].forEach(function (l) { if (l) l.remove(); });
       sk.overlay = null;
       drawLine();

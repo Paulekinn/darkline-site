@@ -988,6 +988,19 @@
     var delta = gapTo(Q), deltaC = gapTo(R);
     var sectors = sectorRanges(A, B, C);
     var corners = cornerRanges(A, B, delta);
+    // Kurvennamen aus dem Admin (Position auf der Runde 0…1): jede erkannte Kurve bekommt den nächstgelegenen Namen,
+    // höchstens 200 m vom Scheitelpunkt entfernt (auch über Start/Ziel hinweg)
+    var names = (custom && custom.names) || [];
+    corners.forEach(function (c) {
+      if (!c.num || !names.length) return;
+      var at = c.apex / (n - 1), best = null;
+      names.forEach(function (x) {
+        var d = Math.abs(x.pct - at);
+        d = Math.min(d, 1 - d) * A.length;
+        if (d <= 200 && (!best || d < best.d)) best = { d: d, name: x.name };
+      });
+      if (best) c.name = best.name + " (K" + c.num + ")";
+    });
     if (C) {
       // gleiche Abschnitte (aus A), Werte von C daneben
       cornerRanges(A, C, deltaC).forEach(function (x, k) {
