@@ -1,8 +1,17 @@
 // Telemetrie einer Runde für den Vergleich im Teambereich.
 // GET ?lap=<ID> → Rundendaten auf 4000 Punkte über die Runde, GPS auf 2000 (Garage 61 zeichnet mit 60 Hz auf,
 // je nach Rundenlänge ca. 5000–8000 Messpunkte, ~800 KB CSV). Runden ändern sich nicht, deshalb wird das Ergebnis einen Tag gemerkt.
-const { requireAdminOrSession } = require("../_lib/admin"); // Teambereich oder Admin-Werkzeug (Streckenkarte)
+//
+// Referenzrunden: schnelle Runden fremder Fahrer, die ein Admin als CSV aus Garage 61 exportiert und im Admin
+// (/admin/streckenkarte) hochlädt. Unser Garage-61-Zugang darf deren Telemetrie nicht selbst abrufen. Sie liegen im
+// privaten Vercel-Blob-Speicher (nicht im öffentlichen Repository) und werden genauso aufbereitet wie Team-Runden.
+// GET ?refs=<Strecke>          → Referenzrunden dieser Strecke (nur Angaben, ohne Telemetrie)
+// GET ?ref=<ID>                → Telemetrie einer Referenzrunde, Aufbau wie bei ?lap
+// POST (nur Admin)             → { track, trackName, car, carName, driver, lapTime, link, csv } aufbereiten und speichern
+// DELETE ?ref=<ID> (nur Admin) → Referenzrunde entfernen
+const { requireAdmin, requireAdminOrSession } = require("../_lib/admin"); // Teambereich oder Admin-Werkzeug (Streckenkarte)
 const { g61Get, g61Text, cached, sendError } = require("../_lib/g61");
+const { blobPut, blobGet, blobDelete } = require("../_lib/blob");
 
 // Punkte über die Runde: nah an der echten Aufzeichnung, damit kurze Eingaben (Antippen der Bremse, Gas lupfen) sichtbar bleiben
 const N = 4000;
@@ -103,8 +112,81 @@ async function lapTelemetry(id) {
   };
 }
 
+// ---------------------------------------------------------------- Referenzrunden
+
+const REF = /^ref-[0-9a-z-]{4,60}$/;
+const INDEX = "refs/index.json";
+
+async function refIndex() {
+  const text = await blobGet(INDEX);
+  return text ? JSON.parse(text).refs || [] : [];
+}
+
+async function addReference(body, admin) {
+  const b = typeof body === "string" ? JSON.parse(body) : body || {};
+  const track = Number(b.track), car = Number(b.car), lapTime = Number(b.lapTime);
+  const text = (v, max) => String(v || "").trim().slice(0, max);
+  const bad = (msg) => Object.assign(new Error(msg), { status: 400 });
+  if (!Number.isInteger(track) || track <= 0 || !Number.isInteger(car) || car <= 0) throw bad("Strecke oder Auto fehlt.");
+  if (!(lapTime > 20 && lapTime < 3600)) throw bad("Rundenzeit fehlt oder ist ungültig.");
+  if (!text(b.driver, 80)) throw bad("Fahrername fehlt.");
+  if (typeof b.csv !== "string" || b.csv.length < 1000) throw bad("Die CSV-Datei fehlt oder ist leer.");
+  const link = /^https:\/\/garage61\.net\//.test(b.link || "") ? text(b.link, 300) : "";
+  let data;
+  try {
+    data = resample(readSamples(b.csv), lapTime);
+  } catch (e) {
+    throw bad(`Die CSV passt nicht: ${e.message}`);
+  }
+  const id = `ref-${track}-${car}-${Date.now().toString(36)}`;
+  const meta = { id, track, car, trackName: text(b.trackName, 120), carName: text(b.carName, 120), driver: text(b.driver, 80),
+    lapTime, link, uploaded: new Date().toISOString(), by: admin };
+  await blobPut(`refs/${id}.json`, JSON.stringify({ id, driver: meta.driver, car: meta.carName, track: meta.trackName,
+    lapTime, sectors: null, date: null, reference: true, link, ...data }), "application/json");
+  const refs = (await refIndex()).concat(meta);
+  await blobPut(INDEX, JSON.stringify({ refs }), "application/json");
+  return meta;
+}
+
+async function removeReference(id) {
+  const refs = await refIndex();
+  await blobPut(INDEX, JSON.stringify({ refs: refs.filter((r) => r.id !== id) }), "application/json");
+  await blobDelete([`refs/${id}.json`]);
+}
+
+async function references(req, res) {
+  const q = req.query || {};
+  if (req.method === "POST" || req.method === "DELETE") {
+    // Hochladen und Entfernen nur mit Admin-Anmeldung (GitHub), nicht aus dem Teambereich
+    const admin = req.headers.authorization ? await requireAdmin(req, res) : null;
+    if (!admin) return res.headersSent ? null : res.status(403).json({ error: "Nur für Admins." });
+    if (req.method === "POST") return res.status(200).json(await addReference(req.body, admin));
+    if (!REF.test(q.ref || "")) return res.status(400).json({ error: "Ungültige Referenzrunde." });
+    await removeReference(q.ref);
+    return res.status(200).json({ ok: true });
+  }
+  if (!(await requireAdminOrSession(req, res))) return null;
+  if (q.refs !== undefined) {
+    const track = Number(q.refs);
+    return res.status(200).json({ refs: (await refIndex()).filter((r) => r.track === track) });
+  }
+  if (!REF.test(q.ref || "")) return res.status(400).json({ error: "Ungültige Referenzrunde." });
+  const text = await cached(`ref:${q.ref}`, 86400, () => blobGet(`refs/${q.ref}.json`));
+  if (!text) return res.status(404).json({ error: "Referenzrunde nicht gefunden." });
+  return res.status(200).json(JSON.parse(text));
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "private, no-store");
+  const q = req.query || {};
+  if (req.method !== "GET" || q.ref !== undefined || q.refs !== undefined) {
+    try {
+      return await references(req, res);
+    } catch (e) {
+      if (e.status === 400) return res.status(400).json({ error: e.message });
+      return sendError(res, e);
+    }
+  }
   if (!(await requireAdminOrSession(req, res))) return;
   const id = String(req.query.lap || "");
   if (!/^[0-9A-Za-z]{20,32}$/.test(id)) return res.status(400).json({ error: "Ungültige Runde." });

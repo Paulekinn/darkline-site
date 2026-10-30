@@ -434,33 +434,42 @@
     fillSelect($("tm-lap-a"), []);
     fillSelect($("tm-lap-b"), []);
     message($("tm-view"), "Lade Runden …");
-    api("/api/team/leaderboard?track=" + encodeURIComponent(trackId)).then(function (d) {
+    // dazu die im Admin hochgeladenen Referenzrunden fremder Fahrer (fehlen sie, geht es ohne)
+    var refs = api("/api/team/telemetry?refs=" + encodeURIComponent(trackId)).then(function (d) { return d.refs; }, function () { return []; });
+    Promise.all([api("/api/team/leaderboard?track=" + encodeURIComponent(trackId)), refs]).then(function (r) {
+      var d = r[0];
       tm.cars = d.cars.map(function (c) {
-        return { id: c.id, name: c.name, laps: c.laps.filter(function (l) { return l.telemetry; }) };
-      }).filter(function (c) { return c.laps.length; });
+        return { id: c.id, name: c.name, laps: c.laps.filter(function (l) { return l.telemetry; }),
+          refs: r[1].filter(function (x) { return x.car === c.id; }) };
+      }).filter(function (c) { return c.laps.length || c.refs.length; });
       if (!tm.cars.length) return message($("tm-view"), "Auf dieser Strecke teilt niemand aus dem Team seine Telemetrie.");
       var pick = tm.cars.some(function (c) { return c.id === carId; }) ? carId : tm.cars[0].id;
-      fillSelect($("tm-car"), tm.cars.map(function (c) { return { value: c.id, label: c.name + " · " + c.laps.length + " Fahrer" }; }), pick);
+      fillSelect($("tm-car"), tm.cars.map(function (c) {
+        return { value: c.id, label: c.name + " · " + c.laps.length + " Fahrer" + (c.refs.length ? " · ★ " + c.refs.length : "") };
+      }), pick);
       fillLaps(pick);
     }).catch(function (e) { message($("tm-view"), e.message, true); });
   }
 
-  // Runde A = schnellste, Runde B = zweitschnellste (sofern vorhanden)
+  // Runde A = schnellste, Runde B = zweitschnellste des Teams (sofern vorhanden); Referenzrunden stehen oben zur Wahl
   function fillLaps(carId) {
     var car = tm.cars.filter(function (c) { return c.id === carId; })[0];
     if (!car) return;
-    var opts = car.laps.map(function (l) { return { value: l.id, label: l.driver + " · " + lapTime(l.time) }; });
+    var team = car.laps.map(function (l) { return { value: l.id, label: l.driver + " · " + lapTime(l.time) }; });
+    var refs = car.refs.map(function (r) { return { value: r.id, label: "★ Referenz · " + r.driver + " · " + lapTime(r.lapTime) }; });
+    var opts = refs.concat(team), first = team.concat(refs);
     var has = function (id) { return opts.some(function (o) { return o.value === id; }); };
     var s = tm.share;
     // aus einem geteilten Link, sonst schnellste und zweitschnellste Runde
-    fillSelect($("tm-lap-a"), opts, s && has(s.a) ? s.a : opts[0].value);
-    fillSelect($("tm-lap-b"), [{ value: "", label: "– keine –" }].concat(opts), s && (s.b === "" || has(s.b)) ? s.b : opts[1] ? opts[1].value : "");
+    fillSelect($("tm-lap-a"), opts, s && has(s.a) ? s.a : first[0].value);
+    fillSelect($("tm-lap-b"), [{ value: "", label: "– keine –" }].concat(opts), s && (s.b === "" || has(s.b)) ? s.b : first[1] ? first[1].value : "");
     showCompare();
   }
 
   function telemetry(id) {
     if (!tm.laps[id]) {
-      tm.laps[id] = api("/api/team/telemetry?lap=" + encodeURIComponent(id));
+      // Referenzrunden (ref-…) kommen aus dem privaten Speicher, Team-Runden direkt aus Garage 61
+      tm.laps[id] = api("/api/team/telemetry?" + (/^ref-/.test(id) ? "ref=" : "lap=") + encodeURIComponent(id));
       tm.laps[id].catch(function () { delete tm.laps[id]; });
     }
     return tm.laps[id];
@@ -1096,7 +1105,9 @@
     }
 
     var key = function (cls, L, label) {
-      return el("div", { className: "tm-key" }, [el("i", { className: cls }), el("b", { textContent: label + " " + L.driver }), el("span", { textContent: lapTime(L.lapTime) + " · " + day(L.date) })]);
+      var info = lapTime(L.lapTime) + " · " + (L.reference ? "★ Referenz" : day(L.date));
+      return el("div", { className: "tm-key" }, [el("i", { className: cls }), el("b", { textContent: label + " " + L.driver }),
+        L.reference && L.link ? el("a", { href: L.link, target: "_blank", rel: "noopener", textContent: info + " ↗" }) : el("span", { textContent: info })]);
     };
     var sum = el("div", { className: "tm-sum" }, [
       el("div", null, [el("span", { textContent: "Strecke" }), A.track]),

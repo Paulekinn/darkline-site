@@ -4,6 +4,7 @@
 const { g61Get, cached } = require("../_lib/g61");
 
 const ID = /^[0-9A-Za-z]{20,32}$/;
+const REF = /^ref-[0-9a-z-]{4,60}$/; // hochgeladene Referenzrunde; in der öffentlichen Vorschau ohne Namen und Zeit
 const ZOOM = /^(k\d{1,2}|s\d|start|r\d{1,4}-\d{1,4})$/;
 const SITE = "https://darklineperformance.de";
 
@@ -43,16 +44,20 @@ module.exports = async (req, res) => {
   const params = new URLSearchParams();
   if (/^\d{1,6}$/.test(q.strecke || "")) params.set("strecke", q.strecke);
   if (/^\d{1,6}$/.test(q.auto || "")) params.set("auto", q.auto);
-  if (ID.test(q.a || "")) params.set("a", q.a);
-  if (ID.test(q.b || "")) params.set("b", q.b);
+  if (ID.test(q.a || "") || REF.test(q.a || "")) params.set("a", q.a);
+  if (ID.test(q.b || "") || REF.test(q.b || "")) params.set("b", q.b);
   if (ZOOM.test(q.zoom || "")) params.set("zoom", q.zoom);
   const target = `/team#telemetrie${params.toString() ? `?${params}` : ""}`;
 
   let title = "Telemetrie-Vergleich · Darkline Performance Motorsport";
   let text = "Vergleich zweier Runden im Teambereich. Nur für Teammitglieder, Anmeldung mit Discord.";
   try {
-    if (params.get("a")) {
-      const [A, B] = await Promise.all([lapMeta(params.get("a")), params.get("b") ? lapMeta(params.get("b")) : null]);
+    if (ID.test(params.get("a") || "") && REF.test(params.get("b") || "")) {
+      const A = await lapMeta(params.get("a"));
+      title = `${A.track} · ${A.driver} vs. Referenzrunde`;
+      text = [zoomLabel(params.get("zoom"), A, null), A.car, `A ${lapTime(A.lapTime)}`].filter(Boolean).join(" · ") + " · Telemetrie im Teambereich (Login mit Discord)";
+    } else if (ID.test(params.get("a") || "")) {
+      const [A, B] = await Promise.all([lapMeta(params.get("a")), ID.test(params.get("b") || "") ? lapMeta(params.get("b")) : null]);
       title = B ? `${A.track} · ${A.driver} vs. ${B.driver}` : `${A.track} · ${A.driver}`;
       const parts = [zoomLabel(params.get("zoom"), A, B), A.car,
         B ? `A ${lapTime(A.lapTime)} · B ${lapTime(B.lapTime)} (${signed(B.lapTime - A.lapTime)})` : lapTime(A.lapTime)];

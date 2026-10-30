@@ -221,7 +221,9 @@
     $("sk-file-info").textContent = "";
     $("sk-lap").textContent = "";
     message($("sk-status"), "Lade die schnellste Runde …");
+    loadRefs(id);
     api("/api/team/leaderboard?track=" + encodeURIComponent(id)).then(function (d) {
+      fillSelect($("sk-ref-car"), d.cars.map(function (c) { return { value: c.id, label: c.name }; }));
       var laps = [];
       d.cars.forEach(function (c) { c.laps.forEach(function (l) { if (l.telemetry) laps.push({ lap: l, car: c.name }); }); });
       if (!laps.length) throw new Error("Auf dieser Strecke teilt niemand aus dem Team seine Telemetrie. Ohne Runde lässt sich die Karte nicht ausrichten.");
@@ -672,6 +674,82 @@
       $("sk-diag-out").replaceChildren(el("ul", null, rows.map(function (r) { return el("li", { textContent: r }); })), el("div"));
       message($("sk-diag-out").lastChild, verdict[0], verdict[1]);
     }).catch(function (e) { message($("sk-diag-out"), e.message, true); }).then(function () { btn.disabled = false; });
+  });
+
+  // ---------------------------------------------------------------- Referenzrunden (CSV aus Garage 61, privater Speicher)
+
+  // Senden mit GitHub-Anmeldung (Hochladen, Entfernen); Antwort wie bei api()
+  function apiSend(method, path, body) {
+    return fetch(path, {
+      method: method,
+      headers: { Authorization: "Bearer " + storedToken(), "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (!r.ok) throw new Error((d.error || "Fehler beim Speichern.") + " (Code " + r.status + ")");
+        return d;
+      });
+    });
+  }
+
+  // "3:23.961", "3:23,961" oder "203.961" → Sekunden
+  function parseLapTime(v) {
+    var m = /^\s*(?:(\d+):)?(\d+(?:[.,]\d+)?)\s*$/.exec(v || "");
+    return m ? (Number(m[1] || 0) * 60 + Number(m[2].replace(",", "."))) : NaN;
+  }
+
+  $("sk-track").addEventListener("change", function () {
+    $("sk-refs").hidden = !this.value;
+    $("sk-ref-status").replaceChildren();
+  });
+
+  function loadRefs(track) {
+    $("sk-ref-list").replaceChildren();
+    api("/api/team/telemetry?refs=" + encodeURIComponent(track)).then(function (d) {
+      if (!sk.track || String(sk.track.id) !== String(track)) return;
+      if (!d.refs.length) return $("sk-ref-list").replaceChildren(el("p", { className: "sk-note", textContent: "Für diese Strecke gibt es noch keine Referenzrunde." }));
+      $("sk-ref-list").replaceChildren(el("table", { className: "sk-ref-list" }, d.refs.map(function (r) {
+        var del = el("button", { type: "button", textContent: "Entfernen" });
+        del.addEventListener("click", function () {
+          if (!window.confirm("Referenzrunde von " + r.driver + " (" + lapTime(r.lapTime) + ") entfernen?")) return;
+          del.disabled = true;
+          apiSend("DELETE", "/api/team/telemetry?ref=" + encodeURIComponent(r.id)).then(function () { loadRefs(track); })
+            .catch(function (e) { del.disabled = false; message($("sk-ref-status"), e.message, true); });
+        });
+        return el("tr", null, [
+          el("td", { textContent: r.driver }), el("td", { textContent: r.carName }), el("td", { textContent: lapTime(r.lapTime) }),
+          el("td", { textContent: new Date(r.uploaded).toLocaleDateString("de-DE") + (r.by ? " · " + r.by : "") }), el("td", null, del)
+        ]);
+      })));
+    }).catch(function (e) { message($("sk-ref-list"), e.message, true); });
+  }
+
+  $("sk-ref-file").addEventListener("change", function () {
+    var f = this.files[0];
+    $("sk-ref-file-info").textContent = f ? f.name + " · " + Math.round(f.size / 1024) + " KB" : "";
+  });
+
+  $("sk-ref-save").addEventListener("click", function () {
+    var t = sk.track, f = $("sk-ref-file").files[0], btn = this;
+    var time = parseLapTime($("sk-ref-time").value), car = $("sk-ref-car");
+    if (!t || !car.value) return message($("sk-ref-status"), "Erst Strecke und Auto wählen.", true);
+    if (!$("sk-ref-driver").value.trim()) return message($("sk-ref-status"), "Fahrername fehlt.", true);
+    if (!(time > 20)) return message($("sk-ref-status"), "Rundenzeit bitte als m:ss.sss angeben, z. B. 3:23.961.", true);
+    if (!f) return message($("sk-ref-status"), "CSV-Datei fehlt.", true);
+    if (f.size > 4 * 1024 * 1024) return message($("sk-ref-status"), "Die CSV ist größer als 4 MB, das schafft der Server nicht.", true);
+    btn.disabled = true;
+    message($("sk-ref-status"), "Lade hoch und bereite auf …");
+    f.text().then(function (csv) {
+      return apiSend("POST", "/api/team/telemetry", {
+        track: t.id, trackName: trackName(t), car: Number(car.value), carName: car.selectedOptions[0].textContent,
+        driver: $("sk-ref-driver").value.trim(), lapTime: time, link: $("sk-ref-link").value.trim(), csv: csv
+      });
+    }).then(function (r) {
+      message($("sk-ref-status"), "Gespeichert: " + r.driver + " · " + r.carName + " · " + lapTime(r.lapTime) + ". Im Teambereich jetzt als „★ Referenz“ wählbar.", "ok");
+      ["sk-ref-driver", "sk-ref-time", "sk-ref-link", "sk-ref-file"].forEach(function (id) { $(id).value = ""; });
+      $("sk-ref-file-info").textContent = "";
+      loadRefs(t.id);
+    }).catch(function (e) { message($("sk-ref-status"), e.message, true); }).then(function () { btn.disabled = false; });
   });
 
   // Start: mit gemerkter Anmeldung direkt los, sonst Anmeldeknopf
