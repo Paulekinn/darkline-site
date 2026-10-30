@@ -316,7 +316,11 @@
     $("partner-list").innerHTML = (D.partners || []).map((p) => `<a class="pcard" href="${esc(p.url || "#partner")}">
       <span class="plate">${p.logo ? `<img src="${esc(src(p.logo))}" alt="${esc(p.name)}" loading="lazy">` : `<b>${esc(p.name)}</b>`}</span>
       <span class="info"><span class="k">${esc(p.kategorie || "Partner")}</span><b>${esc(p.name)}</b><span>${esc(p.beschreibung || "")}</span></span>
-      <span class="go">${p.url ? esc(p.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")) + " ↗" : ""}</span></a>`).join("");
+      <span class="go">${p.url ? esc(p.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")) + " ↗" : ""}</span></a>`).join("")
+      // freie Kachel am Ende, wie der Open Seat im Lineup
+      + `<a class="pcard open" href="#partner-werden"><span class="plate"><b>Dein Logo</b></span>
+      <span class="info"><span class="k">Freie Fläche</span><b>Dein Platz?</b><span>Livery, Stream und Content – sprich uns an.</span></span>
+      <span class="go">Partner werden →</span></a>`;
   }
 
   /* ---------- Detailansicht: Rennbericht / News ---------- */

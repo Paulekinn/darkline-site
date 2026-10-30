@@ -389,28 +389,35 @@ main > section + section{border-top:1px solid var(--scan)}
 @media (max-width:420px){.shop-grid{gap:10px}.product .tx{padding:12px}.product h3{font-size:1.1rem}.product .row{flex-direction:column;align-items:flex-start}}
 
 /* PARTNER */
-.partner-layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:clamp(24px,4vw,48px);padding-top:32px;align-items:start}
-.partner-list{display:grid;gap:14px}
-.pcard{position:relative;display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr) auto;align-items:center;gap:0;background:var(--paper);border:1px solid var(--rule);text-decoration:none;overflow:hidden;transition:border-color .2s}
-.pcard:hover{border-color:var(--red)}
-.pcard .plate{position:relative;display:flex;align-items:center;justify-content:center;height:100%;min-height:128px;padding:22px 28px;background:repeating-linear-gradient(45deg,#0c0e0f 0 6px,#101315 6px 12px);border-right:1px solid var(--rule)}
-.pcard .plate::after{content:"";position:absolute;right:-1px;top:0;bottom:0;width:18px;background:var(--red);clip-path:polygon(100% 0,100% 100%,0 100%,60% 0)}
-.pcard .plate img{max-height:70px;max-width:100%;width:auto;object-fit:contain}
-.pcard .info{display:grid;gap:6px;padding:20px 24px;min-width:0}
+/* Partner: Kachel-Raster (bricht bei mehr Partnern automatisch um) + "Partner werden"-Band darunter */
+.partner-layout{display:grid;gap:clamp(20px,3vw,32px);padding-top:32px}
+.partner-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.pcard{position:relative;display:grid;grid-template-rows:auto 1fr auto;background:var(--paper);border:1px solid var(--rule);text-decoration:none;overflow:hidden;transition:border-color .2s,transform .2s;min-width:0}
+.pcard:hover{border-color:var(--red);transform:translateY(-3px)}
+.pcard .plate{position:relative;display:flex;align-items:center;justify-content:center;aspect-ratio:16/9;padding:22px 28px;background:repeating-linear-gradient(45deg,#0c0e0f 0 6px,#101315 6px 12px);border-bottom:1px solid var(--rule)}
+.pcard .plate::after{content:"";position:absolute;right:0;bottom:-1px;width:72px;height:8px;background:var(--red);clip-path:polygon(12px 0,100% 0,100% 100%,0 100%)}
+.pcard .plate img{max-height:64px;max-width:85%;width:auto;object-fit:contain}
+.pcard .plate > b{font:900 1.3rem/1 var(--f-wide);font-variation-settings:"wdth" 120;text-transform:uppercase;color:var(--phos)}
+.pcard .info{display:grid;gap:6px;padding:18px 20px 10px;align-content:start;min-width:0}
 .pcard .info .k{font:500 .66rem/1 var(--f-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--red)}
-.pcard .info b{font:900 1.5rem/1 var(--f-wide);font-variation-settings:"wdth" 120;text-transform:uppercase}
-.pcard .info span:last-child{color:var(--muted);font-size:.95rem}
-.pcard .go{padding:0 24px;font:500 .72rem var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);white-space:nowrap;transition:color .2s}
+.pcard .info b{font:900 1.3rem/1.05 var(--f-wide);font-variation-settings:"wdth" 120;text-transform:uppercase;overflow-wrap:anywhere}
+.pcard .info span:last-child{color:var(--muted);font-size:.93rem}
+.pcard .go{padding:8px 20px 18px;font:500 .72rem var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);transition:color .2s}
 .pcard:hover .go{color:var(--red)}
-.become{position:sticky;top:96px;display:grid;gap:14px;padding:26px;background:linear-gradient(160deg,#16191b,#0d0f10);border:1px solid var(--rule);border-top:3px solid var(--red)}
-.become h3{font-size:clamp(1.6rem,2.6vw,2.1rem)}
+.pcard.open{background:transparent;border:2px dashed var(--scan)}
+.pcard.open .plate{background:transparent;border-bottom:2px dashed var(--scan)}
+.pcard.open .plate > b{color:var(--phos-dim)}
+.pcard.open:hover{border-color:var(--red)}
+.become{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,.85fr);gap:22px clamp(24px,3vw,40px);align-items:center;padding:28px 30px;background:linear-gradient(160deg,#16191b,#0d0f10);border:1px solid var(--rule);border-left:4px solid var(--red);scroll-margin-top:96px}
+.become-head{display:grid;gap:12px}
+.become h3{font-size:clamp(1.5rem,2.4vw,2rem)}
 .become p{margin:0;color:var(--muted)}
-.become ul{list-style:none;margin:4px 0;padding:0;display:grid;gap:0;border-top:1px solid var(--rule)}
-.become li{display:flex;gap:12px;align-items:baseline;padding:11px 0;border-bottom:1px solid var(--rule);font-weight:600;font-size:.95rem}
+.become ul{list-style:none;margin:0;padding:0;display:grid;gap:0;border-top:1px solid var(--rule)}
+.become li{display:flex;gap:12px;align-items:baseline;padding:11px 0;border-bottom:1px solid var(--rule);font-weight:600;font-size:.93rem}
 .become li::before{content:"";flex:none;width:10px;height:10px;background:var(--red);transform:skewX(-12deg)}
-.become .cbtn b{font-size:clamp(.85rem,1.4vw,1rem)}
-@media (max-width:980px){.partner-layout{grid-template-columns:1fr}.become{position:static}}
-@media (max-width:640px){.pcard{grid-template-columns:1fr}.pcard .plate{border-right:0;border-bottom:1px solid var(--rule);min-height:110px}.pcard .plate::after{display:none}.pcard .go{padding:0 24px 18px}}
+.become .cbtn b{font-size:clamp(.85rem,1.3vw,1rem)}
+@media (max-width:1080px){.become{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.become-head{grid-column:1/-1}}
+@media (max-width:640px){.partner-list{grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr))}.become{grid-template-columns:1fr;padding:22px 20px}}
 
 /* Navigation: Box, Box nie abschneiden */
 .bar nav a.box{flex:none}
