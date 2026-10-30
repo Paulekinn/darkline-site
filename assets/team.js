@@ -597,11 +597,18 @@
   // Streckenkarte: Luftbild (Esri World Imagery) mit den GPS-Punkten der Runden darüber. iRacing liefert echte
   // Koordinaten der gescannten Strecken, die Fahrlinien liegen also auf dem echten Asphalt.
   // Ganze Runde: Fahrlinien, Kurvennummern und Positionspunkte. Im Zoom: Ausschnitt um den Abschnitt, Bremspunkte als Kreise.
-  function trackMap(A, B, corners) {
+  // Bei manchen Strecken liegen die iRacing-Koordinaten gleichmäßig neben dem Luftbild. Der Versatz wird dann hier
+  // eingetragen: Garage-61-Strecken-ID → [Meter nach Osten, Meter nach Norden]. Den Wert liefert „Linie ausrichten" (✥) in der Karte.
+  var TRACK_OFFSETS = {
+  };
+
+  function trackMap(A, B, corners, trackId) {
     if (tm.map) tm.map.remove(); // Karte des vorigen Vergleichs freigeben
+    var off = (TRACK_OFFSETS[trackId] || [0, 0]).slice();
+    var mLat = 1 / 111320, mLon = mLat / Math.cos(A.points.lat[0] * Math.PI / 180); // Grad pro Meter
     // Rundenpunkt i (wie in den Diagrammen) → GPS-Punkt; die Karte ist anders aufgelöst (2000 GPS-Punkte)
     var idx = function (R, i) { var len = R.points.lat.length; return Math.min(len - 1, Math.round(i * (len - 1) / (R.points.t.length - 1))); };
-    var ll = function (R, j) { return [R.points.lat[j], R.points.lon[j]]; };
+    var ll = function (R, j) { return [R.points.lat[j] + off[1] * mLat, R.points.lon[j] + off[0] * mLon]; };
     var at = function (R, i) { return ll(R, idx(R, i)); };
     var pathOf = function (R, i0, i1) {
       var out = [];
@@ -630,21 +637,29 @@
     };
     var lineB = B ? line(COLOR_B) : null, lineA = line(COLOR_A);
     var brakes = L.layerGroup();
-    L.circleMarker(at(A, 0), { radius: 4, stroke: false, fillColor: "#ffd400", fillOpacity: 1, interactive: false }).addTo(map);
-    corners.filter(function (c) { return c.num; }).forEach(function (c) {
-      L.marker(at(A, c.apex), { interactive: false, keyboard: false,
+    var start = L.circleMarker(at(A, 0), { radius: 4, stroke: false, fillColor: "#ffd400", fillOpacity: 1, interactive: false }).addTo(map);
+    var nums = corners.filter(function (c) { return c.num; }).map(function (c) {
+      var m = L.marker(at(A, c.apex), { interactive: false, keyboard: false,
         icon: L.divIcon({ className: "tm-map-num", html: String(c.num), iconSize: [24, 14], iconAnchor: [12, 20] }) }).addTo(map);
+      return { m: m, i: c.apex };
     });
     var dot = function (color) { return L.circleMarker(at(A, 0), { radius: 6, color: "#111416", weight: 2, fillColor: color, fillOpacity: 1, interactive: false }).addTo(map); };
-    var dotB = B ? dot(COLOR_B) : null, dotA = dot(COLOR_A);
+    var dotB = B ? dot(COLOR_B) : null, dotA = dot(COLOR_A), dotAt = 0;
     var note = el("span", { className: "tm-map-note", hidden: true, textContent: "Fahrlinie A und B · ○ = Bremspunkt" });
 
     var bOnA = brakeOnsets(A.points.brake), bOnB = B ? brakeOnsets(B.points.brake) : [];
     var lapBounds = L.latLngBounds(pathOf(A, 0, last));
-    var home = lapBounds, lapView = true, fitted = false;
+    var home = lapBounds, lapView = true, fitted = false, shown = [0, last];
+
+    function moveDots(i) {
+      dotAt = i;
+      dotA.setLatLng(at(A, i));
+      if (dotB) dotB.setLatLng(at(B, i));
+    }
 
     // Fahrlinien und Bremspunkte für den Bereich j0…j1 (Rundenpunkte wie in den Diagrammen)
     function setLines(j0, j1) {
+      shown = [j0, j1];
       lineA(pathOf(A, j0, j1));
       if (lineB) lineB(pathOf(B, j0, j1));
       brakes.clearLayers();
@@ -700,7 +715,56 @@
     var zoomIn = tool("+", "Karte vergrößern", function () { map.zoomIn(1); });
     var zoomOut = tool("−", "Karte verkleinern", function () { map.zoomOut(1); });
     var zoomHome = tool("⟲", "Karte zurücksetzen", function () { goHome(true); });
-    var tools = el("div", { className: "tm-map-tools" }, [zoomIn, zoomOut, zoomHome]);
+
+    // Linie ausrichten: Fahrlinien mit der Maus auf den Asphalt ziehen, den Versatz kopieren und in TRACK_OFFSETS eintragen
+    var alignText = el("span");
+    var copyBtn = el("button", { type: "button", textContent: "Wert kopieren" });
+    var doneBtn = el("button", { type: "button", textContent: "Fertig" });
+    var alignBox = el("div", { className: "tm-map-align", hidden: true }, [
+      el("b", { textContent: "Linie mit der Maus auf die Strecke ziehen" }), alignText, el("div", null, [copyBtn, doneBtn])
+    ]);
+    var meters = function (v) { return (Math.round(v * 10) / 10).toFixed(1).replace(".", ",").replace("-", "−") + " m"; };
+    var showOffset = function () { alignText.textContent = "Ost " + meters(off[0]) + " · Nord " + meters(off[1]); };
+    // Alles, was an GPS-Punkten hängt, mit dem neuen Versatz neu setzen
+    function redraw() {
+      setLines(shown[0], shown[1]);
+      start.setLatLng(at(A, 0));
+      nums.forEach(function (n) { n.m.setLatLng(at(A, n.i)); });
+      moveDots(dotAt);
+      showOffset();
+    }
+    var drag = null, frame = 0;
+    map.on("mousedown", function (e) {
+      if (alignBox.hidden) return;
+      drag = { lat: e.latlng.lat, lng: e.latlng.lng, off: off.slice() };
+    });
+    map.on("mousemove", function (e) {
+      if (!drag) return;
+      off = [drag.off[0] + (e.latlng.lng - drag.lng) / mLon, drag.off[1] + (e.latlng.lat - drag.lat) / mLat];
+      if (!frame) frame = requestAnimationFrame(function () { frame = 0; redraw(); });
+    });
+    map.on("mouseup mouseout", function () {
+      if (!drag) return;
+      drag = null;
+      lapBounds = L.latLngBounds(pathOf(A, 0, last));
+    });
+    var align = tool("✥", "Linie ausrichten", function () {
+      alignBox.hidden = !alignBox.hidden;
+      align.setAttribute("aria-pressed", String(!alignBox.hidden));
+      host.classList.toggle("aligning", !alignBox.hidden);
+      alignBox.hidden ? map.dragging.enable() : map.dragging.disable();
+      showOffset();
+    });
+    align.hidden = touch;
+    doneBtn.addEventListener("click", function () { align.click(); });
+    copyBtn.addEventListener("click", function () {
+      var r = function (v) { return Math.round(v * 10) / 10; };
+      var text = '"' + trackId + '": [' + r(off[0]) + ", " + r(off[1]) + "], // " + A.track;
+      var ok = function () { copyBtn.textContent = "Kopiert ✓"; setTimeout(function () { copyBtn.textContent = "Wert kopieren"; }, 2000); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, function () { window.prompt("Wert zum Kopieren:", text); });
+      else window.prompt("Wert zum Kopieren:", text);
+    });
+    var tools = el("div", { className: "tm-map-tools" }, [zoomIn, zoomOut, zoomHome, align]);
 
     map.on("zoomend", update);
     map.on("dblclick", function () { goHome(true); });
@@ -715,11 +779,8 @@
 
     setLines(0, last);
     return {
-      node: el("div", { className: "tm-map" }, [host, tools, note]),
-      move: function (i) {
-        dotA.setLatLng(at(A, i));
-        if (dotB) dotB.setLatLng(at(B, i));
-      },
+      node: el("div", { className: "tm-map" }, [host, tools, note, alignBox]),
+      move: moveDots,
       highlight: zoomTo
     };
   }
@@ -731,7 +792,7 @@
     var corners = cornerRanges(A, B, delta);
     var full = { i0: 0, i1: n - 1, name: "Ganze Runde" };
     var view = full;
-    var map = trackMap(A, B, corners);
+    var map = trackMap(A, B, corners, $("tm-track").value);
     var both = function (key) { return [{ values: P[key], color: COLOR_A }].concat(Q ? [{ values: Q[key], color: COLOR_B }] : []).reverse(); };
     var range = function (arrs) {
       var lo = Infinity, hi = -Infinity;
