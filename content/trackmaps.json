@@ -307,6 +307,60 @@
         "release": 22869,
         "date": "2026-03-26"
       }
+    },
+    "444": {
+      "name": "Circuit de Spa-Francorchamps (Grand Prix Pits)",
+      "updated": "2026-10-30T21:29:02Z",
+      "names": [
+        {
+          "pct": 0.05591,
+          "name": "La Source"
+        },
+        {
+          "pct": 0.15101,
+          "name": "Eau Rouge"
+        },
+        {
+          "pct": 0.18127,
+          "name": "Raidillon"
+        },
+        {
+          "pct": 0.22795,
+          "name": "Kemmel"
+        },
+        {
+          "pct": 0.34726,
+          "name": "Les Combes"
+        },
+        {
+          "pct": 0.37983,
+          "name": "Malmedy"
+        },
+        {
+          "pct": 0.43746,
+          "name": "Rivage"
+        },
+        {
+          "pct": 0.56455,
+          "name": "Pouhon"
+        },
+        {
+          "pct": 0.65533,
+          "name": "Les Fagnes"
+        },
+        {
+          "pct": 0.72161,
+          "name": "Stavelot"
+        },
+        {
+          "pct": 0.87493,
+          "name": "Blanchimont"
+        },
+        {
+          "pct": 0.97147,
+          "name": "Bus Stop"
+        }
+      ]
     }
   }
 }
