@@ -216,7 +216,11 @@
 .tm-layout{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:16px;align-items:stretch}
 .tm-charts{position:relative;background:var(--paper);padding:10px 0 4px;touch-action:pan-y;cursor:crosshair}
 .tm-chart{position:relative;padding:0 14px}
-.tm-chart + .tm-chart{border-top:1px solid #1b1f21}
+.tm-chart + .tm-chart,.tm-extra{border-top:1px solid #1b1f21}
+/* Zusatzdiagramme (Drehzahl, Lenkung): eingeklappt nur eine schmale Zeile, aufgeklappt Button oben rechts im Diagramm */
+.tm-fold{display:block;width:100%;padding:9px 18px;background:none;border:0;text-align:left;font:500 .72rem/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);cursor:pointer}
+.tm-fold:hover{color:var(--ink)}
+.tm-fold.open{position:absolute;top:4px;right:14px;z-index:2;width:auto;padding:4px 8px;font-size:.64rem}
 .tm-chart .tm-name{position:absolute;top:8px;left:18px;z-index:1;font:500 .72rem/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);pointer-events:none}
 .tm-chart svg{display:block;width:100%;overflow:visible}
 .tm-axis{display:flex;justify-content:space-between;padding:8px 14px 6px;font:500 .74rem/1 var(--f-mono);color:var(--muted)}

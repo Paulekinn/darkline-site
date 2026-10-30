@@ -978,6 +978,27 @@
     var full = { i0: 0, i1: n - 1, name: "Ganze Runde" };
     var view = full;
     var map = trackMap(A, B, corners, sectors, $("tm-track").value, custom);
+    // Zusatzdiagramme (Drehzahl, Lenkung) braucht nicht jeder: eingeklappt, bis man sie aufklappt; die Wahl merkt sich
+    // der Browser. Auf- und Zuklappen tauscht nur dieses Diagramm aus, Karte und Zoom bleiben, wie sie sind.
+    tm.open = tm.open || (function () { try { return JSON.parse(localStorage.getItem("dpm-tm-open") || "{}"); } catch (e) { return {}; } })();
+    var extra = function (key, title, make) {
+      var wrap = el("div", { className: "tm-extra" });
+      var fill = function () {
+        var open = !!tm.open[key];
+        var btn = el("button", { type: "button", className: "tm-fold" + (open ? " open" : ""), textContent: open ? "▾ " + title + " ausblenden" : "▸ " + title + " einblenden" });
+        btn.addEventListener("pointerdown", function (e) { e.stopPropagation(); }); // kein Zoom-Bereich aufziehen
+        btn.addEventListener("click", function () {
+          tm.open[key] = !open;
+          try { localStorage.setItem("dpm-tm-open", JSON.stringify(tm.open)); } catch (e) {}
+          fill();
+        });
+        var chart = open ? make() : null;
+        if (chart) chart.append(btn);
+        wrap.replaceChildren(chart || btn);
+      };
+      fill();
+      return wrap;
+    };
     // Kurven von A und B; fehlt einer Runde der Wert (z. B. Drehzahl bei älteren Referenzrunden), nur die andere
     var both = function (key) {
       return [{ values: P[key], color: COLOR_A }].concat(Q ? [{ values: Q[key], color: COLOR_B }] : []).filter(function (s) { return s.values; }).reverse();
@@ -1059,12 +1080,16 @@
       charts.push(lineChart("Gang", 100, both("gear"), Math.max(0, g[0] - 0.5), g[1] + 0.5, view, { step: true, marks: marks }));
       // Drehzahl nur, wenn sie in den Daten steckt (Runden von vor dieser Auswertung haben keine)
       if (both("rpm").length) {
-        var rp = range([P.rpm, Q && Q.rpm]);
-        charts.push(lineChart("Drehzahl (U/min)", 110, both("rpm"), Math.floor(rp[0] / 500) * 500, Math.ceil(rp[1] / 500) * 500, view, { marks: marks }));
+        charts.push(extra("rpm", "Drehzahl", function () {
+          var rp = range([P.rpm, Q && Q.rpm]);
+          return lineChart("Drehzahl (U/min)", 110, both("rpm"), Math.floor(rp[0] / 500) * 500, Math.ceil(rp[1] / 500) * 500, view, { marks: marks });
+        }));
       }
       // Lenkwinkel symmetrisch um 0 (positiv = links)
-      var st = range([P.steer, Q && Q.steer]), stMax = Math.max(10, Math.ceil(Math.max(Math.abs(st[0]), Math.abs(st[1])) / 10) * 10);
-      charts.push(lineChart("Lenkung (°) · oben = links", 120, both("steer"), -stMax, stMax, view, { zero: true, marks: marks }));
+      charts.push(extra("steer", "Lenkung", function () {
+        var st = range([P.steer, Q && Q.steer]), stMax = Math.max(10, Math.ceil(Math.max(Math.abs(st[0]), Math.abs(st[1])) / 10) * 10);
+        return lineChart("Lenkung (°) · oben = links", 120, both("steer"), -stMax, stMax, view, { zero: true, marks: marks });
+      }));
       plots.replaceChildren.apply(plots, charts);
       axis.replaceChildren.apply(axis, [0, 0.25, 0.5, 0.75, 1].map(function (f) {
         return el("span", { textContent: P.m[Math.round(view.i0 + f * (view.i1 - view.i0))] + " m" });
