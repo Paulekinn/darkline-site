@@ -1,0 +1,35 @@
+# Neue News, neue Rennen und Rennergebnisse automatisch im Discord-Ankündigungskanal posten.
+# Webhook-URL als Repository-Secret DISCORD_WEBHOOK_URL hinterlegen (Settings → Secrets and variables → Actions).
+# Auf main wird gepostet, auf allen anderen Branches nur ein Probelauf im Log.
+name: Discord-Ankündigungen
+
+on:
+  push:
+    paths:
+      - "content/news/**"
+      - "content/races/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discord-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/discord-notify.js
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+          DRY_RUN: ${{ github.ref == 'refs/heads/main' && '0' || '1' }}

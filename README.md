@@ -115,6 +115,18 @@ Einmalige Einrichtung:
 
 Die Rollen werden bei der Anmeldung geprüft. Wer eine Rolle verliert, bleibt bis zum Ablauf des Cookies (7 Tage) angemeldet.
 
+## Discord-Ankündigungen
+
+Nach jedem Speichern im Admin postet eine GitHub Action (`.github/workflows/discord.yml`, Skript `scripts/discord-notify.js`) automatisch in den Discord-Ankündigungskanal:
+
+- **neue News** (Rennvorschau, Rennbericht, Team …)
+- **neues Rennen** mit Status *geplant* → Termin mit Datum, Fahrern und Fahrzeug
+- **Rennen auf *abgeschlossen* gesetzt** (mit Zielposition) → Ergebnis mit Start, Ziel und Plätzen
+
+Nur Neues wird gepostet; Korrekturen an bestehenden Einträgen lösen keinen Post aus. Ist eine neue News mit einem Rennen verknüpft, kommt nur die News. Die Action wartet, bis der Eintrag live ist, damit der Link funktioniert.
+
+Einrichtung: in Discord im Kanal → Integrationen → Webhooks einen Webhook anlegen und die URL in GitHub unter Settings → Secrets and variables → Actions als `DISCORD_WEBHOOK_URL` speichern.
+
 ## Lokal ansehen
 
 ```
