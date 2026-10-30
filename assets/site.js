@@ -374,7 +374,7 @@
     const twitch = (D.settings || {}).twitch;
     // Streams der eingesetzten Fahrer (Feld "Stream" im Fahrerprofil), danach der Team-Kanal
     const streams = (r.crew || []).map((c) => driverByName(c)).filter((d) => d && d.stream)
-      .map((d) => `<a class="link" href="${esc(d.stream)}" target="_blank" rel="noopener">${esc(d.name)} live ↗</a>`);
+      .map((d) => `<a class="link" href="${esc(d.stream)}" target="_blank" rel="noopener">${esc(d.name)}${done ? "" : " live"} ↗</a>`);
     if (twitch) streams.push(`<a class="link" href="${esc(twitch)}" target="_blank" rel="noopener">Darkline-Teamkanal ↗</a>`);
     return `<section class="dhero">${r.banner ? `<div class="bg"><img src="${esc(src(r.banner))}" alt=""></div>` : ""}
       <div class="wrap"><div><span class="eyb">${done ? "Rennbericht" : "Rennvorschau"} · ${esc(r.klasse || "")}</span>
