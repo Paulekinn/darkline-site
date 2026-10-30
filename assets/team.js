@@ -402,9 +402,76 @@
     $("tm-track").onchange = function () { if (this.value) loadCompareCars(Number(this.value)); };
     $("tm-car").onchange = function () { fillLaps(Number(this.value)); };
     $("tm-lap-a").onchange = $("tm-lap-b").onchange = showCompare;
+    initImport();
     message($("tm-view"), "Strecke und Auto wählen. Verglichen werden die Bestzeiten der Fahrer, die ihre Telemetrie in Garage 61 teilen.");
     tm.ready = true;
     if (tm.share) openShare();
+  }
+
+  // ---- Referenzrunde importieren (nur Admins): CSV einer fremden Runde aus Garage 61 für Strecke und Auto hochladen.
+  // Hochladen braucht die GitHub-Anmeldung wie im Admin; der Button erscheint nur, wenn sie in diesem Browser vorliegt
+  // (Admin-Werkzeug oder CMS). Der Server prüft den Zugang ohnehin selbst.
+  function adminToken() {
+    try {
+      var t = sessionStorage.getItem("dpm_admin_github");
+      if (t) return t;
+      var cms = JSON.parse(localStorage.getItem("sveltia-cms.user") || localStorage.getItem("decap-cms-user") || "null");
+      return cms && cms.token ? cms.token : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  // "3:48.781", "3:48,781" oder "228.781" → Sekunden
+  function parseLapTime(v) {
+    var m = /^\s*(?:(\d+):)?(\d+(?:[.,]\d+)?)\s*$/.exec(v || "");
+    return m ? Number(m[1] || 0) * 60 + Number(m[2].replace(",", ".")) : NaN;
+  }
+
+  function initImport() {
+    if (!adminToken()) return;
+    $("tm-import-cell").hidden = false;
+    $("tm-import-cell").parentNode.classList.add("with-import");
+    var form = $("tm-import"), status = $("tm-imp-status");
+    var say = function (text, cls) { status.className = cls || ""; status.textContent = text; };
+    $("tm-import-open").onclick = function () { form.hidden = !form.hidden; say(""); };
+    $("tm-imp-cancel").onclick = function () { form.hidden = true; };
+    form.onsubmit = function (e) {
+      e.preventDefault();
+      var track = Number($("tm-track").value), carId = Number($("tm-car").value);
+      var car = (tm.cars || []).filter(function (c) { return c.id === carId; })[0];
+      var time = parseLapTime($("tm-imp-time").value), file = $("tm-imp-file").files[0];
+      if (!track || !car) return say("Erst Strecke und Auto wählen.", "err");
+      if (!(time > 20)) return say("Rundenzeit bitte als m:ss.sss angeben, z. B. 3:48.781.", "err");
+      if (!file) return say("CSV-Datei fehlt.", "err");
+      if (file.size > 4 * 1024 * 1024) return say("Die CSV ist größer als 4 MB, das schafft der Server nicht.", "err");
+      $("tm-imp-save").disabled = true;
+      say("Lade hoch und bereite auf …");
+      file.text().then(function (csv) {
+        return fetch("/api/team/telemetry", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + adminToken(), "Content-Type": "application/json" },
+          body: JSON.stringify({ track: track, trackName: $("tm-track").selectedOptions[0].textContent, car: carId, carName: car.name,
+            driver: $("tm-imp-driver").value.trim(), lapTime: time, link: $("tm-imp-link").value.trim(), csv: csv })
+        });
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (d) {
+          if (!r.ok) throw new Error((d.error || "Fehler beim Hochladen.") + " (Code " + r.status + ")");
+          return d;
+        });
+      }).then(function (ref) {
+        form.reset();
+        form.hidden = true;
+        // neu laden und die neue Referenz gleich als Runde B gegen die aktuelle Runde A zeigen
+        tm.share = { track: track, car: carId, a: $("tm-lap-a").value, b: ref.id };
+        loadCompareCars(track, carId);
+      }).catch(function (err) { say(err.message, "err"); }).then(function () { $("tm-imp-save").disabled = false; });
+    };
+  }
+
+  // Import nur, wenn ein Auto gewählt ist
+  function importReady() {
+    if (!$("tm-import-cell").hidden) $("tm-import-open").disabled = !$("tm-car").value;
   }
 
   // Geteilten Link öffnen: Strecke, Auto und Runden vorauswählen; den Zoom setzt renderCompare
@@ -460,6 +527,7 @@
     var opts = refs.concat(team), first = team.concat(refs);
     var has = function (id) { return opts.some(function (o) { return o.value === id; }); };
     var s = tm.share;
+    importReady();
     // aus einem geteilten Link, sonst schnellste und zweitschnellste Runde
     fillSelect($("tm-lap-a"), opts, s && has(s.a) ? s.a : first[0].value);
     fillSelect($("tm-lap-b"), [{ value: "", label: "– keine –" }].concat(opts), s && (s.b === "" || has(s.b)) ? s.b : first[1] ? first[1].value : "");
