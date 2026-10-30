@@ -16,7 +16,7 @@
         "Fahrerentwicklung",
         "Community-Auftritt"
       ],
-      "iracing": "",
+      "iracing": "https://members-ng.iracing.com/web/racing/profile?cust_id=1216004",
       "stream": "",
       "foto": "/img/drivers/pascal.webp"
     },
@@ -35,27 +35,27 @@
         "Racecraft",
         "Teamstandards"
       ],
-      "iracing": "",
+      "iracing": "https://members-ng.iracing.com/web/racing/profile?cust_id=1191694",
       "stream": "",
       "foto": "/img/drivers/chris.webp"
     },
     {
       "name": "Paul Wiez",
       "kuerzel": "PW",
-      "rolle": "Fahrer · Team Designer",
+      "rolle": "Fahrer · Developer",
       "klassen": [
         "GT3",
         "GTP"
       ],
       "status": "aktiv",
-      "zitat": "Design, Haltung und Rennfokus gehören für mich zusammen.",
-      "bio": "Paul ist Fahrer und Team Designer bei Darkline Performance Motorsport. Er verbindet ein gutes Auge für den Teamauftritt mit eigener Fahrerperspektive und sorgt dafür, dass Darkline auf und neben der Strecke wiedererkennbar bleibt.",
+      "zitat": "Haltung und Rennfokus gehören für mich zusammen.",
+      "bio": "Paul ist Fahrer bei Darkline Performance Motorsport. Er verbindet ein gutes Auge für den Teamauftritt mit eigener Fahrerperspektive und sorgt dafür, dass Darkline auf und neben der Strecke wiedererkennbar bleibt.",
       "aufgaben": [
         "Livery Design",
-        "Markenauftritt",
+        "Software-Entwicklung (Analyse",
         "Renneinsätze"
       ],
-      "iracing": "",
+      "iracing": "https://members-ng.iracing.com/web/racing/profile?cust_id=1465386",
       "stream": "",
       "foto": "/img/drivers/paul.webp"
     },
@@ -74,7 +74,7 @@
         "Renneinsätze",
         "Community-Präsenz"
       ],
-      "iracing": "",
+      "iracing": "https://members-ng.iracing.com/web/racing/profile?cust_id=1278778",
       "stream": "",
       "foto": "/img/drivers/tizian.webp"
     }
