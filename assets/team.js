@@ -565,15 +565,24 @@
     return times.length - 1;
   }
 
-  // Sektorgrenzen aus den offiziellen Sektorzeiten von A (Garage 61 liefert nur die Zeiten, nicht die Lage)
+  // Sektorgrenzen aus den offiziellen Sektorzeiten von A, ersatzweise von B (Garage 61 liefert nur die Zeiten, nicht die
+  // Lage). Hat eine Runde keine offiziellen Sektorzeiten (z. B. hochgeladene Referenzrunden), wird ihre Zeit an denselben
+  // Grenzen aus der Telemetrie abgelesen.
   function sectorRanges(A, B) {
-    if (!A.sectors) return [];
-    var n = A.points.t.length, acc = 0, start = 0;
-    var bOk = B && B.sectors && B.sectors.length === A.sectors.length;
-    return A.sectors.map(function (s, k) {
+    var base = A.sectors ? A : B && B.sectors ? B : null;
+    if (!base) return [];
+    var n = A.points.t.length, acc = 0, start = 0, count = base.sectors.length;
+    var official = function (L) { return L && L.sectors && L.sectors.length === count; };
+    var span = function (L, i0, i1) {
+      var end = i1 === n - 1 ? L.lapTime : L.points.t[i1]; // letzter Sektor bis zur Ziellinie
+      return Math.round((end - L.points.t[i0]) * 1000) / 1000;
+    };
+    return base.sectors.map(function (s, k) {
       acc += s;
-      var end = k === A.sectors.length - 1 ? n - 1 : indexAtTime(A.points.t, acc);
-      var r = { name: "Sektor " + (k + 1), short: "S" + (k + 1), i0: start, i1: end, a: s, b: bOk ? B.sectors[k] : null };
+      var end = k === count - 1 ? n - 1 : indexAtTime(base.points.t, acc);
+      var r = { name: "Sektor " + (k + 1), short: "S" + (k + 1), i0: start, i1: end,
+        a: official(A) ? A.sectors[k] : span(A, start, end),
+        b: !B ? null : official(B) ? B.sectors[k] : span(B, start, end) };
       start = end;
       return r;
     });
@@ -759,7 +768,7 @@
   // Ganze Runde: Fahrlinien, Kurvennummern und Positionspunkte. Im Zoom: Ausschnitt um den Abschnitt, Bremspunkte als Kreise.
   var BACKGROUNDS = { custom: "Streckenkarte", photo: "Luftbild", plan: "Schema · Strecke geschätzt" };
 
-  function trackMap(A, B, corners, trackId, custom) {
+  function trackMap(A, B, corners, sectors, trackId, custom) {
     if (tm.map) tm.map.remove(); // Karte des vorigen Vergleichs freigeben
     // Im Admin hinterlegte Korrektur der iRacing-Koordinaten (Passpunkte): auf Kopien der GPS-Punkte anwenden,
     // die Runden selbst bleiben für andere Vergleiche unverändert
@@ -838,6 +847,12 @@
     corners.filter(function (c) { return c.num; }).forEach(function (c) {
       L.marker(at(A, c.apex), { interactive: false, keyboard: false,
         icon: L.divIcon({ className: "tm-map-num", html: String(c.num), iconSize: [24, 14], iconAnchor: [12, 20] }) }).addTo(map);
+    });
+    // Sektorgrenzen wie in Garage 61 (S1 beginnt an der Ziellinie): Punkt auf der Strecke, Beschriftung rechts daneben
+    sectors.slice(1).forEach(function (s) {
+      L.circleMarker(at(A, s.i0), { radius: 3, color: "#050606", weight: 1.5, fillColor: "#e8ecea", fillOpacity: 1, interactive: false }).addTo(map);
+      L.marker(at(A, s.i0), { interactive: false, keyboard: false,
+        icon: L.divIcon({ className: "tm-map-sec", html: s.short, iconSize: [22, 14], iconAnchor: [-6, 7] }) }).addTo(map);
     });
     var dot = function (color) { return L.circleMarker(at(A, 0), { radius: 6, color: "#111416", weight: 2, fillColor: color, fillOpacity: 1, interactive: false }).addTo(map); };
     var dotB = B ? dot(COLOR_B) : null, dotA = dot(COLOR_A);
@@ -962,11 +977,14 @@
     var corners = cornerRanges(A, B, delta);
     var full = { i0: 0, i1: n - 1, name: "Ganze Runde" };
     var view = full;
-    var map = trackMap(A, B, corners, $("tm-track").value, custom);
-    var both = function (key) { return [{ values: P[key], color: COLOR_A }].concat(Q ? [{ values: Q[key], color: COLOR_B }] : []).reverse(); };
+    var map = trackMap(A, B, corners, sectors, $("tm-track").value, custom);
+    // Kurven von A und B; fehlt einer Runde der Wert (z. B. Drehzahl bei älteren Referenzrunden), nur die andere
+    var both = function (key) {
+      return [{ values: P[key], color: COLOR_A }].concat(Q ? [{ values: Q[key], color: COLOR_B }] : []).filter(function (s) { return s.values; }).reverse();
+    };
     var range = function (arrs) {
       var lo = Infinity, hi = -Infinity;
-      arrs.forEach(function (a) { for (var i = view.i0; i <= view.i1; i++) { if (a[i] < lo) lo = a[i]; if (a[i] > hi) hi = a[i]; } });
+      arrs.forEach(function (a) { if (a) for (var i = view.i0; i <= view.i1; i++) { if (a[i] < lo) lo = a[i]; if (a[i] > hi) hi = a[i]; } });
       return [lo, hi];
     };
 
@@ -1039,6 +1057,14 @@
       charts.push(lineChart("Bremse (%)", 110, both("brake"), 0, 100, view, { marks: marks }));
       var g = range([P.gear].concat(Q ? [Q.gear] : []));
       charts.push(lineChart("Gang", 100, both("gear"), Math.max(0, g[0] - 0.5), g[1] + 0.5, view, { step: true, marks: marks }));
+      // Drehzahl nur, wenn sie in den Daten steckt (Runden von vor dieser Auswertung haben keine)
+      if (both("rpm").length) {
+        var rp = range([P.rpm, Q && Q.rpm]);
+        charts.push(lineChart("Drehzahl (U/min)", 110, both("rpm"), Math.floor(rp[0] / 500) * 500, Math.ceil(rp[1] / 500) * 500, view, { marks: marks }));
+      }
+      // Lenkwinkel symmetrisch um 0 (positiv = links)
+      var st = range([P.steer, Q && Q.steer]), stMax = Math.max(10, Math.ceil(Math.max(Math.abs(st[0]), Math.abs(st[1])) / 10) * 10);
+      charts.push(lineChart("Lenkung (°) · oben = links", 120, both("steer"), -stMax, stMax, view, { zero: true, marks: marks }));
       plots.replaceChildren.apply(plots, charts);
       axis.replaceChildren.apply(axis, [0, 0.25, 0.5, 0.75, 1].map(function (f) {
         return el("span", { textContent: P.m[Math.round(view.i0 + f * (view.i1 - view.i0))] + " m" });
@@ -1081,15 +1107,16 @@
       }
       var i = p.i;
       var row = function (label, key, unit) {
-        return el("tr", null, [el("td", { textContent: label }), el("td", { textContent: fmt(P[key][i], unit) })].concat(Q ? el("td", { textContent: fmt(Q[key][i], unit) }) : []));
+        var v = function (L) { return L[key] ? L[key][i] : null; };
+        return el("tr", null, [el("td", { textContent: label }), el("td", { textContent: fmt(v(P), unit) })].concat(Q ? el("td", { textContent: fmt(v(Q), unit) }) : []));
       };
       var gap = delta ? delta[i] - (view === full ? 0 : delta[view.i0]) : null;
       tip.replaceChildren(
         el("b", { textContent: P.m[i] + " m" + (delta ? " · Abstand " + signed(gap, 3) + " s" : "") }),
         el("table", null, [
           el("tr", null, [el("td", { textContent: "" }), el("td", { className: "tm-a", textContent: "A" })].concat(Q ? el("td", { className: "tm-b", textContent: "B" }) : [])),
-          row("Speed", "speed", " km/h"), row("Gas", "throttle", " %"), row("Bremse", "brake", " %"), row("Gang", "gear", ""), row("Lenkung", "steer", "°")
-        ])
+          row("Speed", "speed", " km/h"), row("Gas", "throttle", " %"), row("Bremse", "brake", " %"), row("Gang", "gear", "")
+        ].concat(P.rpm || (Q && Q.rpm) ? row("Drehzahl", "rpm", "") : [], row("Lenkung", "steer", "°")))
       );
       tip.hidden = false;
       var w = tip.offsetWidth;

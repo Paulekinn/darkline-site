@@ -30,7 +30,7 @@ function readSamples(csv) {
     return i;
   };
   const c = { d: at("LapDistPct"), speed: at("Speed"), throttle: at("Throttle"), brake: at("Brake"), gear: at("Gear"),
-    steer: at("SteeringWheelAngle"), lat: at("Lat"), lon: at("Lon") };
+    steer: at("SteeringWheelAngle"), lat: at("Lat"), lon: at("Lon"), rpm: head.indexOf("RPM") }; // Drehzahl optional
   const rows = [];
   let prev = -1;
   let lastGear = 1;
@@ -47,7 +47,7 @@ function readSamples(csv) {
     if (gear <= 0 && speed > 8) gear = lastGear;
     lastGear = gear;
     rows.push({ d, speed, throttle: +f[c.throttle], brake: +f[c.brake], gear,
-      steer: +f[c.steer], lat: +f[c.lat], lon: +f[c.lon] });
+      steer: +f[c.steer], lat: +f[c.lat], lon: +f[c.lon], rpm: c.rpm === -1 ? null : +f[c.rpm] });
     prev = d;
   }
   if (rows.length < 100) throw new Error("Zu wenige Telemetrie-Daten für diese Runde.");
@@ -80,6 +80,7 @@ function resample(rows, lapTime) {
     out.brake.push(Math.round(mix("brake") * 100));
     out.gear.push(f < 0.5 ? a.gear : b.gear);            // Gang nicht mitteln
     out.steer.push(round(mix("steer") * 180 / Math.PI, 1)); // rad → Grad
+    if (a.rpm != null) (out.rpm = out.rpm || []).push(Math.round(mix("rpm")));
   }
   // GPS für die Karte feiner als die Diagramme, damit die Fahrlinie auch stark gezoomt glatt bleibt
   k = 0;
@@ -91,6 +92,7 @@ function resample(rows, lapTime) {
     out.lat.push(round(a.lat + (b.lat - a.lat) * f, 7));
     out.lon.push(round(a.lon + (b.lon - a.lon) * f, 7));
   }
+  if (out.rpm && out.rpm.length !== N) delete out.rpm; // nur ganz oder gar nicht
   return { length: Math.round(dist), points: out };
 }
 
@@ -202,7 +204,7 @@ module.exports = async (req, res) => {
   const id = String(req.query.lap || "");
   if (!/^[0-9A-Za-z]{20,32}$/.test(id)) return res.status(400).json({ error: "Ungültige Runde." });
   try {
-    return res.status(200).json(await cached(`tele4k:${id}`, 86400, () => lapTelemetry(id)));
+    return res.status(200).json(await cached(`tele4k-rpm:${id}`, 86400, () => lapTelemetry(id)));
   } catch (e) {
     if (e.status === 403) return res.status(403).json({ error: "Diese Runde teilt der Fahrer nicht in Garage 61." });
     if (e.status === 404) return res.status(404).json({ error: "Runde nicht gefunden." });
