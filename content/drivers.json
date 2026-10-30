@@ -10,7 +10,6 @@
       ],
       "status": "aktiv",
       "zitat": "Struktur, Pace und Community müssen zusammenpassen.",
-      "foto": "/img/drivers/pascal.webp",
       "bio": "Pascal baut Darkline Performance Motorsport als Teamchef und Fahrer mit auf. Sein Fokus liegt auf klarer Organisation, sichtbarem Branding und einem Umfeld, in dem Fahrer langfristig besser werden können.",
       "aufgaben": [
         "Teamleitung",
@@ -18,7 +17,8 @@
         "Community-Auftritt"
       ],
       "iracing": "",
-      "stream": "https://www.twitch.tv/pascalrodenberg"
+      "stream": "",
+      "foto": "/img/drivers/pascal.webp"
     },
     {
       "name": "Chris Patrick Lammers",
@@ -29,7 +29,6 @@
       ],
       "status": "aktiv",
       "zitat": "Rennintelligenz ist genauso wichtig wie reine Geschwindigkeit.",
-      "foto": "/img/drivers/chris.webp",
       "bio": "Chris Patrick bringt sportliche Beratung und Fahrerperspektive zusammen. Als Sporting Advisor hilft er dabei, Entscheidungen auf der Strecke, Vorbereitung und Teamstandards sauber auszurichten.",
       "aufgaben": [
         "Sportliche Beratung",
@@ -37,7 +36,8 @@
         "Teamstandards"
       ],
       "iracing": "",
-      "stream": ""
+      "stream": "",
+      "foto": "/img/drivers/chris.webp"
     },
     {
       "name": "Paul Wiez",
@@ -49,7 +49,6 @@
       ],
       "status": "aktiv",
       "zitat": "Design, Haltung und Rennfokus gehören für mich zusammen.",
-      "foto": "/img/drivers/paul.webp",
       "bio": "Paul ist Fahrer und Team Designer bei Darkline Performance Motorsport. Er verbindet ein gutes Auge für den Teamauftritt mit eigener Fahrerperspektive und sorgt dafür, dass Darkline auf und neben der Strecke wiedererkennbar bleibt.",
       "aufgaben": [
         "Livery Design",
@@ -57,7 +56,8 @@
         "Renneinsätze"
       ],
       "iracing": "",
-      "stream": ""
+      "stream": "",
+      "foto": "/img/drivers/paul.webp"
     },
     {
       "name": "Tizian Belger",
@@ -69,14 +69,14 @@
       ],
       "status": "inaktiv",
       "zitat": "Pace auf der Strecke, Präsenz für die Community.",
-      "foto": "/img/drivers/tizian.webp",
       "bio": "Tizian ist Fahrer bei Darkline Performance Motorsport und bringt Rennfokus und Community-Nähe ins Team.",
       "aufgaben": [
         "Renneinsätze",
         "Community-Präsenz"
       ],
       "iracing": "",
-      "stream": ""
+      "stream": "",
+      "foto": "/img/drivers/tizian.webp"
     }
   ]
 }
