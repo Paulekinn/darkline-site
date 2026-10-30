@@ -625,9 +625,14 @@
     host.style.position = ""; // Leaflet setzt am noch nicht eingehängten Element "relative", die Position kommt aus dem CSS
     map.attributionControl.setPrefix(false);
     // Luftbilder gibt es bis Zoomstufe 19 (ca. 0,3 m pro Pixel), darüber wird vergrößert
-    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+    var tiles = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
       maxNativeZoom: 19, maxZoom: 21, attribution: "Luftbild: Esri, Maxar, Earthstar Geographics"
-    }).addTo(map);
+    });
+    // Ohne Luftbild (manche iRacing-Strecken sind älter als das Luftbild und verlaufen anders): Strecke als graues Band
+    var band = L.polyline([], { color: "#3a4144", weight: 7, opacity: 0, lineCap: "round", lineJoin: "round", interactive: false }).addTo(map);
+    var imageryKey = "dpm-map-imagery:" + trackId;
+    var imagery = true;
+    try { imagery = localStorage.getItem(imageryKey) !== "0"; } catch (e) {}
 
     // Fahrlinie mit dunklem Rand, damit sie auf hellem Asphalt und auf Gras gleich gut zu sehen ist
     var line = function (color) {
@@ -674,10 +679,14 @@
     // Bremspunkte: im Diagramm-Zoom immer, bei der ganzen Runde erst, wenn man in die Karte hineinzoomt
     var lapZoom = function () { return map.getBoundsZoom(lapBounds, false, L.point(28, 28)); };
     function update() {
+      if (map.getZoom() === undefined) return; // noch kein Ausschnitt gesetzt
       var show = !lapView || map.getZoom() >= lapZoom() + 1.5;
       if (show !== map.hasLayer(brakes)) show ? brakes.addTo(map) : brakes.remove();
       note.hidden = !show;
       zoomOut.disabled = map.getZoom() <= map.getMinZoom();
+      // Band in ungefähr echter Streckenbreite (12 m), weit weg nie dünner als 7 px
+      var mPerPx = 40075016 * Math.cos(A.points.lat[0] * Math.PI / 180) / Math.pow(2, map.getZoom() + 8);
+      band.setStyle({ weight: Math.max(7, 12 / mPerPx), opacity: imagery ? 0 : 1 });
     }
 
     function goHome(animate) {
@@ -727,6 +736,7 @@
     var showOffset = function () { alignText.textContent = "Ost " + meters(off[0]) + " · Nord " + meters(off[1]); };
     // Alles, was an GPS-Punkten hängt, mit dem neuen Versatz neu setzen
     function redraw() {
+      band.setLatLngs(pathOf(A, 0, last));
       setLines(shown[0], shown[1]);
       start.setLatLng(at(A, 0));
       nums.forEach(function (n) { n.m.setLatLng(at(A, n.i)); });
@@ -764,7 +774,23 @@
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, function () { window.prompt("Wert zum Kopieren:", text); });
       else window.prompt("Wert zum Kopieren:", text);
     });
-    var tools = el("div", { className: "tm-map-tools" }, [zoomIn, zoomOut, zoomHome, align]);
+    // Luftbild an/aus, die Wahl gilt pro Strecke und bleibt im Browser gespeichert
+    var photo = tool("▦", "Luftbild an/aus", function () {
+      imagery = !imagery;
+      try { imagery ? localStorage.removeItem(imageryKey) : localStorage.setItem(imageryKey, "0"); } catch (e) {}
+      setImagery();
+    });
+    photo.className = "tm-photo";
+    align.className = "tm-align";
+    function setImagery() {
+      imagery ? tiles.addTo(map) : tiles.remove();
+      photo.setAttribute("aria-pressed", String(imagery));
+      // Ausrichten ergibt nur auf dem Luftbild Sinn
+      if (!imagery && !alignBox.hidden) align.click();
+      align.disabled = !imagery;
+      update();
+    }
+    var tools = el("div", { className: "tm-map-tools" }, [zoomIn, zoomOut, zoomHome, photo, align]);
 
     map.on("zoomend", update);
     map.on("dblclick", function () { goHome(true); });
@@ -777,7 +803,9 @@
     ro.observe(host);
     tm.map = { remove: function () { ro.disconnect(); map.remove(); } };
 
+    band.setLatLngs(pathOf(A, 0, last));
     setLines(0, last);
+    setImagery();
     return {
       node: el("div", { className: "tm-map" }, [host, tools, note, alignBox]),
       move: moveDots,
