@@ -408,19 +408,8 @@
     if (tm.share) openShare();
   }
 
-  // ---- Referenzrunde importieren (nur Admins): CSV einer fremden Runde aus Garage 61 für Strecke und Auto hochladen.
-  // Hochladen braucht die GitHub-Anmeldung wie im Admin; der Button erscheint nur, wenn sie in diesem Browser vorliegt
-  // (Admin-Werkzeug oder CMS). Der Server prüft den Zugang ohnehin selbst.
-  function adminToken() {
-    try {
-      var t = sessionStorage.getItem("dpm_admin_github");
-      if (t) return t;
-      var cms = JSON.parse(localStorage.getItem("sveltia-cms.user") || localStorage.getItem("decap-cms-user") || "null");
-      return cms && cms.token ? cms.token : "";
-    } catch (e) {
-      return "";
-    }
-  }
+  // ---- Referenzrunde importieren: CSV einer fremden Runde aus Garage 61 für Strecke und Auto hochladen.
+  // Darf jedes angemeldete Teammitglied (Discord-Anmeldung); entfernen können Referenzrunden nur Admins im Admin-Bereich.
 
   // "3:48.781", "3:48,781" oder "228.781" → Sekunden
   function parseLapTime(v) {
@@ -429,7 +418,6 @@
   }
 
   function initImport() {
-    if (!adminToken()) return;
     $("tm-import-cell").hidden = false;
     $("tm-import-cell").parentNode.classList.add("with-import");
     var form = $("tm-import"), status = $("tm-imp-status");
@@ -450,7 +438,8 @@
       file.text().then(function (csv) {
         return fetch("/api/team/telemetry", {
           method: "POST",
-          headers: { Authorization: "Bearer " + adminToken(), "Content-Type": "application/json" },
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ track: track, trackName: $("tm-track").selectedOptions[0].textContent, car: carId, carName: car.name,
             driver: $("tm-imp-driver").value.trim(), lapTime: time, link: $("tm-imp-link").value.trim(), csv: csv })
         });

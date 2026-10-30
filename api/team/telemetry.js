@@ -7,9 +7,10 @@
 // privaten Vercel-Blob-Speicher (nicht im öffentlichen Repository) und werden genauso aufbereitet wie Team-Runden.
 // GET ?refs=<Strecke>          → Referenzrunden dieser Strecke (nur Angaben, ohne Telemetrie)
 // GET ?ref=<ID>                → Telemetrie einer Referenzrunde, Aufbau wie bei ?lap
-// POST (nur Admin)             → { track, trackName, car, carName, driver, lapTime, link, csv } aufbereiten und speichern
-// DELETE ?ref=<ID> (nur Admin) → Referenzrunde entfernen
+// POST (Teammitglied oder Admin) → { track, trackName, car, carName, driver, lapTime, link, csv } aufbereiten und speichern
+// DELETE ?ref=<ID> (nur Admin)   → Referenzrunde entfernen
 const { requireAdmin, requireAdminOrSession } = require("../_lib/admin"); // Teambereich oder Admin-Werkzeug (Streckenkarte)
+const { requireSession } = require("../_lib/session");
 const { g61Get, g61Text, cached, sendError } = require("../_lib/g61");
 const { blobPut, blobGet, blobDelete } = require("../_lib/blob");
 
@@ -156,11 +157,21 @@ async function removeReference(id) {
 
 async function references(req, res) {
   const q = req.query || {};
-  if (req.method === "POST" || req.method === "DELETE") {
-    // Hochladen und Entfernen nur mit Admin-Anmeldung (GitHub), nicht aus dem Teambereich
+  if (req.method === "POST") {
+    // Hochladen: Admin (GitHub, Admin-Werkzeug) oder angemeldetes Teammitglied (Discord, Teambereich)
+    let by = null;
+    if (req.headers.authorization) by = await requireAdmin(req, res);
+    else {
+      const user = requireSession(req, res);
+      by = user && (user.name || "Teammitglied");
+    }
+    if (!by) return null;
+    return res.status(200).json(await addReference(req.body, by));
+  }
+  if (req.method === "DELETE") {
+    // Entfernen nur mit Admin-Anmeldung (GitHub), damit niemand versehentlich fremde Uploads löscht
     const admin = req.headers.authorization ? await requireAdmin(req, res) : null;
     if (!admin) return res.headersSent ? null : res.status(403).json({ error: "Nur für Admins." });
-    if (req.method === "POST") return res.status(200).json(await addReference(req.body, admin));
     if (!REF.test(q.ref || "")) return res.status(400).json({ error: "Ungültige Referenzrunde." });
     await removeReference(q.ref);
     return res.status(200).json({ ok: true });
