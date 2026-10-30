@@ -1119,10 +1119,12 @@
         ].concat(P.rpm || (Q && Q.rpm) ? row("Drehzahl", "rpm", "") : [], row("Lenkung", "steer", "°")))
       );
       tip.hidden = false;
-      var w = tip.offsetWidth;
+      var w = tip.offsetWidth, h = tip.offsetHeight;
       // rechts neben dem Cursor, sonst links davon, aber immer innerhalb der Diagrammfläche
       var left = p.x + 12 + w > p.r.width ? p.x - 12 - w : p.x + 12;
       tip.style.left = Math.max(4, Math.min(p.r.width - w - 4, left)) + "px";
+      // auf Höhe des Cursors (die Diagramme sind höher als der Bildschirm), oben und unten innerhalb der Fläche
+      tip.style.top = Math.max(4, Math.min(p.r.height - h - 4, e.clientY - p.r.top - h / 2)) + "px";
       map.move(i);
     });
     // Loslassen auch außerhalb der Diagramme erkennen; nur ein Handler, auch nach mehreren Vergleichen
