@@ -783,7 +783,7 @@
     B = fixed(B);
     // Eigener Hintergrund nur, wenn hinterlegt; eine Anpassung kann auch nur aus der Korrektur bestehen
     if (custom && !custom.wayback && !custom.image) custom = null;
-    // Rundenpunkt i (wie in den Diagrammen) → GPS-Punkt; die Karte ist anders aufgelöst (2000 GPS-Punkte)
+    // Rundenpunkt i (wie in den Diagrammen) → GPS-Punkt; die Karte ist anders aufgelöst (etwa alle 2 m ein GPS-Punkt)
     var idx = function (R, i) { var len = R.points.lat.length; return Math.min(len - 1, Math.round(i * (len - 1) / (R.points.t.length - 1))); };
     var ll = function (R, j) { return [R.points.lat[j], R.points.lon[j]]; };
     var at = function (R, i) { return ll(R, idx(R, i)); };

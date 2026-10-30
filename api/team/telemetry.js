@@ -1,5 +1,5 @@
 // Telemetrie einer Runde für den Vergleich im Teambereich.
-// GET ?lap=<ID> → Rundendaten auf 4000 Punkte über die Runde, GPS auf 2000 (Garage 61 zeichnet mit 60 Hz auf,
+// GET ?lap=<ID> → Rundendaten auf 4000 Punkte über die Runde, GPS etwa alle 2 m (Garage 61 zeichnet mit 60 Hz auf,
 // je nach Rundenlänge ca. 5000–8000 Messpunkte, ~800 KB CSV). Runden ändern sich nicht, deshalb wird das Ergebnis einen Tag gemerkt.
 //
 // Referenzrunden: schnelle Runden fremder Fahrer, die ein Admin als CSV aus Garage 61 exportiert und im Admin
@@ -16,7 +16,9 @@ const { blobPut, blobGet, blobDelete } = require("../_lib/blob");
 
 // Punkte über die Runde: nah an der echten Aufzeichnung, damit kurze Eingaben (Antippen der Bremse, Gas lupfen) sichtbar bleiben
 const N = 4000;
-const MAP_N = 2000;  // GPS-Punkte für die Streckenkarte (ca. alle 2 m), damit die Fahrlinie auch stark gezoomt glatt ist
+// GPS-Punkte für die Streckenkarte: etwa alle 2 m, damit die Fahrlinie auch stark gezoomt glatt ist (mindestens 2000,
+// höchstens 8000; Le Mans mit 13,6 km bekommt so rund 6800 statt nur alle 7 m einen Punkt)
+const MAP_STEP = 2, MAP_MIN = 2000, MAP_MAX = 8000;
 
 const round = (v, digits) => Math.round(v * 10 ** digits) / 10 ** digits;
 
@@ -82,10 +84,11 @@ function resample(rows, lapTime) {
     out.steer.push(round(mix("steer") * 180 / Math.PI, 1)); // rad → Grad
     if (a.rpm != null) (out.rpm = out.rpm || []).push(Math.round(mix("rpm")));
   }
-  // GPS für die Karte feiner als die Diagramme, damit die Fahrlinie auch stark gezoomt glatt bleibt
+  // GPS für die Karte nach Streckenlänge, damit die Fahrlinie auch stark gezoomt glatt bleibt
+  const mapN = Math.min(MAP_MAX, Math.max(MAP_MIN, Math.round(dist / MAP_STEP)));
   k = 0;
-  for (let j = 0; j < MAP_N; j++) {
-    const g = j / (MAP_N - 1);
+  for (let j = 0; j < mapN; j++) {
+    const g = j / (mapN - 1);
     while (k < rows.length - 2 && rows[k + 1].d < g) k++;
     const a = rows[k], b = rows[k + 1];
     const f = Math.min(1, Math.max(0, (g - a.d) / (b.d - a.d)));
@@ -204,7 +207,7 @@ module.exports = async (req, res) => {
   const id = String(req.query.lap || "");
   if (!/^[0-9A-Za-z]{20,32}$/.test(id)) return res.status(400).json({ error: "Ungültige Runde." });
   try {
-    return res.status(200).json(await cached(`tele4k-rpm:${id}`, 86400, () => lapTelemetry(id)));
+    return res.status(200).json(await cached(`tele4k-v3:${id}`, 86400, () => lapTelemetry(id)));
   } catch (e) {
     if (e.status === 403) return res.status(403).json({ error: "Diese Runde teilt der Fahrer nicht in Garage 61." });
     if (e.status === 404) return res.status(404).json({ error: "Runde nicht gefunden." });
