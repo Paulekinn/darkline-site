@@ -37,6 +37,13 @@
 .sk-tools{display:grid;align-content:start;gap:14px;background:var(--paper);padding:16px}
 .sk-tools h4{margin:0;font:500 .7rem/1.3 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .sk-tools p{margin:0;font-size:.86rem;color:#c4cbc8}
+.sk-group{display:grid;gap:14px}
+.sk-source{display:grid;gap:8px}
+.sk-wb{display:grid;grid-template-columns:36px minmax(0,1fr) 36px;gap:4px}
+.sk-wb select{width:100%;min-width:0;padding:9px 10px;background:#181c1e;border:0;border-bottom:2px solid var(--rule);color:var(--ink);font:500 .84rem/1.3 var(--f-mono);color-scheme:dark}
+.sk-step{background:#181c1e;border:1px solid var(--scan);color:var(--ink);font:600 .9rem/1 var(--f-mono);cursor:pointer}
+.sk-step:hover{background:#232829}
+.sk-step:disabled{opacity:.35;cursor:default}
 .sk-tools .sk-note{font:500 .74rem/1.45 var(--f-mono);color:var(--muted)}
 .sk-tools .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .sk-tools input[type=range]{width:100%;accent-color:var(--red)}
@@ -67,7 +74,7 @@
   <div class="doc-head">
     <h1 class="wide" style="margin:0;font-size:clamp(2.4rem,6vw,4.4rem)">Streckenkarte</h1>
     <div class="doc-meta lbl">Admin</div>
-    <p>Eigene Karte für Strecken, deren iRacing-Version nicht zum heutigen Luftbild passt: ein Bild (Streckenplan, älteres Luftbild, Screenshot) über eine echte Runde legen. Im Telemetrie-Vergleich erscheint es dann als Hintergrund.</p>
+    <p>Eigene Karte für Strecken, deren iRacing-Version nicht zum heutigen Luftbild passt: ein älteres Luftbild aus dem Archiv wählen oder ein Bild (Streckenplan, Screenshot) über eine echte Runde legen. Im Telemetrie-Vergleich erscheint es dann als Hintergrund.</p>
   </div>
 
   <section class="gate" id="sk-login" hidden>
@@ -86,23 +93,39 @@
     <div class="sk-work" id="sk-work" hidden>
       <div class="sk-map" id="sk-map"></div>
       <div class="sk-tools">
-        <h4>1 · Bild</h4>
-        <label class="sk-file">Bild wählen (PNG, JPG, WebP) …<input type="file" id="sk-file" accept="image/png,image/jpeg,image/webp"></label>
-        <p id="sk-file-info"></p>
-        <h4>2 · Ausrichten</h4>
-        <p>Rotes Quadrat ziehen = verschieben. Weißen Punkt ziehen = drehen und vergrößern. Die rote Linie ist die schnellste Runde des Teams.</p>
-        <div class="row">
-          <label><span class="lbl">Drehung (°)</span><input type="number" id="sk-rot" step="0.1" disabled></label>
-          <label><span class="lbl">Breite (m)</span><input type="number" id="sk-width" step="1" min="10" disabled></label>
+        <h4>1 · Hintergrund</h4>
+        <div class="sk-source">
+          <label class="check"><input type="radio" name="sk-source" value="wayback"> Luftbild-Archiv (älteres Esri-Luftbild)</label>
+          <label class="check"><input type="radio" name="sk-source" value="image"> Eigenes Bild (Plan, SVG, Screenshot)</label>
         </div>
-        <label><span class="lbl">Deckkraft beim Ausrichten</span><input type="range" id="sk-opacity" min="0.2" max="1" step="0.05" value="0.7"></label>
-        <label class="check"><input type="checkbox" id="sk-photo"> Luftbild darunter zeigen</label>
-        <h4>3 · Speichern</h4>
+        <div class="sk-group" id="sk-src-wayback" hidden>
+          <p class="sk-note">Frühere Stände des Luftbilds aus dem Esri-Archiv. Sie passen ohne Ausrichten. Angeboten werden nur Stände, in denen sich entlang der Strecke etwas geändert hat; durchklicken, bis die Kurven zur roten Linie passen.</p>
+          <div class="sk-wb">
+            <button type="button" class="sk-step" id="sk-wb-prev" title="Neuerer Stand" aria-label="Neuerer Stand">◀</button>
+            <select id="sk-wb" disabled></select>
+            <button type="button" class="sk-step" id="sk-wb-next" title="Älterer Stand" aria-label="Älterer Stand">▶</button>
+          </div>
+          <p class="sk-note" id="sk-wb-info"></p>
+        </div>
+        <div class="sk-group" id="sk-src-image" hidden>
+          <label class="sk-file">Bild wählen (PNG, JPG, WebP, SVG) …<input type="file" id="sk-file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg" multiple></label>
+          <p class="sk-note">iRacing-Streckenkarte: alle SVG-Ebenen (background, active, pitroad, start-finish, turns …) zusammen auswählen, sie werden übereinandergelegt.</p>
+          <p id="sk-file-info"></p>
+          <h4>2 · Ausrichten</h4>
+          <p>Rotes Quadrat ziehen = verschieben. Weißen Punkt ziehen = drehen und vergrößern. Die rote Linie ist die schnellste Runde des Teams.</p>
+          <div class="row">
+            <label><span class="lbl">Drehung (°)</span><input type="number" id="sk-rot" step="0.1" disabled></label>
+            <label><span class="lbl">Breite (m)</span><input type="number" id="sk-width" step="1" min="10" disabled></label>
+          </div>
+          <label><span class="lbl">Deckkraft beim Ausrichten</span><input type="range" id="sk-opacity" min="0.2" max="1" step="0.05" value="0.7"></label>
+          <label class="check"><input type="checkbox" id="sk-photo"> Aktuelles Luftbild darunter zeigen</label>
+        </div>
+        <h4>Speichern</h4>
         <div class="sk-actions">
           <button type="button" class="rb-btn" id="sk-save" disabled>Speichern</button>
           <button type="button" class="rb-btn rb-ghost" id="sk-delete" hidden>Karte entfernen</button>
         </div>
-        <p class="sk-note">Speichern legt das Bild und die Lage im Repository ab (ein Commit). Nach etwa einer Minute ist die Karte im Teambereich zu sehen.</p>
+        <p class="sk-note">Speichern legt die Karte im Repository ab (ein Commit). Nach etwa einer Minute ist sie im Teambereich zu sehen und ersetzt dort für diese Strecke das aktuelle Luftbild.</p>
       </div>
     </div>
   </section>

@@ -662,7 +662,8 @@
   // Streckenkarte: Luftbild (Esri World Imagery) mit den GPS-Punkten der Runden darüber. iRacing liefert echte
   // Koordinaten der gescannten Strecken, die Fahrlinien liegen also auf dem echten Asphalt. Manche iRacing-Strecken
   // sind älter als das Luftbild und verlaufen anders; dafür gibt es die schematische Strecke und, wenn im Admin hinterlegt
-  // (/admin/streckenkarte), eine eigene Streckenkarte als Bild. Der Hintergrund lässt sich pro Strecke umschalten.
+  // (/admin/streckenkarte), eine eigene Streckenkarte: ein älteres Luftbild aus dem Archiv oder ein Bild.
+  // Der Hintergrund lässt sich pro Strecke umschalten.
   // Ganze Runde: Fahrlinien, Kurvennummern und Positionspunkte. Im Zoom: Ausschnitt um den Abschnitt, Bremspunkte als Kreise.
   var BACKGROUNDS = { custom: "Streckenkarte", photo: "Luftbild", plan: "Schema · Strecke geschätzt" };
 
@@ -692,7 +693,10 @@
     });
     // Eigene Streckenkarte aus dem Admin, unter dem Schema und den Fahrlinien
     map.createPane("custom").style.zIndex = 300;
-    var customLayer = custom ? new L.RotatedImage(custom.image, custom.corners, { pane: "custom" }) : null;
+    // entweder ein früherer Stand des Luftbilds (Wayback) oder ein eigenes, ausgerichtetes Bild
+    var customLayer = !custom ? null : custom.wayback ? L.dpmWayback(custom.wayback.release, custom.wayback.date, { pane: "custom" })
+      : new L.RotatedImage(custom.image, custom.corners, { pane: "custom" });
+    var names = L.extend({}, BACKGROUNDS, custom && custom.wayback ? { custom: "Luftbild vom " + custom.wayback.date.split("-").reverse().join(".") } : {});
     // Hintergrund: mit eigener Karte nur sie und das Schema (kein Luftbild, das passt dort ja nicht), sonst Luftbild und Schema.
     // Die Wahl gilt pro Strecke und bleibt im Browser; eine neu gespeicherte eigene Karte setzt sie zurück (Datum im Schlüssel).
     var modes = custom ? ["custom", "plan"] : ["photo", "plan"];
@@ -818,8 +822,8 @@
       show(tiles, bg === "photo");
       if (customLayer) show(customLayer, bg === "custom");
       host.classList.toggle("plan", bg === "plan");
-      bgName.textContent = BACKGROUNDS[bg];
-      bgButton.title = "Hintergrund wechseln (jetzt: " + BACKGROUNDS[bg] + ")";
+      bgName.textContent = names[bg];
+      bgButton.title = "Hintergrund wechseln (jetzt: " + names[bg] + ")";
       update();
     }
     var tools = el("div", { className: "tm-map-tools" }, [zoomIn, zoomOut, zoomHome, bgButton]);

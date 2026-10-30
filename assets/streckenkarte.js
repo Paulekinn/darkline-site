@@ -1,7 +1,7 @@
-// Eigene Streckenkarte im Admin-Bereich (/admin/streckenkarte): ein Bild (Streckenplan, älteres Luftbild …) über die
-// schnellste Runde des Teams legen und für den Telemetrie-Vergleich speichern. Gedacht für Strecken, deren iRacing-Version
-// älter ist als das heutige Luftbild. Anmeldung mit GitHub wie im CMS; gespeichert wird als ein Commit direkt im
-// Repository: Bild unter img/trackmaps/<Strecken-ID>.webp, Lage (drei Ecken) in content/trackmaps.json.
+// Eigene Streckenkarte im Admin-Bereich (/admin/streckenkarte) für Strecken, deren iRacing-Version älter ist als das
+// heutige Luftbild: entweder einen früheren Stand des Esri-Luftbilds (Wayback) wählen oder ein eigenes Bild (Streckenplan,
+// SVG, Screenshot) über die schnellste Runde des Teams legen. Anmeldung mit GitHub wie im CMS; gespeichert wird als ein
+// Commit direkt im Repository: content/trackmaps.json (Archivstand bzw. Lage des Bildes), Bilder unter img/trackmaps/.
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var TOKEN_KEY = "dpm_admin_github";
@@ -184,7 +184,9 @@
 
   // ---------------------------------------------------------------- Editor
 
-  var sk = { tracks: [], maps: {}, track: null, map: null, image: null, place: null, overlay: null };
+  // source: "wayback" (Archiv-Luftbild) oder "image" (eigenes Bild); wbList/wbPick: Archivstände der Strecke und die Auswahl
+  var sk = { tracks: [], maps: {}, track: null, map: null, image: null, place: null, overlay: null,
+    source: null, lapPts: null, wbList: null, wbPick: null, wbLayer: null, busy: false };
 
   var trackName = function (t) { return t.name + (t.variant ? " (" + t.variant + ")" : ""); };
 
@@ -209,8 +211,9 @@
 
   function pickTrack(id) {
     sk.track = sk.tracks.filter(function (t) { return String(t.id) === id; })[0];
-    sk.image = sk.place = null;
-    if (sk.overlay) sk.overlay.remove();
+    sk.image = sk.place = sk.wbList = sk.wbPick = null;
+    [sk.overlay, sk.wbLayer].forEach(function (l) { if (l) l.remove(); });
+    sk.overlay = sk.wbLayer = null;
     $("sk-file").value = "";
     $("sk-file-info").textContent = "";
     $("sk-lap").textContent = "";
@@ -270,23 +273,22 @@
     $("sk-work").hidden = false;
     if (!sk.map) initMap();
     sk.map.invalidateSize();
-    var pts = lap.points.lat.map(function (v, j) { return [v, lap.points.lon[j]]; });
+    var pts = sk.lapPts = lap.points.lat.map(function (v, j) { return [v, lap.points.lon[j]]; });
     sk.line.forEach(function (l) { l.setLatLngs(pts).addTo(sk.map); });
     sk.start.setLatLng(pts[0]).addTo(sk.map);
     sk.bounds = L.latLngBounds(pts);
     sk.map.fitBounds(sk.bounds, { padding: [30, 30], animate: false });
     [sk.move, sk.turn].forEach(function (h) { h.remove(); });
-    controls(false);
+    controls();
   }
 
-  // Vorhandene Karte dieser Strecke zum Weiterbearbeiten laden
+  // Vorhandene Karte dieser Strecke zum Weiterbearbeiten laden; ohne Karte mit dem Luftbild-Archiv beginnen
   function loadExisting() {
     var saved = sk.maps[sk.track.id];
     $("sk-delete").hidden = !saved;
-    if (!saved) {
-      $("sk-file-info").textContent = "Für diese Strecke gibt es noch keine eigene Karte.";
-      return;
-    }
+    $("sk-file-info").textContent = "";
+    if (!saved || saved.wayback) return setSource("wayback", saved ? saved.wayback.release : null);
+    setSource("image");
     var img = new Image();
     img.onload = function () {
       sk.image = { url: saved.image, aspect: img.naturalHeight / img.naturalWidth, blob: null };
@@ -300,33 +302,65 @@
     img.src = saved.image;
   }
 
-  // Bild verkleinern (längste Seite höchstens 4000 px) und als WebP ablegen, damit der Teambereich schnell lädt
-  function readImage(file) {
-    return new Promise(function (resolve, reject) {
-      var src = URL.createObjectURL(file), img = new Image();
-      img.onload = function () {
-        var s = Math.min(1, 4000 / Math.max(img.naturalWidth, img.naturalHeight));
-        var cv = el("canvas", { width: Math.round(img.naturalWidth * s), height: Math.round(img.naturalHeight * s) });
-        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
-        URL.revokeObjectURL(src);
+  var MAX = 4000; // längste Bildseite in Pixeln
+
+  // Eine Datei als Bild laden. SVG wird in voller Größe (längste Seite MAX) gezeichnet, damit die Karte auch im Zoom scharf ist;
+  // dafür bekommt sie Breite und Höhe aus der viewBox.
+  function loadOne(file) {
+    var svg = file.type === "image/svg+xml" || /\.svg$/i.test(file.name);
+    var source = svg ? file.text().then(function (text) {
+      var doc = new DOMParser().parseFromString(text, "image/svg+xml"), root = doc.documentElement;
+      if (root.nodeName.toLowerCase() !== "svg") throw new Error(file.name + " ist keine lesbare SVG-Datei.");
+      var vb = (root.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
+      var w = vb.length === 4 ? vb[2] : parseFloat(root.getAttribute("width")), h = vb.length === 4 ? vb[3] : parseFloat(root.getAttribute("height"));
+      if (!(w > 0 && h > 0)) throw new Error(file.name + " hat keine Größenangabe (viewBox).");
+      var s = MAX / Math.max(w, h);
+      root.setAttribute("width", Math.round(w * s));
+      root.setAttribute("height", Math.round(h * s));
+      return new Blob([new XMLSerializer().serializeToString(doc)], { type: "image/svg+xml" });
+    }) : Promise.resolve(file);
+    return source.then(function (blob) {
+      return new Promise(function (resolve, reject) {
+        var src = URL.createObjectURL(blob), img = new Image();
+        img.onload = function () { URL.revokeObjectURL(src); resolve(img); };
+        img.onerror = function () { URL.revokeObjectURL(src); reject(new Error(file.name + " ist kein lesbares Bild.")); };
+        img.src = src;
+      });
+    });
+  }
+
+  // Ebenen einer iRacing-Streckenkarte (track/assets) in dieser Reihenfolge übereinander, unbekannte Dateien danach
+  var LAYERS = ["background", "inactive", "active", "pitroad", "start-finish", "turns"];
+  var layerRank = function (f) { var i = LAYERS.indexOf(f.name.replace(/\.[^.]+$/, "").toLowerCase()); return i === -1 ? LAYERS.length : i; };
+
+  // Eine oder mehrere Dateien zu einem Bild zusammenlegen (alle auf die Größe der ersten), höchstens MAX Pixel,
+  // als WebP ablegen, damit der Teambereich schnell lädt. Transparenz bleibt erhalten.
+  function readImage(files) {
+    files = files.slice().sort(function (a, b) { return layerRank(a) - layerRank(b); });
+    return Promise.all(files.map(loadOne)).then(function (imgs) {
+      var s = Math.min(1, MAX / Math.max(imgs[0].naturalWidth, imgs[0].naturalHeight));
+      var cv = el("canvas", { width: Math.round(imgs[0].naturalWidth * s), height: Math.round(imgs[0].naturalHeight * s) });
+      var g = cv.getContext("2d");
+      imgs.forEach(function (img) { g.drawImage(img, 0, 0, cv.width, cv.height); });
+      return new Promise(function (resolve, reject) {
         // Browser ohne WebP-Export liefern PNG
         cv.toBlob(function (blob) {
           if (!blob) return reject(new Error("Das Bild konnte nicht umgewandelt werden."));
-          resolve({ url: URL.createObjectURL(blob), blob: blob, aspect: cv.height / cv.width, w: cv.width, h: cv.height });
+          resolve({ url: URL.createObjectURL(blob), blob: blob, aspect: cv.height / cv.width, w: cv.width, h: cv.height,
+            names: files.map(function (f) { return f.name; }) });
         }, "image/webp", 0.88);
-      };
-      img.onerror = function () { URL.revokeObjectURL(src); reject(new Error("Die Datei ist kein lesbares Bild.")); };
-      img.src = src;
+      });
     });
   }
 
   $("sk-file").addEventListener("change", function () {
-    var f = this.files[0];
-    if (!f || !sk.track) return;
-    readImage(f).then(function (img) {
+    var files = [].slice.call(this.files);
+    if (!files.length || !sk.track) return;
+    $("sk-file-info").textContent = "Lese " + files.length + (files.length === 1 ? " Datei …" : " Dateien …");
+    readImage(files).then(function (img) {
       var aspect = sk.image ? sk.image.aspect : null;
       sk.image = img;
-      $("sk-file-info").textContent = f.name + " · " + img.w + " × " + img.h + " px · " + Math.round(img.blob.size / 1024) + " KB";
+      $("sk-file-info").textContent = img.names.join(" + ") + " · " + img.w + " × " + img.h + " px · " + Math.round(img.blob.size / 1024) + " KB";
       // Neue Strecke oder anderes Seitenverhältnis: Bild über die ganze Runde legen, sonst die bisherige Lage behalten
       if (!sk.place || Math.abs(aspect - img.aspect) > 0.01) sk.place = fitPlace(img.aspect);
       showOverlay();
@@ -345,9 +379,114 @@
     sk.overlay = new L.RotatedImage(sk.image.url, cornersOf(sk.place, sk.image.aspect), { opacity: +$("sk-opacity").value }).addTo(sk.map);
     sk.move.addTo(sk.map);
     sk.turn.addTo(sk.map);
-    controls(true);
+    controls();
     refresh();
   }
+
+  // ---------------------------------------------------------------- Quelle: Luftbild-Archiv oder eigenes Bild
+
+  function setSource(src, release) {
+    sk.source = src;
+    document.querySelectorAll("[name=sk-source]").forEach(function (r) { r.checked = r.value === src; });
+    $("sk-src-wayback").hidden = src !== "wayback";
+    $("sk-src-image").hidden = src !== "image";
+    // Bild und Ziehpunkte nur bei eigenem Bild, Archiv-Luftbild nur bei Archiv
+    [sk.overlay, sk.overlay && sk.move, sk.overlay && sk.turn].forEach(function (l) { if (l) src === "image" ? l.addTo(sk.map) : l.remove(); });
+    if (sk.wbLayer) src === "wayback" ? sk.wbLayer.addTo(sk.map) : sk.wbLayer.remove();
+    if (src === "wayback") loadWayback(release);
+    controls();
+  }
+
+  document.querySelectorAll("[name=sk-source]").forEach(function (r) {
+    r.addEventListener("change", function () { if (this.checked && sk.track) setSource(this.value); });
+  });
+
+  // Esri Wayback: Liste aller Archivstände (Nummer + Datum), neueste zuerst
+  var WB_CONFIG = "https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json";
+  var WB_TILEMAP = "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tilemap/";
+  var wbAll = null;
+  function waybackReleases() {
+    if (!wbAll) {
+      wbAll = fetch(WB_CONFIG).then(function (r) { return r.json(); }).then(function (c) {
+        return Object.keys(c).map(function (id) { var m = /(\d{4}-\d{2}-\d{2})/.exec(c[id].itemTitle || ""); return { id: +id, date: m ? m[1] : "" }; })
+          .filter(function (r) { return r.date; }).sort(function (a, b) { return b.date.localeCompare(a.date); });
+      });
+      wbAll.catch(function () { wbAll = null; });
+    }
+    return wbAll;
+  }
+
+  // Kachel (x, y) einer Koordinate in Zoomstufe z
+  function tileOf(lat, lon, z) {
+    var n = Math.pow(2, z), r = lat * Math.PI / 180;
+    return [Math.floor((lon + 180) / 360 * n), Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n)];
+  }
+
+  // Archivstände, in denen sich entlang der Strecke etwas geändert hat. Für einige Kacheln entlang der Runde nennt die
+  // Tilemap, aus welchem Stand die Kachel stammt; von dort zum nächstälteren Stand springen, bis keine Aufnahme mehr kommt.
+  function changedReleases(pts) {
+    return waybackReleases().then(function (all) {
+      var z = 15, tiles = {}, found = {};
+      for (var k = 0; k < 10; k++) { var p = pts[Math.floor(k * pts.length / 10)], t = tileOf(p[0], p[1], z); tiles[t.join("/")] = t; }
+      var index = {};
+      all.forEach(function (r, i) { index[r.id] = i; });
+      return Promise.all(Object.keys(tiles).map(function (key) {
+        var walk = function (i, steps) {
+          if (i >= all.length || steps > 60) return null;
+          return fetch(WB_TILEMAP + all[i].id + "/" + z + "/" + tiles[key][1] + "/" + tiles[key][0]).then(function (r) { return r.json(); }).then(function (d) {
+            if (!d.data || !d.data[0]) return null; // ab hier keine Aufnahme mehr
+            var src = d.select && d.select[0] ? d.select[0] : all[i].id;
+            found[src] = true;
+            return walk(Math.max(i, index[src] != null ? index[src] : i) + 1, steps + 1);
+          });
+        };
+        return walk(0, 0);
+      })).then(function () { return all.filter(function (r) { return found[r.id]; }); });
+    });
+  }
+
+  var germanDate = function (iso) { return iso.split("-").reverse().join("."); };
+
+  // Archivstände der Strecke suchen (einmal pro Strecke) und einen anzeigen: den gespeicherten oder den neuesten
+  function loadWayback(release) {
+    if (sk.wbList) return pickRelease(release || (sk.wbPick && sk.wbPick.id));
+    var track = sk.track;
+    $("sk-wb").disabled = true;
+    $("sk-wb-info").textContent = "Suche Archivstände entlang der Strecke …";
+    changedReleases(sk.lapPts).then(function (list) {
+      if (sk.track !== track) return; // inzwischen andere Strecke
+      sk.wbList = list;
+      if (!list.length) { $("sk-wb-info").textContent = "Für diese Strecke gibt es keine Archivstände."; return; }
+      fillSelect($("sk-wb"), list.map(function (r) { return { value: r.id, label: germanDate(r.date) }; }));
+      pickRelease(release);
+    }).catch(function () {
+      $("sk-wb-info").textContent = "Das Luftbild-Archiv ist gerade nicht erreichbar. Später erneut versuchen.";
+    });
+  }
+
+  function pickRelease(id) {
+    var list = sk.wbList || [];
+    var i = Math.max(0, list.findIndex(function (r) { return r.id === +id; }));
+    var r = sk.wbPick = list[i];
+    if (!r) return controls();
+    $("sk-wb").value = String(r.id);
+    $("sk-wb-prev").disabled = i === 0;
+    $("sk-wb-next").disabled = i === list.length - 1;
+    $("sk-wb-info").textContent = "Archivstand vom " + germanDate(r.date) + " · " + (i + 1) + " von " + list.length +
+      ". Das Datum ist das des Archivs; die Aufnahme selbst kann älter sein.";
+    if (sk.wbLayer) sk.wbLayer.remove();
+    sk.wbLayer = L.dpmWayback(r.id, r.date);
+    if (sk.source === "wayback") sk.wbLayer.addTo(sk.map);
+    controls();
+  }
+
+  $("sk-wb").addEventListener("change", function () { pickRelease(this.value); });
+  var stepRelease = function (d) {
+    var list = sk.wbList || [], i = list.indexOf(sk.wbPick) + d;
+    if (list[i]) pickRelease(list[i].id);
+  };
+  $("sk-wb-prev").addEventListener("click", function () { stepRelease(-1); });
+  $("sk-wb-next").addEventListener("click", function () { stepRelease(1); });
 
   // Bild, Ziehpunkte und Eingabefelder auf die aktuelle Lage setzen (den gerade gezogenen Punkt nicht)
   function refresh(dragging) {
@@ -359,54 +498,71 @@
     if (document.activeElement !== $("sk-width")) $("sk-width").value = Math.round(sk.place.w);
   }
 
-  function controls(on) {
-    ["sk-rot", "sk-width", "sk-save"].forEach(function (id) { $(id).disabled = !on; });
+  // Eingabefelder und Speichern je nach Quelle und Stand freigeben
+  function controls() {
+    var image = sk.source === "image" && !!sk.overlay;
+    $("sk-rot").disabled = $("sk-width").disabled = !image;
+    $("sk-save").disabled = sk.busy || !(sk.source === "image" ? image : sk.wbPick);
   }
 
+  var imagePath = function (m) { return m && m.image ? m.image.replace(/^\//, "") : null; };
+
   $("sk-save").addEventListener("click", function () {
-    var t = sk.track, id = String(t.id), old = sk.maps[id];
-    var path = sk.image.blob ? "img/trackmaps/" + id + "." + (sk.image.blob.type === "image/webp" ? "webp" : "png") : old.image.replace(/^\//, "");
+    var t = sk.track, id = String(t.id), old = sk.maps[id], oldPath = imagePath(old);
     var maps = JSON.parse(JSON.stringify(sk.maps));
-    var round = function (p) { return [+p[0].toFixed(7), +p[1].toFixed(7)]; };
-    maps[id] = { name: trackName(t), image: "/" + path, corners: cornersOf(sk.place, sk.image.aspect).map(round), updated: new Date().toISOString().slice(0, 19) + "Z" };
-    var files = {};
+    var files = {}, path = null;
+    var entry = { name: trackName(t), updated: new Date().toISOString().slice(0, 19) + "Z" };
+    if (sk.source === "wayback") {
+      entry.wayback = { release: sk.wbPick.id, date: sk.wbPick.date };
+      if (oldPath) files[oldPath] = null; // vorher eigenes Bild: Datei nicht liegen lassen
+    } else {
+      path = sk.image.blob ? "img/trackmaps/" + id + "." + (sk.image.blob.type === "image/webp" ? "webp" : "png") : oldPath;
+      var round = function (p) { return [+p[0].toFixed(7), +p[1].toFixed(7)]; };
+      entry.image = "/" + path;
+      entry.corners = cornersOf(sk.place, sk.image.aspect).map(round);
+      // altes Bild mit anderer Endung (webp ↔ png) nicht liegen lassen
+      if (sk.image.blob && oldPath && oldPath !== path) files[oldPath] = null;
+    }
+    maps[id] = entry;
     files[MAPS] = { text: JSON.stringify({ maps: maps }, null, 2) + "\n" };
-    // altes Bild mit anderer Endung (webp ↔ png) nicht liegen lassen
-    if (sk.image.blob && old && old.image.replace(/^\//, "") !== path) files[old.image.replace(/^\//, "")] = null;
-    controls(false);
+    sk.busy = true;
+    controls();
     message($("sk-status"), "Speichere …");
-    (sk.image.blob ? base64(sk.image.blob) : Promise.resolve(null)).then(function (data) {
+    var blob = sk.source === "image" && sk.image.blob;
+    (blob ? base64(blob) : Promise.resolve(null)).then(function (data) {
       if (data) files[path] = { base64: data };
       return commit("Admin: Streckenkarte " + trackName(t), files);
     }).then(function () {
       sk.maps = maps;
-      sk.image.blob = null; // gespeichert; bei weiteren Änderungen nur noch die Lage
+      if (blob) sk.image.blob = null; // gespeichert; bei weiteren Änderungen nur noch die Lage
       fillTracks(id);
       $("sk-delete").hidden = false;
       message($("sk-status"), "Gespeichert. In etwa einer Minute ist die Karte für " + trackName(t) + " im Teambereich zu sehen.", "ok");
     }).catch(function (e) {
       message($("sk-status"), e.message, true);
-    }).then(function () { controls(true); });
+    }).then(function () { sk.busy = false; controls(); });
   });
 
   $("sk-delete").addEventListener("click", function () {
     var t = sk.track, id = String(t.id), old = sk.maps[id];
-    if (!old || !window.confirm("Eigene Karte für " + trackName(t) + " entfernen? Im Teambereich gibt es dann wieder nur Luftbild und Schema.")) return;
+    if (!old || !window.confirm("Eigene Karte für " + trackName(t) + " entfernen? Im Teambereich gibt es dann wieder das aktuelle Luftbild und das Schema.")) return;
     var maps = JSON.parse(JSON.stringify(sk.maps));
     delete maps[id];
     var files = {};
     files[MAPS] = { text: JSON.stringify({ maps: maps }, null, 2) + "\n" };
-    files[old.image.replace(/^\//, "")] = null;
+    if (imagePath(old)) files[imagePath(old)] = null;
     message($("sk-status"), "Entferne …");
     commit("Admin: Streckenkarte " + trackName(t) + " entfernt", files).then(function () {
       sk.maps = maps;
       fillTracks(id);
+      // Archiv-Auswahl bleibt als Vorschlag stehen, ein eigenes Bild wird verworfen
       sk.image = sk.place = null;
       [sk.overlay, sk.move, sk.turn].forEach(function (l) { if (l) l.remove(); });
-      controls(false);
+      sk.overlay = null;
+      controls();
       $("sk-delete").hidden = true;
       $("sk-file").value = "";
-      $("sk-file-info").textContent = "Für diese Strecke gibt es noch keine eigene Karte.";
+      $("sk-file-info").textContent = "";
       message($("sk-status"), "Entfernt. In etwa einer Minute ist die Änderung im Teambereich zu sehen.", "ok");
     }).catch(function (e) { message($("sk-status"), e.message, true); });
   });

@@ -1,6 +1,14 @@
-// Eigene Streckenkarte als Bild auf der Leaflet-Karte, festgelegt über drei Ecken (oben links, oben rechts, unten links).
+// Eigene Streckenkarten auf der Leaflet-Karte, genutzt im Teambereich (Telemetrie-Vergleich) und im Admin (/admin/streckenkarte).
+
+// Früherer Stand des Esri-Luftbilds (World Imagery Wayback): gleiche Kacheln und Koordinaten wie das aktuelle Luftbild,
+// passt also ohne Ausrichten. release = Nummer des Archivstands, date = dessen Datum (JJJJ-MM-TT).
+L.dpmWayback = function (release, date, options) {
+  return L.tileLayer("https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/" + release + "/{z}/{y}/{x}",
+    L.extend({ maxNativeZoom: 19, maxZoom: 21, attribution: "Luftbild (Archiv " + date.split("-").reverse().join(".") + "): Esri, Maxar, Earthstar Geographics" }, options));
+};
+
+// Bild, festgelegt über drei Ecken (oben links, oben rechts, unten links).
 // Leaflets ImageOverlay kann nur nach Norden ausgerichtete Rechtecke; die Bilder sind aber gedreht und skaliert.
-// Genutzt im Teambereich (Telemetrie-Vergleich) und im Admin (/admin/streckenkarte).
 L.RotatedImage = L.Layer.extend({
   options: { pane: "overlayPane", opacity: 1 },
 
