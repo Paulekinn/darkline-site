@@ -535,6 +535,19 @@
     var segs = (on[0] > per(n, 10) ? [{ i0: 0, i1: on[0], start: true }] : []).concat(on.map(function (i0, k) {
       return { i0: i0, i1: k + 1 < on.length ? on[k + 1] : n - 1, num: k + 1 };
     }));
+    // Bremspunkt von B zur Kurve, die bei A mit Bremspunkt i0 beginnt: der nächstgelegene innerhalb von 150 m, der nicht
+    // näher an einem anderen Bremspunkt von A liegt (sonst gehört er zur Nachbarkurve)
+    var matchB = function (i0) {
+      var best = null, bestD = Infinity;
+      bOn.forEach(function (j) {
+        var d = Math.abs(P.m[j] - P.m[i0]);
+        if (d > 150 || d >= bestD) return;
+        if (on.some(function (k) { return k !== i0 && Math.abs(P.m[j] - P.m[k]) < d; })) return;
+        best = j;
+        bestD = d;
+      });
+      return best;
+    };
     // Entry = höchste Geschwindigkeit kurz vor dem Bremspunkt (ca. 1 % der Runde davor)
     var topBefore = function (arr, i) { var m = arr[i]; for (var k = Math.max(0, i - per(n, 10)); k <= i; k++) if (arr[k] > m) m = arr[k]; return m; };
     return segs.map(function (s) {
@@ -552,7 +565,7 @@
       if (Q) {
         c.minB = s.start ? Q.speed[s.i0] : Q.speed[minAt(Q.speed, s.i0, look)];
         c.gain = Math.round((delta[s.i1] - delta[s.i0]) * 1000) / 1000;
-        var near = s.start ? null : bOn.filter(function (j) { return Math.abs(j - s.i0) <= per(n, 30); })[0];
+        var near = s.start ? null : matchB(s.i0);
         if (near != null) c.brakeDiff = P.m[near] - P.m[s.i0]; // negativ = B bremst früher
         if (!s.start) {
           c.entryB = topBefore(Q.speed, near != null ? near : s.i0); // vor dem eigenen Bremspunkt von B
