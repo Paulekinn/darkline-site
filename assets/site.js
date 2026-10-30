@@ -138,6 +138,9 @@
   }
 
   /* ---------- Lineup ---------- */
+  // schräges Band über dem Fahrerfoto, nur bei "inaktiv" und "auf Probe"
+  const sash = (d) => d.status === "inaktiv" ? `<b class="sash" aria-hidden="true">Inaktiv</b>`
+    : d.status === "auf Probe" ? `<b class="sash trial" aria-hidden="true">Auf Probe</b>` : "";
   function renderDrivers() {
     const rank = { aktiv: 0, "auf Probe": 1, inaktiv: 2 };
     const list = [...D.drivers].sort((a, b) => (rank[a.status] ?? 0) - (rank[b.status] ?? 0));
@@ -150,7 +153,7 @@
       const st = statsFor(d.name), on = d.status !== "inaktiv", trialD = d.status === "auf Probe";
       const kl = (d.klassen || []).map((c) => `<i class="${c === "GTP" ? "gtp" : ""}">${esc(c)}</i>`).join("");
       return `<article class="slot ${on ? (trialD ? "trial" : "") : "off"}"><span class="gp" aria-hidden="true">${esc(d.kuerzel || "")}</span>
-        <div class="card"><div class="ph">${d.foto ? `<img src="${esc(src(d.foto))}" alt="${esc(d.name)}" loading="lazy">` : ""}</div>
+        <div class="card"><div class="ph">${d.foto ? `<img src="${esc(src(d.foto))}" alt="${esc(d.name)}" loading="lazy">` : ""}${sash(d)}</div>
         <div class="bd"><div class="st"><span class="pill">${trialD ? "Auf Probe" : on ? "Aktiv" : "Inaktiv"}</span><span class="chips">${kl}</span></div>
         <h3 class="wide"><a class="stretch" href="/fahrer/${slugify(d.name)}">${esc(d.name)}</a></h3><span class="role">${esc(d.rolle || "")}</span>
         ${d.zitat ? `<blockquote>${esc(d.zitat)}</blockquote>` : ""}
@@ -401,7 +404,7 @@
         <span class="hg ${g > 0 ? "up" : g < 0 ? "dn" : ""}">${g == null ? "" : (g > 0 ? "+" : g < 0 ? "−" : "±") + Math.abs(g)}</span></a>`; }).join("");
     return `<section class="dhero driver-hero ${on ? (trialD ? "trial" : "") : "off"}">
       <div class="wrap"><div class="dh-main">
-        <div class="dh-photo">${d.foto ? `<img src="${esc(src(d.foto))}" alt="${esc(d.name)}">` : ""}<span>${esc(d.kuerzel || "")}</span></div>
+        <div class="dh-photo">${d.foto ? `<img src="${esc(src(d.foto))}" alt="${esc(d.name)}">` : ""}<span>${esc(d.kuerzel || "")}</span>${sash(d)}</div>
         <div class="dh-text"><span class="eyb"><span class="pill">${trialD ? "Auf Probe" : on ? "Aktiv" : "Inaktiv"}</span> · Fahrerprofil</span>
           <h1 class="wide" id="d-title">${esc(d.name)}</h1>
           <div class="meta">${esc(d.rolle || "")}</div>
