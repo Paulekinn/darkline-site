@@ -1,9 +1,11 @@
 // Rangliste für den Teambereich.
 // GET                 → Strecken, die das Team in den letzten 4 Wochen gefahren ist (eine Anfrage an die Team-Statistik)
 // GET ?track=<ID>     → Team-Bestzeiten auf dieser Strecke, pro Auto (erst beim Anklicken, 15 Minuten gemerkt)
+// GET ?track=<ID>&alle=1 → nur Admin: Test, ob unser Zugang Runden außerhalb des Teams sieht (für eine Referenzrunde
+//                         des schnellsten Fahrers). Garage 61 gibt die nur an eigens freigegebene Anwendungen heraus.
 // Auch für Admin-Werkzeuge (Streckenkarte) mit GitHub-Anmeldung.
 const { requireAdminOrSession } = require("../_lib/admin");
-const { g61Get, cached, items, teamSlug, tracks, cars, sendError } = require("../_lib/g61");
+const { g61Get, g61Text, cached, items, teamSlug, tracks, cars, sendError } = require("../_lib/g61");
 
 const DAYS = 28;
 
@@ -61,11 +63,54 @@ async function trackBests(trackId) {
     .sort((a, b) => b.laps.length - a.laps.length || a.name.localeCompare(b.name));
 }
 
+// Bestzeiten aller für uns sichtbaren Fahrer (ohne Team-Filter) mit denen des Teams vergleichen. Bei der schnellsten
+// Runde mit freigegebener Telemetrie wird zusätzlich der CSV-Abruf probiert, wie ihn der Telemetrie-Vergleich braucht.
+async function outsideCheck(trackId) {
+  const [all, team, carNames] = await Promise.all([
+    g61Get("/laps", { tracks: trackId, group: "driver-car", limit: 200 }),
+    g61Get("/laps", { tracks: trackId, teams: teamSlug(), drivers: "me", group: "driver-car", limit: 1000 }),
+    cars(),
+  ]);
+  const ours = new Set(items(team).map((l) => l.driver && l.driver.slug));
+  const laps = items(all).filter((l) => l.driver && l.lapTime).sort((a, b) => a.lapTime - b.lapTime);
+  const outside = laps.filter((l) => !ours.has(l.driver.slug));
+  const shared = outside.filter((l) => l.canViewTelemetry);
+  const info = (l) => l && {
+    driver: [l.driver.firstName, l.driver.lastName].filter(Boolean).join(" ") || l.driver.slug,
+    car: (l.car && carNames.get(l.car.id)) || "",
+    time: l.lapTime,
+    team: ours.has(l.driver.slug),
+  };
+  let csv = null;
+  if (shared[0]) {
+    try {
+      csv = { ok: true, kb: Math.round((await g61Text(`/laps/${shared[0].id}/csv`)).length / 1024) };
+    } catch (e) {
+      csv = { ok: false, status: e.status || null, error: e.message };
+    }
+  }
+  return {
+    total: all && typeof all.total === "number" ? all.total : null,
+    visible: laps.length,
+    outside: outside.length,
+    outsideShared: shared.length,
+    fastest: info(laps[0]),
+    fastestShared: info(shared[0]),
+    csv,
+  };
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "private, no-store");
   try {
     if (!(await requireAdminOrSession(req, res))) return;
     const track = Number(req.query.track);
+    if (req.query.alle !== undefined) {
+      // Fremde Namen und Zeiten nur für Admins (GitHub-Anmeldung), nicht für den Teambereich
+      if (!req.headers.authorization) return res.status(403).json({ error: "Nur für Admins." });
+      if (!Number.isInteger(track) || track <= 0) return res.status(400).json({ error: "Ungültige Strecke." });
+      return res.status(200).json(await cached(`outside:${track}`, 900, () => outsideCheck(track)));
+    }
     if (req.query.track !== undefined) {
       if (!Number.isInteger(track) || track <= 0) return res.status(400).json({ error: "Ungültige Strecke." });
       return res.status(200).json({ track, cars: await cached(`track:${track}`, 900, () => trackBests(track)) });

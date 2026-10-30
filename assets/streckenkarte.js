@@ -641,6 +641,39 @@
     }).catch(function (e) { message($("sk-status"), e.message, true); });
   });
 
+  // ---------------------------------------------------------------- Test: Runden außerhalb des Teams (Garage 61)
+  // Voraussetzung für eine Referenzrunde des schnellsten Fahrers im Telemetrie-Vergleich
+
+  $("sk-track").addEventListener("change", function () {
+    $("sk-diag").hidden = !this.value;
+    $("sk-diag-out").replaceChildren();
+  });
+
+  $("sk-diag-run").addEventListener("click", function () {
+    var t = sk.track, btn = this;
+    if (!t) return;
+    btn.disabled = true;
+    message($("sk-diag-out"), "Frage Garage 61 …");
+    api("/api/team/leaderboard?track=" + encodeURIComponent(t.id) + "&alle=1").then(function (d) {
+      var lap = function (l) { return l ? l.driver + (l.team ? " (Team)" : "") + " · " + (l.car || "?") + " · " + lapTime(l.time) : "–"; };
+      var rows = [
+        "Sichtbare Bestzeiten (Fahrer/Auto): " + d.visible + (d.total != null ? " von " + d.total : "") + (d.visible >= 200 ? " (Abfrage auf 200 begrenzt)" : ""),
+        "Davon von Fahrern außerhalb des Teams: " + d.outside,
+        "Davon mit freigegebener Telemetrie: " + d.outsideShared,
+        "Schnellste sichtbare Runde: " + lap(d.fastest),
+        "Schnellste fremde Runde mit Telemetrie: " + lap(d.fastestShared),
+        "Telemetrie-Abruf dieser Runde: " + (!d.csv ? "–" : d.csv.ok ? "klappt (" + d.csv.kb + " KB)" : "abgelehnt (" + (d.csv.status ? "Code " + d.csv.status : d.csv.error) + ")")
+      ];
+      var verdict = !d.outside
+        ? ["Unser Zugang sieht nur Runden aus dem Team. Für eine Top-Referenz muss Garage 61 die Anwendung freigeben (Suche in allen sichtbaren Runden).", true]
+        : !d.outsideShared ? ["Fremde Bestzeiten sind sichtbar, aber keine mit freigegebener Telemetrie. Eine Referenzrunde ließe sich so nicht laden.", true]
+        : d.csv && d.csv.ok ? ["Es geht: Runden und Telemetrie außerhalb des Teams sind abrufbar. Eine Top-Referenz im Telemetrie-Vergleich ist machbar.", "ok"]
+        : ["Fremde Runden mit Telemetrie sind sichtbar, der Abruf der Telemetrie wurde aber abgelehnt.", true];
+      $("sk-diag-out").replaceChildren(el("ul", null, rows.map(function (r) { return el("li", { textContent: r }); })), el("div"));
+      message($("sk-diag-out").lastChild, verdict[0], verdict[1]);
+    }).catch(function (e) { message($("sk-diag-out"), e.message, true); }).then(function () { btn.disabled = false; });
+  });
+
   // Start: mit gemerkter Anmeldung direkt los, sonst Anmeldeknopf
   if (storedToken()) start(); else showLogin();
 })();
