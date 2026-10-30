@@ -69,9 +69,9 @@
     if (tab === "rennanalyse") initRace(new URLSearchParams(parts[1] || "").get("event") || "");
     if (tab === "telemetrie" && parts[1]) {
       var q = new URLSearchParams(parts[1]);
-      var share = { track: Number(q.get("strecke")), car: Number(q.get("auto")), a: q.get("a") || "", b: q.get("b") || "", zoom: q.get("zoom") || "" };
+      var share = { track: Number(q.get("strecke")), car: Number(q.get("auto")), a: q.get("a") || "", b: q.get("b") || "", c: q.get("c") || "", zoom: q.get("zoom") || "" };
       // nur neu laden, wenn der Link etwas anderes zeigt als die aktuelle Auswahl
-      if (share.track && share.a && (share.a !== $("tm-lap-a").value || share.b !== $("tm-lap-b").value)) {
+      if (share.track && share.a && (share.a !== $("tm-lap-a").value || share.b !== $("tm-lap-b").value || share.c !== $("tm-lap-c").value)) {
         tm.share = share;
         if (tm.ready) openShare();
       }
@@ -399,9 +399,10 @@
     fillSelect($("tm-car"), []);
     fillSelect($("tm-lap-a"), []);
     fillSelect($("tm-lap-b"), []);
+    fillSelect($("tm-lap-c"), []);
     $("tm-track").onchange = function () { if (this.value) loadCompareCars(Number(this.value)); };
     $("tm-car").onchange = function () { fillLaps(Number(this.value)); };
-    $("tm-lap-a").onchange = $("tm-lap-b").onchange = showCompare;
+    $("tm-lap-a").onchange = $("tm-lap-b").onchange = $("tm-lap-c").onchange = showCompare;
     initImport();
     message($("tm-view"), "Strecke und Auto wählen. Verglichen werden die Bestzeiten der Fahrer, die ihre Telemetrie in Garage 61 teilen.");
     tm.ready = true;
@@ -452,7 +453,7 @@
         form.reset();
         form.hidden = true;
         // neu laden und die neue Referenz gleich als Runde B gegen die aktuelle Runde A zeigen
-        tm.share = { track: track, car: carId, a: $("tm-lap-a").value, b: ref.id };
+        tm.share = { track: track, car: carId, a: $("tm-lap-a").value, b: ref.id, c: $("tm-lap-c").value };
         loadCompareCars(track, carId);
       }).catch(function (err) { say(err.message, "err"); }).then(function () { $("tm-imp-save").disabled = false; });
     };
@@ -489,6 +490,7 @@
     fillSelect($("tm-car"), []);
     fillSelect($("tm-lap-a"), []);
     fillSelect($("tm-lap-b"), []);
+    fillSelect($("tm-lap-c"), []);
     message($("tm-view"), "Lade Runden …");
     // dazu die im Admin hochgeladenen Referenzrunden fremder Fahrer (fehlen sie, geht es ohne)
     var refs = api("/api/team/telemetry?refs=" + encodeURIComponent(trackId)).then(function (d) { return d.refs; }, function () { return []; });
@@ -520,6 +522,8 @@
     // aus einem geteilten Link, sonst schnellste und zweitschnellste Runde
     fillSelect($("tm-lap-a"), opts, s && has(s.a) ? s.a : first[0].value);
     fillSelect($("tm-lap-b"), [{ value: "", label: "– keine –" }].concat(opts), s && (s.b === "" || has(s.b)) ? s.b : first[1] ? first[1].value : "");
+    // Runde C ist optional und bleibt leer, außer ein geteilter Link nennt eine
+    fillSelect($("tm-lap-c"), [{ value: "", label: "– keine –" }].concat(opts), s && has(s.c) ? s.c : "");
     showCompare();
   }
 
@@ -544,15 +548,18 @@
   }
 
   function showCompare() {
-    var a = $("tm-lap-a").value, b = $("tm-lap-b").value;
+    var a = $("tm-lap-a").value, b = $("tm-lap-b").value, c = $("tm-lap-c").value;
     if (!a) return;
+    if (b === a) b = "";
+    if (c === a || c === b) c = "";
     message($("tm-view"), "Lade Telemetrie …");
-    Promise.all([telemetry(a), b && b !== a ? telemetry(b) : null, trackMaps()]).then(function (r) {
-      renderCompare(r[0], r[1], r[2][$("tm-track").value] || null);
+    Promise.all([telemetry(a), b ? telemetry(b) : null, c ? telemetry(c) : null, trackMaps()]).then(function (r) {
+      // C ohne B: C rückt an die Stelle von B, damit der Vergleich zwei Runden hat
+      renderCompare(r[0], r[1] || r[2], r[1] ? r[2] : null, r[3][$("tm-track").value] || null);
     }).catch(function (e) { message($("tm-view"), e.message, true); });
   }
 
-  var COLOR_A = "#d3121b", COLOR_B = "#e8ecea";
+  var COLOR_A = "#d3121b", COLOR_B = "#e8ecea", COLOR_C = "#f2c230";
 
   // ---- Analyse: Sektoren und Kurven-Abschnitte (Grenzen aus Runde A) ----
 
@@ -568,8 +575,8 @@
   // Sektorgrenzen aus den offiziellen Sektorzeiten von A, ersatzweise von B (Garage 61 liefert nur die Zeiten, nicht die
   // Lage). Hat eine Runde keine offiziellen Sektorzeiten (z. B. hochgeladene Referenzrunden), wird ihre Zeit an denselben
   // Grenzen aus der Telemetrie abgelesen.
-  function sectorRanges(A, B) {
-    var base = A.sectors ? A : B && B.sectors ? B : null;
+  function sectorRanges(A, B, C) {
+    var base = A.sectors ? A : B && B.sectors ? B : C && C.sectors ? C : null;
     if (!base) return [];
     var n = A.points.t.length, acc = 0, start = 0, count = base.sectors.length;
     var official = function (L) { return L && L.sectors && L.sectors.length === count; };
@@ -582,7 +589,8 @@
       var end = k === count - 1 ? n - 1 : indexAtTime(base.points.t, acc);
       var r = { name: "Sektor " + (k + 1), short: "S" + (k + 1), i0: start, i1: end,
         a: official(A) ? A.sectors[k] : span(A, start, end),
-        b: !B ? null : official(B) ? B.sectors[k] : span(B, start, end) };
+        b: !B ? null : official(B) ? B.sectors[k] : span(B, start, end),
+        c: !C ? null : official(C) ? C.sectors[k] : span(C, start, end) };
       start = end;
       return r;
     });
@@ -768,7 +776,7 @@
   // Ganze Runde: Fahrlinien, Kurvennummern und Positionspunkte. Im Zoom: Ausschnitt um den Abschnitt, Bremspunkte als Kreise.
   var BACKGROUNDS = { custom: "Streckenkarte", photo: "Luftbild", plan: "Schema · Strecke geschätzt" };
 
-  function trackMap(A, B, corners, sectors, trackId, custom) {
+  function trackMap(A, B, C, corners, sectors, trackId, custom) {
     if (tm.map) tm.map.remove(); // Karte des vorigen Vergleichs freigeben
     // Im Admin hinterlegte Korrektur der iRacing-Koordinaten (Passpunkte): auf Kopien der GPS-Punkte anwenden,
     // die Runden selbst bleiben für andere Vergleiche unverändert
@@ -781,6 +789,7 @@
     };
     A = fixed(A);
     B = fixed(B);
+    C = fixed(C);
     // Eigener Hintergrund nur, wenn hinterlegt; eine Anpassung kann auch nur aus der Korrektur bestehen
     if (custom && !custom.wayback && !custom.image) custom = null;
     // Rundenpunkt i (wie in den Diagrammen) → GPS-Punkt; die Karte ist anders aufgelöst (etwa alle 2 m ein GPS-Punkt)
@@ -841,7 +850,7 @@
       var core = L.polyline([], { color: color, weight: 2.5, opacity: 1, interactive: false }).addTo(map);
       return function (pts) { edge.setLatLngs(pts); core.setLatLngs(pts); };
     };
-    var lineB = B ? line(COLOR_B) : null, lineA = line(COLOR_A);
+    var lineC = C ? line(COLOR_C) : null, lineB = B ? line(COLOR_B) : null, lineA = line(COLOR_A);
     var brakes = L.layerGroup();
     L.circleMarker(at(A, 0), { radius: 4, stroke: false, fillColor: "#ffd400", fillOpacity: 1, interactive: false }).addTo(map);
     corners.filter(function (c) { return c.num; }).forEach(function (c) {
@@ -855,10 +864,10 @@
         icon: L.divIcon({ className: "tm-map-sec", html: s.short, iconSize: [22, 14], iconAnchor: [-6, 7] }) }).addTo(map);
     });
     var dot = function (color) { return L.circleMarker(at(A, 0), { radius: 6, color: "#111416", weight: 2, fillColor: color, fillOpacity: 1, interactive: false }).addTo(map); };
-    var dotB = B ? dot(COLOR_B) : null, dotA = dot(COLOR_A);
-    var note = el("span", { className: "tm-map-note", hidden: true, textContent: "Fahrlinie A und B · ○ = Bremspunkt" });
+    var dotC = C ? dot(COLOR_C) : null, dotB = B ? dot(COLOR_B) : null, dotA = dot(COLOR_A);
+    var note = el("span", { className: "tm-map-note", hidden: true, textContent: (C ? "Fahrlinien A, B und C" : "Fahrlinie A und B") + " · ○ = Bremspunkt" });
 
-    var bOnA = brakeOnsets(A.points.brake), bOnB = B ? brakeOnsets(B.points.brake) : [];
+    var bOnA = brakeOnsets(A.points.brake), bOnB = B ? brakeOnsets(B.points.brake) : [], bOnC = C ? brakeOnsets(C.points.brake) : [];
     var lapBounds = L.latLngBounds(pathOf(A, 0, last));
     var home = lapBounds, lapView = true, fitted = false;
 
@@ -866,8 +875,9 @@
     function setLines(j0, j1) {
       lineA(pathOf(A, j0, j1));
       if (lineB) lineB(pathOf(B, j0, j1));
+      if (lineC) lineC(pathOf(C, j0, j1));
       brakes.clearLayers();
-      [[bOnA, A, COLOR_A], [bOnB, B, COLOR_B]].forEach(function (x) {
+      [[bOnA, A, COLOR_A], [bOnB, B, COLOR_B], [bOnC, C, COLOR_C]].forEach(function (x) {
         if (!x[1]) return;
         x[0].filter(function (i) { return i >= j0 && i <= j1; }).forEach(function (i) {
           brakes.addLayer(L.circleMarker(at(x[1], i), { radius: 6, color: x[2], weight: 2, fill: false, interactive: false }));
@@ -916,7 +926,7 @@
         var j0 = Math.max(0, view.i0 - per(last + 1, 15));
         var j1 = view.num && view.apex != null ? Math.min(view.i1, view.apex + Math.max(per(last + 1, 25), view.apex - view.i0)) : view.i1;
         setLines(j0, j1);
-        home = L.latLngBounds(pathOf(A, j0, j1).concat(B ? pathOf(B, j0, j1) : [])).pad(0.15);
+        home = L.latLngBounds(pathOf(A, j0, j1).concat(B ? pathOf(B, j0, j1) : [], C ? pathOf(C, j0, j1) : [])).pad(0.15);
       }
       goHome(fitted);
       update();
@@ -965,19 +975,29 @@
       move: function (i) {
         dotA.setLatLng(at(A, i));
         if (dotB) dotB.setLatLng(at(B, i));
+        if (dotC) dotC.setLatLng(at(C, i));
       },
       highlight: zoomTo
     };
   }
 
-  function renderCompare(A, B, custom) {
-    var P = A.points, Q = B ? B.points : null, n = P.pct.length;
-    var delta = Q ? Q.t.map(function (t, i) { return Math.round((t - P.t[i]) * 1000) / 1000; }) : null;
-    var sectors = sectorRanges(A, B);
+  // A ist der Bezug; B und C werden jeweils mit A verglichen. C ist optional und erscheint nur, wenn gewählt.
+  function renderCompare(A, B, C, custom) {
+    var P = A.points, Q = B ? B.points : null, R = C ? C.points : null, n = P.pct.length;
+    var gapTo = function (L) { return L ? L.t.map(function (t, i) { return Math.round((t - P.t[i]) * 1000) / 1000; }) : null; };
+    var delta = gapTo(Q), deltaC = gapTo(R);
+    var sectors = sectorRanges(A, B, C);
     var corners = cornerRanges(A, B, delta);
+    if (C) {
+      // gleiche Abschnitte (aus A), Werte von C daneben
+      cornerRanges(A, C, deltaC).forEach(function (x, k) {
+        var c = corners[k];
+        c.gainC = x.gain; c.minC = x.minB; c.entryC = x.entryB; c.exitC = x.exitB; c.brakeDiffC = x.brakeDiff;
+      });
+    }
     var full = { i0: 0, i1: n - 1, name: "Ganze Runde" };
     var view = full;
-    var map = trackMap(A, B, corners, sectors, $("tm-track").value, custom);
+    var map = trackMap(A, B, C, corners, sectors, $("tm-track").value, custom);
     // Zusatzdiagramme (Drehzahl, Lenkung) braucht nicht jeder: eingeklappt, bis man sie aufklappt; die Wahl merkt sich
     // der Browser. Auf- und Zuklappen tauscht nur dieses Diagramm aus, Karte und Zoom bleiben, wie sie sind.
     tm.open = tm.open || (function () { try { return JSON.parse(localStorage.getItem("dpm-tm-open") || "{}"); } catch (e) { return {}; } })();
@@ -999,10 +1019,13 @@
       fill();
       return wrap;
     };
-    // Kurven von A und B; fehlt einer Runde der Wert (z. B. Drehzahl bei älteren Referenzrunden), nur die andere
+    // Kurven von A, B und C (A zuletzt, also obenauf); fehlt einer Runde der Wert (z. B. Drehzahl bei älteren
+    // Referenzrunden), nur die anderen
     var both = function (key) {
-      return [{ values: P[key], color: COLOR_A }].concat(Q ? [{ values: Q[key], color: COLOR_B }] : []).filter(function (s) { return s.values; }).reverse();
+      return [{ values: P[key], color: COLOR_A }].concat(Q ? [{ values: Q[key], color: COLOR_B }] : [], R ? [{ values: R[key], color: COLOR_C }] : [])
+        .filter(function (s) { return s.values; }).reverse();
     };
+    var all = function (key) { return [P[key], Q && Q[key], R && R[key]]; };
     var range = function (arrs) {
       var lo = Infinity, hi = -Infinity;
       arrs.forEach(function (a) { if (a) for (var i = view.i0; i <= view.i1; i++) { if (a[i] < lo) lo = a[i]; if (a[i] > hi) hi = a[i]; } });
@@ -1047,6 +1070,7 @@
     var shareQuery = function () {
       var q = new URLSearchParams({ strecke: $("tm-track").value, auto: $("tm-car").value, a: A.id });
       if (B) q.set("b", B.id);
+      if (C) q.set("c", C.id);
       if (zoomCode(view)) q.set("zoom", zoomCode(view));
       return q.toString();
     };
@@ -1066,28 +1090,32 @@
       var charts = [];
       if (delta) {
         // im Zoom: Abstand ab Beginn des Ausschnitts, damit Gewinn und Verlust darin direkt ablesbar sind
-        var base = isFull ? 0 : delta[view.i0];
-        var rel = delta.map(function (v) { return Math.round((v - base) * 1000) / 1000; });
-        var dr = range([rel]), dMax = Math.max(0.05, Math.abs(dr[0]), Math.abs(dr[1]));
-        charts.push(lineChart(isFull ? "Abstand B zu A (s) · oben = B langsamer" : "Abstand B zu A ab Abschnittsbeginn (s) · oben = B langsamer", 130,
-          [{ values: rel, color: COLOR_B }], -dMax, dMax, view, { zero: true, marks: sectorMarks }));
+        var rel = function (d) {
+          var base = isFull ? 0 : d[view.i0];
+          return d.map(function (v) { return Math.round((v - base) * 1000) / 1000; });
+        };
+        var gaps = [{ values: rel(delta), color: COLOR_B }].concat(deltaC ? [{ values: rel(deltaC), color: COLOR_C }] : []);
+        var dr = range(gaps.map(function (g) { return g.values; })), dMax = Math.max(0.05, Math.abs(dr[0]), Math.abs(dr[1]));
+        var who = deltaC ? "B und C" : "B";
+        charts.push(lineChart("Abstand " + who + " zu A (s)" + (isFull ? "" : " ab Abschnittsbeginn") + " · oben = langsamer als A", 130,
+          gaps.reverse(), -dMax, dMax, view, { zero: true, marks: sectorMarks }));
       }
-      var sp = range([P.speed].concat(Q ? [Q.speed] : []));
+      var sp = range(all("speed"));
       charts.push(lineChart("Speed (km/h)", 260, both("speed"), Math.floor(sp[0] / 10) * 10, Math.ceil(sp[1] / 10) * 10, view, { marks: (delta ? marks : sectorMarks).concat(cornerMarks) }));
       charts.push(lineChart("Gas (%)", 110, both("throttle"), 0, 100, view, { marks: marks }));
       charts.push(lineChart("Bremse (%)", 110, both("brake"), 0, 100, view, { marks: marks }));
-      var g = range([P.gear].concat(Q ? [Q.gear] : []));
+      var g = range(all("gear"));
       charts.push(lineChart("Gang", 100, both("gear"), Math.max(0, g[0] - 0.5), g[1] + 0.5, view, { step: true, marks: marks }));
       // Drehzahl nur, wenn sie in den Daten steckt (Runden von vor dieser Auswertung haben keine)
       if (both("rpm").length) {
         charts.push(extra("rpm", "Drehzahl", function () {
-          var rp = range([P.rpm, Q && Q.rpm]);
+          var rp = range(all("rpm"));
           return lineChart("Drehzahl (U/min)", 110, both("rpm"), Math.floor(rp[0] / 500) * 500, Math.ceil(rp[1] / 500) * 500, view, { marks: marks });
         }));
       }
       // Lenkwinkel symmetrisch um 0 (positiv = links)
       charts.push(extra("steer", "Lenkung", function () {
-        var st = range([P.steer, Q && Q.steer]), stMax = Math.max(10, Math.ceil(Math.max(Math.abs(st[0]), Math.abs(st[1])) / 10) * 10);
+        var st = range(all("steer")), stMax = Math.max(10, Math.ceil(Math.max(Math.abs(st[0]), Math.abs(st[1])) / 10) * 10);
         return lineChart("Lenkung (°) · oben = links", 120, both("steer"), -stMax, stMax, view, { zero: true, marks: marks });
       }));
       plots.replaceChildren.apply(plots, charts);
@@ -1133,15 +1161,18 @@
       var i = p.i;
       var row = function (label, key, unit) {
         var v = function (L) { return L[key] ? L[key][i] : null; };
-        return el("tr", null, [el("td", { textContent: label }), el("td", { textContent: fmt(v(P), unit) })].concat(Q ? el("td", { textContent: fmt(v(Q), unit) }) : []));
+        return el("tr", null, [el("td", { textContent: label }), el("td", { textContent: fmt(v(P), unit) })]
+          .concat(Q ? el("td", { textContent: fmt(v(Q), unit) }) : [], R ? el("td", { textContent: fmt(v(R), unit) }) : []));
       };
-      var gap = delta ? delta[i] - (view === full ? 0 : delta[view.i0]) : null;
+      var gap = function (d) { return signed(d[i] - (view === full ? 0 : d[view.i0]), 3) + " s"; };
+      var gapText = !delta ? "" : deltaC ? " · B " + gap(delta) + " · C " + gap(deltaC) : " · Abstand " + gap(delta);
       tip.replaceChildren(
-        el("b", { textContent: P.m[i] + " m" + (delta ? " · Abstand " + signed(gap, 3) + " s" : "") }),
+        el("b", { textContent: P.m[i] + " m" + gapText }),
         el("table", null, [
-          el("tr", null, [el("td", { textContent: "" }), el("td", { className: "tm-a", textContent: "A" })].concat(Q ? el("td", { className: "tm-b", textContent: "B" }) : [])),
+          el("tr", null, [el("td", { textContent: "" }), el("td", { className: "tm-a", textContent: "A" })]
+            .concat(Q ? el("td", { className: "tm-b", textContent: "B" }) : [], R ? el("td", { className: "tm-c", textContent: "C" }) : [])),
           row("Speed", "speed", " km/h"), row("Gas", "throttle", " %"), row("Bremse", "brake", " %"), row("Gang", "gear", "")
-        ].concat(P.rpm || (Q && Q.rpm) ? row("Drehzahl", "rpm", "") : [], row("Lenkung", "steer", "°")))
+        ].concat(P.rpm || (Q && Q.rpm) || (R && R.rpm) ? row("Drehzahl", "rpm", "") : [], row("Lenkung", "steer", "°")))
       );
       tip.hidden = false;
       var w = tip.offsetWidth, h = tip.offsetHeight;
@@ -1164,12 +1195,14 @@
     box.addEventListener("pointerleave", function () { if (!drag) { cursor.hidden = true; tip.hidden = true; } });
     box.addEventListener("dblclick", function () { zoom(full); });
 
-    // Sektorleiste: Zeit A, Zeit B, Differenz. Klick zoomt auf den Sektor.
+    // Sektorleiste: Zeit A, Zeit B (und C), jeweils mit Differenz zu A. Klick zoomt auf den Sektor.
     var sectorBar = sectors.length ? el("div", { className: "tm-sectors" }, sectors.map(function (s) {
-      var btn = el("button", { type: "button", className: "tm-sec" }, [
-        el("b", { textContent: s.name }),
-        el("span", { className: "tm-a", textContent: s.a.toFixed(3) })
-      ].concat(s.b != null ? [el("span", { className: "tm-b", textContent: s.b.toFixed(3) }), el("em", { textContent: "B " + signed(s.b - s.a, 3) + " s" })] : []));
+      var times = [el("span", { className: "tm-a", textContent: s.a.toFixed(3) })];
+      if (s.b != null) times.push(el("span", { className: "tm-b", textContent: s.b.toFixed(3) }));
+      if (s.c != null) times.push(el("span", { className: "tm-c", textContent: s.c.toFixed(3) }));
+      var diffs = [s.b != null ? "B " + signed(s.b - s.a, 3) + " s" : "", s.c != null ? "C " + signed(s.c - s.a, 3) + " s" : ""].filter(Boolean);
+      var btn = el("button", { type: "button", className: "tm-sec" + (s.c != null ? " three" : "") },
+        [el("b", { textContent: s.name })].concat(times, diffs.length ? el("em", { textContent: diffs.join(" · ") }) : []));
       btn.dataset.zoom = s.name;
       btn.addEventListener("click", function () { zoom(view.name === s.name ? full : s); });
       return btn;
@@ -1180,26 +1213,30 @@
     if (corners.length) {
       var losses = Q ? corners.map(function (c) { return c.gain; }).sort(function (x, y) { return y - x; }) : [];
       var worst = losses.length ? losses[Math.min(2, losses.length - 1)] : Infinity;
-      var speedHead = function (label) { return label + (Q ? " A / B" : ""); };
-      var head = el("tr", null, ["Abschnitt", "Bereich", Q ? "B zu A" : null, speedHead("Entry"), speedHead("Min"), speedHead("Exit"), Q ? "Bremspunkt B" : null]
+      var speedHead = function (label) { return label + (R ? " A / B / C" : Q ? " A / B" : ""); };
+      var head = el("tr", null, ["Abschnitt", "Bereich", Q ? "B zu A" : null, R ? "C zu A" : null, speedHead("Entry"), speedHead("Min"), speedHead("Exit"),
+        R ? "Bremspunkt B / C" : Q ? "Bremspunkt B" : null]
         .filter(function (h) { return h !== null; }).map(function (h, k) { return el("th", { className: k > 1 ? "num" : "", textContent: h }); }));
-      // Geschwindigkeit A, mit B daneben und der Differenz B zu A (grün = B schneller, rot = B langsamer)
-      var speedCell = function (a, b) {
+      // Geschwindigkeit A, dahinter B (und C) mit der Differenz zu A (grün = schneller als A, rot = langsamer)
+      var speedCell = function (a, b, c) {
         if (a == null) return el("td", { className: "num", textContent: "–" });
         var parts = [String(Math.round(a))];
-        if (Q && b != null) {
-          var d = Math.round(b) - Math.round(a);
-          parts.push(el("span", { className: "tm-b-val", textContent: " / " + Math.round(b) }),
+        [[Q, b, "tm-b-val"], [R, c, "tm-c-val"]].forEach(function (x) {
+          if (!x[0] || x[1] == null) return;
+          var d = Math.round(x[1]) - Math.round(a);
+          parts.push(el("span", { className: x[2], textContent: " / " + Math.round(x[1]) }),
             el("em", { className: "tm-dv" + (d > 0 ? " up" : d < 0 ? " down" : ""), textContent: d ? (d > 0 ? "+" : "−") + Math.abs(d) : "±0" }));
-        }
+        });
         return el("td", { className: "num" }, parts);
       };
+      var brake = function (d) { return d == null ? "–" : d === 0 ? "gleich" : Math.abs(d) + " m " + (d < 0 ? "früher" : "später"); };
       var rows = corners.map(function (c) {
         var cells = [el("td", { className: "tm-nm", textContent: c.name }), el("td", { textContent: P.m[c.i0] + "–" + P.m[c.i1] + " m" })];
         if (Q) cells.push(el("td", { className: "num tm-gain", textContent: signed(c.gain, 3) + " s" }));
-        cells.push(speedCell(c.entryA, c.entryB), speedCell(c.minA, c.minB), speedCell(c.exitA, c.exitB));
+        if (R) cells.push(el("td", { className: "num tm-gain-c", textContent: c.gainC == null ? "–" : signed(c.gainC, 3) + " s" }));
+        cells.push(speedCell(c.entryA, c.entryB, c.entryC), speedCell(c.minA, c.minB, c.minC), speedCell(c.exitA, c.exitB, c.exitC));
         if (Q) {
-          cells.push(el("td", { className: "num", textContent: c.brakeDiff == null ? "–" : c.brakeDiff === 0 ? "gleich" : Math.abs(c.brakeDiff) + " m " + (c.brakeDiff < 0 ? "früher" : "später") }));
+          cells.push(el("td", { className: "num", textContent: R ? brake(c.brakeDiff) + " / " + brake(c.brakeDiffC) : brake(c.brakeDiff) }));
         }
         var tr = el("tr", { className: Q && c.gain > 0 && c.gain >= worst ? "tm-loss" : "", tabIndex: 0 }, cells);
         tr.dataset.zoom = c.name;
@@ -1211,7 +1248,7 @@
       cornerTable = el("div", { className: "tm-corners" }, [
         el("h4", { textContent: "Kurven" + (Q ? " · B zu A: + = B verliert Zeit, die drei größten Verluste sind markiert" : "") }),
         el("div", { className: "scroll" }, el("table", null, [el("thead", null, head), el("tbody", null, rows)])),
-        el("p", { className: "lbl", textContent: "Abschnitt = vom Bremspunkt bis zum nächsten Bremspunkt (aus Runde A erkannt). Speed in km/h: Entry = höchste Geschwindigkeit vor dem eigenen Bremspunkt, Min = langsamste Stelle, Exit = 100 m nach dem Scheitelpunkt (für beide an derselben Stelle). Zeile anklicken zum Zoomen." })
+        el("p", { className: "lbl", textContent: "Abschnitt = vom Bremspunkt bis zum nächsten Bremspunkt (aus Runde A erkannt). Speed in km/h: Entry = höchste Geschwindigkeit vor dem eigenen Bremspunkt, Min = langsamste Stelle, Exit = 100 m nach dem Scheitelpunkt (für alle an derselben Stelle). Differenzen immer zu A. Zeile anklicken zum Zoomen." })
       ]);
     }
 
@@ -1227,11 +1264,14 @@
       el("div", null, [el("span", { textContent: "Top-Speed A" }), Math.max.apply(null, P.speed) + " km/h"])
     ].concat(B ? [
       el("div", null, [el("span", { textContent: "Top-Speed B" }), Math.max.apply(null, Q.speed) + " km/h"]),
-      el("div", null, [el("span", { textContent: "Differenz" }), signed(B.lapTime - A.lapTime, 3) + " s"])
+      el("div", null, [el("span", { textContent: C ? "Differenz B" : "Differenz" }), signed(B.lapTime - A.lapTime, 3) + " s"])
+    ] : [], C ? [
+      el("div", null, [el("span", { textContent: "Top-Speed C" }), Math.max.apply(null, R.speed) + " km/h"]),
+      el("div", null, [el("span", { textContent: "Differenz C" }), signed(C.lapTime - A.lapTime, 3) + " s"])
     ] : []));
 
     $("tm-view").replaceChildren(el("div", { className: "tm-wide" }, [
-      el("div", { className: "tm-keys" }, [key("a", A, "A")].concat(B ? key("b", B, "B") : [])),
+      el("div", { className: "tm-keys" }, [key("a", A, "A")].concat(B ? key("b", B, "B") : [], C ? key("c", C, "C") : [])),
       sectorBar || "",
       el("div", { className: "tm-zoombar" }, [viewName, reset, el("span", { className: "tm-hint", textContent: "Bereich mit der Maus aufziehen zum Zoomen · Doppelklick = ganze Runde" }), copy]),
       el("div", { className: "tm-layout" }, [box, el("div", { className: "tm-side" }, [map.node, sum])]),

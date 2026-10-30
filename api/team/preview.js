@@ -46,6 +46,7 @@ module.exports = async (req, res) => {
   if (/^\d{1,6}$/.test(q.auto || "")) params.set("auto", q.auto);
   if (ID.test(q.a || "") || REF.test(q.a || "")) params.set("a", q.a);
   if (ID.test(q.b || "") || REF.test(q.b || "")) params.set("b", q.b);
+  if (ID.test(q.c || "") || REF.test(q.c || "")) params.set("c", q.c); // Runde C: nur weitergeben, nicht in der Vorschau
   if (ZOOM.test(q.zoom || "")) params.set("zoom", q.zoom);
   const target = `/team#telemetrie${params.toString() ? `?${params}` : ""}`;
 
