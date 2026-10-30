@@ -2,7 +2,7 @@
   "maps": {
     "95": {
       "name": "Circuit des 24 Heures du Mans (24 Heures du Mans)",
-      "updated": "2026-10-30T19:24:26Z",
+      "updated": "2026-10-30T21:03:33Z",
       "fix": {
         "pairs": [
           [
@@ -257,6 +257,52 @@
           ]
         ]
       },
+      "names": [
+        {
+          "pct": 0.07646,
+          "name": "Dunlop Bogen"
+        },
+        {
+          "pct": 0.10657,
+          "name": "Chapelle"
+        },
+        {
+          "pct": 0.14111,
+          "name": "Tertre Rouge"
+        },
+        {
+          "pct": 0.30317,
+          "name": "1.Schikane"
+        },
+        {
+          "pct": 0.44812,
+          "name": "2.Schikane"
+        },
+        {
+          "pct": 0.5662,
+          "name": "Mulsanne Kurve"
+        },
+        {
+          "pct": 0.7231,
+          "name": "Indianapolis"
+        },
+        {
+          "pct": 0.74672,
+          "name": "Anarge Kurve"
+        },
+        {
+          "pct": 0.84325,
+          "name": "Porsche Kurve"
+        },
+        {
+          "pct": 0.91144,
+          "name": "Corvette Kurve"
+        },
+        {
+          "pct": 0.97343,
+          "name": "Ford Schikane"
+        }
+      ],
       "wayback": {
         "release": 22869,
         "date": "2026-03-26"
