@@ -2,6 +2,14 @@
   "buildCommand": "node scripts/build-content.js",
   "outputDirectory": ".",
   "cleanUrls": true,
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "darkline-site.vercel.app" }],
+      "destination": "https://darklineperformance.de/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/vergleich",
