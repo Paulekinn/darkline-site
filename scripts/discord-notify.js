@@ -1,7 +1,7 @@
 // Läuft als GitHub Action nach jedem Push (.github/workflows/discord.yml) und postet in den Discord-Ankündigungskanal:
-// 1. neue News (Rennvorschau, Rennbericht, Team …)
+// 1. neue News (Rennvorschau, Rennbericht, Team …); ein Rennbericht bekommt das Ergebnis des verknüpften Rennens dazu
 // 2. neu angelegte, geplante Rennen (Termin im Kalender)
-// 3. Rennen, die gerade abgeschlossen wurden (Ergebnis)
+// Das Abschließen eines Rennens postet nichts: Das Ergebnis kommt erst mit dem Rennbericht.
 // Gepostet wird nur, was in diesem Push NEU ist. Spätere Korrekturen an bestehenden Einträgen lösen keinen Post aus.
 // Gehört eine neue News zu einem Rennen (Feld "Zugehöriges Rennen"), postet nur die News, damit nichts doppelt kommt.
 // Auf anderen Branches als main läuft alles als Probelauf: die Posts werden nur im Log angezeigt.
@@ -57,19 +57,14 @@ function changes() {
 }
 
 function collect() {
-  const before = BEFORE && !/^0+$/.test(BEFORE) ? BEFORE : null;
   const news = [], races = [];
   for (const c of changes()) {
+    if (c.status !== "A") continue; // nur neue Einträge
     const id = path.basename(c.file, ".json");
     const now = readAt(AFTER, c.file);
     if (!now) continue;
-    const prev = before && c.status !== "A" ? readAt(before, c.old) : null;
-    if (c.file.startsWith("content/news/")) {
-      if (c.status === "A") news.push({ id, ...now });
-    } else if (c.file.startsWith("content/races/")) {
-      if (c.status === "A") races.push({ id, kind: done(now) ? "ergebnis" : "termin", ...now });
-      else if (done(now) && !done(prev)) races.push({ id, kind: "ergebnis", ...now });
-    }
+    if (c.file.startsWith("content/news/")) news.push({ id, ...now });
+    else if (c.file.startsWith("content/races/") && !done(now)) races.push({ id, ...now });
   }
   const linked = new Set(news.map((p) => p.rennen).filter(Boolean));
   return { news, races: races.filter((r) => !linked.has(r.id)) };
@@ -78,13 +73,23 @@ function collect() {
 // ---------- Karten für Discord ----------
 function newsCard(p) {
   const kat = p.kategorie || "News";
+  // Rennbericht mit verknüpftem, abgeschlossenem Rennen: Ergebnis als Felder in die Karte
+  const race = kat === "Rennbericht" && p.rennen ? readAt(AFTER, `content/races/${p.rennen}.json`) : null;
+  const gain = done(race) && race.start ? race.start - race.ziel : null;
+  const fields = done(race) ? [
+    { name: "Start", value: race.start ? `P${race.start}` : "–", inline: true },
+    { name: "Ziel", value: `P${race.ziel}`, inline: true },
+    { name: "Plätze", value: gain == null ? "–" : `${gain > 0 ? "+" : gain < 0 ? "−" : "±"}${Math.abs(gain)}`, inline: true },
+    ...((race.crew || []).length ? [{ name: "Fahrer", value: race.crew.join(", ") }] : []),
+  ] : [];
   return {
     content: `**${kat === "Rennbericht" ? "Neuer Rennbericht" : kat === "Rennvorschau" ? "Rennvorschau" : "News aus der Box"}**`,
     embed: {
-      author: { name: [kat, fmt(p.datum)].filter(Boolean).join(" · ") },
+      author: { name: [kat, race && race.serie, fmt(p.datum)].filter(Boolean).join(" · ") },
       title: p.titel,
       url: `${SITE}/news/${p.id}`,
       description: (p.teaser || plain(p.inhalt, 300)) + `\n\n**[Weiterlesen →](${SITE}/news/${p.id})**`,
+      ...(fields.length ? { fields } : {}),
       image: { url: image(p.bild) },
     },
     check: { file: "news.json", key: "posts", ok: (x) => x.id === p.id },
@@ -94,26 +99,6 @@ function newsCard(p) {
 function raceCard(r) {
   const url = `${SITE}/rennen/${r.id}`;
   const crew = (r.crew || []).join(", ");
-  if (r.kind === "ergebnis") {
-    const gain = r.start ? r.start - r.ziel : null;
-    return {
-      content: "**Rennergebnis**",
-      embed: {
-        author: { name: [r.serie, r.klasse].filter(Boolean).join(" · ") || "Ergebnis" },
-        title: `${r.titel} – P${r.ziel}`,
-        url,
-        description: (r.fazit || plain(r.bericht, 300) || "Das Ergebnis ist da.") + `\n\n**[Zum Rennbericht →](${url})**`,
-        fields: [
-          { name: "Start", value: r.start ? `P${r.start}` : "–", inline: true },
-          { name: "Ziel", value: `P${r.ziel}`, inline: true },
-          { name: "Plätze", value: gain == null ? "–" : `${gain >= 0 ? "+" : "−"}${Math.abs(gain)}`, inline: true },
-          ...(crew ? [{ name: "Fahrer", value: crew }] : []),
-        ],
-        image: { url: image(r.banner) },
-      },
-      check: { file: "races.json", key: "races", ok: (x) => x.id === r.id && done(x) },
-    };
-  }
   return {
     content: "**Neues Rennen im Kalender**",
     embed: {

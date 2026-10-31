@@ -122,7 +122,9 @@ Nach jedem Speichern im Admin postet eine GitHub Action (`.github/workflows/disc
 
 - **neue News** (Rennvorschau, Rennbericht, Team …)
 - **neues Rennen** mit Status *geplant* → Termin mit Datum, Fahrern und Fahrzeug
-- **Rennen auf *abgeschlossen* gesetzt** (mit Zielposition) → Ergebnis mit Start, Ziel und Plätzen
+- **Rennbericht** (News, Kategorie *Rennbericht*, mit zugehörigem Rennen) → Bericht plus Ergebnis mit Start, Ziel, Plätzen und Fahrern
+
+Ein Rennen auf *abgeschlossen* zu setzen postet nichts; das Ergebnis kommt erst mit dem Rennbericht.
 
 Nur Neues wird gepostet; Korrekturen an bestehenden Einträgen lösen keinen Post aus. Ist eine neue News mit einem Rennen verknüpft, kommt nur die News. Die Action wartet, bis der Eintrag live ist, damit der Link funktioniert.
 
