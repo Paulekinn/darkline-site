@@ -17,6 +17,8 @@ const WEBHOOK = process.env.DISCORD_WEBHOOK_URL;
 const BEFORE = process.env.BEFORE_SHA || "";
 const AFTER = process.env.AFTER_SHA || "HEAD";
 const DRY = process.env.DRY_RUN === "1";
+// Rolle, die bei jedem Post erwähnt wird (z. B. @Community): Rollen-ID als Actions-Variable DISCORD_PING_ROLE
+const PING = /^\d{15,25}$/.test(process.env.DISCORD_PING_ROLE || "") ? process.env.DISCORD_PING_ROLE : "";
 
 const git = (...args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8" });
 const readAt = (sha, file) => {
@@ -145,7 +147,8 @@ async function waitLive(check) {
 
 async function post(card) {
   const embed = { color: RED, footer: { text: BRAND }, timestamp: new Date().toISOString(), ...card.embed };
-  const body = { content: card.content, embeds: [embed], allowed_mentions: { parse: [] } };
+  // Nur die eingestellte Rolle darf pingen, Erwähnungen aus dem Text (@everyone usw.) bleiben stumm
+  const body = { content: (PING ? `<@&${PING}> ` : "") + card.content, embeds: [embed], allowed_mentions: { parse: [], roles: PING ? [PING] : [] } };
   for (let i = 0; i < 3; i++) {
     const r = await fetch(`${WEBHOOK}?wait=true`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (r.ok) return;

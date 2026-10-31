@@ -30,6 +30,7 @@ jobs:
       - run: node scripts/discord-notify.js
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_PING_ROLE: ${{ vars.DISCORD_PING_ROLE }}
           BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.sha }}
           DRY_RUN: ${{ github.ref == 'refs/heads/main' && '0' || '1' }}

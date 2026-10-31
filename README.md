@@ -127,6 +127,8 @@ Nur Neues wird gepostet; Korrekturen an bestehenden Einträgen lösen keinen Pos
 
 Einrichtung: in Discord im Kanal → Integrationen → Webhooks einen Webhook anlegen und die URL in GitHub unter Settings → Secrets and variables → Actions als `DISCORD_WEBHOOK_URL` speichern.
 
+Rollen-Ping (z. B. @Community): Rollen-ID in Discord kopieren (Entwicklermodus an → Rechtsklick auf die Rolle → „Rollen-ID kopieren“) und in GitHub unter Settings → Secrets and variables → Actions → **Variables** als `DISCORD_PING_ROLE` speichern. Ohne Variable wird niemand erwähnt.
+
 ## Lokal ansehen
 
 ```
