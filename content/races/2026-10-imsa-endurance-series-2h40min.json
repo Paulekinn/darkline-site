@@ -1,6 +1,6 @@
 {
   "titel": "Le Mans",
-  "status": "geplant",
+  "status": "abgeschlossen",
   "datum": "2026-10-31",
   "startzeit": "19:00",
   "dauer": "2:40h",
@@ -12,9 +12,9 @@
     "Pascal Rodenberg",
     "Vanessa Peltré (Gast)"
   ],
-  "start": null,
-  "ziel": null,
-  "fazit": "",
+  "start": 3,
+  "ziel": 3,
+  "fazit": "Solide Pace, 0 Inc´s.",
   "banner": "/img/races/seriesid_419.png",
   "bericht_titel": "",
   "bericht": ""
