@@ -165,7 +165,7 @@
     $("entries").innerHTML = html;
   }
 
-  /* ---------- Kalender + Klassement ---------- */
+  /* ---------- Saison: Kalender + Ergebnisse (Bereich #klassement) ---------- */
   function renderCalendar() {
     const up = upcoming();
     $("calendar").innerHTML = up.length ? up.map((r) => `<a href="/rennen/${esc(r.id)}">
@@ -394,7 +394,7 @@
         ${r.fazit ? `<div class="box"><span class="lbl">Kurzfazit</span><p style="margin:0">${esc(r.fazit)}</p></div>` : ""}
         ${streams.length ? `<div class="box"><span class="lbl">${done ? "Twitch" : "Live auf Twitch"}</span><p style="margin:0 0 10px">${done ? "Unsere Rennen laufen live auf Twitch." : `Live dabei${parseDate(r.datum) ? " am " + esc(fmt(r.datum)) : ""}${r.startzeit ? " ab " + esc(r.startzeit) + " Uhr" : ""}.`}</p>${streams.join("")}</div>` : ""}
         ${related.length ? `<div class="box"><span class="lbl">Passende News</span>${related.map((p) => `<a class="link" href="/news/${esc(p.id)}">${esc(p.titel)} →</a>`).join("")}</div>` : ""}
-        <div class="box"><a class="link" href="#klassement">← Zum Klassement</a></div>
+        <div class="box"><a class="link" href="#klassement">← Zur Saison</a></div>
       </aside></div>`;
   }
   function driverDetail(d) {
