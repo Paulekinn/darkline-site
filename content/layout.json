@@ -1,0 +1,10 @@
+{
+  "bereiche": [
+    { "bereich": "news", "sichtbar": true },
+    { "bereich": "lineup", "sichtbar": true },
+    { "bereich": "klassement", "sichtbar": true },
+    { "bereich": "garage", "sichtbar": true },
+    { "bereich": "shop", "sichtbar": true },
+    { "bereich": "partner", "sichtbar": true }
+  ]
+}

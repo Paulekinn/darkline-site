@@ -66,6 +66,7 @@ Beim Domain-Umzug `base_url` in `admin/config.yml` sowie Homepage- und Callback-
 | Garage | Garage | Livery-Bilder im Querformat 3:2. |
 | Shop | Shop | Status „Coming soon/Verfügbar/Ausverkauft“, optional Preis und Shop-Link (sonst Anfrage per E-Mail). |
 | Partner | Partner | Helles Logo auf transparentem Hintergrund. |
+| Reihenfolge der Startseite | Einstellungen → Startseite – Reihenfolge | Bereiche per Ziehen sortieren oder ausblenden; Menü folgt automatisch. Wird beim Deploy angewendet (`scripts/build-content.js`). |
 | Links, Open Seat | Einstellungen | Discord, E-Mail, Socials, Open Seat ein/aus. |
 
 **Eigene Werkzeuge** (Buttons unten links im Admin, gleiche GitHub-Anmeldung):

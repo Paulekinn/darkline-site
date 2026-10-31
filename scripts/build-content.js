@@ -35,6 +35,40 @@ function ogImage(img) {
   return SITE + (img.startsWith("/") ? img : "/" + img);
 }
 
+// ---------- Reihenfolge der Startseiten-Bereiche (Admin → Einstellungen → Startseite – Reihenfolge) ----------
+// Sortiert die Bereiche und die Menüpunkte in index.html nach content/layout.json, bevor daraus die Unterseiten entstehen.
+// Ausgeblendete Bereiche und Menüpunkte bekommen "hidden" (site.js füllt sie trotzdem, es fehlt also nichts).
+// Hero oben und "Box, Box" unten bleiben fest.
+const SECTIONS = ["news", "lineup", "klassement", "garage", "shop", "partner"];
+function arrangeSections() {
+  const file = path.join(ROOT, "content", "layout.json");
+  if (!fs.existsSync(file)) return;
+  const list = JSON.parse(fs.readFileSync(file, "utf8")).bereiche || [];
+  const order = list.map((b) => b.bereich).filter((id, i, a) => SECTIONS.includes(id) && a.indexOf(id) === i);
+  SECTIONS.forEach((id) => { if (!order.includes(id)) order.push(id); }); // Fehlendes hinten anhängen
+  const hidden = new Set(list.filter((b) => b.sichtbar === false).map((b) => b.bereich));
+  const setHidden = (block, h) => block.replace(/<(section|a)\b[^>]*>/, (tag) => tag.replace(/\s+hidden(?=[\s>])/, "").replace(/>$/, h ? " hidden>" : ">"));
+  const ids = SECTIONS.join("|");
+
+  // Bereiche und Menüpunkte stehen jeweils direkt hintereinander; nur dann wird umsortiert
+  function reorder(html, re, label) {
+    const found = [...html.matchAll(re)];
+    const contiguous = found.length === SECTIONS.length && found.every((m, i) => i === 0 || m.index === found[i - 1].index + found[i - 1][0].length);
+    if (!contiguous) { console.warn(`Reihenfolge: ${label} nicht wie erwartet gefunden, bleibt unverändert.`); return html; }
+    const blocks = Object.fromEntries(found.map((m) => [m[1], m[0]]));
+    const start = found[0].index, end = found[found.length - 1].index + found[found.length - 1][0].length;
+    return html.slice(0, start) + order.map((id) => setHidden(blocks[id], hidden.has(id))).join("") + html.slice(end);
+  }
+
+  const index = path.join(ROOT, "index.html");
+  let html = fs.readFileSync(index, "utf8");
+  html = reorder(html, new RegExp(`^[ \\t]*<section\\b[^>]*\\bid="(${ids})"[^>]*>[\\s\\S]*?<\\/section>[ \\t]*\\n(?:[ \\t]*\\n)*`, "gm"), "Bereiche");
+  html = reorder(html, new RegExp(`^[ \\t]*<a href="#(${ids})"[^>]*>[^<]*<\\/a>[ \\t]*\\n`, "gm"), "Menüpunkte");
+  fs.writeFileSync(index, html);
+  console.log(`Startseite: ${order.map((id) => (hidden.has(id) ? `(${id})` : id)).join(" · ")}`);
+}
+arrangeSections();
+
 const template = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
 const slugify = (s) => String(s || "").toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 function writePage(dir, id, meta) {

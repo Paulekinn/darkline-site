@@ -200,3 +200,27 @@ collections:
           - { name: tiktok, label: TikTok, widget: string, required: false }
           - { name: impressum, label: Impressum-Link, widget: string, required: false }
           - { name: datenschutz, label: Datenschutz-Link, widget: string, required: false }
+      - name: startseite
+        label: Startseite – Reihenfolge
+        file: content/layout.json
+        fields:
+          - name: bereiche
+            label: Bereiche
+            label_singular: Bereich
+            hint: "Reihenfolge per Ziehen ändern. Gilt für die Startseite und das Menü. Ausgeblendete Bereiche verschwinden samt Menüpunkt. Hero oben und „Box, Box“ unten bleiben fest."
+            widget: list
+            allow_add: false
+            allow_remove: false
+            summary: "{{fields.bereich}}"
+            fields:
+              - name: bereich
+                label: Bereich
+                widget: select
+                options:
+                  - { label: News, value: news }
+                  - { label: Lineup, value: lineup }
+                  - { label: Klassement, value: klassement }
+                  - { label: Garage, value: garage }
+                  - { label: Shop, value: shop }
+                  - { label: Partner, value: partner }
+              - { name: sichtbar, label: Anzeigen, widget: boolean, default: true }
