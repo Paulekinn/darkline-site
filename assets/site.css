@@ -657,4 +657,11 @@ main > .sheet{background-image:radial-gradient(900px 420px at 92% 0%,rgba(211,18
   .season{grid-template-columns:repeat(4,minmax(0,1fr))}
   .season div,.season div:nth-child(odd){border-bottom:0;border-right:1px solid var(--scan);padding:22px 18px 22px 24px}
   .season div:last-child{border-right:0}
-}
+}/* Kachel "Bestes Ergebnis" führt zum Rennbericht */
+.season div{position:relative;transition:background .2s}
+.season a.stretch{color:inherit;text-decoration:none}
+.season a.stretch::after{content:"";position:absolute;inset:0}
+.season div:has(a.stretch):hover{background:#121517}
+.season div:has(a.stretch):hover em{color:var(--red)}
+.season a.stretch:focus-visible{outline:none}
+.season div:has(a.stretch:focus-visible){outline:2px solid var(--red);outline-offset:-2px}

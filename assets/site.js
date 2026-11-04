@@ -143,7 +143,8 @@
     const gained = pool.filter((r) => r.start).reduce((t, r) => t + (+r.start - +r.ziel), 0);
     $("season").innerHTML = [
       [pool.length, "Rennen" + label, ""],
-      [best ? "P" + best.ziel : "–", "Bestes Ergebnis" + (best ? " · <em>" + esc(best.titel) + "</em>" : ""), "r"],
+      // ganze Kachel verlinkt auf den Rennbericht des besten Ergebnisses
+      [best ? "P" + best.ziel : "–", "Bestes Ergebnis" + (best ? ` · <a class="stretch" href="/rennen/${esc(best.id)}"><em>${esc(best.titel)}</em> →</a>` : ""), "r"],
       [top10, "Top-10-Ergebnisse", ""],
       [(gained > 0 ? "+" : "") + gained, "Plätze gutgemacht", gained > 0 ? "g" : ""],
     ].map(([v, l, c]) => `<div><b class="${c}">${esc(v)}</b><small>${l}</small></div>`).join("");
