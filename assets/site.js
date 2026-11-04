@@ -101,6 +101,10 @@
     const year = today.getFullYear();
     const n = upcoming()[0];
     const s = D.settings || {};
+    const last = finished()[0]; // neuestes Ergebnis, für "Zuletzt" ohne geplantes Rennen
+    const kicker = $("nextrace").querySelector(".nr-k");
+    $("nextrace").classList.toggle("past", !n && !!last);
+    kicker.innerHTML = `<i></i>${!n && last ? "Zuletzt" : "Nächstes Rennen"}`;
     if (n) {
       $("nextrace").href = "/rennen/" + n.id;
       $("nr-title").textContent = n.titel;
@@ -115,6 +119,14 @@
         $("nr-cd").hidden = false;
       };
       tick(); clearInterval(cdTimer); cdTimer = setInterval(tick, 30000);
+    } else if (last) {
+      // Kein Rennen geplant: statt eines leeren Kastens das letzte Ergebnis mit Link zum Bericht
+      const g = last.start ? +last.start - +last.ziel : null;
+      $("nextrace").href = "/rennen/" + last.id;
+      $("nr-title").textContent = `${last.titel} · P${last.ziel}`;
+      $("nr-meta").textContent = [fmt(last.datum), last.serie, g == null ? "" : `${g > 0 ? "+" : g < 0 ? "−" : "±"}${Math.abs(g)} Plätze`, "Zum Rennbericht →"].filter(Boolean).join(" · ");
+      $("nr-cd").hidden = true;
+      $("sess-text").textContent = `Zuletzt: ${last.titel} · P${last.ziel}`;
     } else {
       $("nextrace").href = s.discord || "#klassement";
       $("nr-title").textContent = "In Planung";
@@ -135,6 +147,23 @@
       [top10, "Top-10-Ergebnisse", ""],
       [(gained > 0 ? "+" : "") + gained, "Plätze gutgemacht", gained > 0 ? "g" : ""],
     ].map(([v, l, c]) => `<div><b class="${c}">${esc(v)}</b><small>${l}</small></div>`).join("");
+    countUp($("season"));
+  }
+  // Zahlen der Saisonbilanz kurz hochzählen lassen wie auf einem Timing-Monitor (Platzierungen zählen von hinten nach vorn)
+  function countUp(root) {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    root.querySelectorAll("b").forEach((b) => {
+      const m = b.textContent.match(/^([P+−-]?)(\d+)$/);
+      if (!m) return;
+      const pre = m[1], to = +m[2], from = pre === "P" ? Math.max(to + 17, 20) : 0;
+      const t0 = performance.now(), dur = 900;
+      const step = (t) => {
+        const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+        b.textContent = pre + Math.round(from + (to - from) * e);
+        if (k < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
   }
 
   /* ---------- Lineup ---------- */
