@@ -13,14 +13,16 @@ function useRequest(req) {
 
 function auth() {
   const rw = process.env.BLOB_READ_WRITE_TOKEN;
-  if (rw) return { token: rw, store: (rw.split("_")[3] || "").toLowerCase() }; // vercel_blob_rw_<store>_<geheim>
+  // Store-ID in Original-Schreibweise: der Header x-vercel-blob-store-id unterscheidet Groß- und Kleinschreibung
+  if (rw) return { token: rw, store: rw.split("_")[3] || "" }; // vercel_blob_rw_<store>_<geheim>
   const oidc = requestOidc || process.env.VERCEL_OIDC_TOKEN;
-  const store = (process.env.BLOB_STORE_ID || "").replace(/^store_/, "").toLowerCase();
+  const store = (process.env.BLOB_STORE_ID || "").replace(/^store_/, "");
   if (!oidc || !store) throw new Error("Kein Zugang zum privaten Speicher: BLOB_STORE_ID oder OIDC-Token fehlt.");
   return { token: oidc, store };
 }
 
-const fileUrl = (store, pathname) => `https://${store}.private.blob.vercel-storage.com/${pathname}`;
+const fileUrl = (store, pathname) => `https://${store.toLowerCase()}.private.blob.vercel-storage.com/${pathname}`;
+const failure = async (what, r) => new Error(`${what} im privaten Speicher fehlgeschlagen (Code ${r.status}${await r.text().then((t) => (t ? ": " + t.slice(0, 160) : ""), () => "")}).`);
 
 // Datei anlegen oder überschreiben
 async function blobPut(pathname, body, contentType) {
@@ -38,7 +40,7 @@ async function blobPut(pathname, body, contentType) {
     },
     body,
   });
-  if (!r.ok) throw new Error(`Speichern im privaten Speicher fehlgeschlagen (Code ${r.status}).`);
+  if (!r.ok) throw await failure("Speichern", r);
   return r.json();
 }
 
@@ -47,7 +49,7 @@ async function blobGet(pathname) {
   const { token, store } = auth();
   const r = await fetch(fileUrl(store, pathname), { headers: { authorization: `Bearer ${token}` }, cache: "no-store" });
   if (r.status === 404) return null;
-  if (!r.ok) throw new Error(`Lesen aus dem privaten Speicher fehlgeschlagen (Code ${r.status}).`);
+  if (!r.ok) throw await failure("Lesen", r);
   return r.text();
 }
 
@@ -58,7 +60,7 @@ async function blobDelete(pathnames) {
     headers: { authorization: `Bearer ${token}`, "x-api-version": "13", "x-vercel-blob-store-id": store, "content-type": "application/json" },
     body: JSON.stringify({ urls: pathnames.map((p) => fileUrl(store, p)) }),
   });
-  if (!r.ok) throw new Error(`Löschen im privaten Speicher fehlgeschlagen (Code ${r.status}).`);
+  if (!r.ok) throw await failure("Löschen", r);
 }
 
 module.exports = { useRequest, blobPut, blobGet, blobDelete };
