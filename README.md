@@ -92,7 +92,7 @@ api/team/leaderboard.js   Rangliste: Strecken der letzten 4 Wochen, Bestzeiten p
 api/team/weekly.js        Wochenbericht: 8 Wochen aus der Team-Statistik
 api/team/telemetry.js     Telemetrie einer Runde, verdichtet auf 4000 Punkte (GPS für die Karte etwa alle 2 m);
                           dazu Referenzrunden fremder Fahrer (CSV-Upload im Admin, privater Speicher)
-api/_lib/blob.js          privater Vercel-Blob-Speicher „darkline-referenzrunden“ (BLOB_READ_WRITE_TOKEN)
+api/_lib/blob.js          privater Vercel-Blob-Speicher „darkline-referenzrunden“ (BLOB_STORE_ID + OIDC, alternativ BLOB_READ_WRITE_TOKEN)
 assets/map-image.js       gedrehtes Kartenbild (eigene Streckenkarten), auch im Admin genutzt
 api/team/race.js          Rennbericht (Admin) und Rennanalyse (Teambereich): Sessions am Renntag, Auswertung
                           (Stints, Fahrer, Boxenstopps, Zeitverluste, alle Runden fürs Pace-Diagramm, Wetter)

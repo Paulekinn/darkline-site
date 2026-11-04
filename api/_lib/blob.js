@@ -3,10 +3,21 @@
 // Direkt per HTTP wie das offizielle SDK @vercel/blob (API-Version 13), damit das Projekt ohne npm-Abhängigkeiten bleibt.
 const API = "https://vercel.com/api/blob";
 
+// Zugang: fester Token (BLOB_READ_WRITE_TOKEN) oder, wie bei neu verbundenen Stores, das kurzlebige OIDC-Token,
+// das Vercel jeder Anfrage mitgibt (Header x-vercel-oidc-token), zusammen mit BLOB_STORE_ID.
+// Das OIDC-Token gehört zum Projekt, nicht zur Person; useRequest(req) merkt sich das der aktuellen Anfrage.
+let requestOidc = "";
+function useRequest(req) {
+  requestOidc = (req && req.headers && req.headers["x-vercel-oidc-token"]) || "";
+}
+
 function auth() {
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (!token) throw new Error("BLOB_READ_WRITE_TOKEN fehlt in den Vercel-Umgebungsvariablen.");
-  return { token, store: (token.split("_")[3] || "").toLowerCase() }; // vercel_blob_rw_<store>_<geheim>
+  const rw = process.env.BLOB_READ_WRITE_TOKEN;
+  if (rw) return { token: rw, store: (rw.split("_")[3] || "").toLowerCase() }; // vercel_blob_rw_<store>_<geheim>
+  const oidc = requestOidc || process.env.VERCEL_OIDC_TOKEN;
+  const store = (process.env.BLOB_STORE_ID || "").replace(/^store_/, "").toLowerCase();
+  if (!oidc || !store) throw new Error("Kein Zugang zum privaten Speicher: BLOB_STORE_ID oder OIDC-Token fehlt.");
+  return { token: oidc, store };
 }
 
 const fileUrl = (store, pathname) => `https://${store}.private.blob.vercel-storage.com/${pathname}`;
@@ -50,4 +61,4 @@ async function blobDelete(pathnames) {
   if (!r.ok) throw new Error(`Löschen im privaten Speicher fehlgeschlagen (Code ${r.status}).`);
 }
 
-module.exports = { blobPut, blobGet, blobDelete };
+module.exports = { useRequest, blobPut, blobGet, blobDelete };

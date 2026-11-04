@@ -12,7 +12,7 @@
 const { requireAdmin, requireAdminOrSession } = require("../_lib/admin"); // Teambereich oder Admin-Werkzeug (Streckenkarte)
 const { requireSession } = require("../_lib/session");
 const { g61Get, g61Text, cached, sendError } = require("../_lib/g61");
-const { blobPut, blobGet, blobDelete } = require("../_lib/blob");
+const { useRequest, blobPut, blobGet, blobDelete } = require("../_lib/blob");
 
 // Punkte über die Runde: nah an der echten Aufzeichnung, damit kurze Eingaben (Antippen der Bremse, Gas lupfen) sichtbar bleiben
 const N = 4000;
@@ -194,6 +194,7 @@ async function references(req, res) {
 
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "private, no-store");
+  useRequest(req); // Zugang zum privaten Speicher für Referenzrunden
   const q = req.query || {};
   if (req.method !== "GET" || q.ref !== undefined || q.refs !== undefined) {
     try {
