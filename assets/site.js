@@ -190,6 +190,7 @@
     const fin = finished();
     $("results-meta").textContent = `${fin.length} Ergebnisse · ${upcoming().length} geplant`;
     $("results").innerHTML = fin.map((r, i) => `<li${i >= RESULTS_MAX ? ' class="extra" hidden' : ""}><a class="row" href="/rennen/${esc(r.id)}">
+      ${r.umriss ? `<span class="trk" aria-hidden="true" style="--trk:url('${esc(r.umriss)}')"></span>` : ""}
       <span class="fin ${+r.ziel <= 10 ? "top" : ""}">P${esc(r.ziel)}</span>
       <div class="ev">${esc(r.titel)}<small>${[r.serie, r.klasse, fmt(r.datum), durText(r), r.fahrzeug].filter(Boolean).map(esc).join(" · ")}${r.fazit ? " · " + esc(r.fazit) : ""}</small>${crewHtml(r).replace('class="crew"', 'class="crew"')}</div>
       ${gainSvg(r)}
@@ -477,4 +478,28 @@
     applySettings(); renderPitwall(); renderDrivers(); renderCalendar(); renderResults(); renderNews(); renderCars(); renderShop(); renderPartners();
     if (detailPath() || /^#(rennen|news)-/.test(location.hash)) route();
   })();
+})();
+
+/* ---------- Schaltblitze: zeigen beim Scrollen, wie weit man auf der Seite ist ---------- */
+(() => {
+  const bar = document.getElementById("revs");
+  if (!bar) return;
+  const N = 15;
+  const lights = Array.from({ length: N }, (_, i) => {
+    const el = document.createElement("i");
+    el.className = i < 5 ? "g" : i < 10 ? "y" : "r";
+    return bar.appendChild(el);
+  });
+  let ticking = false;
+  const update = () => {
+    ticking = false;
+    const max = document.documentElement.scrollHeight - innerHeight;
+    const p = max > 0 ? Math.min(1, scrollY / max) : 0;
+    const lit = Math.round(p * N);
+    lights.forEach((el, i) => el.classList.toggle("on", i < lit));
+    bar.classList.toggle("max", p > 0.995);
+  };
+  addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
+  addEventListener("resize", update);
+  update();
 })();

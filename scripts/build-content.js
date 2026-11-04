@@ -100,6 +100,12 @@ function writePage(dir, id, meta) {
 }
 
 const races = collect("races", "races.json", "races");
+// Streckenumriss für die Saison-Liste: img/tracks/<strecke>.svg (Dateiname = Strecke als Kennung, z. B. spa-francorchamps.svg)
+for (const r of races) {
+  const file = `img/tracks/${slugify(r.strecke)}.svg`;
+  if (r.strecke && fs.existsSync(path.join(ROOT, file))) r.umriss = "/" + file;
+}
+fs.writeFileSync(path.join(ROOT, "content", "races.json"), JSON.stringify({ races }, null, 2));
 const posts = collect("news", "news.json", "posts");
 
 for (const dir of ["rennen", "news", "fahrer"]) fs.rmSync(path.join(ROOT, dir), { recursive: true, force: true });

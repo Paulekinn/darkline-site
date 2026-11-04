@@ -617,3 +617,34 @@ footer nav a{display:inline-block;min-height:0;line-height:40px}
 @media (max-width:560px){.news-grid{grid-auto-columns:86%}}
 /* Ergebnisse aufklappen */
 #results-more{padding-top:18px}
+
+/* ---------- Design v2: Schaltblitze, schräge Überschriften, diagonale Übergänge ---------- */
+/* Schaltblitze unter dem Menü: leuchten beim Scrollen von grün über gelb nach rot, am Seitenende blinken alle rot */
+.revs{display:grid;grid-template-columns:repeat(15,minmax(0,1fr));gap:3px;height:5px;background:var(--black)}
+.revs i{background:#1a1e20;transition:background .12s,box-shadow .12s}
+.revs i.on.g{background:#3fd277;box-shadow:0 0 8px rgba(63,210,119,.65)}
+.revs i.on.y{background:#ffb020;box-shadow:0 0 8px rgba(255,176,32,.65)}
+.revs i.on.r{background:var(--red);box-shadow:0 0 8px rgba(211,18,27,.8)}
+.revs.max i{background:var(--red);box-shadow:0 0 10px rgba(211,18,27,.9);animation:revflash .34s steps(2) infinite}
+@keyframes revflash{50%{background:#1a1e20;box-shadow:none}}
+
+/* Überschriften schräg wie das Logo */
+.grid-hero h1{transform:skewX(-7deg);transform-origin:left bottom}
+.doc-head h2.wide{transform:skewX(-9deg);transform-origin:left bottom}
+
+/* Bereiche gehen schräg ineinander über; feine Kante mit rotem Akzent links */
+:root{--cut:clamp(24px,4vw,56px)}
+main > section + section{border-top:0}
+main > .sheet{position:relative;margin-top:calc(var(--cut) * -1);padding-top:calc(clamp(64px,9vw,112px) + var(--cut));clip-path:polygon(0 var(--cut),100% 0,100% 100%,0 100%)}
+:where(main > .sheet){background:var(--sheet)}
+main > .sheet::before,main > .sheet::after{content:"";position:absolute;left:0;pointer-events:none}
+main > .sheet::before{right:0;top:0;height:var(--cut);background:linear-gradient(to top left,transparent calc(50% - 1px),var(--scan) calc(50% - 1px) calc(50% + 1px),transparent calc(50% + 1px))}
+main > .sheet::after{top:calc(var(--cut) * .7);width:30%;height:calc(var(--cut) * .3);background:linear-gradient(to top left,transparent calc(50% - 2px),var(--red) calc(50% - 2px) calc(50% + 2px),transparent calc(50% + 2px))}
+
+@media (prefers-reduced-motion:reduce){.revs i{transition:none}.revs.max i{animation:none}}
+/* Streckenumriss als dezentes Hintergrundmotiv in den Ergebnissen (Farbe per Maske, beim Drüberfahren rot) */
+.class-list a.row{position:relative;overflow:hidden}
+.class-list a.row > :not(.trk){position:relative}
+.class-list .trk{position:absolute;right:10rem;top:50%;width:170px;height:120px;transform:translateY(-50%);background:var(--ink);opacity:.09;-webkit-mask:var(--trk) center/contain no-repeat;mask:var(--trk) center/contain no-repeat;pointer-events:none;transition:opacity .2s,background .2s}
+.class-list a.row:hover .trk{opacity:.4;background:var(--red)}
+@media (max-width:820px){.class-list .trk{right:12px;top:24px;width:110px;height:80px;transform:none}}
