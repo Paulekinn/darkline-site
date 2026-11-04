@@ -124,7 +124,7 @@
       const g = last.start ? +last.start - +last.ziel : null;
       $("nextrace").href = "/rennen/" + last.id;
       $("nr-title").textContent = `${last.titel} · P${last.ziel}`;
-      $("nr-meta").textContent = [fmt(last.datum), last.serie, g == null ? "" : `${g > 0 ? "+" : g < 0 ? "−" : "±"}${Math.abs(g)} Plätze`, "Zum Rennbericht →"].filter(Boolean).join(" · ");
+      $("nr-meta").textContent = [fmt(last.datum), g == null ? "" : `${g > 0 ? "+" : g < 0 ? "−" : "±"}${Math.abs(g)} Plätze`, "Zum Rennbericht →"].filter(Boolean).join(" · ");
       $("nr-cd").hidden = true;
       $("sess-text").textContent = `Zuletzt: ${last.titel} · P${last.ziel}`;
     } else {
