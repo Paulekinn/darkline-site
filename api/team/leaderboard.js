@@ -1,6 +1,8 @@
 // Rangliste für den Teambereich.
 // GET                 → Strecken, die das Team in den letzten 4 Wochen gefahren ist (eine Anfrage an die Team-Statistik)
-// GET ?track=<ID>     → Team-Bestzeiten auf dieser Strecke, pro Auto (erst beim Anklicken, 15 Minuten gemerkt)
+// GET ?track=<ID>     → Team-Bestzeiten auf dieser Strecke, pro Auto, aller Zeiten (erst beim Anklicken, 15 Minuten gemerkt)
+// GET ?track=<ID>&zeitraum=4w → dasselbe, nur Runden der letzten 4 Wochen
+// GET ?strecken=alle  → alle Strecken aus Garage 61 (für die Suche nach Strecken, die länger nicht gefahren wurden)
 // GET ?track=<ID>&alle=1 → nur Admin: Test, ob unser Zugang Runden außerhalb des Teams sieht (für eine Referenzrunde
 //                         des schnellsten Fahrers). Garage 61 gibt die nur an eigens freigegebene Anwendungen heraus.
 // Auch für Admin-Werkzeuge (Streckenkarte) mit GitHub-Anmeldung.
@@ -29,18 +31,21 @@ async function trackOverview() {
     .sort((a, b) => b.time - a.time);
 }
 
-async function trackBests(trackId) {
+// since: ISO-Zeitpunkt; nur Runden ab dann (beste Runde pro Fahrer und Auto in diesem Zeitraum)
+async function trackBests(trackId, since) {
   const data = await g61Get("/laps", {
     tracks: trackId,
     teams: teamSlug(),
     drivers: "me", // eigene Runden des Token-Besitzers sicher mit dabei (wie beim Bot)
     group: "driver-car",
     limit: 1000,
+    ...(since ? { after: since } : {}),
   });
   const carNames = await cars();
   const byCar = new Map();
   for (const lap of items(data)) {
     if (!lap.car || !lap.driver || !lap.lapTime) continue;
+    if (since && lap.startTime < since) continue; // zur Sicherheit, falls der Filter nicht greift
     const list = byCar.get(lap.car.id) || [];
     list.push({
       id: lap.id,
@@ -111,8 +116,18 @@ module.exports = async (req, res) => {
       if (!Number.isInteger(track) || track <= 0) return res.status(400).json({ error: "Ungültige Strecke." });
       return res.status(200).json(await cached(`outside:${track}`, 900, () => outsideCheck(track)));
     }
+    if (req.query.strecken === "alle") {
+      const list = [...(await tracks()).entries()].map(([id, t]) => ({ id, name: t.name, variant: t.variant }))
+        .sort((a, b) => a.name.localeCompare(b.name) || a.variant.localeCompare(b.variant));
+      return res.status(200).json({ tracks: list });
+    }
     if (req.query.track !== undefined) {
       if (!Number.isInteger(track) || track <= 0) return res.status(400).json({ error: "Ungültige Strecke." });
+      if (req.query.zeitraum === "4w") {
+        // Beginn auf den Tagesanfang gerundet, damit der Zwischenspeicher über den Tag greift
+        const since = new Date(Date.now() - DAYS * 86400 * 1000).toISOString().slice(0, 10) + "T00:00:00Z";
+        return res.status(200).json({ track, since, cars: await cached(`track4w:${track}:${since}`, 900, () => trackBests(track, since)) });
+      }
       return res.status(200).json({ track, cars: await cached(`track:${track}`, 900, () => trackBests(track)) });
     }
     return res.status(200).json({ days: DAYS, tracks: await cached("overview", 900, trackOverview) });

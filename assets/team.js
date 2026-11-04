@@ -133,29 +133,53 @@
       ]);
       var body = el("tbody");
       d.tracks.forEach(function (t) {
-        var row = el("tr", { className: "trk", tabIndex: 0 }, [
-          el("td", { className: "name" }, [el("b", { textContent: t.name })].concat(t.variant ? el("small", { textContent: t.variant }) : [])),
-          el("td", { className: "num", textContent: hours(t.time) }),
-          el("td", { className: "num opt", textContent: String(t.laps) }),
-          el("td", { className: "num opt", textContent: String(t.drivers) }),
-          el("td", { className: "num", textContent: day(t.last) })
-        ]);
-        row.setAttribute("aria-expanded", "false");
-        var toggle = function () { toggleTrack(t, row); };
-        row.addEventListener("click", toggle);
-        row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
-        body.append(row);
+        body.append(trackRow(t, [hours(t.time), String(t.laps), String(t.drivers), day(t.last)]));
       });
-      var search = el("input", { type: "search", className: "search", placeholder: "Strecke suchen …", autocomplete: "off" });
+      var known = {};
+      d.tracks.forEach(function (t) { known[t.id] = true; });
+      var search = el("input", { type: "search", className: "search", placeholder: "Strecke suchen (auch länger nicht gefahrene) …", autocomplete: "off" });
       search.setAttribute("aria-label", "Strecke suchen");
       var none = el("p", { className: "msg", textContent: "Keine Strecke gefunden.", hidden: true });
-      search.addEventListener("input", function () { filterTracks(search.value, none); });
+      search.addEventListener("input", function () { filterTracks(search.value, none); searchAll(search, body, known, none); });
       box.replaceChildren(search, el("div", { className: "scroll" }, el("table", { className: "tracks" }, [el("thead", null, head), body])), none);
       initTelemetry(d.tracks);
     }).catch(function (e) {
       message(box, e.message, true);
       message($("tm-view"), e.message, true);
     });
+  }
+
+  // Eine Tabellenzeile pro Strecke; Klick oder Enter klappt die Bestzeiten auf
+  function trackRow(t, cells, extra) {
+    var row = el("tr", { className: "trk" + (extra ? " extra" : ""), tabIndex: 0 }, [
+      el("td", { className: "name" }, [el("b", { textContent: t.name })].concat(t.variant ? el("small", { textContent: t.variant }) : []))
+    ].concat(cells.map(function (c, i) { return el("td", { className: "num" + (i === 1 || i === 2 ? " opt" : ""), textContent: c }); })));
+    row.setAttribute("aria-expanded", "false");
+    var toggle = function () { toggleTrack(t, row); };
+    row.addEventListener("click", toggle);
+    row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+    return row;
+  }
+
+  // Beim Suchen zusätzlich Strecken, die länger als 4 Wochen nicht gefahren wurden. Die Liste aller Strecken wird einmal geladen.
+  var allTracks = null;
+  function searchAll(input, body, known, none) {
+    var q = input.value.trim().toLowerCase();
+    body.querySelectorAll("tr.extra, tr.extra-head").forEach(function (r) {
+      var next = r.nextElementSibling;
+      if (r.classList.contains("extra") && next && next.classList.contains("trk-open")) next.remove();
+      r.remove();
+    });
+    if (q.length < 2) return;
+    if (!allTracks) allTracks = api("/api/team/leaderboard?strecken=alle").then(function (d) { return d.tracks; });
+    allTracks.then(function (list) {
+      if (input.value.trim().toLowerCase() !== q) return; // inzwischen weitergetippt
+      var hits = list.filter(function (t) { return !known[t.id] && (t.name + " " + t.variant).toLowerCase().indexOf(q) !== -1; }).slice(0, 15);
+      if (!hits.length) return;
+      body.append(el("tr", { className: "extra-head" }, el("td", { colSpan: 5, className: "lbl", textContent: "Weitere Strecken · in den letzten 4 Wochen nicht gefahren" })));
+      hits.forEach(function (t) { body.append(trackRow(t, ["–", "–", "–", "–"], true)); });
+      none.hidden = true;
+    }).catch(function () { allTracks = null; });
   }
 
   // Blendet Strecken aus, deren Name oder Variante den Suchtext nicht enthält.
@@ -184,10 +208,31 @@
     cell.addEventListener("click", function (e) { e.stopPropagation(); });
     cell.colSpan = 5;
     row.after(el("tr", { className: "trk-open" }, cell));
-    api("/api/team/leaderboard?track=" + encodeURIComponent(track.id)).then(function (d) {
-      if (!d.cars.length) return message(box, "Für diese Strecke sind keine Runden des Teams sichtbar.");
-      showCars(box, d.cars, track.id);
-    }).catch(function (e) { message(box, e.message, true); });
+    loadBests(box, track);
+  }
+
+  // Zeitraum der Bestzeiten: "alle" (All-Time) oder "4w" (nur Runden der letzten 4 Wochen); gilt für alle Strecken
+  var bestRange = "alle";
+  function loadBests(box, track) {
+    var bar = el("div", { className: "cartabs range" }, [["alle", "Alle Zeiten"], ["4w", "Letzte 4 Wochen"]].map(function (r) {
+      var b = el("button", { type: "button" }, el("b", { textContent: r[1] }));
+      b.setAttribute("aria-pressed", String(bestRange === r[0]));
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (bestRange === r[0]) return;
+        bestRange = r[0];
+        loadBests(box, track);
+      });
+      return b;
+    }));
+    var content = el("div", null, el("p", { className: "lbl", textContent: "Lade Bestzeiten …" }));
+    box.replaceChildren(bar, content);
+    var range = bestRange;
+    api("/api/team/leaderboard?track=" + encodeURIComponent(track.id) + (range === "4w" ? "&zeitraum=4w" : "")).then(function (d) {
+      if (range !== bestRange) return; // inzwischen umgeschaltet
+      if (!d.cars.length) return message(content, range === "4w" ? "In den letzten 4 Wochen ist hier niemand aus dem Team gefahren." : "Für diese Strecke sind keine Runden des Teams sichtbar.");
+      showCars(content, d.cars, track.id);
+    }).catch(function (e) { message(content, e.message, true); });
   }
 
   // Oben ein Button pro Auto, darunter nur die Tabelle des gewählten Autos (hält den Bereich kurz).
