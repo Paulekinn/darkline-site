@@ -124,7 +124,22 @@ function baueSerien(serienListe, eintraege, { discordId, profil, klasseFuer }) {
     const eigen = mitglieder.find((e) => e.discordId === discordId);
     const sportsCar = !s.kategorie || s.kategorie === "Sports_Car";
     const klasse = profil && sportsCar ? (klasseFuer(profil.irating, s.klassen || []) || {}).name || "" : "";
-    return { id: s.id, name: s.name, typ: s.typ || "liga", saison: s.saison || "", status: s.status || "anmeldung", anmeldungOffen: s.anmeldungOffen !== false && s.status !== "beendet", farbe: s.farbe || "rot", fahrzeugklassen: s.fahrzeugklassen || [], fahrer: mitglieder.length, ich: !!eigen, fahrzeugklasse: eigen ? eigen.fahrzeugklasse : "", klasse, einstufungDurchRennleitung: !sportsCar };
+    return { id: s.id, name: s.name, typ: s.typ || "liga", saison: s.saison || "", status: s.status || "anmeldung", anmeldungOffen: s.anmeldungOffen !== false && s.status !== "beendet", farbe: s.farbe || "rot", bildVersion: s.bildVersion || 0, fahrzeugklassen: s.fahrzeugklassen || [], fahrer: mitglieder.length, ich: !!eigen, fahrzeugklasse: eigen ? eigen.fahrzeugklasse : "", klasse, einstufungDurchRennleitung: !sportsCar };
+  });
+}
+
+// Die eigenen Fahrerkarten über den iRacing-Namen. Die Tabellen sind öffentlich und enthalten keine IDs, ein Tippfehler im Profil bedeutet nur: keine Karte.
+function eigeneKarten(serienListe, tabellen, iracingName) {
+  const name = String(iracingName || "").trim().toLowerCase();
+  if (!name) return [];
+  return serienListe.flatMap((s) => {
+    const t = tabellen.get(s.id);
+    if (!t || !Array.isArray(t.klassen)) return [];
+    return t.klassen.flatMap((k) => {
+      const f = k.fahrer.find((x) => x.karte && x.name.trim().toLowerCase() === name);
+      if (!f) return [];
+      return [{ serie: s.id, serieName: s.name, bildVersion: s.bildVersion || 0, rennenGesamt: t.rennenGesamt, klasseId: k.id, klasse: k.name, min: k.min, max: k.max, name: f.name, pos: f.pos, punkte: f.punkte, rennen: f.rennen, karte: f.karte }];
+    });
   });
 }
 
@@ -139,4 +154,4 @@ function pruefeProfil(p) {
   return { iracingName: name, custId, irating: +irating };
 }
 
-module.exports = { PREFIX, anmeldungPfad, mitgliedPfad, abmeldungPfad, profilPfad, leseEintrag, berlinNachUtc, dauerMinuten, ordne, baueRennen, baueSerien, kollisionen, pruefeProfil };
+module.exports = { PREFIX, anmeldungPfad, mitgliedPfad, abmeldungPfad, profilPfad, leseEintrag, berlinNachUtc, dauerMinuten, ordne, baueRennen, baueSerien, kollisionen, eigeneKarten, pruefeProfil };

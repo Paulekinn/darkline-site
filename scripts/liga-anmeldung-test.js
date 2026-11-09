@@ -28,7 +28,21 @@ const TEILEN_SERIE = { id: "gt3", name: "GT3 Sprint", bildVersion: 0 };
 const TEILEN_GRUPPE = { id: "pro", name: "Pro" };
 const teilenFahrer = (karte) => ({ name: "Lena Beispiel", pos: 2, punkte: 77, karte: { rating: 88, speed: 90, sauberkeit: 80, racecraft: 85, konstanz: null, abzeichen: [{ art: "hattrick", text: "Hattrick" }], ...karte } });
 
+const kartenTabelle = () => new Map([["gt3", { rennenGesamt: 8, klassen: [{ id: "pro", name: "Pro", min: 2500, max: null, fahrer: [{ name: "Lena Beispiel", pos: 1, punkte: 50, rennen: [], irating: 3000, karte: { rating: 90 } }, { name: "Tom Muster", pos: 2, punkte: 40, rennen: [], karte: null }] }] }], ["leer", null]]);
+
 const tests = {
+  "Eigene Karten: Treffer unabhängig von Groß- und Kleinschreibung, ohne iRating": () => {
+    const [k, ...rest] = A.eigeneKarten([{ id: "gt3", name: "GT3" }, { id: "leer", name: "Leer" }], kartenTabelle(), " lena beispiel ");
+    assert.strictEqual(rest.length, 0);
+    assert.deepStrictEqual([k.serie, k.klasseId, k.pos, k.punkte, k.karte.rating], ["gt3", "pro", 1, 50, 90]);
+    assert.strictEqual(k.irating, undefined);
+  },
+  "Eigene Karten: kein Treffer ohne Namen, ohne Karte oder bei fremdem Namen": () => {
+    const serien = [{ id: "gt3", name: "GT3" }];
+    assert.deepStrictEqual(A.eigeneKarten(serien, kartenTabelle(), ""), []);
+    assert.deepStrictEqual(A.eigeneKarten(serien, kartenTabelle(), "Tom Muster"), []);
+    assert.deepStrictEqual(A.eigeneKarten(serien, kartenTabelle(), "Niemand"), []);
+  },
   "Teilen: Vorschau enthält Rating, Platz, Werte und Abzeichen": () => {
     const html = teilen.baueSeite(TEILEN_SERIE, TEILEN_GRUPPE, teilenFahrer());
     assert.ok(html.includes('og:title" content="Lena Beispiel · Darkline Rating 88"'));

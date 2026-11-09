@@ -29,8 +29,17 @@
   let reportEntwurf = {};
   let filter = null;       // "meine", "alle" oder eine Serienkennung
   let auswahl = null;      // Kennung des Rennens im großen Block
+  let karteWahl = 0;       // gezeigte Fahrerkarte, falls jemand in mehreren Serien fährt
 
   $("year").textContent = new Date().getFullYear();
+
+  // Gleiche Motive wie auf der Ligaseite: eigenes Serienbild, sonst je Serie immer dieselbe Livery
+  const LIVERYS = ["porsche", "ferrari", "bmw", "amg", "ford"];
+  const livery = (id) => LIVERYS[[...String(id)].reduce((t, c) => t + c.charCodeAt(0), 0) % LIVERYS.length];
+  const bildVon = (id, version) => (version ? `api/liga?r=bild&k=${encodeURIComponent(`serie-${id}`)}&v=${encodeURIComponent(version)}` : `img/cars/${livery(id)}.webp`);
+  const serieVon = (id) => stand.serien.find((s) => s.id === id);
+  const rennBild = (r) => { const s = serieVon(r.serie); return r.serie ? bildVon(r.serie, s && s.bildVersion) : "img/hero.webp"; };
+  const motiv = (src) => `style="background-image:url('${esc(src)}')"`;
 
   function statusChip(r) {
     if (r.status === "abgesagt") return '<span class="fb-status abgesagt">Abgesagt</span>';
@@ -65,15 +74,29 @@
   const fakt = (titel, wert, klasse) => (wert ? `<div class="${klasse || ""}"><dt>${esc(titel)}</dt><dd>${esc(wert)}</dd></div>` : "");
   const namenListe = (liste, ichName) => liste.map((f, i) => `<li class="${f.name === ichName ? "ich" : ""}"><em>${i + 1}</em><span>${esc(f.name)}</span>${f.fahrzeugklasse ? `<small>${esc(f.fahrzeugklasse)}</small>` : ""}</li>`).join("");
 
+  // Ablauf bis zum Start als Leuchten: grün erledigt, gelb Warteliste, dunkel noch offen
+  function ablauf(r) {
+    const schritte = [
+      ["Profil", stand.fahrer.profil ? "on" : ""],
+      ["Gemeldet", r.ich ? (r.ich.status === "starter" ? "on" : "warte") : ""],
+      ["Briefing", r.briefing ? "on" : ""],
+      ["Zugangsdaten", r.passwort ? "on" : ""],
+    ];
+    const text = { on: "erledigt", warte: "Warteliste", "": "noch offen" };
+    return `<ol class="fb-ablauf" aria-label="Ablauf bis zum Start">${schritte.map(([name, st]) => `<li class="${st}" aria-label="${name}: ${text[st]}"><i aria-hidden="true"></i><span aria-hidden="true">${name}</span></li>`).join("")}</ol>`;
+  }
+
   function hauptRennen(r) {
     const schluss = r.offen ? `Anmeldung und Abmeldung bis ${datum(r.schluss)}, ${uhr(r.schluss)}` : r.status === "abgesagt" ? "" : "Änderungen jetzt bitte im Discord an die Rennleitung.";
     const passwort = r.ich && r.ich.status === "starter" ? r.passwort || "Kommt im Discord" : "";
     const konflikt = r.konflikt && r.konflikt.length ? `<p class="fb-konflikt">Überschneidung mit: ${esc(r.konflikt.join(", "))}. Melde dich bei einem der Rennen ab.</p>` : "";
-    return `<article class="fb-haupt ${farbe(r.serieFarbe)}">
+    return `<article class="fb-haupt ${farbe(r.serieFarbe)}${r.serieTyp === "event" ? " ist-event" : ""}">
+      <div class="fb-haupt-bild" ${motiv(rennBild(r))} aria-hidden="true"></div>
       <div class="fb-haupt-kopf">
-        <div><div class="fb-tags">${serienTag(r)}${statusChip(r)}</div><h3 class="fb-titel">${esc(r.titel)}</h3><p class="fb-unter">${esc([r.strecke, datum(r.start), uhr(r.start)].filter(Boolean).join(" · "))}</p></div>
+        <div><div class="lbl fb-haupt-kicker">${r.id === auswahl ? "Ausgewähltes Rennen" : r.ich ? "Dein nächster Start" : "Nächstes Rennen"}</div><div class="fb-tags">${serienTag(r)}${statusChip(r)}</div><h3 class="fb-titel">${esc(r.titel)}</h3><p class="fb-unter">${esc([r.strecke, datum(r.start), uhr(r.start)].filter(Boolean).join(" · "))}</p></div>
         <div class="fb-countdown" data-start="${esc(r.start)}" aria-hidden="true"></div>
       </div>
+      ${ablauf(r)}
       ${konflikt}
       <div class="fb-aktion">${aktionHtml(r)}<p>${esc(schluss)}</p></div>
       <dl class="fb-fakten">
@@ -106,8 +129,13 @@
     const klassen = Object.entries(je).map(([k, n]) => `${k}: ${n}`).join(" · ");
     const eigen = !r.ich ? "Du bist nicht gemeldet" : r.ich.status === "starter" ? `Du bist dabei, Meldung Nr. ${r.ich.platz}` : `Du stehst auf Platz ${r.ich.platz} der Warteliste`;
     const zeilen = [frei === null ? "" : frei ? `${frei} ${frei === 1 ? "Platz" : "Plätze"} frei` : "Feld voll", r.warteliste.length ? `${r.warteliste.length} auf der Warteliste` : "", klassen].filter(Boolean).join(" · ");
-    return `<section class="fb-panel"><h3>Starterfeld <span>${esc(anzahl)}</span></h3>
-      ${r.plaetze ? `<div class="fb-balken" role="img" aria-label="${anteil} Prozent belegt"><i style="width:${anteil}%"></i></div>` : ""}
+    // Bis 60 Plätze als Startaufstellung, darüber würde es zu kleinteilig
+    const ichStarter = r.ich && r.ich.status === "starter" ? r.ich.platz - 1 : -1;
+    const grafik = r.plaetze && r.plaetze <= 60
+      ? `<div class="fb-startfeld" role="img" aria-label="${r.starter.length} von ${r.plaetze} Plätzen belegt">${Array.from({ length: r.plaetze }, (_, i) => `<i class="${i === ichStarter ? "ich" : i < r.starter.length ? "voll" : ""}"></i>`).join("")}</div>`
+      : r.plaetze ? `<div class="fb-balken" role="img" aria-label="${anteil} Prozent belegt"><i style="width:${anteil}%"></i></div>` : "";
+    return `<section class="fb-panel ${farbe(r.serieFarbe)}"><h3>Starterfeld <span>${esc(anzahl)}</span></h3>
+      ${grafik}
       <p class="fb-feld-eigen ${r.ich ? r.ich.status : ""}">${esc(eigen)}</p>
       ${zeilen ? `<p class="fb-klein">${esc(zeilen)}</p>` : ""}
       <p class="fb-profil-link"><button type="button" class="fb-link" data-starter-oeffnen="1">Ganze Liste anzeigen</button></p>
@@ -115,12 +143,15 @@
   }
 
   function weiteresRennen(r) {
-    return `<article class="fb-karte ${farbe(r.serieFarbe)}">
-      <div class="fb-karte-kopf"><time>${esc(`${datum(r.start)} · ${uhr(r.start)}`)}</time>${statusChip(r)}</div>
-      <h3><button type="button" class="fb-waehle" data-waehle="${esc(r.id)}">${esc(r.titel)}</button></h3>
-      <p>${serienTag(r)}${r.konflikt && r.konflikt.length ? '<span class="fb-konflikt-kurz">Überschneidung</span>' : ""}</p>
-      <p>${esc(belegung(r))}</p>
-      <div class="fb-karte-aktion">${aktionHtml(r)}</div>
+    return `<article class="fb-karte ${farbe(r.serieFarbe)}${r.serieTyp === "event" ? " ist-event" : ""}">
+      <div class="fb-karte-datum"><b>${esc(zeitFormat({ day: "2-digit" }).format(new Date(r.start)))}</b><small>${esc(zeitFormat({ month: "short" }).format(new Date(r.start)).replace(".", ""))}</small></div>
+      <div class="fb-karte-inhalt">
+        <div class="fb-karte-kopf"><time>${esc(`${zeitFormat({ weekday: "short" }).format(new Date(r.start))} · ${uhr(r.start)}`)}</time>${statusChip(r)}</div>
+        <h3><button type="button" class="fb-waehle" data-waehle="${esc(r.id)}">${esc(r.titel)}</button></h3>
+        <p>${serienTag(r)}${r.konflikt && r.konflikt.length ? '<span class="fb-konflikt-kurz">Überschneidung</span>' : ""}</p>
+        <p>${esc(belegung(r))}</p>
+        <div class="fb-karte-aktion">${aktionHtml(r)}</div>
+      </div>
     </article>`;
   }
 
@@ -132,7 +163,7 @@
       if (s.ich) aktion = `<button type="button" class="fb-knopf zweit" data-serie-aktion="serie-abmelden" data-serie="${esc(s.id)}">Abmelden</button>`;
       else if (s.anmeldungOffen && stand.fahrer.profil) aktion = `${klassenAuswahl("s-" + s.id, s.fahrzeugklassen)}<button type="button" class="fb-knopf" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Anmelden</button>`;
       const info = [s.ich ? `Dabei${s.fahrzeugklasse ? ` · ${s.fahrzeugklasse}` : ""}` : "", s.einstufungDurchRennleitung ? "Einstufung durch Rennleitung" : s.klasse].filter(Boolean).join(" · ");
-      return `<li class="${farbe(s.farbe)}"><div>${artBadge(s.typ)} <a href="/liga?serie=${encodeURIComponent(s.id)}">${esc(s.name)}</a>${info ? `<small>${esc(info)}</small>` : ""}</div><div class="fb-serie-aktion">${aktion}</div></li>`;
+      return `<li class="${farbe(s.farbe)}${s.ich ? " dabei" : ""}"><span class="fb-serie-bild" ${motiv(bildVon(s.id, s.bildVersion))} aria-hidden="true"></span><div>${artBadge(s.typ)} <a href="/liga?serie=${encodeURIComponent(s.id)}">${esc(s.name)}</a>${info ? `<small>${esc(info)}</small>` : ""}</div><div class="fb-serie-aktion">${aktion}</div></li>`;
     }).join("");
     return `<section class="fb-panel"><h3>Serien und Events</h3><ul class="fb-serien">${zeilen}</ul></section>`;
   }
@@ -158,18 +189,98 @@
 
   function profilAnsicht() {
     const p = stand.fahrer.profil;
-    return `<dl class="fb-fakten">${fakt("iRacing-Name", p.iracingName)}${fakt("iRacing-ID", p.custId)}${fakt("Sports-Car-iRating", Number(p.irating).toLocaleString("de-DE"))}</dl>
+    return `<div class="fb-lizenz">
+        <div class="fb-lizenz-kopf"><img src="img/brand/dsrs-logo.png" alt="" width="654" height="165"><span>Fahrerlizenz</span></div>
+        <strong>${esc(p.iracingName)}</strong>
+        <dl><div><dt>iRacing-ID</dt><dd>${esc(p.custId)}</dd></div><div><dt>Sports-Car-iRating</dt><dd>${esc(Number(p.irating).toLocaleString("de-DE"))}</dd></div></dl>
+      </div>
       <p class="fb-profil-link"><button type="button" class="fb-link" data-profil="1">Profil ändern</button></p>`;
+  }
+
+  /* ---------- Kopfbereich mit persönlicher Fahrerkarte ---------- */
+  const rang = (w) => (w === null ? "r-offen" : w >= 85 ? "r-gold" : w >= 70 ? "r-silber" : "r-bronze");
+  const klassenFarbe = (k) => (k.max == null ? "k-pro" : k.min === 0 ? "k-am" : "k-mid");
+  const WERTE = [["Speed", "speed", "s"], ["Sauberkeit", "sauberkeit", "c"], ["Racecraft", "racecraft", "r"], ["Konstanz", "konstanz", "k"]];
+  const wertZeilen = (c) => `<div class="liga-fk-werte">${WERTE.map(([label, feld, art]) => `<div class="w-${art}"><span>${label}</span><span class="liga-fk-balken"><i style="width:${c[feld] === null || c[feld] === undefined ? 0 : c[feld]}%"></i></span><b>${c[feld] === null || c[feld] === undefined ? "–" : c[feld]}</b></div>`).join("")}</div>`;
+  const podium = (p) => (p >= 1 && p <= 3 ? `p${p}` : "");
+  const formKasten = (r) => (!r ? '<i class="leer" title="Nicht gefahren">–</i>' : r.status !== "OK" ? `<i class="aus" title="${esc(r.status)}">${esc(r.status)}</i>` : `<i class="${podium(r.platz)}" title="Platz ${r.platz}">${r.platz}</i>`);
+
+  function meineKarte(k) {
+    const c = k.karte;
+    const hinweis = c.rating !== null ? "Darkline Rating" : k.rennenGesamt < 3 ? "Einzelwertung" : "Noch in Wertung";
+    return `<a class="liga-fk ${klassenFarbe(k)} ${rang(c.rating)}" href="/liga?serie=${encodeURIComponent(k.serie)}#fahrer/${encodeURIComponent(k.klasseId)}/${encodeURIComponent(k.name)}" aria-label="Deine Fahrerkarte in ${esc(k.serieName)} öffnen">
+      <div class="liga-fk-bild" ${motiv(bildVon(k.serie, k.bildVersion))} aria-hidden="true"></div>
+      <div class="liga-fk-kopf"><div class="liga-fk-rating"><b>${c.rating === null ? "–" : c.rating}</b><span>${esc(hinweis)}</span></div><span class="liga-fk-klasse">${esc(k.klasse)}</span></div>
+      <div class="liga-fk-name"><strong>${esc(k.name)}</strong><small>${esc(k.serieName)} · P${k.pos} · ${k.punkte} Punkte</small></div>
+      ${wertZeilen(c)}
+      <div class="liga-fk-form" aria-label="Ergebnisse der letzten Rennen">${k.rennen.slice(-6).map(formKasten).join("")}</div>
+      ${c.abzeichen.length ? `<div class="liga-fk-abzeichen">${c.abzeichen.map((a) => `<span class="a-${esc(a.art)}">${esc(a.text)}</span>`).join("")}</div>` : ""}
+    </a>`;
+  }
+
+  function kartenBereich(name) {
+    const karten = stand.meineKarten || [];
+    if (!karten.length) {
+      return `<div class="liga-fk r-offen fb-platzhalter">
+        <div class="liga-fk-kopf"><div class="liga-fk-rating"><b>–</b><span>Noch keine Wertung</span></div></div>
+        <div class="liga-fk-name"><strong>${esc(name)}</strong><small>Deine Fahrerkarte entsteht nach deinem ersten gewerteten Rennen.</small></div>
+        ${wertZeilen({})}
+      </div>`;
+    }
+    const k = karten[Math.min(karteWahl, karten.length - 1)];
+    const wahl = karten.length > 1 ? `<div class="fb-karten-wahl" role="group" aria-label="Serie der Fahrerkarte wählen">${karten.map((x, i) => `<button type="button" data-karte-wahl="${i}" aria-pressed="${x === k}">${esc(x.serieName)}</button>`).join("")}</div>` : "";
+    return `${meineKarte(k)}${wahl}`;
+  }
+
+  function naechsterSchritt(f) {
+    if (!f.profil) return "Fülle einmal dein Profil aus, dann kannst du dich für Serien und Rennen anmelden.";
+    const r = stand.rennen.find((x) => x.ich && x.status !== "abgesagt");
+    if (r) return `Dein nächster Start: ${r.titel}, ${datum(r.start)}, ${uhr(r.start)}.`;
+    return "Du bist gerade für kein Rennen gemeldet. Such dir unten eine Serie oder ein Event aus.";
+  }
+
+  function kopfbereich(f, haupt) {
+    const name = f.profil ? f.profil.iracingName : f.name;
+    const karten = stand.meineKarten || [];
+    const k = karten[Math.min(karteWahl, karten.length - 1)];
+    const zahlen = [
+      [stand.rennen.filter((r) => r.ich && r.status !== "abgesagt").length, "Rennen gemeldet"],
+      [stand.serien.filter((s) => s.ich).length, "Serien"],
+      ...(k ? [[`P${k.pos}`, k.klasse], [k.punkte, "Punkte"]] : []),
+    ];
+    return `<section class="fb-held ${haupt ? farbe(haupt.serieFarbe) : "s-rot"}">
+      <div class="fb-held-bild" ${motiv(haupt ? rennBild(haupt) : "img/hero.webp")} aria-hidden="true"></div>
+      <div class="wrap">
+        <div class="fb-held-text">
+          <div class="lbl liga-kicker">Fahrerbereich</div>
+          <h1>Hallo, <em>${esc(name)}</em></h1>
+          <p class="fb-held-satz">${esc(naechsterSchritt(f))}</p>
+          <div class="liga-fakten">${zahlen.map(([w, t]) => `<div><b>${esc(w)}</b><span>${esc(t)}</span></div>`).join("")}</div>
+          <div class="fb-held-fuss">${f.profil ? "" : '<button type="button" class="fb-knopf" data-profil="1">Profil ausfüllen</button>'}<span>Angemeldet als ${esc(f.name)}</span><button type="button" class="fb-link" id="fb-logout">Ausloggen</button></div>
+        </div>
+        <div class="fb-held-karte">${kartenBereich(name)}</div>
+      </div>
+    </section>`;
   }
 
   function zeigeLogin() {
     const fehler = FEHLER[new URLSearchParams(location.search).get("fehler")];
-    main.innerHTML = abschnitt("Fahrerbereich", "Darkline Simracing Series", `<div class="fb-login">
-      <h3>Melde dich mit Discord an</h3>
-      <ul><li>Alle Rennen deiner Serien auf einen Blick</li><li>Für Serien und einzelne Rennen an- und abmelden</li><li>Startplatz, Warteliste und Briefing immer aktuell</li></ul>
-      <a class="fb-knopf" href="/api/discord-login?ziel=liga">Mit Discord anmelden</a>
-      <p class="muted" style="margin:0;color:var(--muted)">Dafür musst du auf unserem <a href="https://discord.gg/QP2rKy6n8U">Discord-Server</a> sein.</p>
-    </div>`, fehler ? `<p class="fb-meldung" role="alert">${esc(fehler)}</p>` : "");
+    main.innerHTML = `<section class="fb-held fb-held-login s-rot">
+      <div class="fb-held-bild" ${motiv("img/hero.webp")} aria-hidden="true"></div>
+      <div class="wrap">
+        <div class="fb-held-text">
+          <img class="fb-login-logo" src="img/brand/dsrs-logo.png" alt="Darkline Simracing Series" width="654" height="165">
+          <h1>Dein <em>Cockpit</em></h1>
+          ${fehler ? `<p class="fb-meldung" role="alert">${esc(fehler)}</p>` : ""}
+          <ul class="fb-vorteile">
+            <li><b>Rennen</b><span>Alle Termine deiner Serien auf einen Blick</span></li>
+            <li><b>Anmeldung</b><span>Für Serien und einzelne Rennen mit einem Klick</span></li>
+            <li><b>Fahrerkarte</b><span>Dein Rating, deine Werte, deine Abzeichen</span></li>
+          </ul>
+          <div class="fb-held-fuss"><a class="fb-knopf" href="/api/discord-login?ziel=liga">Mit Discord anmelden</a><span>Dafür musst du auf unserem <a href="https://discord.gg/QP2rKy6n8U">Discord-Server</a> sein.</span></div>
+        </div>
+      </div>
+    </section>`;
   }
 
   /* ---------- Reports ---------- */
@@ -245,20 +356,19 @@
     const haupt = sichtbar.find((r) => r.id === auswahl) || sichtbar[0];
     const rest = sichtbar.filter((r) => r !== haupt);
     const profilNoetig = !f.profil || profilOffen;
-    const profilPanel = `<section class="fb-panel${f.profil ? "" : " fb-panel-wichtig"}"><h3>${f.profil ? "Dein Profil" : "Profil einmalig ausfüllen"}</h3>${profilNoetig ? profilForm() : profilAnsicht()}</section>`;
+    const profilPanel = `<section class="fb-panel${f.profil ? "" : " fb-panel-wichtig"}"><h3>${!f.profil ? "Profil einmalig ausfüllen" : profilOffen ? "Profil ändern" : "Dein Profil"}</h3>${profilNoetig ? profilForm() : profilAnsicht()}</section>`;
     const box = main.querySelector(".fb-briefing-box");
     if (box) briefingOffen = box.open;
     const starterBox = main.querySelector(".fb-starter-box");
     if (starterBox) starterOffen = starterBox.open;
     const leerText = filter === "meine" ? "Du bist noch für kein Rennen gemeldet. Melde dich rechts für eine Serie an oder schau unter „Alle“." : "Hier ist gerade kein Rennen geplant. Neue Termine erscheinen hier und im Discord.";
-    const leiste = `<div class="fb-leiste"><h2 class="wide">Fahrerbereich</h2><div class="fb-gruss"><p>Hallo <b>${esc(f.name)}</b></p><button type="button" class="fb-link" id="fb-logout">Ausloggen</button></div></div>${ansichtWahl()}`;
+    const kopf = kopfbereich(f, haupt);
     if (ansicht === "reports") {
-      main.innerHTML = `<section class="sheet"><div class="wrap">${leiste}<p class="fb-meldung" id="fb-meldung" role="alert" hidden></p>${reportsAnsicht()}</div></section>`;
+      main.innerHTML = `${kopf}<section class="sheet"><div class="wrap"><div class="fb-leiste">${ansichtWahl()}</div><p class="fb-meldung" id="fb-meldung" role="alert" hidden></p>${reportsAnsicht()}</div></section>`;
       return;
     }
-    main.innerHTML = `<section class="sheet"><div class="wrap">
-      ${leiste}
-      ${filterChips()}
+    main.innerHTML = `${kopf}<section class="sheet"><div class="wrap">
+      <div class="fb-leiste">${ansichtWahl()}${filterChips()}</div>
       <p class="fb-meldung" id="fb-meldung" role="alert" hidden></p>
       <div class="fb-raster">
         <div class="fb-haupt-spalte">
@@ -310,7 +420,8 @@
       return;
     }
     if (b.dataset.filter) { filter = b.dataset.filter; auswahl = null; return zeichne(); }
-    if (b.dataset.waehle) { auswahl = b.dataset.waehle; zeichne(); return main.scrollIntoView({ block: "start" }); }
+    if (b.dataset.karteWahl !== undefined) { karteWahl = Number(b.dataset.karteWahl); return zeichne(); }
+    if (b.dataset.waehle) { auswahl = b.dataset.waehle; zeichne(); return main.querySelector(".fb-haupt").scrollIntoView({ block: "start" }); }
     if (b.dataset.profil) {
       profilOffen = true;
       zeichne();
@@ -372,7 +483,7 @@
     const el = main.querySelector(".fb-countdown");
     if (!el) return;
     const ms = new Date(el.dataset.start) - Date.now();
-    if (ms <= 0) { el.innerHTML = ""; return; }
+    if (ms <= 0) { el.innerHTML = '<span class="fb-live">Rennen läuft</span>'; return; }
     const teile = [[Math.floor(ms / 864e5), "Tage"], [Math.floor(ms / 36e5) % 24, "Std"], [Math.floor(ms / 6e4) % 60, "Min"]];
     el.innerHTML = teile.map(([v, l]) => `<span><b>${String(v).padStart(2, "0")}</b><small>${l}</small></span>`).join("");
   }

@@ -46,10 +46,20 @@ async function reportDaten(s, kat, alle, frisch) {
   };
 }
 
+// Tabellen der laufenden Serien, kurz zwischengespeichert. Ohne Tabelle fehlt nur die Karte, der Fahrerbereich bleibt nutzbar.
+let tabellen = { bis: 0, wert: null };
+async function laufendeTabellen(kat) {
+  if (tabellen.wert && tabellen.bis > Date.now()) return tabellen.wert;
+  const wert = new Map(await Promise.all(kat.serien.filter((x) => x.status !== "beendet").map(async (x) => [x.id, await D.tabelleLesen(x.id).catch(() => null)])));
+  tabellen = { bis: Date.now() + 30000, wert };
+  return wert;
+}
+
 async function antwort(res, s, profil, alle, kat, frisch) {
   return res.status(200).json({
     angemeldet: true,
     fahrer: { name: s.name, profil },
+    meineKarten: profil ? A.eigeneKarten(kat.serien, await laufendeTabellen(kat), profil.iracingName) : [],
     serien: A.baueSerien(kat.serien, alle, { discordId: s.id, profil, klasseFuer }),
     rennen: A.baueRennen(kat.rennen, alle, optionen(s, kat)),
     reports: await reportDaten(s, kat, alle, frisch),
