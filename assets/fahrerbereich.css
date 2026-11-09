@@ -1,0 +1,178 @@
+/* Fahrerbereich der Darkline Liga: kompaktes Dashboard. Baut auf den Farben aus site.css und liga.css auf. */
+#fb-main > .sheet{padding-block:clamp(20px,3vw,34px) clamp(32px,4vw,48px)}
+/* Die Sektor-Marken gehören zur Startseite und zur Ligaseite */
+#fb-main > .sheet::before{content:none}
+#fb-main h2.wide{font-size:clamp(1.5rem,3vw,2.3rem);line-height:1;transform:skewX(-9deg);transform-origin:left bottom}
+
+.fb-leiste{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 20px;padding-bottom:12px;border-bottom:2px solid var(--ink)}
+.fb-gruss{display:flex;align-items:center;gap:8px 18px}
+.fb-gruss p{margin:0;font-size:.92rem;color:#c4cbc8}
+.fb-gruss b{color:var(--ink)}
+.fb-klasse{display:inline-block;margin-left:7px;padding:2px 8px;background:var(--k);color:#08090a;font:800 .68rem/1.35 var(--f-wide);text-transform:uppercase;transform:skewX(-10deg)}
+.fb-link{all:unset;cursor:pointer;font:500 .68rem/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.fb-link:hover{color:var(--ink)}
+.fb-link:focus-visible{outline:2px solid var(--red);outline-offset:3px}
+.fb-meldung{margin:12px 0 0;padding:10px 14px;font-size:.92rem;background:color-mix(in srgb,var(--liga-rot) 16%,var(--paper));border-left:4px solid var(--liga-rot)}
+.fb-meldung[hidden]{display:none}
+
+/* Rennen oder Reports */
+.fb-ansicht{display:flex;gap:18px;margin-top:9px}
+.fb-ansicht button{all:unset;cursor:pointer;padding:3px 0 5px;border-bottom:3px solid transparent;color:var(--muted);font:800 .8rem/1 var(--f-wide);text-transform:uppercase}
+.fb-ansicht button:hover{color:var(--ink)}
+.fb-ansicht button[aria-pressed="true"]{color:var(--ink);border-bottom-color:var(--red)}
+.fb-ansicht button:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.fb-meldung.gut{background:color-mix(in srgb,var(--liga-gruen) 15%,var(--paper));border-left-color:var(--liga-gruen)}
+
+/* Reports */
+.fb-feld select,.fb-feld textarea,.fb-einspruch textarea{box-sizing:border-box;width:100%;padding:8px 10px;background:var(--black);color:var(--ink);border:1.5px solid var(--rule);font:600 .86rem var(--f-mono)}
+.fb-feld textarea,.fb-einspruch textarea{resize:vertical}
+.fb-faelle{display:grid;gap:8px}
+.fb-fall{display:grid;gap:7px;padding:11px 13px;background:var(--paper);border-left:3px solid var(--s);min-width:0}
+.fb-fall-kopf{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:6px 12px}
+.fb-fall-kopf>div{min-width:0}
+.fb-fall h3{margin:0;font-size:.95rem;font-weight:800;line-height:1.2}
+.fb-fall-text{margin:0;font-size:.86rem;color:#c4cbc8;overflow-wrap:anywhere}
+.fb-urteil{padding:7px 10px;background:var(--black)}
+.fb-urteil b{font:700 .62rem/1.2 var(--f-mono);text-transform:uppercase;color:var(--muted)}
+.fb-urteil p{margin:3px 0 0;font-size:.86rem;overflow-wrap:anywhere}
+.fb-einspruch-box summary{cursor:pointer;font:800 .72rem/1.2 var(--f-wide);text-transform:uppercase}
+.fb-einspruch{display:grid;gap:7px;justify-items:start;margin-top:7px}
+.fb-urteile{display:grid;gap:9px;margin:0;padding:0;list-style:none}
+.fb-urteile li{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding-left:9px;border-left:3px solid var(--s)}
+.fb-urteile li>div{min-width:0}
+.fb-urteile b{font-size:.86rem}
+.fb-urteile small{display:block;margin-top:2px;font:.64rem/1.3 var(--f-mono);color:var(--muted);overflow-wrap:anywhere}
+.fb-urteile .fb-status{white-space:normal;text-align:right;max-width:115px}
+
+/* Filter nach Serie */
+.fb-filter{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
+.fb-filter button{all:unset;cursor:pointer;padding:6px 11px;background:var(--paper);color:var(--muted);font:700 .68rem/1 var(--f-mono);letter-spacing:.03em}
+.fb-filter button:hover{color:var(--ink)}
+.fb-filter button[aria-pressed="true"]{background:var(--ink);color:var(--black)}
+.fb-filter button:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+
+/* Serien */
+.fb-tags{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.fb-serie-tag{display:inline-block;padding:3px 8px;font:700 .64rem/1.25 var(--f-mono);letter-spacing:.03em;background:color-mix(in srgb,var(--s) 22%,var(--paper));color:var(--s);white-space:nowrap}
+.fb-konflikt{margin:0;padding:7px 10px;font-size:.82rem;background:color-mix(in srgb,var(--liga-gelb) 15%,var(--paper));border-left:3px solid var(--liga-gelb);color:var(--liga-gelb)}
+.fb-konflikt-kurz{margin-left:6px;color:var(--liga-gelb);font:700 .62rem/1.2 var(--f-mono);text-transform:uppercase}
+.fb-waehle{all:unset;cursor:pointer}
+.fb-waehle:hover{color:var(--s)}
+.fb-waehle:focus-visible{outline:2px solid var(--s);outline-offset:2px}
+.fb-serien{display:grid;gap:7px;margin:0;padding:0;list-style:none}
+.fb-serien li{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 10px;padding-left:9px;border-left:3px solid var(--s)}
+.fb-serien li>div:first-child{min-width:0;flex:1 1 130px}
+.fb-serien a{font-size:.88rem;font-weight:800;text-decoration:none;overflow-wrap:anywhere}
+.fb-serien a:hover{color:var(--s)}
+.fb-serien small{display:block;margin-top:2px;font:.62rem/1.3 var(--f-mono);color:var(--muted)}
+.fb-serie-aktion{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.fb-serie-aktion .fb-knopf{padding:7px 10px;font-size:.64rem}
+.fb-serie-aktion select{padding:5px;background:var(--black);color:var(--ink);border:1.5px solid var(--rule);font:600 .7rem var(--f-mono)}
+
+/* Raster: links das Rennen, rechts Serien, Starterliste und Profil */
+.fb-raster{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,340px);gap:14px;align-items:start;margin-top:14px}
+.fb-haupt-spalte,.fb-seiten-spalte{display:grid;gap:12px;min-width:0}
+
+/* Knöpfe */
+.fb-knopf{all:unset;box-sizing:border-box;cursor:pointer;display:inline-block;padding:10px 16px;background:var(--red);color:#fff;font:800 .76rem/1 var(--f-wide);font-variation-settings:"wdth" 112;text-transform:uppercase;text-align:center;transform:skewX(-8deg)}
+.fb-knopf:hover{background:#ee1a24}
+.fb-knopf.zweit{background:none;box-shadow:inset 0 0 0 1.5px #3a4144;color:var(--ink)}
+.fb-knopf.zweit:hover{background:var(--scan)}
+.fb-knopf[disabled]{cursor:progress;opacity:.55}
+.fb-knopf:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+/* Status */
+.fb-status{display:inline-block;padding:3px 8px;font:700 .64rem/1.25 var(--f-mono);letter-spacing:.04em;text-transform:uppercase;background:#22272a;color:var(--ink);white-space:nowrap}
+.fb-status.starter{background:var(--liga-gruen);color:#07140c}
+.fb-status.warteliste{background:var(--liga-gelb);color:#1a1204}
+.fb-status.abgesagt{background:var(--liga-rot);color:#1a0406}
+.fb-status.geschlossen{color:var(--muted)}
+
+/* Nächstes Rennen */
+.fb-haupt{display:grid;gap:12px;padding:16px 18px;background:linear-gradient(125deg,color-mix(in srgb,var(--s) 20%,var(--paper)),var(--paper) 60%);border-top:3px solid var(--s)}
+.fb-haupt-kopf{display:flex;justify-content:space-between;gap:12px 20px;align-items:flex-start}
+.fb-haupt-kopf>div:first-child{min-width:0}
+.fb-titel{margin:7px 0 0;font:900 clamp(1.15rem,2.3vw,1.6rem)/1.08 var(--f-wide);font-variation-settings:"wdth" 114;text-transform:uppercase;overflow-wrap:anywhere}
+.fb-unter{margin:5px 0 0;font-size:.88rem;color:#c4cbc8}
+.fb-countdown{flex:none;display:flex;gap:4px}
+.fb-countdown span{display:grid;justify-items:center;gap:3px;min-width:44px;padding:7px 4px;background:var(--black)}
+.fb-countdown b{font:900 1.15rem/1 var(--f-wide);font-variant-numeric:tabular-nums}
+.fb-countdown small{font:500 .54rem/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fb-aktion{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.fb-aktion p{margin:0;color:var(--muted);font-size:.8rem}
+.fb-aktion select,.fb-karte-aktion select{padding:8px;background:var(--black);color:var(--ink);border:1.5px solid var(--rule);font:600 .78rem var(--f-mono)}
+.fb-fakten{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:3px;margin:0}
+.fb-fakten div{min-width:0;padding:7px 10px;background:color-mix(in srgb,var(--black) 62%,transparent)}
+.fb-fakten dt{font:500 .58rem/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fb-fakten dd{margin:3px 0 0;font-size:.84rem;font-weight:700;line-height:1.25;overflow-wrap:anywhere}
+.fb-fakten .geheim dd{color:var(--liga-gruen);font-family:var(--f-mono)}
+.fb-briefing-box summary,.fb-starter-box summary{cursor:pointer;font:800 .76rem/1.2 var(--f-wide);font-variation-settings:"wdth" 112;text-transform:uppercase}
+.fb-briefing-box summary:focus-visible,.fb-starter-box summary:focus-visible{outline:2px solid var(--red);outline-offset:3px}
+.fb-starter-box h4{margin:12px 0 6px;font:700 .64rem/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--liga-gelb)}
+.fb-starter-box .fb-klein{margin-top:8px}
+.fb-suche{box-sizing:border-box;display:block;width:min(100%,260px);margin-top:9px;padding:7px 10px;background:var(--black);color:var(--ink);border:1.5px solid var(--rule);font:600 .8rem var(--f-mono)}
+.fb-suche:focus-visible{outline:2px solid var(--red);outline-offset:0}
+.fb-namen-spalten{grid-template-columns:repeat(auto-fill,minmax(min(100%,165px),1fr));gap:3px 18px;margin-top:9px}
+.fb-namen-spalten li.aus{display:none}
+.fb-briefing{margin-top:8px;font-size:.88rem;color:#c4cbc8;overflow-wrap:anywhere}
+.fb-briefing :first-child{margin-top:0}
+.fb-briefing :last-child{margin-bottom:0}
+.fb-briefing a{color:var(--ink)}
+
+/* Weitere Rennen nebeneinander */
+.fb-zwischen{margin:6px 0 0;font:900 .84rem/1.1 var(--f-wide);font-variation-settings:"wdth" 116;text-transform:uppercase}
+.fb-karten{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,215px),1fr));gap:8px}
+.fb-karte{display:grid;grid-template-rows:auto auto auto 1fr auto;gap:6px;padding:11px 13px;background:var(--paper);border-left:3px solid var(--s);min-width:0}
+.fb-karte-kopf{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 8px}
+.fb-karte time{font:500 .68rem/1.2 var(--f-mono);color:var(--muted)}
+.fb-karte h3{margin:0;font-size:.95rem;font-weight:800;line-height:1.2;overflow-wrap:anywhere}
+.fb-karte p{margin:0;font:.7rem/1.3 var(--f-mono);color:var(--muted)}
+.fb-karte-aktion{display:flex;flex-wrap:wrap;gap:6px;margin-top:3px}
+.fb-karte .fb-knopf{padding:8px 12px;font-size:.68rem}
+.fb-karte-aktion:empty{display:none}
+
+/* Seitenspalte */
+.fb-panel{display:grid;gap:9px;padding:13px 15px;background:var(--paper);min-width:0}
+.fb-panel-wichtig{outline:2px solid var(--red);outline-offset:-2px}
+.fb-panel h3{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin:0;font:900 .84rem/1.1 var(--f-wide);font-variation-settings:"wdth" 116;text-transform:uppercase}
+.fb-panel h3 span{font:500 .72rem/1 var(--f-mono);color:var(--muted)}
+.fb-panel h4{margin:10px 0 5px;font:700 .64rem/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--liga-gelb)}
+.fb-balken{height:7px;background:#22272a;transform:skewX(-12deg)}
+.fb-balken i{display:block;height:100%;background:var(--liga-gruen)}
+.fb-feld-eigen{margin:0;font-size:.88rem;font-weight:700}
+.fb-feld-eigen.starter{color:var(--liga-gruen)}
+.fb-feld-eigen.warteliste{color:var(--liga-gelb)}
+.fb-klein{margin:0;font-size:.84rem;color:var(--muted)}
+.fb-namen{display:grid;gap:3px;margin:0;padding:0;list-style:none;font:.78rem/1.3 var(--f-mono)}
+.fb-namen li{display:flex;gap:8px;justify-content:space-between}
+.fb-namen em{font-style:normal;color:var(--muted);min-width:1.7em}
+.fb-namen span{flex:1;min-width:0;overflow-wrap:anywhere}
+.fb-namen small{color:var(--liga-gelb)}
+.fb-namen .ich span{color:var(--liga-gruen);font-weight:600}
+.fb-panel .fb-fakten{grid-template-columns:repeat(2,minmax(0,1fr))}
+.fb-profil-link{margin:0}
+
+/* Profilformular */
+.fb-profil{display:grid;gap:9px}
+.fb-feld{display:grid;gap:4px;min-width:0}
+.fb-feld label{font:500 .6rem/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fb-feld input{box-sizing:border-box;width:100%;padding:8px 10px;background:var(--black);color:var(--ink);border:1.5px solid var(--rule);font:600 .86rem var(--f-mono)}
+.fb-feld input:focus-visible{outline:2px solid var(--red);outline-offset:0}
+.fb-profil-fuss{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fb-profil-fuss p{flex:1 1 100%;margin:0;font-size:.74rem;line-height:1.4;color:var(--muted)}
+
+/* Login */
+.fb-login{display:grid;gap:12px;justify-items:start;max-width:620px;padding:22px 24px;background:linear-gradient(125deg,color-mix(in srgb,var(--red) 28%,var(--paper)),var(--paper) 65%)}
+.fb-login h3{margin:0;font:900 clamp(1.1rem,2.4vw,1.5rem)/1.05 var(--f-wide);font-variation-settings:"wdth" 118;text-transform:uppercase}
+.fb-login ul{display:grid;gap:4px;margin:0;padding-left:20px;font-size:.92rem;color:#c4cbc8}
+.fb-login p{font-size:.84rem}
+.fb-leer{margin:0;padding:18px;background:var(--paper);color:var(--muted)}
+
+@media (max-width:860px){
+  .fb-raster{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:460px){
+  .fb-namen-spalten{grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 10px}
+  .fb-haupt-kopf{flex-direction:column}
+  .fb-countdown span{min-width:42px}
+}

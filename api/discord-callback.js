@@ -1,13 +1,18 @@
 // Nimmt die Antwort von Discord entgegen, prüft Servermitgliedschaft und Rolle und meldet im Teambereich an.
-const { appendCookie, readCookie, createSession } = require("./_lib/session");
+// Beginnt der Status mit "liga.", geht es um den Fahrerbereich: Dort reicht die Servermitgliedschaft, und es gibt nur das Liga-Cookie.
+// Beginnt er mit "liga-admin.", geht es um die Rennleitung: Dort ist eine Rolle aus LIGA_ADMIN_ROLE_IDS Pflicht.
+const { appendCookie, readCookie, createSession, createLigaSession, createLigaAdminSession } = require("./_lib/session");
 
 module.exports = async (req, res) => {
   const origin = `https://${req.headers["x-forwarded-host"] || req.headers.host}`;
-  // Fehler werden als kurzer Code an /team übergeben, team.js zeigt dazu den passenden Text.
-  const fail = (code) => res.redirect(302, `/team?fehler=${code}`);
+  const saved = readCookie(req, "discord_state");
+  const liga = saved.startsWith("liga.");
+  const ligaAdmin = saved.startsWith("liga-admin.");
+  const ziel = ligaAdmin ? "/liga-admin" : liga ? "/fahrerbereich" : "/team";
+  // Fehler werden als kurzer Code an die Seite übergeben, die dazu den passenden Text zeigt.
+  const fail = (code) => res.redirect(302, `${ziel}?fehler=${code}`);
   try {
     const { code, state } = req.query || {};
-    const saved = readCookie(req, "discord_state");
     appendCookie(res, "discord_state=; Path=/api; HttpOnly; Secure; SameSite=Lax; Max-Age=0");
     if (req.query && req.query.error) return fail("abgebrochen");
     if (!code || !state || !saved || saved !== state) return fail("ungueltig");
@@ -36,6 +41,22 @@ module.exports = async (req, res) => {
     if (memberRes.status === 404) return fail("kein-mitglied");
     if (!memberRes.ok) return fail("discord");
     const member = await memberRes.json();
+
+    if (ligaAdmin) {
+      // Ohne eingetragene Rollen kommt niemand hinein.
+      const rollen = (process.env.LIGA_ADMIN_ROLE_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
+      if (!rollen.length) return fail("konfiguration");
+      if (!(member.roles || []).some((r) => rollen.includes(r))) return fail("keine-rolle");
+      const admin = member.user || {};
+      createLigaAdminSession(res, { id: admin.id, name: member.nick || admin.global_name || admin.username || "Rennleitung" });
+      return res.redirect(302, ziel);
+    }
+
+    if (liga) {
+      const fahrer = member.user || {};
+      createLigaSession(res, { id: fahrer.id, name: member.nick || fahrer.global_name || fahrer.username || "Fahrer" });
+      return res.redirect(302, ziel);
+    }
 
     // Optional: nur bestimmte Rollen zulassen (Rollen-IDs, Komma-getrennt). Eine davon genügt.
     const allowed = (process.env.DISCORD_ROLE_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);

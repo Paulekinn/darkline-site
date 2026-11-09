@@ -46,6 +46,59 @@ function getSession(req) {
   }
 }
 
+// Ligafahrer: eigenes Cookie mit eigener Signatur. Es gilt nur im Fahrerbereich und nie im Teambereich.
+const LIGA_COOKIE = "dpm_liga";
+const signLiga = (data) => sign(`liga:${data}`);
+
+function createLigaSession(res, user) {
+  const payload = Buffer.from(JSON.stringify({ ...user, exp: Math.floor(Date.now() / 1000) + MAX_AGE })).toString("base64url");
+  appendCookie(res, `${LIGA_COOKIE}=${payload}.${signLiga(payload)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${MAX_AGE}`);
+}
+
+function clearLigaSession(res) {
+  appendCookie(res, `${LIGA_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`);
+}
+
+function getLigaSession(req) {
+  const [payload, sig] = readCookie(req, LIGA_COOKIE).split(".");
+  if (!payload || !sig) return null;
+  const expected = signLiga(payload);
+  if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return data.exp > Date.now() / 1000 ? data : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Liga-Admin (/liga-admin): eigenes Cookie, eigene Signatur, kurze Laufzeit. Es gilt nirgendwo sonst.
+const LIGA_ADMIN_COOKIE = "dpm_liga_admin";
+const LIGA_ADMIN_MAX_AGE = 12 * 3600;
+const signLigaAdmin = (data) => sign(`liga-admin:${data}`);
+
+function createLigaAdminSession(res, user) {
+  const payload = Buffer.from(JSON.stringify({ ...user, exp: Math.floor(Date.now() / 1000) + LIGA_ADMIN_MAX_AGE })).toString("base64url");
+  appendCookie(res, `${LIGA_ADMIN_COOKIE}=${payload}.${signLigaAdmin(payload)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${LIGA_ADMIN_MAX_AGE}`);
+}
+
+function clearLigaAdminSession(res) {
+  appendCookie(res, `${LIGA_ADMIN_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`);
+}
+
+function getLigaAdminSession(req) {
+  const [payload, sig] = readCookie(req, LIGA_ADMIN_COOKIE).split(".");
+  if (!payload || !sig) return null;
+  const expected = signLigaAdmin(payload);
+  if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return data.exp > Date.now() / 1000 ? data : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // Für die Daten-Funktionen: antwortet ohne gültige Anmeldung mit 401 und gibt null zurück.
 function requireSession(req, res) {
   const s = getSession(req);
@@ -53,4 +106,4 @@ function requireSession(req, res) {
   return s;
 }
 
-module.exports = { appendCookie, readCookie, createSession, clearSession, getSession, requireSession };
+module.exports = { appendCookie, readCookie, createSession, clearSession, getSession, requireSession, createLigaSession, clearLigaSession, getLigaSession, createLigaAdminSession, clearLigaAdminSession, getLigaAdminSession };

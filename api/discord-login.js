@@ -1,4 +1,4 @@
-// Startet die Discord-Anmeldung für den Teambereich (/team).
+// Startet die Discord-Anmeldung für den Teambereich (/team), mit ?ziel=liga für den Fahrerbereich oder mit ?ziel=liga-admin für die Rennleitung.
 const crypto = require("crypto");
 
 module.exports = (req, res) => {
@@ -8,7 +8,8 @@ module.exports = (req, res) => {
     return;
   }
   const origin = `https://${req.headers["x-forwarded-host"] || req.headers.host}`;
-  const state = crypto.randomBytes(16).toString("hex");
+  const ziel = (req.query || {}).ziel;
+  const state = (ziel === "liga" || ziel === "liga-admin" ? `${ziel}.` : "") + crypto.randomBytes(16).toString("hex");
   res.setHeader("Set-Cookie", `discord_state=${state}; Path=/api; HttpOnly; Secure; SameSite=Lax; Max-Age=600`);
   const params = new URLSearchParams({
     client_id: clientId,

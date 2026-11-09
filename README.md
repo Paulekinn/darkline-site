@@ -132,6 +132,43 @@ Einrichtung: in Discord im Kanal → Integrationen → Webhooks einen Webhook an
 
 Rollen-Ping (z. B. @Community): Rollen-ID in Discord kopieren (Entwicklermodus an → Rechtsklick auf die Rolle → „Rollen-ID kopieren“) und in GitHub unter Settings → Secrets and variables → Actions → **Variables** als `DISCORD_PING_ROLE` speichern. Ohne Variable wird niemand erwähnt.
 
+## Liga (im Aufbau)
+
+Drei getrennte Bereiche, alle noch nicht verlinkt und für Suchmaschinen gesperrt:
+
+| Bereich | Adresse | Zugang |
+|---|---|---|
+| Öffentliche Übersicht, Serien, Tabellen | `/liga`, `/liga?serie=<kennung>` | alle |
+| Fahrerbereich | `/fahrerbereich` | Discord, Mitgliedschaft auf dem Server genügt |
+| Rennleitung | `/liga-admin` | Discord mit Rolle aus `LIGA_ADMIN_ROLE_IDS` |
+
+Die Liga hat bewusst nichts mit dem Website-Admin unter `/admin` zu tun. Jeder Bereich hat ein eigenes Cookie (`dpm_liga`, `dpm_liga_admin`), keines öffnet den Teambereich oder einen anderen Bereich.
+
+```
+api/liga.js                     Einstieg: ?r=oeffentlich, ?r=fahrer, ?r=admin
+api/_lib/liga-oeffentlich.js    Daten für /liga, ohne Passwort, Briefing und Kundennummern
+api/_lib/liga-fahrer.js         Dashboard, Profil, An- und Abmeldung
+api/_lib/liga-admin.js          Rennleitung: Serien, Rennen, Fahrer, Ergebnisse, Strafen
+api/_lib/liga-daten.js          Speicherung und Prüfung der Eingaben
+api/_lib/liga-anmeldung.js      Fristen, Starterliste, Warteliste, Überschneidungen
+api/_lib/liga-reports.js        Reports, Urteile, Einsprüche
+assets/liga-wertung.js          Wertung: Klassen, Punkte, Tabellen
+liga.html, fahrerbereich.html, liga-admin.html   Seiten (Skripte und Styles in assets/)
+scripts/liga-test.js, scripts/liga-anmeldung-test.js   Tests (mit node ausführen)
+```
+
+**Einmalige Einrichtung:** In Discord eine Rolle für die Rennleitung anlegen und ihre ID in Vercel als `LIGA_ADMIN_ROLE_IDS` eintragen (mehrere Komma-getrennt). Ohne diesen Eintrag kommt niemand in `/liga-admin`. Wer die Rolle verliert, bleibt bis zum Ablauf des Cookies (12 Stunden) angemeldet. Die Discord-Redirect-Adresse bleibt dieselbe wie beim Teambereich.
+
+**Speicher:** Alles liegt im vorhandenen privaten Blob-Speicher unter `liga/`, nicht im Repository. Änderungen sind ohne Commit und Deploy nach spätestens rund einer Minute öffentlich sichtbar.
+
+**Serien und Anmeldung:** Eine Serie ist eine Liga oder ein Event. Wer sich für eine Serie anmeldet, ist automatisch für alle ihre Rennen gemeldet und kann einzelne auslassen. Rennen, die sich überschneiden, lassen sich nicht zusätzlich einzeln anmelden. Entsteht eine Überschneidung durch Serien-Anmeldungen, zeigt der Fahrerbereich eine Warnung.
+
+**Ergebnisse:** In iRacing das Ergebnis öffnen, „Export Results“ wählen, die JSON-Datei unter `/liga-admin` → Ergebnisse hochladen, die Vorschau prüfen und veröffentlichen. Die Klasse wird beim ersten Rennen eines Fahrers aus dem iRating festgelegt, die Rennleitung kann sie überschreiben. Bei Multiclass wird in jeder Fahrzeugklasse getrennt nach iRating-Klassen gewertet. Teamrennen werden noch nicht gewertet.
+
+**Reports und Urteile:** Fahrer melden Vorfälle im Fahrerbereich unter „Reports“, wenn sie im Rennen gestartet sind, bis zur Report-Frist der Serie (Standard 24 Stunden nach Rennende). Das League Team prüft sie unter `/liga-admin` → Reports und entscheidet: kein Vergehen, Verwarnung, Strafpunkte, Zeitstrafe oder Disqualifikation. Für eine Strafe muss das Ergebnis des Rennens eingelesen sein, die Tabelle rechnet sich danach selbst neu. Zeitstrafen wirken innerhalb der Fahrzeugklasse und nur bei Fahrern in der Führungsrunde, weil iRacing für Überrundete keinen Zeitabstand liefert. Beteiligte können einmal Einspruch einlegen (Standard 48 Stunden), danach ist das Urteil endgültig. Wer selbst an einem Vorfall beteiligt ist, kann nicht darüber entscheiden. Urteile sehen nur eingeloggte Fahrer, interne Notizen nur das League Team. Optional meldet `LIGA_DISCORD_WEBHOOK` Strafen kurz in einem Discord-Kanal.
+
+**Datenschutz:** Vor dem Start die Datenschutzerklärung um Fahrerbereich, Cookies, Fahrerdaten und Reports ergänzen.
+
 ## Lokal ansehen
 
 ```

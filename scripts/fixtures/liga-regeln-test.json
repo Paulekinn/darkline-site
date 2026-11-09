@@ -1,0 +1,18 @@
+{
+  "name": "GT3 Sprint",
+  "saison": "Saison 1",
+  "kategorie": "Sports_Car",
+  "rennenGesamt": 8,
+  "gewerteteRennen": 7,
+  "klassen": [
+    { "id": "pro", "name": "Pro", "min": 2500, "max": null },
+    { "id": "proam", "name": "Pro-Am", "min": 1500, "max": 2499 },
+    { "id": "am", "name": "Am", "min": 0, "max": 1499 }
+  ],
+  "fahrzeugklassenNamen": { "GT3 Class": "GT3", "IMSA23": "GT3" },
+  "punkte": [30, 26, 23, 21, 19, 17, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2],
+  "punkteDanach": 1,
+  "bonusPole": 1,
+  "bonusSchnellsteRunde": 1,
+  "mindestRundenProzent": 75
+}

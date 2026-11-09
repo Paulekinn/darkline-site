@@ -1,0 +1,20 @@
+// Einstieg für alle Liga-Anfragen: ?r=oeffentlich, ?r=fahrer oder ?r=admin. Eine Funktion statt drei hält die Zahl der Vercel-Funktionen klein.
+const { useRequest } = require("./_lib/blob");
+const { Hinweis } = require("./_lib/liga-daten");
+const bereiche = { oeffentlich: require("./_lib/liga-oeffentlich"), fahrer: require("./_lib/liga-fahrer"), admin: require("./_lib/liga-admin") };
+
+// Texte aus Eingabe- und Dateiprüfung sind für den Nutzer gedacht, technische Fehler nicht.
+const FUER_NUTZER = /^(Bitte|Die iRacing|Regeln:|Einstufung:|Das ist keine|In der Datei|Die Rennsession|Teamrennen|Unerwartete|Ein Rennen)/;
+
+module.exports = async (req, res) => {
+  const bereich = Object.prototype.hasOwnProperty.call(bereiche, (req.query || {}).r) ? bereiche[req.query.r] : null;
+  if (!bereich) return res.status(404).json({ error: "Nicht gefunden" });
+  try {
+    useRequest(req);
+    return await bereich(req, res);
+  } catch (e) {
+    if (e instanceof Hinweis || FUER_NUTZER.test(e.message)) return res.status(400).json({ error: e.message });
+    console.error("Liga:", e);
+    return res.status(500).json({ error: "Technischer Fehler. Bitte versuche es gleich noch einmal." });
+  }
+};

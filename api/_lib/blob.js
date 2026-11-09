@@ -63,4 +63,21 @@ async function blobDelete(pathnames) {
   if (!r.ok) throw await failure("Löschen", r);
 }
 
-module.exports = { useRequest, blobPut, blobGet, blobDelete };
+// Alle Dateien unter einem Pfad, mit pathname und uploadedAt
+async function blobList(prefix) {
+  const { token, store } = auth();
+  const blobs = [];
+  let cursor = "";
+  do {
+    const query = new URLSearchParams({ prefix, limit: "1000" });
+    if (cursor) query.set("cursor", cursor);
+    const r = await fetch(`${API}/?${query}`, { headers: { authorization: `Bearer ${token}`, "x-api-version": "13", "x-vercel-blob-store-id": store }, cache: "no-store" });
+    if (!r.ok) throw await failure("Auflisten", r);
+    const d = await r.json();
+    blobs.push(...d.blobs);
+    cursor = d.hasMore ? d.cursor : "";
+  } while (cursor);
+  return blobs;
+}
+
+module.exports = { useRequest, blobPut, blobGet, blobDelete, blobList };

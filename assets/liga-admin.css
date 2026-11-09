@@ -1,0 +1,97 @@
+/* Rennleitung der Darkline Liga: eigener Bereich, unabhängig von site.css und vom Website-Admin. */
+:root{
+  --a-grund:#0b0d10; --a-flaeche:#14181d; --a-flaeche2:#1c2228; --a-linie:#2b333b; --a-text:#e6ebef; --a-leise:#97a3ad;
+  --a-akzent:#ffb020; --a-ok:#3fd277; --a-fehler:#ff5a60;
+  --a-breit:"Archivo","Arial Black",system-ui,sans-serif; --a-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--a-grund);color:var(--a-text);font:15px/1.45 var(--a-breit)}
+a{color:inherit}
+.a-laden{padding:40px;color:var(--a-leise);text-align:center}
+
+/* Kopf und Navigation */
+.a-kopf{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:6px 20px;padding:10px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));background:#080a0c;border-bottom:1px solid var(--a-linie)}
+.a-marke{font:900 1rem/1 var(--a-breit);text-transform:uppercase;letter-spacing:.01em}
+.a-marke span{color:var(--a-akzent)}
+.a-nutzer{margin-left:auto;font:.74rem var(--a-mono);color:var(--a-leise)}
+.a-nav{flex:1 0 100%;display:flex;gap:2px;overflow-x:auto}
+.a-nav button{all:unset;cursor:pointer;padding:10px 15px 9px;font:700 .76rem/1 var(--a-breit);text-transform:uppercase;color:var(--a-leise);border-bottom:3px solid transparent;white-space:nowrap}
+.a-nav button:hover{color:var(--a-text)}
+.a-nav button[aria-current="page"]{color:var(--a-text);border-bottom-color:var(--a-akzent)}
+.a-nav button:focus-visible{outline:2px solid var(--a-akzent);outline-offset:-2px}
+.a-inhalt{display:grid;gap:14px;max-width:1240px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right,0px)) 48px max(16px,env(safe-area-inset-left,0px))}
+
+/* Bausteine */
+.a-karte{display:grid;gap:11px;padding:14px 16px;background:var(--a-flaeche);border:1px solid var(--a-linie);min-width:0}
+.a-kartenkopf{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px}
+h2{margin:0;font:900 .96rem/1.2 var(--a-breit);text-transform:uppercase}
+h3{margin:6px 0 0;font:800 .78rem/1.2 var(--a-breit);text-transform:uppercase;color:var(--a-leise)}
+.a-hinweis{margin:0;font-size:.84rem;color:var(--a-leise)}
+.a-leer{margin:0;padding:12px;background:var(--a-flaeche2);font-size:.88rem;color:var(--a-leise)}
+.a-meldung{margin:0;padding:10px 14px;font-size:.9rem;border-left:4px solid var(--a-ok);background:color-mix(in srgb,var(--a-ok) 14%,var(--a-flaeche))}
+.a-meldung.fehler{border-left-color:var(--a-fehler);background:color-mix(in srgb,var(--a-fehler) 16%,var(--a-flaeche))}
+.a-warnung{margin:0;padding:0 0 0 18px;font-size:.84rem;color:var(--a-akzent)}
+.a-knopf{all:unset;box-sizing:border-box;cursor:pointer;display:inline-block;padding:9px 14px;background:var(--a-akzent);color:#1a1204;font:800 .72rem/1 var(--a-breit);text-transform:uppercase;text-align:center}
+.a-knopf:hover{filter:brightness(1.1)}
+.a-knopf.zweit{background:none;box-shadow:inset 0 0 0 1px var(--a-linie);color:var(--a-text)}
+.a-knopf.zweit:hover{background:var(--a-flaeche2)}
+.a-knopf.gefahr{background:none;box-shadow:inset 0 0 0 1px var(--a-fehler);color:var(--a-fehler)}
+.a-knopf.klein{padding:6px 9px;font-size:.64rem}
+.a-knopf[disabled]{opacity:.5;cursor:progress}
+.a-knopf:focus-visible{outline:2px solid var(--a-text);outline-offset:2px}
+.a-leiste{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.a-chip{display:inline-block;padding:2px 7px;font:700 .64rem/1.3 var(--a-mono);background:var(--a-flaeche2);color:var(--a-leise)}
+.a-chip.gruen{color:var(--a-ok)}
+.a-chip.gelb{color:var(--a-akzent)}
+.a-chip.rot{color:var(--a-fehler)}
+
+/* Tabellen */
+.a-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font:.82rem/1.35 var(--a-mono)}
+th{padding:6px 9px;text-align:left;font-weight:500;font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;color:var(--a-leise);border-bottom:1px solid var(--a-linie);white-space:nowrap}
+td{padding:6px 9px;border-bottom:1px solid #20262c;white-space:nowrap}
+tbody tr:hover td{background:#191e24}
+td.umbruch{white-space:normal;min-width:130px}
+td.rechts,th.rechts{text-align:right}
+.a-abweichung{color:var(--a-akzent)}
+
+/* Formulare */
+.a-felder{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,170px),1fr));gap:9px 12px}
+.a-feld{display:grid;gap:4px;align-content:start;min-width:0}
+.a-feld.breit{grid-column:1/-1}
+.a-feld label,.a-beschriftung{font:500 .62rem/1.2 var(--a-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--a-leise)}
+input,select,textarea{width:100%;padding:8px 9px;background:var(--a-grund);color:var(--a-text);border:1px solid var(--a-linie);font:500 .86rem var(--a-mono)}
+input[type="checkbox"]{width:auto}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--a-akzent);outline-offset:0}
+textarea{min-height:110px;resize:vertical}
+.a-check{display:flex;align-items:center;gap:8px;font-size:.86rem}
+.a-klassen{display:grid;gap:5px}
+.a-klasse{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto;gap:5px}
+.a-auswahl{max-width:320px}
+
+/* Starterlisten */
+details.a-rennen{background:var(--a-flaeche2)}
+details.a-rennen summary{cursor:pointer;padding:9px 12px;font:700 .84rem/1.3 var(--a-breit)}
+details.a-rennen summary:focus-visible{outline:2px solid var(--a-akzent);outline-offset:-2px}
+.a-namen{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,225px),1fr));gap:2px 16px;margin:0;padding:0 12px 11px;list-style:none;font:.78rem/1.3 var(--a-mono)}
+.a-namen li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2px 0}
+.a-namen span{min-width:0;overflow-wrap:anywhere}
+.a-weg{all:unset;cursor:pointer;padding:0 5px;color:var(--a-fehler);font-size:1rem;line-height:1}
+.a-weg:focus-visible{outline:2px solid var(--a-fehler)}
+.a-rennen h4{margin:0;padding:3px 12px 5px;font:700 .62rem/1.2 var(--a-mono);text-transform:uppercase;color:var(--a-akzent)}
+
+/* Reports */
+[hidden]{display:none!important}
+.a-karte p{margin:0}
+.a-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.92rem}
+.a-einspruch{padding:9px 11px;background:var(--a-flaeche2);border-left:3px solid var(--a-fehler)}
+.a-einspruch b{font:700 .68rem/1.3 var(--a-mono);color:var(--a-fehler)}
+.a-einspruch p{margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.88rem}
+
+/* Login */
+.a-login{display:grid;place-content:center;min-height:100vh;padding:24px}
+.a-login-karte{display:grid;gap:14px;justify-items:start;width:min(100%,420px);padding:26px;background:var(--a-flaeche);border:1px solid var(--a-linie);border-top:3px solid var(--a-akzent)}
+.a-login-karte h1{margin:0;font:900 1.5rem/1.1 var(--a-breit);text-transform:uppercase}
+.a-login-karte h1 span{color:var(--a-akzent)}
+.a-login-karte p{margin:0;font-size:.9rem;color:var(--a-leise)}
