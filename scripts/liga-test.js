@@ -9,7 +9,7 @@ const OHNE_BONUS = { ...REGELN, bonusPole: 0, bonusSchnellsteRunde: 0 };
 const EINE_KLASSE = { ...OHNE_BONUS, kategorie: "", klassen: [{ id: "a", name: "A", min: 0, max: null }] };
 
 // Baut eine Ergebnisdatei wie von iRacing. Die Reihenfolge der Zeilen ist der Zieleinlauf.
-// Zeile: { c: Kundennummer, ir, l: Runden, b: beste Runde, s: Startplatz ab 0, i: Incidents, out: Ausfallgrund }
+// Zeile: { c: iRacing-ID, ir, l: Runden, b: beste Runde, s: Startplatz ab 0, i: Incidents, out: Ausfallgrund }
 function datei(id, tag, zeilen) {
   return {
     type: "event_result",
@@ -231,7 +231,7 @@ const tests = {
   "Teamrennen wird abgelehnt": () => {
     assert.throws(() => lies(datei(1, 1, [{ c: -5 }])), /Teamrennen/);
   },
-  "Öffentliche Tabelle enthält keine Kundennummern": () => {
+  "Öffentliche Tabelle enthält keine iRacing-IDs": () => {
     const t = tabelle([datei(987654321, 1, [{ c: 7654321, n: "V" }])], EINE_KLASSE);
     assert.ok(!JSON.stringify(t).includes("7654321"));
   },

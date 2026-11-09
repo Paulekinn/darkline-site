@@ -145,19 +145,19 @@
     const p = stand.fahrer.profil || {};
     return `<form class="fb-profil" id="fb-profil" novalidate>
       <div class="fb-feld"><label for="p-name">iRacing-Name</label><input id="p-name" autocomplete="off" maxlength="40" value="${esc(p.iracingName || "")}" required></div>
-      <div class="fb-feld"><label for="p-cust">iRacing-Kundennummer</label><input id="p-cust" inputmode="numeric" autocomplete="off" maxlength="9" value="${esc(p.custId || "")}" required></div>
+      <div class="fb-feld"><label for="p-cust">iRacing-ID</label><input id="p-cust" inputmode="numeric" autocomplete="off" maxlength="9" value="${esc(p.custId || "")}" required></div>
       <div class="fb-feld"><label for="p-ir">Sports-Car-iRating</label><input id="p-ir" inputmode="numeric" autocomplete="off" maxlength="5" value="${esc(p.irating ?? "")}" required></div>
       <div class="fb-profil-fuss">
         <button type="submit" class="fb-knopf">Profil speichern</button>
         ${stand.fahrer.profil ? '<button type="button" class="fb-knopf zweit" id="p-abbrechen">Abbrechen</button>' : ""}
-        <p>Dein iRacing-Name erscheint in der Starterliste. Kundennummer und iRating sieht nur die Rennleitung. Das iRating prüfen wir vor dem Saisonstart. Mehr dazu in der <a href="/datenschutz">Datenschutzerklärung</a>.</p>
+        <p>Dein iRacing-Name erscheint in der Starterliste. iRacing-ID und iRating sieht nur die Rennleitung. Das iRating prüfen wir vor dem Saisonstart. Mehr dazu in der <a href="/datenschutz">Datenschutzerklärung</a>.</p>
       </div>
     </form>`;
   }
 
   function profilAnsicht() {
     const p = stand.fahrer.profil;
-    return `<dl class="fb-fakten">${fakt("iRacing-Name", p.iracingName)}${fakt("Kundennummer", p.custId)}${fakt("Sports-Car-iRating", Number(p.irating).toLocaleString("de-DE"))}</dl>
+    return `<dl class="fb-fakten">${fakt("iRacing-Name", p.iracingName)}${fakt("iRacing-ID", p.custId)}${fakt("Sports-Car-iRating", Number(p.irating).toLocaleString("de-DE"))}</dl>
       <p class="fb-profil-link"><button type="button" class="fb-link" data-profil="1">Profil ändern</button></p>`;
   }
 

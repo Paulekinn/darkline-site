@@ -87,7 +87,7 @@ const tests = {
   "Profil wird geprüft": () => {
     assert.deepStrictEqual(A.pruefeProfil({ iracingName: " Max Muster ", custId: "123456", irating: "1850" }), { iracingName: "Max Muster", custId: "123456", irating: 1850 });
     assert.throws(() => A.pruefeProfil({ iracingName: "M", custId: "1", irating: "1" }), /Namen/);
-    assert.throws(() => A.pruefeProfil({ iracingName: "Max", custId: "12a", irating: "1" }), /Kundennummer/);
+    assert.throws(() => A.pruefeProfil({ iracingName: "Max", custId: "12a", irating: "1" }), /iRacing-ID/);
     assert.throws(() => A.pruefeProfil({ iracingName: "Max", custId: "12", irating: "viel" }), /iRating/);
   },
   "Renndauer wird erkannt": () => {

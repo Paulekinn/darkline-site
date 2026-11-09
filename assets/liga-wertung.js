@@ -21,7 +21,7 @@
     const haupt = rennen.find((s) => s.simsession_number === 0) || rennen[rennen.length - 1];
     const zeilen = (haupt.results || []).filter((r) => !r.ai);
     if (!zeilen.length) throw new Error("Die Rennsession enthält keine Fahrer.");
-    if (zeilen.some((r) => !(r.cust_id > 0))) throw new Error("Teamrennen werden noch nicht gewertet (Einträge ohne Kundennummer).");
+    if (zeilen.some((r) => !(r.cust_id > 0))) throw new Error("Teamrennen werden noch nicht gewertet (Einträge ohne iRacing-ID).");
     const kleinste = Math.min(...zeilen.map((r) => r.finish_position));
     if (kleinste !== 0) throw new Error(`Unerwartete Platzierungen in der Datei (kleinste finish_position ist ${kleinste}, erwartet wird 0).`);
 
@@ -101,7 +101,7 @@
 
   const punkteFuer = (platz, regeln) => regeln.punkte[platz - 1] ?? (regeln.punkteDanach || 0);
 
-  // Wertet ein Rennen getrennt je Fahrzeugklasse und iRating-Klasse aus. Ergebnis: Map Kundennummer → Rennwertung.
+  // Wertet ein Rennen getrennt je Fahrzeugklasse und iRating-Klasse aus. Ergebnis: Map iRacing-ID → Rennwertung.
   function werteRennen(rennen, einstufung, regeln) {
     const ergebnis = new Map();
     const gruppen = [...new Set(rennen.fahrer.map((f) => f.fahrzeugklasseId))].flatMap((fz) => regeln.klassen.map((klasse) => ({ fz, klasse })));
@@ -178,7 +178,7 @@
     return a.name.localeCompare(b.name, "de");
   }
 
-  // Berechnet die Tabellen. Die Rückgabe enthält keine Kundennummern und kann öffentlich gespeichert werden.
+  // Berechnet die Tabellen. Die Rückgabe enthält keine iRacing-IDs und kann öffentlich gespeichert werden.
   function berechneTabelle(rennenEingabe, regeln, privat) {
     pruefeRegeln(regeln);
     const warnungen = rennenEingabe.flatMap((r) => r.warnungen || []);

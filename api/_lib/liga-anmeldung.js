@@ -134,7 +134,7 @@ function pruefeProfil(p) {
   const custId = String((p && p.custId) || "").trim();
   const irating = String((p && p.irating) || "").trim();
   if (name.length < 2 || name.length > 40) throw new Error("Bitte gib deinen iRacing-Namen an (2 bis 40 Zeichen).");
-  if (!/^[1-9]\d{0,8}$/.test(custId)) throw new Error("Die iRacing-Kundennummer besteht nur aus Ziffern.");
+  if (!/^[1-9]\d{0,8}$/.test(custId)) throw new Error("Die iRacing-ID besteht nur aus Ziffern.");
   if (!/^\d{1,5}$/.test(irating) || +irating > 20000) throw new Error("Bitte gib dein Sports-Car-iRating als Zahl an.");
   return { iracingName: name, custId, irating: +irating };
 }

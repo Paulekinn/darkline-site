@@ -32,7 +32,7 @@
   let vorschau = null;
   let beschaeftigt = false;
   let reportId = null;
-  let zugelassen = [];    // Kundennummern nicht gemeldeter Fahrer, die als Gast gewertet werden sollen
+  let zugelassen = [];    // iRacing-IDs nicht gemeldeter Fahrer, die als Gast gewertet werden sollen
 
   async function vorschauRechnen() {
     const a = await sende({ aktion: "ergebnis-vorschau", serie: serieId, datei, zugelassen });
@@ -182,7 +182,7 @@
         ${r.starter.length ? `<ol class="a-namen">${liste(r, r.starter)}</ol>` : '<p class="a-hinweis" style="padding:0 12px 10px">Noch niemand gemeldet.</p>'}
         ${r.warteliste.length ? `<h4>Warteliste</h4><ol class="a-namen">${liste(r, r.warteliste)}</ol>` : ""}</details>`).join("");
     return `<section class="a-karte"><div class="a-kartenkopf"><h2>Fahrer</h2>${serienAuswahl()}</div>
-      ${det.fahrer.length ? `<div class="a-scroll"><table><thead><tr><th>Name</th><th>Meldung</th><th>Kundennr.</th><th class="rechts">iR Angabe</th><th class="rechts">iR Ergebnis</th><th>Klasse</th><th></th></tr></thead><tbody>${zeilen}</tbody></table></div><p class="a-hinweis">„!“ bedeutet: Angabe und letztes Ergebnis liegen mehr als 150 auseinander.</p>` : '<p class="a-leer">Noch keine Fahrer gemeldet.</p>'}
+      ${det.fahrer.length ? `<div class="a-scroll"><table><thead><tr><th>Name</th><th>Meldung</th><th>iRacing-ID</th><th class="rechts">iR Angabe</th><th class="rechts">iR Ergebnis</th><th>Klasse</th><th></th></tr></thead><tbody>${zeilen}</tbody></table></div><p class="a-hinweis">„!“ bedeutet: Angabe und letztes Ergebnis liegen mehr als 150 auseinander.</p>` : '<p class="a-leer">Noch keine Fahrer gemeldet.</p>'}
     </section>
     <section class="a-karte"><h2>Starterlisten</h2>${rennen || '<p class="a-leer">Keine kommenden Rennen.</p>'}</section>`;
   }

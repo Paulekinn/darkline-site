@@ -146,7 +146,7 @@ Die Liga hat bewusst nichts mit dem Website-Admin unter `/admin` zu tun. Jeder B
 
 ```
 api/liga.js                     Einstieg: ?r=oeffentlich, ?r=fahrer, ?r=admin
-api/_lib/liga-oeffentlich.js    Daten für /liga, ohne Passwort, Briefing und Kundennummern
+api/_lib/liga-oeffentlich.js    Daten für /liga, ohne Passwort, Briefing und iRacing-IDs
 api/_lib/liga-fahrer.js         Dashboard, Profil, An- und Abmeldung
 api/_lib/liga-admin.js          Rennleitung: Serien, Rennen, Fahrer, Ergebnisse, Strafen
 api/_lib/liga-daten.js          Speicherung und Prüfung der Eingaben
@@ -163,7 +163,7 @@ scripts/liga-test.js, scripts/liga-anmeldung-test.js   Tests (mit node ausführe
 
 **Serien und Anmeldung:** Eine Serie ist eine Liga oder ein Event. Wer sich für eine Serie anmeldet, ist automatisch für alle ihre Rennen gemeldet und kann einzelne auslassen. Rennen, die sich überschneiden, lassen sich nicht zusätzlich einzeln anmelden. Entsteht eine Überschneidung durch Serien-Anmeldungen, zeigt der Fahrerbereich eine Warnung.
 
-**Ergebnisse:** In iRacing das Ergebnis öffnen, „Export Results“ wählen, die JSON-Datei unter `/liga-admin` → Ergebnisse hochladen, die Vorschau prüfen und veröffentlichen. Gewertet und gespeichert werden nur Fahrer, die für die Serie oder eines ihrer Rennen gemeldet sind (Abgleich über die Kundennummer aus dem Profil). Andere zeigt die Vorschau an, einzelne lassen sich dort als Gast zulassen. Die Klasse wird beim ersten Rennen eines Fahrers aus dem iRating festgelegt, die Rennleitung kann sie überschreiben. Bei Multiclass wird in jeder Fahrzeugklasse getrennt nach iRating-Klassen gewertet. Teamrennen werden noch nicht gewertet.
+**Ergebnisse:** In iRacing das Ergebnis öffnen, „Export Results“ wählen, die JSON-Datei unter `/liga-admin` → Ergebnisse hochladen, die Vorschau prüfen und veröffentlichen. Gewertet und gespeichert werden nur Fahrer, die für die Serie oder eines ihrer Rennen gemeldet sind (Abgleich über die iRacing-ID aus dem Profil). Andere zeigt die Vorschau an, einzelne lassen sich dort als Gast zulassen. Die Klasse wird beim ersten Rennen eines Fahrers aus dem iRating festgelegt, die Rennleitung kann sie überschreiben. Bei Multiclass wird in jeder Fahrzeugklasse getrennt nach iRating-Klassen gewertet. Teamrennen werden noch nicht gewertet.
 
 **Reports und Urteile:** Fahrer melden Vorfälle im Fahrerbereich unter „Reports“, wenn sie im Rennen gestartet sind, bis zur Report-Frist der Serie (Standard 24 Stunden nach Rennende). Das League Team prüft sie unter `/liga-admin` → Reports und entscheidet: kein Vergehen, Verwarnung, Strafpunkte, Zeitstrafe oder Disqualifikation. Für eine Strafe muss das Ergebnis des Rennens eingelesen sein, die Tabelle rechnet sich danach selbst neu. Zeitstrafen wirken innerhalb der Fahrzeugklasse und nur bei Fahrern in der Führungsrunde, weil iRacing für Überrundete keinen Zeitabstand liefert. Beteiligte können einmal Einspruch einlegen (Standard 48 Stunden), danach ist das Urteil endgültig. Wer selbst an einem Vorfall beteiligt ist, kann nicht darüber entscheiden. Urteile sehen nur eingeloggte Fahrer, interne Notizen nur das League Team. Optional meldet `LIGA_DISCORD_WEBHOOK` Strafen kurz in einem Discord-Kanal.
 

@@ -237,7 +237,7 @@
     if (weitere.length) einfuegen(abschnitt("Weitere Termine", "Alle Serien", "", `<div class="liga-termine">${weitere.map((x) => terminZeile(x.r, x.s)).join("")}</div>`));
     einfuegen(abschnitt("So bist du dabei", "In drei Schritten", "", `<ol class="liga-schritte">
       <li><b>1</b><div><h3>Mit Discord anmelden</h3><p>Du brauchst nur ein Konto auf unserem Discord-Server.</p></div></li>
-      <li><b>2</b><div><h3>Profil ausfüllen</h3><p>iRacing-Name, Kundennummer und iRating, einmal und fertig.</p></div></li>
+      <li><b>2</b><div><h3>Profil ausfüllen</h3><p>iRacing-Name, iRacing-ID und iRating, einmal und fertig.</p></div></li>
       <li><b>3</b><div><h3>Serie wählen</h3><p>Anmelden und in deiner Klasse gegen Fahrer auf deinem Niveau antreten.</p></div></li>
     </ol>`));
     if (archiv.length) einfuegen(abschnitt("Archiv", `${archiv.length} beendet`, "", liste(archiv)));

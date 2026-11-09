@@ -14,7 +14,7 @@ const serieFinden = (kat, id) => {
   return s;
 };
 
-// Alle für eine Serie oder eines ihrer Rennen gemeldeten Fahrer: Map Kundennummer → iRacing-Name
+// Alle für eine Serie oder eines ihrer Rennen gemeldeten Fahrer: Map iRacing-ID → iRacing-Name
 async function gemeldeteFahrer(kat, serieId) {
   const alle = await eintraege();
   const rennen = new Set(kat.rennen.filter((r) => r.serie === serieId).map((r) => r.id));
@@ -31,7 +31,7 @@ async function serienDetails(kat, id) {
   const direkt = alle.filter((e) => e.typ === "rennen" && kat.rennen.some((r) => r.id === e.rennenId && r.serie === id));
   const ids = [...new Set([...mitglieder, ...direkt].map((e) => e.discordId))];
   const profile = new Map(await Promise.all(ids.map(async (d) => { const t = await blobGet(A.profilPfad(d)); return [d, t ? JSON.parse(t) : null]; })));
-  // Letztes iRating je Kundennummer aus den eingelesenen Ergebnissen
+  // Letztes iRating je iRacing-ID aus den eingelesenen Ergebnissen
   const ausErgebnis = new Map();
   [...ergebnisse].sort((a, b) => String(a.start).localeCompare(String(b.start))).forEach((e) => e.fahrer.forEach((f) => { if (f.irating > 0) ausErgebnis.set(f.cust, f.irating); }));
   const sportsCar = serie.kategorie === "Sports_Car";
@@ -150,7 +150,7 @@ const aktionen = {
   },
   async "einstufung-setzen"(b, kat) {
     const serie = serieFinden(kat, b.serie);
-    if (!/^\d+$/.test(String(b.cust || ""))) throw new Hinweis("Für diesen Fahrer fehlt die Kundennummer.");
+    if (!/^\d+$/.test(String(b.cust || ""))) throw new Hinweis("Für diesen Fahrer fehlt die iRacing-ID.");
     if (b.klasse && !serie.klassen.some((k) => k.id === b.klasse)) throw new Hinweis("Diese Klasse gibt es nicht.");
     const privat = await D.privatLesen(b.serie);
     if (b.klasse) privat.einstufung[b.cust] = b.klasse; else delete privat.einstufung[b.cust];

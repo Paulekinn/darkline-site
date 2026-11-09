@@ -1,4 +1,4 @@
-// Öffentliche Ligadaten für /liga: Serien, Termine und auf Wunsch die Tabelle einer Serie. Kein Passwort, kein Briefing, keine Kundennummern.
+// Öffentliche Ligadaten für /liga: Serien, Termine und auf Wunsch die Tabelle einer Serie. Kein Passwort, kein Briefing, keine iRacing-IDs.
 const D = require("./liga-daten");
 
 module.exports = async (req, res) => {

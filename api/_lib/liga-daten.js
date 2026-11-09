@@ -1,7 +1,7 @@
 // Datenhaltung der Liga im privaten Blob-Speicher, unabhängig von Repository und Website-Admin.
 //   liga/daten/serien/<id>.json       Serie oder Event mit Regeln
 //   liga/daten/rennen/<id>.json       Rennen, enthält auch das Session-Passwort
-//   liga/daten/tabellen/<serie>.json  fertige Tabelle ohne Kundennummern
+//   liga/daten/tabellen/<serie>.json  fertige Tabelle ohne iRacing-IDs
 //   liga/daten/ergebnisse/<serie>/<subsession>.json  eingelesene Ergebnisse
 //   liga/daten/privat/<serie>.json    Einstufungen und Strafen
 const crypto = require("crypto");
@@ -86,7 +86,7 @@ function pruefeRennen(e, serienIds) {
 }
 
 // Gleicht ein Ergebnis mit den Anmeldungen ab. Gewertet und gespeichert werden nur gemeldete Fahrer und ausdrücklich zugelassene Gäste.
-// gemeldet: Map Kundennummer → Name
+// gemeldet: Map iRacing-ID → Name
 function abgleichen(ergebnis, gemeldet, zugelassen) {
   const gaeste = new Set((zugelassen || []).map(String));
   const imRennen = new Set(ergebnis.fahrer.map((f) => f.cust));
