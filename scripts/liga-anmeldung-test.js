@@ -63,6 +63,21 @@ const tests = {
     assert.deepStrictEqual(A.pruefeExtras({ nummer: " 46 ", land: "DE", team: " Team X ", kanal: "https://www.twitch.tv/test", zeigeBild: true }), { nummer: 46, land: "DE", team: "Team X", kanal: "https://www.twitch.tv/test", zeigeBild: true });
     assert.strictEqual(A.pruefeExtras({ kanal: "https://youtu.be/abc" }).kanal, "https://youtu.be/abc");
   },
+  "Länder: alle ISO-Länder mit deutschem Namen und vorhandener Flagge": () => {
+    const F = require("../assets/liga-flaggen.js");
+    const fs = require("fs");
+    const path = require("path");
+    assert.ok(F.LAENDER.length > 240);
+    assert.deepStrictEqual(F.LAENDER.slice(0, 3).map(([c]) => c), ["DE", "AT", "CH"]);
+    assert.strictEqual(F.name("BR"), "Brasilien");
+    assert.strictEqual(F.name("PT"), "Portugal");
+    assert.strictEqual(F.quelle("XX"), "");
+    for (const [code, name] of F.LAENDER) {
+      assert.ok(name && name !== code, `Name fehlt: ${code}`);
+      assert.ok(fs.existsSync(path.join(__dirname, "..", F.quelle(code))), `Flagge fehlt: ${code}`);
+    }
+    assert.strictEqual(A.pruefeExtras({ land: "BR" }).land, "BR");
+  },
   "Extras: ungültige Angaben werden abgelehnt": () => {
     for (const n of ["0", "1000", "4a", "-1"]) assert.throws(() => A.pruefeExtras({ nummer: n }), /Startnummer/);
     assert.throws(() => A.pruefeExtras({ land: "XX" }), /Land/);

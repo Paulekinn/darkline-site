@@ -427,7 +427,7 @@ a.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--paper
 .liga-fk-fahrer{display:flex;align-items:center;gap:10px;min-width:0}
 .liga-fk-avatar{flex:none;width:48px;height:48px;object-fit:cover;clip-path:polygon(12% 0,100% 0,88% 100%,0 100%);background:var(--monitor)}
 .liga-fk-nummer{color:var(--rang)}
-.liga-flagge{display:inline-block;width:21px;height:14px;margin-right:6px;vertical-align:-2px;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
+.liga-flagge{display:inline-block;width:20px;height:15px;margin-right:6px;vertical-align:-2px;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
 .liga-tab-nr{font:700 .68rem/1 var(--f-mono);color:var(--muted)}
 .liga-fahrer .liga-flagge{margin-right:0}
 .bar nav.liga-nav button.liga-nav-logout{all:unset;flex:none;cursor:pointer;display:flex;align-items:center;padding:10px 13px 8px;border-bottom:3px solid transparent;font:800 .72rem/1 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase;color:var(--liga-rot);white-space:nowrap}

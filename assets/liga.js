@@ -202,7 +202,7 @@
       x.drawImage(avatar, (avatar.width - seite) / 2, (avatar.height - seite) / 2, seite, seite, B - R - 130, 305, 130, 130);
     }
     let textX = R;
-    if (flaggenBild) { x.drawImage(flaggenBild, R, 396, 45, 30); textX += 57; }
+    if (flaggenBild) { x.drawImage(flaggenBild, R, 395, 40, 30); textX += 52; }
     x.fillStyle = cssFarbe("--muted");
     schrift(500, 30, "mono");
     x.fillText(`${s.name} · P${f.pos} · ${f.punkte} Punkte`, textX, 420);
