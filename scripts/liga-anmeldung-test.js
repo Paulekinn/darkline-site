@@ -134,6 +134,31 @@ const tests = {
     assert.deepStrictEqual(A.eigeneKarten(serien, kartenTabelle(), "Tom Muster"), []);
     assert.deepStrictEqual(A.eigeneKarten(serien, kartenTabelle(), "Niemand"), []);
   },
+  "Gast: nicht in der Season gemeldet ist Gast, Season-Fahrer nicht": () => {
+    const f = (c) => ({ cust: c, name: `F${c}`, gesamt: 1 });
+    const { ergebnis } = D.abgleichen({ fahrer: [f("1"), f("2"), f("3")] }, new Map([["1", "A"], ["2", "B"]]), ["3"], new Set(["1"]));
+    assert.deepStrictEqual(ergebnis.fahrer.map((x) => !!x.gast), [false, true, true]);
+  },
+  "Gast: bei Events gibt es keine Gäste": () => {
+    const { ergebnis } = D.abgleichen({ fahrer: [{ cust: "1", name: "A", gesamt: 1 }] }, new Map([["1", "A"]]), [], null);
+    assert.strictEqual(ergebnis.fahrer[0].gast, undefined);
+    const serien = { gt3: { name: "E", typ: "event" } };
+    assert.strictEqual(A.baueRennen([SERIENRENNEN], [eintrag("s1r", "5", 100)], { ...OPT, serien })[0].starter[0].gast, false);
+  },
+  "Gast: Einzelmeldung ist in der Starterliste Gast, ein Season-Rückkehrer nicht": () => {
+    const serien = { gt3: { name: "S", typ: "liga" } };
+    const liste = [mitglied("gt3", "1", 100), A.leseEintrag({ pathname: A.abmeldungPfad("s1r", "1"), uploadedAt: iso(200) }), eintrag("s1r", "1", 300, "M1"), eintrag("s1r", "5", 250)];
+    const r = A.baueRennen([SERIENRENNEN], liste, { ...OPT, serien })[0];
+    assert.deepStrictEqual(r.starter.map((f) => [f.name, f.gast]), [["F5", true], ["M1", false]]);
+  },
+  "Rückkehrer: reiht sich hinter alle bereits Gemeldeten ein": () => {
+    const serien = { gt3: { name: "S", typ: "liga" } };
+    const voll = { ...SERIENRENNEN, plaetze: 1 };
+    const zurueck = A.baueRennen([voll], [mitglied("gt3", "2", 100), mitglied("gt3", "1", 200), A.leseEintrag({ pathname: A.abmeldungPfad("s1r", "2"), uploadedAt: iso(300) }), eintrag("s1r", "2", 400, "M2")], { ...OPT, discordId: "2", serien })[0];
+    assert.deepStrictEqual(zurueck.starter.map((f) => f.name), ["M1"]);
+    assert.deepStrictEqual(zurueck.warteliste.map((f) => f.name), ["M2"]);
+    assert.strictEqual(zurueck.ich.status, "warteliste");
+  },
   "Status: vor dem ersten Start bleibt die Serie in der Anmeldung": () => {
     assert.strictEqual(D.wirksamerStatus({ id: "gt3", status: "anmeldung" }, [SERIENRENNEN], START - 1), "anmeldung");
     assert.strictEqual(D.wirksamerStatus({ id: "gt3", status: "anmeldung" }, [], START), "anmeldung");

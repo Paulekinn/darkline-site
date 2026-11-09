@@ -383,7 +383,7 @@
     const bestzeit = zeiten.length ? Math.min(...zeiten) : null;
     const abstand = (z) => {
       if (z === spitze) return "Sieger";
-      if (!spitze || wert(z).status === "DSQ") return "–";
+      if (!spitze || z.gast || wert(z).status === "DSQ") return "–";
       if (z.abstand !== null && spitze.abstand !== null) return `+${((z.abstand - spitze.abstand) / 10000).toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`;
       const runden = spitze.runden - z.runden;
       return runden > 0 ? `+${runden} Rd.` : "–";
@@ -404,7 +404,7 @@
     const reihen = zeilen.map((z) => {
       const w = wert(z);
       return `<tr>
-        <td><span class="liga-fahrer"><span class="liga-pos ${w.status === "OK" ? podium(w.platz) : ""}"><b>${w.status === "OK" ? w.platz : "–"}</b></span>${fahrerLink(z.klasse, z.klassenPos, z.name, z.pid)}</span></td>
+        <td><span class="liga-fahrer"><span class="liga-pos ${w.status === "OK" ? podium(w.platz) : ""}"><b>${w.status === "OK" ? w.platz : "–"}</b></span>${z.gast ? esc(z.name) : fahrerLink(z.klasse, z.klassenPos, z.name, z.pid)}</span></td>
         ${k.gesamt ? `<td>${klassenChip(z.klasse, k, d)}</td>` : ""}
         <td class="zahl">${startRang.has(z) ? startRang.get(z) : "–"}</td>
         <td class="zahl">${gewinn(z)}</td>
@@ -471,6 +471,7 @@
         <li>Gewertet wird, wer mindestens ${r.mindestRundenProzent} % der Runden des Klassensiegers schafft.</li>
         ${r.gewerteteRennen < r.rennenGesamt ? `<li>Es zählen die besten ${r.gewerteteRennen} von ${r.rennenGesamt} Rennen. Strafpunkte werden immer abgezogen.</li>` : ""}
         <li>Die Klasse richtet sich nach dem iRating zum Start und bleibt danach gleich.</li>
+        ${r.typ !== "event" ? "<li>Gaststarter erscheinen im Rennergebnis, bekommen aber keine Punkte und nehmen auch niemandem welche weg.</li>" : ""}
         ${r.klassen.length > 1 ? "<li>Die Gesamtwertung vergibt eigene Punkte nach dem Zieleinlauf der ganzen Fahrzeugklasse. Die Klassenwertungen bleiben davon unberührt.</li>" : ""}
         <li>Bei Punktgleichheit entscheiden die Anzahl der Siege, dann der zweiten Plätze und so weiter, zuletzt das jüngste Rennen.</li>
       </ul>`;

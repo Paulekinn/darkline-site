@@ -102,12 +102,12 @@ function pruefeStrecke(e) {
 }
 
 // Gleicht ein Ergebnis mit den Anmeldungen ab. Gewertet und gespeichert werden nur gemeldete Fahrer und ausdrücklich zugelassene Gäste.
-// gemeldet: Map iRacing-ID → Name
-function abgleichen(ergebnis, gemeldet, zugelassen) {
+// gemeldet: Map iRacing-ID → Name. stammfahrer: iRacing-IDs der Season-Fahrer, alle anderen gelten als Gast. Bei Events null, dort gibt es keine Gäste.
+function abgleichen(ergebnis, gemeldet, zugelassen, stammfahrer) {
   const gaeste = new Set((zugelassen || []).map(String));
   const imRennen = new Set(ergebnis.fahrer.map((f) => f.cust));
   return {
-    ergebnis: { ...ergebnis, fahrer: ergebnis.fahrer.filter((f) => gemeldet.has(f.cust) || gaeste.has(f.cust)) },
+    ergebnis: { ...ergebnis, fahrer: ergebnis.fahrer.filter((f) => gemeldet.has(f.cust) || gaeste.has(f.cust)).map((f) => (stammfahrer && !stammfahrer.has(f.cust) ? { ...f, gast: true } : f)) },
     fremde: ergebnis.fahrer.filter((f) => !gemeldet.has(f.cust)).map((f) => ({ cust: f.cust, name: f.name, gesamt: f.gesamt, gast: gaeste.has(f.cust) })),
     fehlend: [...gemeldet].filter(([cust]) => !imRennen.has(cust)).map(([, name]) => name),
   };

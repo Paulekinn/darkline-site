@@ -493,6 +493,7 @@
     return `<section class="a-karte"><div class="a-kartenkopf"><h2>Vorschau: ${esc(v.rennen.strecke)}</h2><span class="a-chip">${v.rennen.gewertet} von ${v.rennen.gesamt} Fahrern gewertet · ${esc(zeit(v.rennen.start))}</span></div>
       ${keiner}
       ${v.ersetzt ? '<p class="a-meldung fehler">Dieses Rennen ist schon eingelesen und würde ersetzt.</p>' : ""}
+      ${v.gaeste && v.gaeste.length ? `<p class="a-hinweis">Als Gast ohne Punkte: ${esc(v.gaeste.join(", "))}</p>` : ""}
       ${v.warnungen.length ? `<ul class="a-warnung">${v.warnungen.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}
       ${fremde}${fehlend}
       ${gruppen}

@@ -130,12 +130,7 @@ async function anmelden(s, profil, body, alle, kat) {
   if (stand.anmeldungZu) throw new Hinweis("Die Anmeldung für diese Serie ist geschlossen.");
   const parallel = A.kollisionen(kat.rennen, rennen.id, alle, optionen(s, kat));
   if (parallel.length) throw new Hinweis(`Dieses Rennen überschneidet sich mit: ${parallel.join(", ")}. Melde dich dort zuerst ab.`);
-  // Serienfahrer, die sich für dieses Rennen abgemeldet hatten, kommen zurück.
-  const eigeneAbmeldung = alle.filter((e) => e.typ === "abmeldung" && e.rennenId === rennen.id && e.discordId === s.id);
-  if (eigeneAbmeldung.length) {
-    await blobDelete(eigeneAbmeldung.map((e) => e.pfad));
-    return merke(alle.filter((e) => !eigeneAbmeldung.includes(e)));
-  }
+  // Wer sich abgemeldet hatte und zurückkommt, wird als neue Meldung hinten eingereiht und verdrängt keinen Nachrücker. Die Abmeldung bleibt bestehen.
   const klassen = (serienMap(kat.serien)[rennen.serie] || {}).fahrzeugklassen || [];
   const pfad = A.anmeldungPfad(rennen.id, s.id, fahrzeugklasseWaehlen(klassen, String(body.fahrzeugklasse || "")), profil.iracingName);
   await blobPut(pfad, "1", "text/plain");

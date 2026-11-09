@@ -205,6 +205,7 @@
 .fb-namen em{font-style:normal;color:var(--muted);min-width:1.7em}
 .fb-namen span{flex:1;min-width:0;overflow-wrap:anywhere}
 .fb-namen small{color:var(--liga-gelb)}
+.fb-namen small.gast{color:var(--liga-blau)}
 .fb-namen .ich span{color:var(--liga-gruen);font-weight:600}
 .fb-profil-link{margin:0}
 

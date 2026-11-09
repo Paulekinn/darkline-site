@@ -71,7 +71,7 @@
   }
 
   const fakt = (titel, wert, klasse) => (wert ? `<div class="${klasse || ""}"><dt>${esc(titel)}</dt><dd>${esc(wert)}</dd></div>` : "");
-  const namenListe = (liste, ichName) => liste.map((f, i) => `<li class="${f.name === ichName ? "ich" : ""}"><em>${i + 1}</em><span>${esc(f.name)}</span>${f.fahrzeugklasse ? `<small>${esc(f.fahrzeugklasse)}</small>` : ""}</li>`).join("");
+  const namenListe = (liste, ichName) => liste.map((f, i) => `<li class="${f.name === ichName ? "ich" : ""}"><em>${i + 1}</em><span>${esc(f.name)}</span>${f.gast ? '<small class="gast">Gast</small>' : ""}${f.fahrzeugklasse ? `<small>${esc(f.fahrzeugklasse)}</small>` : ""}</li>`).join("");
 
   // Ablauf bis zum Start als Leuchten: grün erledigt, gelb Warteliste, dunkel noch offen
   function ablauf(r) {

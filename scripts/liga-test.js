@@ -119,6 +119,42 @@ const tests = {
     const [e] = tabelle([datei(1, 1, [{ c: 1, n: "A", out: "Disqualified", ab: 0 }, { c: 2, n: "B", ab: 10000 }])], EINE_KLASSE).rennen[0].ergebnisse;
     assert.deepStrictEqual(e.zeilen.map((z) => [z.name, z.ziel, z.abstand, z.gesamt.status]), [["B", 1, 0, "OK"], ["A", 2, null, "DSQ"]]);
   },
+  "Gast: bekommt keine Punkte und nimmt niemandem welche weg": () => {
+    const r = lies(datei(1, 1, [{ c: 1, n: "Gast", ir: 3000, s: 0, b: 900 }, { c: 2, n: "A", ir: 3000, s: 1, b: 1000 }, { c: 3, n: "B", ir: 3000, s: 2, b: 1100 }]));
+    r.fahrer[0].gast = true;
+    const t = berechneTabelle([r], { ...REGELN, kategorie: "" });
+    const k = klasse(t, "pro");
+    assert.deepStrictEqual(k.fahrer.map((f) => [f.name, f.pos, f.punkte]), [["A", 1, 32], ["B", 2, 26]]);
+    assert.deepStrictEqual(t.gesamt[0].fahrer.map((f) => f.name), ["A", "B"]);
+  },
+  "Gast: bleibt im Rennergebnis am Ende sichtbar, nicht im Rennbericht": () => {
+    const r = lies(datei(1, 1, [{ c: 1, n: "Gast", ir: 3000, b: 900, i: 0 }, { c: 2, n: "A", ir: 3000, b: 1000 }, { c: 3, n: "B", ir: 1000, b: 1100 }]));
+    r.fahrer[0].gast = true;
+    const t = berechneTabelle([r], { ...OHNE_BONUS, kategorie: "" }, { pid: (c) => `p${c}` });
+    const [e] = t.rennen[0].ergebnisse;
+    assert.deepStrictEqual(e.zeilen.map((z) => [z.name, z.ziel, z.wertung.status]), [["A", 1, "OK"], ["B", 2, "OK"], ["Gast", null, "GAST"]]);
+    assert.deepStrictEqual([e.zeilen[2].gast, e.zeilen[2].klasse, e.zeilen[2].abstand, e.zeilen[2].pid], [true, "pro", null, undefined]);
+    const [b] = t.rennen[0].bericht;
+    assert.deepStrictEqual(b.podium, ["A", "B"]);
+    assert.strictEqual(b.schnellste.name, "A");
+    assert.strictEqual(b.starter, 2);
+  },
+  "Gast: ein Rennen nur mit Gästen bricht nichts": () => {
+    const r = lies(datei(1, 1, [{ c: 1, n: "Gast", ir: 3000 }]));
+    r.fahrer[0].gast = true;
+    const t = berechneTabelle([r], { ...OHNE_BONUS, kategorie: "" });
+    assert.strictEqual(t.rennen[0].bericht.length, 0);
+    assert.strictEqual(t.rennen[0].ergebnisse[0].zeilen.length, 1);
+    assert.strictEqual(klasse(t, "pro").fahrer.length, 0);
+  },
+  "Gast: tritt er später der Season bei, zählen nur die späteren Rennen": () => {
+    const r1 = lies(datei(1, 1, [{ c: 1, n: "G", ir: 3000 }, { c: 2, n: "A", ir: 3000 }]));
+    r1.fahrer[0].gast = true;
+    const r2 = lies(datei(2, 2, [{ c: 1, n: "G", ir: 3000 }, { c: 2, n: "A", ir: 3000 }]));
+    const k = klasse(berechneTabelle([r1, r2], { ...OHNE_BONUS, kategorie: "" }), "pro");
+    assert.deepStrictEqual([fahrer(k, "G").punkte, fahrer(k, "G").rennen[0]], [30, null]);
+    assert.strictEqual(fahrer(k, "A").punkte, 56);
+  },
   "Kennung: steht in Klasse, Gesamtwertung und Rennergebnis, die iRacing-ID nicht": () => {
     const t = tabelle([datei(1, 1, [{ c: 777123, n: "A", ir: 3000 }, { c: 888456, n: "B", ir: 1000 }])], OHNE_KATEGORIE, { pid: (c) => `kennung${c.length}x${c.slice(0, 1)}` });
     assert.strictEqual(fahrer(klasse(t, "pro"), "A").pid, "kennung6x7");

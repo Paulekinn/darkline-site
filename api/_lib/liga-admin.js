@@ -19,8 +19,12 @@ async function gemeldeteFahrer(kat, serieId) {
   const alle = await eintraege();
   const rennen = new Set(kat.rennen.filter((r) => r.serie === serieId).map((r) => r.id));
   const ids = [...new Set(alle.filter((e) => (e.typ === "serie" && e.serieId === serieId) || (e.typ === "rennen" && rennen.has(e.rennenId))).map((e) => e.discordId))];
-  const profile = await Promise.all(ids.map(async (d) => { const t = await blobGet(A.profilPfad(d)); return t ? JSON.parse(t) : null; }));
-  return new Map(profile.filter((p) => p && p.custId).map((p) => [String(p.custId), p.iracingName]));
+  const profile = await Promise.all(ids.map(async (d) => { const t = await blobGet(A.profilPfad(d)); return t ? { discordId: d, ...JSON.parse(t) } : null; }));
+  const vorhanden = profile.filter((p) => p && p.custId);
+  const mitglieder = new Set(alle.filter((e) => e.typ === "serie" && e.serieId === serieId).map((e) => e.discordId));
+  // Nur Seasons kennen Gäste. Bei einem Event wird jeder Gemeldete normal gewertet.
+  const stamm = serieFinden(kat, serieId).typ === "event" ? null : new Set(vorhanden.filter((p) => mitglieder.has(p.discordId)).map((p) => String(p.custId)));
+  return { gemeldet: new Map(vorhanden.map((p) => [String(p.custId), p.iracingName])), stamm };
 }
 
 // Details einer Serie: Fahrer mit Profil, Rennen mit Listen, Ergebnisse und Strafen
@@ -193,16 +197,18 @@ const aktionen = {
   async "ergebnis-vorschau"(b, kat) {
     const serie = serieFinden(kat, b.serie);
     const eingelesen = leseErgebnis(b.datei);
-    const { ergebnis: neu, fremde, fehlend } = D.abgleichen(eingelesen, await gemeldeteFahrer(kat, b.serie), b.zugelassen);
+    const { gemeldet, stamm } = await gemeldeteFahrer(kat, b.serie);
+    const { ergebnis: neu, fremde, fehlend } = D.abgleichen(eingelesen, gemeldet, b.zugelassen, stamm);
     const vorhanden = await D.ergebnisseLesen(b.serie);
     const bisher = vorhanden.filter((e) => e.id !== neu.id);
     const { warnungen, ...tabelle } = berechneTabelle([...bisher, neu], serie, await D.privatLesen(b.serie));
-    return { warnungen, tabelle, ersetzt: bisher.length !== vorhanden.length, fremde, fehlend, rennen: { id: neu.id, strecke: neu.strecke, start: neu.start, gesamt: eingelesen.fahrer.length, gewertet: neu.fahrer.length } };
+    return { warnungen, tabelle, ersetzt: bisher.length !== vorhanden.length, fremde, fehlend, gaeste: neu.fahrer.filter((f) => f.gast).map((f) => f.name), rennen: { id: neu.id, strecke: neu.strecke, start: neu.start, gesamt: eingelesen.fahrer.length, gewertet: neu.fahrer.length } };
   },
   async "ergebnis-veroeffentlichen"(b, kat) {
     serieFinden(kat, b.serie);
     // Nicht gemeldete Fahrer werden nicht gewertet und auch nicht gespeichert.
-    const { ergebnis } = D.abgleichen(leseErgebnis(b.datei), await gemeldeteFahrer(kat, b.serie), b.zugelassen);
+    const { gemeldet, stamm } = await gemeldeteFahrer(kat, b.serie);
+    const { ergebnis } = D.abgleichen(leseErgebnis(b.datei), gemeldet, b.zugelassen, stamm);
     if (!ergebnis.fahrer.length) throw new Hinweis("Keiner der Fahrer in dieser Datei ist für diese Serie gemeldet. Prüfe die Serie und die Datei oder lasse einzelne Fahrer als Gast zu.");
     await D.ergebnisSpeichern(b.serie, ergebnis);
     return { warnungen: (await neuBerechnen(kat, b.serie)) || [] };

@@ -89,7 +89,10 @@ function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, ser
       const iW = warteliste.findIndex((e) => e.discordId === discordId);
       const eigen = iS >= 0 ? starter[iS] : iW >= 0 ? warteliste[iW] : null;
       // Die Discord-ID sieht nur die Rennleitung.
-      const oeffentlich = (e) => (mitIds ? { name: e.name, fahrzeugklasse: e.fahrzeugklasse, discordId: e.discordId, quelle: e.typ } : { name: e.name, fahrzeugklasse: e.fahrzeugklasse });
+      // Gast ist, wer nur für dieses Rennen gemeldet und nicht in der Season ist. Bei Events gibt es keine Gäste.
+      const inSerie = new Set(eintraege.filter((e) => e.typ === "serie" && r.serie && e.serieId === r.serie).map((e) => e.discordId));
+      const istGast = (e) => serie.typ !== "event" && !!r.serie && e.typ === "rennen" && !inSerie.has(e.discordId);
+      const oeffentlich = (e) => (mitIds ? { name: e.name, fahrzeugklasse: e.fahrzeugklasse, gast: istGast(e), discordId: e.discordId, quelle: e.typ } : { name: e.name, fahrzeugklasse: e.fahrzeugklasse, gast: istGast(e) });
       return {
         id: r.id, titel: r.titel || r.strecke || "Rennen", status: abgesagt ? "abgesagt" : "geplant",
         serie: r.serie || "", serieName: serie.name || "", serieFarbe: serie.farbe || "rot", serieTyp: serie.typ || "liga",

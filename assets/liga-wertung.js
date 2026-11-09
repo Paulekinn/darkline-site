@@ -218,8 +218,9 @@
   }
 
   // Vollständiges Ergebnis eines Rennens je Fahrzeugklasse, mit Wertung in der eigenen Klasse und in der Gesamtwertung.
-  function rennErgebnis(rennen, wertung, wertungGesamt, kennzahlen, fahrzeugklassen, klassenPlatz, strafeVon) {
-    return fahrzeugklassen.filter((fz) => rennen.fahrer.some((f) => f.fahrzeugklasseId === fz.id)).map((fz) => {
+  function rennErgebnis(rennen, wertung, wertungGesamt, kennzahlen, fahrzeugklassen, klassenPlatz, strafeVon, gaeste, klassenId) {
+    const ohneWertung = { platz: null, status: "GAST", punkte: 0, pole: false, schnellsteRunde: false };
+    return fahrzeugklassen.filter((fz) => [...rennen.fahrer, ...gaeste].some((f) => f.fahrzeugklasseId === fz.id)).map((fz) => {
       const feld = rennen.fahrer.filter((f) => f.fahrzeugklasseId === fz.id);
       // Der Abstand gilt nach Zeitstrafen und bezieht sich auf den Sieger nach Entscheidung der Rennleitung.
       const effektiv = (f) => (!f.disqualifiziert && f.klassenAbstand !== null && f.klassenAbstand >= 0 ? f.klassenAbstand + (f.zeitstrafe || 0) * 10000 : null);
@@ -246,6 +247,8 @@
           zeitstrafe: f.zeitstrafe || 0,
         };
       }).sort((a, b) => a.ziel - b.ziel);
+      // Gäste stehen am Ende, ohne Platz und ohne Punkte.
+      gaeste.filter((f) => f.fahrzeugklasseId === fz.id).forEach((f) => zeilen.push({ name: f.name, gast: true, klasse: klassenId(fz.id, f.cust), start: null, ziel: null, abstand: null, runden: f.runden, besteRunde: f.besteRunde, incidents: f.incidents, gesamt: ohneWertung, wertung: ohneWertung, strafe: 0, zeitstrafe: 0 }));
       return { fahrzeugId: fz.id, fahrzeugklasse: fz.name, zeilen };
     });
   }
@@ -388,8 +391,10 @@
     }
     const rennenListe = [...rennenEingabe].sort((a, b) => String(a.start).localeCompare(String(b.start))).map((r) => wendeEntscheidungenAn(r, privat, warnungen));
     const einstufung = einstufen(rennenListe, regeln, privat, warnungen);
-    const wertungen = rennenListe.map((r) => werteRennen(r, einstufung, regeln));
-    const kennzahlen = rennenListe.map(rennKennzahlen);
+    // Gäste bleiben im Rennergebnis sichtbar, gewertet wird aber so, als wären sie nicht gefahren.
+    const wertbar = rennenListe.map((r) => ({ ...r, fahrer: r.fahrer.filter((f) => !f.gast) }));
+    const wertungen = wertbar.map((r) => werteRennen(r, einstufung, regeln));
+    const kennzahlen = wertbar.map(rennKennzahlen);
 
     const strafen = new Map();
     for (const s of (privat && privat.strafen) || []) {
@@ -469,7 +474,8 @@
     // Gesamtwertung: eigene Punkte nach dem Zieleinlauf der ganzen Fahrzeugklasse, weil jede Fahrerklasse sonst ihre eigenen Siegpunkte vergibt.
     const regelnGesamt = { ...regeln, klassen: [{ id: "gesamt", name: "Gesamt", min: 0, max: null }] };
     const einstufungGesamt = new Map([...einstufung].map(([cust, e]) => [cust, { ...e, klasse: "gesamt" }]));
-    const wertungenGesamt = rennenListe.map((r) => werteRennen(r, einstufungGesamt, regelnGesamt));
+    const wertungenGesamt = wertbar.map((r) => werteRennen(r, einstufungGesamt, regelnGesamt));
+    const klassenId = (fz, cust) => (mehrere ? `${fz}-${einstufung.get(cust).klasse}` : einstufung.get(cust).klasse);
     const gesamt = regeln.klassen.length < 2 ? [] : fahrzeugklassen.map((fz) => {
       const reihen = [...einstufung.entries()].filter(([cust]) => wertungenGesamt.some((w) => w.get(cust) && w.get(cust).fahrzeugklasse === fz.id)).map(([cust, e]) => ({ cust, zeile: saisonZeile(cust, e.irating, wertungenGesamt, fz.id).zeile }));
       reihen.sort((a, b) => vergleiche(a.zeile, b.zeile, rennenListe.length));
@@ -486,7 +492,7 @@
       gewerteteRennen: regeln.gewerteteRennen,
       restRennen: Math.max(0, regeln.rennenGesamt - rennenListe.length),
       maxProRennen: punkteFuer(1, regeln) + (regeln.bonusPole || 0) + (regeln.bonusSchnellsteRunde || 0),
-      rennen: rennenListe.map((r, i) => ({ nr: i + 1, strecke: r.strecke, variante: r.variante, start: r.start, bericht: rennBericht(r, wertungen[i], kennzahlen[i], fahrzeugklassen), ergebnisse: rennErgebnis(r, wertungen[i], wertungenGesamt[i], kennzahlen[i], fahrzeugklassen, klassenPlatz, (cust) => strafen.get(`${i}:${cust}`) || 0) })),
+      rennen: rennenListe.map((r, i) => ({ nr: i + 1, strecke: r.strecke, variante: r.variante, start: r.start, bericht: rennBericht(wertbar[i], wertungen[i], kennzahlen[i], fahrzeugklassen), ergebnisse: rennErgebnis(wertbar[i], wertungen[i], wertungenGesamt[i], kennzahlen[i], fahrzeugklassen, klassenPlatz, (cust) => strafen.get(`${i}:${cust}`) || 0, r.fahrer.filter((f) => f.gast), klassenId) })),
       klassen,
       gesamt,
       warnungen,
