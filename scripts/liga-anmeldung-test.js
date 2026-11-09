@@ -134,6 +134,65 @@ const tests = {
     assert.deepStrictEqual(A.eigeneKarten(serien, kartenTabelle(), "Tom Muster"), []);
     assert.deepStrictEqual(A.eigeneKarten(serien, kartenTabelle(), "Niemand"), []);
   },
+  "Datum: rechnet über Monats- und Jahresgrenzen": () => {
+    assert.strictEqual(D.datumPlus("2026-12-28", 7), "2027-01-04");
+    assert.strictEqual(D.datumPlus("2026-03-01", -1), "2026-02-28");
+    assert.throws(() => D.datumPlus("kaputt", 1), /Datum/);
+  },
+  "Ergebnis fehlt: nur gefahrene Rennen ohne passendes Ergebnis": () => {
+    const R1 = { id: "a", titel: "A", serie: "s", datum: "2026-10-01", startzeit: "20:00", renndauer: "60 min" };
+    const jetzt = Date.UTC(2026, 9, 1, 18, 30); // 20:30 deutscher Zeit, das Rennen läuft bis 21:00
+    assert.deepStrictEqual(D.rennenOhneErgebnis([R1], new Map(), jetzt).length, 0, "läuft noch");
+    const spaeter = jetzt + 3600e3 * 2;
+    assert.deepStrictEqual(D.rennenOhneErgebnis([R1], new Map(), spaeter).map((r) => r.id), ["a"]);
+    assert.strictEqual(D.rennenOhneErgebnis([{ ...R1, status: "abgesagt" }], new Map(), spaeter).length, 0);
+    assert.strictEqual(D.rennenOhneErgebnis([R1], new Map([["s", [{ start: "2026-10-01T17:30:00Z" }]]]), spaeter).length, 0, "Ergebnis passt");
+    assert.strictEqual(D.rennenOhneErgebnis([R1], new Map([["s", [{ start: "2026-10-08T18:00:00Z" }]]]), spaeter).length, 1, "anderes Rennen");
+  },
+  "Akte: Fälle, Strafen und Summen gehören nur zu diesem Fahrer": () => {
+    const rep = (id, von, gegen, urteil) => ({ id, rennenTitel: "R", serieName: "S", erstellt: "2026-10-01", status: urteil ? "entschieden" : "offen", von, gegen, urteil });
+    const ich = { name: "Ich", cust: "1", discordId: "d1" };
+    const du = { name: "Du", cust: "2", discordId: "d2" };
+    const reports = [rep("a", du, ich, { art: "verwarnung" }), rep("b", ich, du, null), rep("c", du, { name: "X", cust: "3", discordId: "d3" }, null)];
+    const privat = [{ serieName: "S", privat: { strafen: [{ cust: "1", punkte: 5, grund: "x" }, { cust: "2", punkte: 9 }], zeitstrafen: [{ cust: "1", sekunden: 10, reportId: "a" }], disqualifikationen: [{ cust: "1" }] } }];
+    const a = R.fahrerAkte(reports, privat, { cust: "1", discordId: "d1" });
+    assert.deepStrictEqual(a.faelle.map((f) => [f.id, f.rolle]), [["a", "gemeldet"], ["b", "melder"]]);
+    assert.deepStrictEqual(a.summen, { gemeldet: 1, selbstGemeldet: 1, verwarnungen: 1, strafpunkte: 5, zeitstrafen: 1, disqualifikationen: 1 });
+    assert.strictEqual(a.strafen.length, 3);
+    assert.strictEqual(R.fahrerAkte(reports, privat, { cust: "", discordId: "" }).faelle.length, 0);
+  },
+  "Protokoll: Eintrag kommt unversehrt aus dem Dateinamen zurück": () => {
+    const Adm = require("../api/_lib/liga-admin");
+    const p = Adm.protokollPfad(1794260000000, "ab12cd", { wer: "Äöü", text: "Rennen gelöscht: Spa · Runde 1" });
+    const e = Adm.leseProtokoll({ pathname: p });
+    assert.deepStrictEqual([e.wer, e.text, e.zeit], ["Äöü", "Rennen gelöscht: Spa · Runde 1", new Date(1794260000000).toISOString()]);
+    assert.strictEqual(Adm.leseProtokoll({ pathname: "liga-protokoll/kaputt" }), null);
+  },
+  "Protokoll: Texte nennen Namen statt Kennungen": async () => {
+    const Adm = require("../api/_lib/liga-admin");
+    const kat = { serien: [{ id: "s", name: "GT3 Sprint" }], rennen: [{ id: "r", titel: "Runde 1" }], strecken: [] };
+    assert.strictEqual(await Adm.protokollText({ aktion: "rennen-loeschen", id: "r" }, kat), "Rennen gelöscht: Runde 1");
+    assert.strictEqual(await Adm.protokollText({ aktion: "passwort-setzen", serie: "s" }, kat), "Passwort für alle kommenden Rennen gesetzt: GT3 Sprint");
+    assert.strictEqual(await Adm.protokollText({ aktion: "ergebnis-vorschau" }, kat), "");
+  },
+  "Discord: ohne Webhook keine Meldung, mit Webhook Ping nur der Rolle": async () => {
+    const original = global.fetch;
+    const aufrufe = [];
+    global.fetch = async (url, o) => { aufrufe.push([url, JSON.parse(o.body)]); return { ok: true }; };
+    delete process.env.LIGA_DISCORD_WEBHOOK_TEAM;
+    await R.teamMelden("Test");
+    assert.strictEqual(aufrufe.length, 0);
+    process.env.LIGA_DISCORD_WEBHOOK_TEAM = "https://discord.example/hook";
+    process.env.LIGA_ADMIN_ROLE_IDS = "123,456";
+    await R.teamMelden("Neuer @everyone Report");
+    delete process.env.LIGA_DISCORD_WEBHOOK_TEAM;
+    delete process.env.LIGA_ADMIN_ROLE_IDS;
+    global.fetch = original;
+    const [url, body] = aufrufe[0];
+    assert.strictEqual(url, "https://discord.example/hook");
+    assert.ok(body.content.startsWith("<@&123> "));
+    assert.deepStrictEqual(body.allowed_mentions, { roles: ["123"] });
+  },
   "Ohne Klassen: Formular legt genau eine offene Klasse an und ignoriert Klassen-Eingaben": () => {
     const eingabe = { name: "Offen", typ: "event", ohneKlassen: true, klassen: [{ name: "kaputt", min: "x", max: "y" }], punkte: "30, 26", rennenGesamt: 1, gewerteteRennen: 1, anmeldeschlussMinuten: 60, punkteDanach: 0, bonusPole: 0, bonusSchnellsteRunde: 0, mindestRundenProzent: 75 };
     const s = D.pruefeSerie(eingabe);
@@ -498,9 +557,11 @@ const tests = {
   },
 };
 
-let fehler = 0;
-for (const [name, fn] of Object.entries(tests)) {
-  try { fn(); console.log(`ok    ${name}`); } catch (e) { fehler++; console.log(`FEHLER ${name}\n      ${e.message}`); }
-}
-console.log(`\n${Object.keys(tests).length - fehler} von ${Object.keys(tests).length} Tests bestanden`);
-process.exit(fehler ? 1 : 0);
+(async () => {
+  let fehler = 0;
+  for (const [name, fn] of Object.entries(tests)) {
+    try { await fn(); console.log(`ok    ${name}`); } catch (e) { fehler++; console.log(`FEHLER ${name}\n      ${e.message}`); }
+  }
+  console.log(`\n${Object.keys(tests).length - fehler} von ${Object.keys(tests).length} Tests bestanden`);
+  process.exit(fehler ? 1 : 0);
+})();

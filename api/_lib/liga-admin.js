@@ -1,4 +1,5 @@
 // Liga-Admin (/liga-admin): nur für die Rolle aus LIGA_ADMIN_ROLE_IDS, mit eigenem Cookie.
+const crypto = require("crypto");
 const { getLigaAdminSession, clearLigaAdminSession } = require("./session");
 const { blobPut, blobGet, blobDelete, blobList } = require("./blob");
 const A = require("./liga-anmeldung");
@@ -68,6 +69,86 @@ async function neuBerechnen(kat, id) {
   return D.tabelleNeu(id, serieFinden(kat, id), await D.ergebnisseLesen(id));
 }
 
+const rennenFinden = (kat, id) => {
+  const r = kat.rennen.find((x) => x.id === id);
+  if (!r) throw new Hinweis("Dieses Rennen gibt es nicht.");
+  return r;
+};
+// Die Streckenkarte wird beim Lesen ergänzt und gehört nicht in die Datei.
+const rennenDaten = ({ streckenBild, ...r }) => r;
+
+/* ---------- Änderungsprotokoll: jede Aktion steht im Dateinamen, eine Abfrage liefert alle Einträge ---------- */
+const PROTOKOLL = "liga-protokoll/";
+const MAX_PROTOKOLL = 300;
+const protokollPfad = (zeit, zufall, eintrag) => `${PROTOKOLL}${String(zeit).padStart(15, "0")}-${zufall}~${Buffer.from(JSON.stringify(eintrag), "utf8").toString("base64url")}`;
+function leseProtokoll(blob) {
+  const m = new RegExp(`^${PROTOKOLL}(\\d{15})-[0-9a-f]+~([A-Za-z0-9_-]+)$`).exec(blob.pathname || "");
+  if (!m) return null;
+  try {
+    return { pfad: blob.pathname, zeit: new Date(Number(m[1])).toISOString(), ...JSON.parse(Buffer.from(m[2], "base64url").toString("utf8")) };
+  } catch (e) {
+    return null;
+  }
+}
+
+async function protokollText(b, kat) {
+  const serie = (id) => (kat.serien.find((s) => s.id === id) || {}).name || id;
+  const rennen = (id) => (kat.rennen.find((r) => r.id === id) || {}).titel || id;
+  const strecke = (id) => (kat.strecken.find((s) => s.id === id) || {}).name || id;
+  const report = async () => { const r = await R.lesen(b.id); return `${r.rennenTitel}, ${r.von.name} gegen ${r.gegen.name}`; };
+  const texte = {
+    "serie-speichern": () => `${b.id ? "Serie geändert" : "Serie angelegt"}: ${(b.serie || {}).name}`,
+    "serie-loeschen": () => `Serie gelöscht: ${serie(b.id)}`,
+    "strecke-speichern": () => `${b.id ? "Strecke geändert" : "Strecke angelegt"}: ${(b.strecke || {}).name}`,
+    "strecke-loeschen": () => `Strecke gelöscht: ${strecke(b.id)}`,
+    "saison-planen": () => `${(b.rennen || []).length} Rennen geplant in ${serie(b.serie)}`,
+    "rennen-speichern": () => `${b.id ? "Rennen geändert" : "Rennen angelegt"}: ${(b.rennen || {}).titel}`,
+    "rennen-loeschen": () => `Rennen gelöscht: ${rennen(b.id)}`,
+    "rennen-verschieben": () => `Rennen um ${b.tage} Tage verschoben${b.folgende ? ", inklusive aller folgenden" : ""}: ${rennen(b.id)}`,
+    "rennen-duplizieren": () => `Rennen dupliziert: ${rennen(b.id)}`,
+    "passwort-setzen": () => `Passwort für alle kommenden Rennen gesetzt: ${serie(b.serie)}`,
+    "ergebnis-veroeffentlichen": () => `Ergebnis veröffentlicht in ${serie(b.serie)}`,
+    "ergebnis-loeschen": () => `Ergebnis gelöscht in ${serie(b.serie)}`,
+    "strafe-hinzufuegen": () => `Strafe eingetragen in ${serie(b.serie)}: ${b.punkte} Punkte`,
+    "strafe-loeschen": () => `Strafe gelöscht in ${serie(b.serie)}`,
+    "einstufung-setzen": () => `Einstufung geändert in ${serie(b.serie)}`,
+    "fahrer-aus-serie": () => `Fahrer aus Serie entfernt: ${serie(b.serie)}`,
+    "fahrer-aus-rennen": () => `Fahrer aus Rennen genommen: ${rennen(b.rennen)}`,
+    "report-status": async () => `Report-Status geändert: ${await report()}`,
+    "report-urteil": async () => `Urteil gesprochen (${(b.urteil || {}).art}): ${await report()}`,
+  };
+  return texte[b.aktion] ? String(await texte[b.aktion]()).slice(0, 300) : "";
+}
+
+// Ein Fehler beim Protokollieren darf die eigentliche Aktion nicht zurückdrehen.
+async function protokollieren(s, b, kat) {
+  try {
+    const text = await protokollText(b, kat);
+    if (text) await blobPut(protokollPfad(Date.now(), crypto.randomBytes(3).toString("hex"), { wer: s.name, text }), "1", "text/plain");
+  } catch (e) {
+    console.error("Liga-Protokoll:", e.message);
+  }
+}
+
+async function protokollLesen() {
+  const alle = (await blobList(PROTOKOLL)).map(leseProtokoll).filter(Boolean).sort((a, b) => b.pfad.localeCompare(a.pfad));
+  const alt = alle.slice(MAX_PROTOKOLL).map((e) => e.pfad);
+  if (alt.length) await blobDelete(alt).catch((e) => console.error("Liga-Protokoll:", e.message));
+  return alle.slice(0, MAX_PROTOKOLL).map(({ pfad, ...e }) => e);
+}
+
+// Gefahrene Rennen ohne Ergebnis, kurz zwischengespeichert. Nach jeder Änderung der Rennleitung wird neu gerechnet.
+let fehlendCache = { bis: 0, wert: null };
+async function fehlendeErgebnisse(kat) {
+  if (fehlendCache.wert && fehlendCache.bis > Date.now()) return fehlendCache.wert;
+  const laufend = kat.serien.filter((s) => s.status !== "beendet").map((s) => s.id);
+  const rennen = kat.rennen.filter((r) => laufend.includes(r.serie));
+  const ergebnisse = new Map(await Promise.all([...new Set(rennen.map((r) => r.serie))].map(async (id) => [id, await D.ergebnisseLesen(id)])));
+  const wert = D.rennenOhneErgebnis(rennen, ergebnisse, Date.now());
+  fehlendCache = { bis: Date.now() + 60000, wert };
+  return wert;
+}
+
 // Bildziel „strecke:<id>“ führt zu einer Strecke der Bibliothek.
 function streckeZiel(kat, ziel) {
   const m = /^strecke:(.+)$/.exec(String(ziel || ""));
@@ -132,6 +213,33 @@ const aktionen = {
     await D.streckeLoeschen(b.id);
     if (strecke.kartenVersion) await D.bildLoeschen(`strecke-${b.id}`);
     return {};
+  },
+  // Verschiebt ein Rennen, auf Wunsch auch alle folgenden derselben Serie.
+  async "rennen-verschieben"(b, kat) {
+    const ziel = rennenFinden(kat, b.id);
+    const tage = Number(b.tage);
+    if (!Number.isInteger(tage) || tage === 0 || Math.abs(tage) > 365) throw new Hinweis("Bitte gib die Anzahl der Tage als ganze Zahl an, negativ für früher.");
+    const zeit = (r) => `${r.datum} ${r.startzeit}`;
+    const liste = b.folgende ? kat.rennen.filter((r) => r.serie === ziel.serie && zeit(r) >= zeit(ziel)) : [ziel];
+    await Promise.all(liste.map((r) => { const { id, ...daten } = rennenDaten(r); return D.rennenSpeichern(id, { ...daten, datum: D.datumPlus(r.datum, tage) }); }));
+    return { anzahl: liste.length };
+  },
+  async "rennen-duplizieren"(b, kat) {
+    const { id, ...daten } = rennenDaten(rennenFinden(kat, b.id));
+    const kopie = { ...daten, titel: `${daten.titel} (Kopie)`.slice(0, 80), datum: D.datumPlus(daten.datum, 7), status: "geplant" };
+    const neu = D.neueRennenId(kopie);
+    await D.rennenSpeichern(neu, kopie);
+    return { id: neu };
+  },
+  // Setzt das Session-Passwort für alle kommenden Rennen einer Serie.
+  async "passwort-setzen"(b, kat) {
+    serieFinden(kat, b.serie);
+    const passwort = String(b.passwort || "").trim().slice(0, 60);
+    const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+    const liste = kat.rennen.filter((r) => r.serie === b.serie && r.status !== "abgesagt" && String(r.datum) >= heute);
+    if (!liste.length) throw new Hinweis("Diese Serie hat keine kommenden Rennen.");
+    await Promise.all(liste.map((r) => { const { id, ...daten } = rennenDaten(r); return D.rennenSpeichern(id, { ...daten, passwort }); }));
+    return { anzahl: liste.length };
   },
   // Legt alle Rennen einer Saison auf einmal an. Erst wenn jede Zeile gültig ist, wird gespeichert.
   async "saison-planen"(b, kat) {
@@ -323,9 +431,13 @@ module.exports = async (req, res) => {
     if ((req.query || {}).nur === "status") return res.status(200).json({ angemeldet: true });
     if ((req.query || {}).nur === "stand") return res.status(200).json({ angemeldet: true, stand: await R.stand() });
     const kat = await D.katalog(true);
+    if ((req.query || {}).akte) {
+      const privatJeSerie = await Promise.all(kat.serien.map(async (x) => ({ serieName: x.name, privat: await D.privatLesen(x.id) })));
+      return res.status(200).json(R.fahrerAkte(await R.alleReports(true), privatJeSerie, { cust: String(req.query.cust || ""), discordId: String(req.query.discord || "") }));
+    }
     const details = D.istId((req.query || {}).serie) && kat.serien.some((x) => x.id === req.query.serie) ? await serienDetails(kat, req.query.serie) : null;
     const reports = (await R.alleReports(true)).map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id) }));
-    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, protokoll: await protokollLesen().catch(() => []), fehlendeErgebnisse: await fehlendeErgebnisse(kat).catch(() => []), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });
@@ -336,5 +448,11 @@ module.exports = async (req, res) => {
   }
   if (!s) return res.status(401).json({ error: "Bitte melde dich erneut an." });
   if (!Object.prototype.hasOwnProperty.call(aktionen, body.aktion)) return res.status(400).json({ error: "Unbekannte Aktion." });
-  return res.status(200).json({ ok: true, ...(await aktionen[body.aktion](body, await D.katalog(true), s)) });
+  const kat = await D.katalog(true);
+  // Das Protokoll nutzt den Stand von vor der Aktion, damit Namen auch nach einem Löschen auffindbar sind. Eingetragen wird nur bei Erfolg.
+  const antwort = await aktionen[body.aktion](body, kat, s);
+  fehlendCache = { bis: 0, wert: null };
+  await protokollieren(s, body, kat);
+  return res.status(200).json({ ok: true, ...antwort });
 };
+Object.assign(module.exports, { protokollPfad, leseProtokoll, protokollText });

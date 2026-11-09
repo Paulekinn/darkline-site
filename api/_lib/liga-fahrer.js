@@ -87,6 +87,7 @@ async function reportMelden(s, profil, body, alle, kat) {
     gegen: { discordId: gegner.discordId, name: gegner.name, cust: gegnerProfil ? gegnerProfil.custId : "" },
     ...daten, status: "offen", notizen: "", urteil: null, endgueltig: false,
   });
+  await R.teamMelden(`**Neuer Report** · ${stand.titel}: ${profil.iracingName} meldet ${gegner.name} (${daten.stelle})`);
 }
 
 async function reportEinspruch(s, profil, body, kat) {
@@ -97,6 +98,7 @@ async function reportEinspruch(s, profil, body, kat) {
   const text = String(body.text || "").trim().slice(0, 2000);
   if (text.length < 10) throw new Hinweis("Bitte begründe deinen Einspruch in mindestens einem Satz.");
   await R.einspruchSpeichern(report.id, s.id, { discordId: s.id, name: profil ? profil.iracingName : s.name, text, zeit: new Date().toISOString() });
+  await R.teamMelden(`**Neuer Einspruch** · ${report.rennenTitel}: ${profil ? profil.iracingName : s.name} legt Einspruch ein`);
 }
 
 // Schreibende Anfragen müssen von der eigenen Seite kommen.

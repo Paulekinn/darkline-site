@@ -16,7 +16,7 @@
     "keine-rolle": "Dein Discord-Konto hat keine Rolle für die Rennleitung.",
     technik: "Technischer Fehler. Bitte versuche es gleich noch einmal.",
   };
-  const TABS = [["cockpit", "Cockpit"], ["reports", "Reports"], ["serien", "Seasons &amp; Events"], ["rennen", "Rennen"], ["strecken", "Strecken"], ["fahrer", "Fahrer"], ["ergebnisse", "Ergebnisse"]];
+  const TABS = [["cockpit", "Cockpit"], ["reports", "Reports"], ["serien", "Seasons &amp; Events"], ["rennen", "Rennen"], ["strecken", "Strecken"], ["fahrer", "Fahrer"], ["ergebnisse", "Ergebnisse"], ["protokoll", "Protokoll"]];
   const URTEILE = [["kein-vergehen", "Kein Vergehen"], ["verwarnung", "Verwarnung"], ["strafpunkte", "Strafpunkte"], ["zeitstrafe", "Zeitstrafe"], ["dsq", "Disqualifikation"]];
   const NEUE_SERIE = { name: "", typ: "liga", saison: "", status: "anmeldung", anmeldungOffen: true, farbe: "rot", beschreibung: "", kategorie: "Sports_Car", fahrzeugklassen: [], rennenGesamt: 8, gewerteteRennen: 7, anmeldeschlussMinuten: 60,
     klassen: [{ name: "Pro", min: 2500, max: null }, { name: "Pro-Am", min: 1500, max: 2499 }, { name: "Am", min: 0, max: 1499 }],
@@ -35,6 +35,7 @@
   let planer = null;      // Saisonplaner, solange er offen ist
   let rennenFilter = "alle";
   let serienReiter = "liga"; // "liga", "event", "archiv" oder "bild"
+  let akte = null;        // geöffnete Fahrer-Akte: { name, daten }
   let neuSeit = null;     // Zeitpunkt, bis zu dem Reports beim Öffnen des Bereichs schon bekannt waren
   let zugelassen = [];    // iRacing-IDs nicht gemeldeter Fahrer, die als Gast gewertet werden sollen
 
@@ -198,6 +199,7 @@
         ${kachel(kommend.length, "Geplante Rennen", "", "rennen")}
         ${kachel(unfertig.length, "Rennen unvollständig", unfertig.length ? "warnung" : "", "rennen")}
       </div>
+      ${(d.fehlendeErgebnisse || []).length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Ergebnis fehlt</h2><span class="a-chip gelb">${d.fehlendeErgebnisse.length}</span></div><div class="a-liste">${d.fehlendeErgebnisse.slice(0, 6).map((r) => `<div class="a-abschluss ${serienFarbe(r.serie)}"><span><b>${esc(r.titel)}</b><small>${esc([(serieVon(r.serie) || {}).name, datumKurz(r.datum)].filter(Boolean).join(" · "))}</small></span><button type="button" class="a-knopf zweit klein" data-ergebnis-import="${esc(r.serie)}">Importieren</button></div>`).join("")}</div></section>` : ""}
       ${abschluss}
       <div class="a-zwei">
         <section class="a-karte"><div class="a-kartenkopf"><h2>Zu entscheiden</h2><button type="button" class="a-knopf zweit klein" data-tab="reports">Alle Reports</button></div>${reportsHtml ? `<div class="a-liste">${reportsHtml}</div>` : '<p class="a-leer">Aktuell liegt nichts an.</p>'}</section>
@@ -255,7 +257,8 @@
         ${feld("Bonus schnellste Runde", eingabe("bonusSchnellsteRunde", w.bonusSchnellsteRunde, 'type="number" min="0"'))}
         ${feld("Mindestrunden in Prozent", eingabe("mindestRundenProzent", w.mindestRundenProzent, 'type="number" min="0" max="100"'))}
       </div>`)}
-      ${abschnittForm(5, "Bild der Serie", form.id ? bildFeld(form.id) : '<p class="a-hinweis">Ein eigenes Bild kannst du hinzufügen, sobald die Serie gespeichert ist.</p>')}
+      ${abschnittForm(5, "Briefing-Vorlage", `<textarea name="briefingVorlage" maxlength="10000" placeholder="Wird bei jedem neuen Rennen automatisch eingefügt">${esc(w.briefingVorlage || "")}</textarea>`, "Markdown ist möglich. Bereits angelegte Rennen bleiben unverändert.")}
+      ${abschnittForm(6, "Bild der Serie", form.id ? bildFeld(form.id) : '<p class="a-hinweis">Ein eigenes Bild kannst du hinzufügen, sobald die Serie gespeichert ist.</p>')}
       ${formLeiste("Serie speichern", loeschen)}
     </form>`;
   }
@@ -349,7 +352,7 @@
       <div class="a-datum"><b>${m ? m[3] : "–"}</b><small>${m ? MONATE[+m[2] - 1] : ""}</small></div>
       <div class="a-termin-karte">${r.streckenBild ? `<img src="${esc(kartenUrl(r.streckenBild))}" alt="" loading="lazy">` : ""}</div>
       <div class="a-termin-text"><b>${esc(r.titel)}</b><small>${esc([s ? s.name : "", r.startzeit ? `${r.startzeit} Uhr` : "", r.strecke, r.plaetze ? `${r.plaetze} Plätze` : ""].filter(Boolean).join(" · "))}</small><span class="a-leiste">${r.status === "abgesagt" ? statusChip("abgesagt") : ""}${warnungen.map((w) => `<span class="a-chip gelb">${esc(w)}</span>`).join("")}</span></div>
-      <div class="a-leiste"><button type="button" class="a-knopf zweit klein" data-rennen-bearbeiten="${esc(r.id)}">Bearbeiten</button><button type="button" class="a-knopf gefahr klein" data-rennen-weg="${esc(r.id)}" data-titel="${esc(r.titel)}">Löschen</button></div>
+      <div class="a-leiste"><button type="button" class="a-knopf zweit klein" data-rennen-bearbeiten="${esc(r.id)}">Bearbeiten</button><button type="button" class="a-knopf zweit klein" data-rennen-schieben="${esc(r.id)}" data-titel="${esc(r.titel)}">Verschieben</button><button type="button" class="a-knopf zweit klein" data-rennen-kopie="${esc(r.id)}">Duplizieren</button><button type="button" class="a-knopf gefahr klein" data-rennen-weg="${esc(r.id)}" data-titel="${esc(r.titel)}">Löschen</button></div>
     </article>`;
   }
 
@@ -416,7 +419,7 @@
     const knoepfe = d.serien.length ? `<div class="a-leiste">${offeneSerien.length ? `<button type="button" class="a-knopf zweit" data-planer="${esc((serieVon(rennenFilter) || offeneSerien[0]).id)}">Saison planen</button>` : ""}<button type="button" class="a-knopf" data-rennen-neu="1">Neues Rennen</button></div>` : "";
     return `${form && form.art === "rennen" ? rennenForm() : ""}${planer ? planerForm() : ""}
       <section class="a-karte"><div class="a-kartenkopf"><h2>Rennen</h2>${knoepfe}</div>
-      ${d.serien.length ? `<div class="a-leiste">${chips}</div>` : ""}
+      ${d.serien.length ? `<div class="a-leiste">${chips}${serieVon(rennenFilter) && serieVon(rennenFilter).status !== "beendet" ? `<button type="button" class="a-knopf zweit klein a-rechts" data-passwort-alle="${esc(rennenFilter)}">Passwort für alle kommenden Rennen</button>` : ""}</div>` : ""}
       ${!d.serien.length ? '<p class="a-leer">Leg zuerst eine Serie an.</p>' : kommend.length ? `<div class="a-liste">${kommend.map(terminZeile).join("")}</div>` : '<p class="a-leer">Keine kommenden Rennen.</p>'}</section>
       ${vorbei.length ? `<section class="a-karte"><div class="a-kartenkopf"><h2>Vergangene Rennen</h2><span class="a-chip">${vorbei.length}</span></div><div class="a-liste">${vorbei.map(terminZeile).join("")}</div></section>` : ""}`;
   }
@@ -456,6 +459,38 @@
       ${karten ? `<div class="a-strecken">${karten}</div>` : '<p class="a-leer">Noch keine Strecke angelegt.</p>'}</section>`;
   }
 
+  /* ---------- Protokoll ---------- */
+  function protokollTab() {
+    const zeilen = (d.protokoll || []).map((e) => `<tr><td>${esc(zeit(e.zeit))}</td><td>${esc(e.wer)}</td><td class="umbruch">${esc(e.text)}</td></tr>`).join("");
+    return `<section class="a-karte"><div class="a-kartenkopf"><h2>Änderungsprotokoll</h2><span class="a-chip">Letzte 300 Einträge</span></div>${zeilen ? `<div class="a-scroll"><table><thead><tr><th>Zeit</th><th>Wer</th><th>Was</th></tr></thead><tbody>${zeilen}</tbody></table></div>` : '<p class="a-leer">Noch keine Änderungen protokolliert.</p>'}</section>`;
+  }
+
+  /* ---------- Fahrer-Akte ---------- */
+  const akteKnopf = (name, cust, discord) => `<button type="button" class="a-knopf zweit klein" data-akte="1" data-name="${esc(name)}" data-cust="${esc(cust || "")}" data-discord="${esc(discord || "")}">Akte</button>`;
+  async function akteOeffnen(b) {
+    setzeMeldung("");
+    const r = await fetch(`${API}&akte=1&cust=${encodeURIComponent(b.dataset.cust)}&discord=${encodeURIComponent(b.dataset.discord)}`, { cache: "no-store" }).catch(() => null);
+    const daten = r && r.ok ? await r.json() : null;
+    if (!daten) { setzeMeldung("Die Akte konnte nicht geladen werden.", true); return zeichne(); }
+    akte = { name: b.dataset.name, daten };
+    tab = "fahrer"; reportId = null;
+    zeichne();
+    window.scrollTo(0, 0);
+  }
+
+  function akteHtml() {
+    if (!akte) return "";
+    const { faelle, strafen, summen: s } = akte.daten;
+    const zahl_ = (w, t, art) => `<div class="a-kennzahl ${w && art ? art : ""}"><b>${w}</b><span>${t}</span></div>`;
+    const fall = (f) => `<button type="button" class="a-fall" data-report="${esc(f.id)}"><span class="a-fall-kopf"><span class="a-chip ${f.rolle === "gemeldet" ? "rot" : ""}">${f.rolle === "gemeldet" ? "Gemeldet" : "Hat gemeldet"}</span>${f.urteil ? `<span class="a-chip">${esc(urteilKurz(f.urteil))}</span>` : '<span class="a-chip gelb">Offen</span>'}<time>${esc(zeit(f.erstellt))}</time></span><b>${esc(f.von)} <span>meldet</span> ${esc(f.gegen)}</b><small>${esc([f.serieName, f.rennenTitel].filter(Boolean).join(" · "))}</small></button>`;
+    const strafeZeile = (x) => `<tr><td>${esc(x.serieName)}</td><td class="rechts">${esc(x.typ === "zeit" ? `+${x.sekunden} s` : x.typ === "dsq" ? "DSQ" : `−${x.punkte}`)}</td><td class="umbruch">${esc(x.grund)}</td><td>${x.ausReport ? '<span class="a-chip">aus Report</span>' : ""}</td></tr>`;
+    return `<section class="a-karte a-form"><div class="a-kartenkopf"><h2>Akte: ${esc(akte.name)}</h2><button type="button" class="a-knopf zweit klein" data-akte-zu="1">Schließen</button></div>
+      <div class="a-kennzahlen">${zahl_(s.gemeldet, "Gemeldet worden", "warnung")}${zahl_(s.selbstGemeldet, "Selbst gemeldet")}${zahl_(s.verwarnungen, "Verwarnungen", "warnung")}${zahl_(s.strafpunkte, "Strafpunkte", "alarm")}${zahl_(s.zeitstrafen, "Zeitstrafen", "alarm")}${zahl_(s.disqualifikationen, "Disqualifikationen", "alarm")}</div>
+      ${faelle.length ? `<h3>Fälle</h3><div class="a-liste">${faelle.map(fall).join("")}</div>` : '<p class="a-leer">Keine Reports zu diesem Fahrer.</p>'}
+      ${strafen.length ? `<h3>Strafen</h3><div class="a-scroll"><table><thead><tr><th>Serie</th><th class="rechts">Strafe</th><th>Grund</th><th></th></tr></thead><tbody>${strafen.map(strafeZeile).join("")}</tbody></table></div>` : ""}
+    </section>`;
+  }
+
   /* ---------- Fahrer ---------- */
   function fahrerTab() {
     if (!d.serien.length) return '<section class="a-karte"><p class="a-leer">Leg zuerst eine Serie an.</p></section>';
@@ -466,13 +501,13 @@
       const abweichung = f.iratingAngabe !== null && f.iratingErgebnis !== null && Math.abs(f.iratingAngabe - f.iratingErgebnis) > 150;
       return `<tr><td>${esc(f.name)}${f.fahrzeugklasse ? ` <span class="a-chip">${esc(f.fahrzeugklasse)}</span>` : ""}</td><td>${f.mitglied ? "Serie" : "Einzeln"}</td><td>${esc(f.custId) || "–"}</td><td class="rechts">${zahl(f.iratingAngabe)}</td><td class="rechts ${abweichung ? "a-abweichung" : ""}">${zahl(f.iratingErgebnis)}${abweichung ? " !" : ""}</td>
         <td>${f.custId && !serie.ohneKlassen ? `<select data-einstufung="${esc(f.custId)}" aria-label="Klasse von ${esc(f.name)}">${klassenOption(f.klasseAuto, f.klasseFest)}</select>` : "–"}</td>
-        <td class="rechts"><button type="button" class="a-knopf gefahr klein" data-aus-serie="${esc(f.discordId)}" data-name="${esc(f.name)}">Entfernen</button></td></tr>`;
+        <td class="rechts">${akteKnopf(f.name, f.custId, f.discordId)} <button type="button" class="a-knopf gefahr klein" data-aus-serie="${esc(f.discordId)}" data-name="${esc(f.name)}">Entfernen</button></td></tr>`;
     }).join("");
     const liste = (r, l) => l.map((f, i) => `<li><span>${i + 1}. ${esc(f.name)}${f.fahrzeugklasse ? ` · ${esc(f.fahrzeugklasse)}` : ""}</span><button type="button" class="a-weg" data-aus-rennen="${esc(r.id)}" data-fahrer="${esc(f.discordId)}" data-name="${esc(f.name)}" aria-label="${esc(f.name)} aus dem Rennen nehmen">×</button></li>`).join("");
     const rennen = det.rennen.map((r) => `<details class="a-rennen"><summary>${esc(r.titel)} · ${esc(zeit(r.start))} · ${r.starter.length}/${r.plaetze}${r.warteliste.length ? ` · ${r.warteliste.length} warten` : ""}</summary>
         ${r.starter.length ? `<ol class="a-namen">${liste(r, r.starter)}</ol>` : '<p class="a-hinweis" style="padding:0 12px 10px">Noch niemand gemeldet.</p>'}
         ${r.warteliste.length ? `<h4>Warteliste</h4><ol class="a-namen">${liste(r, r.warteliste)}</ol>` : ""}</details>`).join("");
-    return `<section class="a-karte"><div class="a-kartenkopf"><h2>Fahrer</h2>${serienAuswahl()}</div>
+    return `${akteHtml()}<section class="a-karte"><div class="a-kartenkopf"><h2>Fahrer</h2>${serienAuswahl()}</div>
       ${det.fahrer.length ? `<div class="a-scroll"><table><thead><tr><th>Name</th><th>Meldung</th><th>iRacing-ID</th><th class="rechts">iR Angabe</th><th class="rechts">iR Ergebnis</th><th>Klasse</th><th></th></tr></thead><tbody>${zeilen}</tbody></table></div><p class="a-hinweis">„!“ bedeutet: Angabe und letztes Ergebnis liegen mehr als 150 auseinander.</p>` : '<p class="a-leer">Noch keine Fahrer gemeldet.</p>'}
     </section>
     <section class="a-karte"><h2>Starterlisten</h2>${rennen || '<p class="a-leer">Keine kommenden Rennen.</p>'}</section>`;
@@ -591,6 +626,7 @@
     return `<section class="a-karte"><div class="a-kartenkopf"><div class="a-leiste"><button type="button" class="a-knopf zweit klein" data-report-zurueck="1">Zurück</button><h2>${esc(r.rennenTitel)}</h2>${reportChip(r)}</div>${status}</div>
       <p class="a-hinweis">${esc(r.serieName)} · Eingang ${esc(zeit(r.erstellt))}</p>
       <p><b>${esc(r.von.name)}</b> meldet <b>${esc(r.gegen.name)}</b> · ${esc(r.stelle)}</p>
+      <div class="a-leiste"><span class="a-beschriftung">Akte</span>${akteKnopf(r.von.name, r.von.cust, r.von.discordId).replace(">Akte<", `>${esc(r.von.name)}<`)}${akteKnopf(r.gegen.name, r.gegen.cust, r.gegen.discordId).replace(">Akte<", `>${esc(r.gegen.name)}<`)}</div>
       <p class="a-text">${esc(r.beschreibung)}</p>${clip}${urteil}${einsprueche}</section>
       ${urteilForm(r)}${notizen}`;
   }
@@ -652,7 +688,7 @@
   /* ---------- Rahmen ---------- */
   function zeichne() {
     if (!d || !d.angemeldet) return zeigeLogin();
-    const inhalte = { cockpit: cockpitTab, serien: serienTab, rennen: rennenTab, strecken: streckenTab, fahrer: fahrerTab, reports: reportsTab, ergebnisse: ergebnisTab };
+    const inhalte = { protokoll: protokollTab, cockpit: cockpitTab, serien: serienTab, rennen: rennenTab, strecken: streckenTab, fahrer: fahrerTab, reports: reportsTab, ergebnisse: ergebnisTab };
     const inhalt = inhalte[tab]();
     const offene = d.reports.filter(braucht).length;
     app.innerHTML = `<div class="a-rahmen">
@@ -680,7 +716,27 @@
     const b = e.target.closest("button");
     if (!b) return;
     if (b.id === "a-logout") { await sende({ aktion: "logout" }); d = { angemeldet: false }; return zeichne(); }
-    if (b.dataset.tab) { tab = b.dataset.tab; form = null; planer = null; reportId = null; setzeMeldung(""); if (tab === "reports") reportsAlsGesehen(); zeichne(); return window.scrollTo(0, 0); }
+    if (b.dataset.akte) return akteOeffnen(b);
+    if (b.dataset.akteZu) { akte = null; return zeichne(); }
+    if (b.dataset.ergebnisImport) {
+      serieId = b.dataset.ergebnisImport; tab = "ergebnisse"; form = null; vorschau = null; datei = null; zugelassen = []; setzeMeldung("");
+      await lade().catch(() => setzeMeldung("Die Daten konnten nicht geladen werden.", true));
+      zeichne();
+      return window.scrollTo(0, 0);
+    }
+    if (b.dataset.rennenSchieben) {
+      const eingabe = window.prompt(`„${b.dataset.titel}“ verschieben: um wie viele Tage? Negative Zahl für früher.`, "7");
+      if (eingabe === null) return;
+      const folgende = window.confirm("Auch alle folgenden Rennen dieser Serie um dieselbe Anzahl Tage verschieben?\n\nOK = alle folgenden, Abbrechen = nur dieses Rennen.");
+      return aktion({ aktion: "rennen-verschieben", id: b.dataset.rennenSchieben, tage: Number(eingabe), folgende }, folgende ? "Rennen verschoben, die folgenden Termine sind mitgewandert." : "Rennen verschoben.");
+    }
+    if (b.dataset.rennenKopie) return aktion({ aktion: "rennen-duplizieren", id: b.dataset.rennenKopie }, "Rennen dupliziert, eine Woche später. Bitte Titel und Termin prüfen.");
+    if (b.dataset.passwortAlle) {
+      const passwort = window.prompt("Session-Passwort für alle kommenden Rennen dieser Serie. Leer lassen löscht es.");
+      if (passwort === null) return;
+      return aktion({ aktion: "passwort-setzen", serie: b.dataset.passwortAlle, passwort }, "Passwort für alle kommenden Rennen gesetzt.");
+    }
+    if (b.dataset.tab) { tab = b.dataset.tab; form = null; planer = null; reportId = null; akte = null; setzeMeldung(""); if (tab === "reports") reportsAlsGesehen(); zeichne(); return window.scrollTo(0, 0); }
     if (b.dataset.report) {
       const r = d.reports.find((x) => x.id === b.dataset.report);
       tab = "reports"; reportId = r.id; setzeMeldung("");
@@ -693,7 +749,7 @@
     if (b.dataset.abbrechen) { form = null; planer = null; return zeichne(); }
     if (b.dataset.serienReiter) { serienReiter = b.dataset.serienReiter; form = null; setzeMeldung(""); return zeichne(); }
     if (b.dataset.serieNeu) { form = { art: "serie", id: null, werte: b.dataset.serieNeu === "event" ? { ...NEUE_SERIE, typ: "event", rennenGesamt: 1, gewerteteRennen: 1 } : NEUE_SERIE }; planer = null; return zeigeFormular(); }
-    if (b.dataset.terminNeu) { const s = serieVon(b.dataset.terminNeu); rennenFilter = s.id; tab = "rennen"; planer = null; form = { art: "rennen", id: null, werte: { ...NEUES_RENNEN, serie: s.id, titel: s.name } }; return zeigeFormular(); }
+    if (b.dataset.terminNeu) { const s = serieVon(b.dataset.terminNeu); rennenFilter = s.id; tab = "rennen"; planer = null; form = { art: "rennen", id: null, werte: { ...NEUES_RENNEN, serie: s.id, titel: s.name, briefing: s.briefingVorlage || "" } }; return zeigeFormular(); }
     if (b.dataset.serieBearbeiten) {
       const s = serieVon(b.dataset.serieBearbeiten);
       form = { art: "serie", id: s.id, werte: s };
@@ -717,7 +773,12 @@
     if (b.dataset.streckeNeu) { form = { art: "strecke", id: null, werte: { name: "", variante: "", land: "", laengeKm: "", kurven: "", notiz: "" } }; return zeigeFormular(); }
     if (b.dataset.streckeBearbeiten) { form = { art: "strecke", id: b.dataset.streckeBearbeiten, werte: d.strecken.find((s) => s.id === b.dataset.streckeBearbeiten) }; return zeigeFormular(); }
     if (b.dataset.streckeLoeschen && window.confirm("Diese Strecke wirklich löschen? Geplante Rennen behalten den Namen, die Karte entfällt.")) return aktion({ aktion: "strecke-loeschen", id: form.id }, "Strecke gelöscht.");
-    if (b.dataset.rennenNeu) { form = { art: "rennen", id: null, werte: { ...NEUES_RENNEN, serie: rennenFilter === "alle" ? "" : rennenFilter } }; planer = null; return zeigeFormular(); }
+    if (b.dataset.rennenNeu) {
+      const serie = rennenFilter === "alle" ? "" : rennenFilter;
+      form = { art: "rennen", id: null, werte: { ...NEUES_RENNEN, serie, briefing: (serieVon(serie || serieId) || {}).briefingVorlage || "" } };
+      planer = null;
+      return zeigeFormular();
+    }
     if (b.dataset.rennenBearbeiten) { form = { art: "rennen", id: b.dataset.rennenBearbeiten, werte: d.rennen.find((r) => r.id === b.dataset.rennenBearbeiten) }; planer = null; tab = "rennen"; return zeigeFormular(); }
     if (b.dataset.rennenWeg && window.confirm(`„${b.dataset.titel}“ wirklich löschen? Anmeldungen zu diesem Rennen werden mit gelöscht, eingelesene Ergebnisse bleiben erhalten.`)) return aktion({ aktion: "rennen-loeschen", id: b.dataset.rennenWeg }, "Rennen gelöscht.");
     if (b.dataset.klasseNeu) { document.getElementById("a-klassen").insertAdjacentHTML("beforeend", klasseZeile({ name: "", min: "", max: "" })); return klassenKontrolle(); }
@@ -779,7 +840,7 @@
     } else if (f.id === "f-plan") {
       planerLesen();
       const vorhanden = d.rennen.filter((r) => r.serie === planer.serie).length;
-      const gemeinsam = { status: "geplant", startzeit: planer.startzeit, plaetze: planer.plaetze, fahrzeuge: planer.fahrzeuge, training: planer.training, qualifying: planer.qualifying, renndauer: planer.renndauer, wetter: planer.wetter };
+      const gemeinsam = { status: "geplant", briefing: serieVon(planer.serie).briefingVorlage || "", startzeit: planer.startzeit, plaetze: planer.plaetze, fahrzeuge: planer.fahrzeuge, training: planer.training, qualifying: planer.qualifying, renndauer: planer.renndauer, wetter: planer.wetter };
       const rennen = planer.zeilen.map((z, i) => ({ ...gemeinsam, datum: z.datum, strecke: z.strecke.trim(), streckeId: (streckeAus(z.strecke) || {}).id || "", titel: `Runde ${vorhanden + i + 1}${z.strecke.trim() ? ` · ${z.strecke.trim()}` : ""}` }));
       const a = await aktion({ aktion: "saison-planen", serie: planer.serie, rennen }, `${rennen.length} ${rennen.length === 1 ? "Rennen" : "Rennen"} angelegt.`);
       if (a) { planer = null; zeichne(); }
@@ -796,6 +857,12 @@
       return zeichne();
     }
     if (t.dataset.bildZiel && t.files[0]) return bildHochladen(t.dataset.bildZiel, t.files[0]);
+    if (t.name === "serie" && t.closest("#f-rennen") && !form.id) {
+      // Eine noch unveränderte Vorlage wird beim Wechsel der Serie mitgetauscht, eigener Text bleibt stehen.
+      const feldBriefing = t.closest("#f-rennen").elements.briefing;
+      if (!feldBriefing.value.trim() || d.serien.some((s) => s.briefingVorlage === feldBriefing.value)) feldBriefing.value = (serieVon(t.value) || {}).briefingVorlage || "";
+      return;
+    }
     if (t.id === "s-ohne-klassen") { document.getElementById("a-klassen-bereich").hidden = t.checked; return; }
     if (t.name === "typ" && t.closest("#f-serie")) {
       const f = t.closest("#f-serie");

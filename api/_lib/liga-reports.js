@@ -137,6 +137,34 @@ async function derSerieLoeschen(serieId) {
   verwerfen();
 }
 
+// Meldung in den internen Kanal der Rennleitung, mit Ping der Rolle. Ohne eingetragenen Webhook passiert nichts.
+async function teamMelden(text) {
+  const url = process.env.LIGA_DISCORD_WEBHOOK_TEAM;
+  if (!url) return;
+  const rolle = (process.env.LIGA_ADMIN_ROLE_IDS || "").split(",").map((s) => s.trim()).find((s) => /^\d+$/.test(s));
+  try {
+    await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(4000), body: JSON.stringify({ content: `${rolle ? `<@&${rolle}> ` : ""}${String(text).slice(0, 1800)}\nhttps://darklineperformance.de/liga-admin`, allowed_mentions: rolle ? { roles: [rolle] } : { parse: [] } }) });
+  } catch (e) {
+    console.error("Discord-Meldung an die Rennleitung fehlgeschlagen:", e.message);
+  }
+}
+
+// Alles zu einem Fahrer für die Rennleitung: Fälle, Strafen und Summen. Gesucht wird über iRacing-ID oder Discord-ID.
+function fahrerAkte(reports, privatJeSerie, { cust, discordId }) {
+  const ist = (p) => (!!cust && String(p.cust || "") === cust) || (!!discordId && p.discordId === discordId);
+  const faelle = reports.filter((r) => ist(r.von) || ist(r.gegen)).map((r) => ({ id: r.id, rolle: ist(r.gegen) ? "gemeldet" : "melder", rennenTitel: r.rennenTitel, serieName: r.serieName, erstellt: r.erstellt, von: r.von.name, gegen: r.gegen.name, status: r.status, urteil: r.urteil ? { art: r.urteil.art, punkte: r.urteil.punkte, sekunden: r.urteil.sekunden } : null }));
+  const strafen = !cust ? [] : privatJeSerie.flatMap(({ serieName, privat }) => [
+    ...(privat.strafen || []).map((s) => ({ ...s, typ: "punkte" })),
+    ...(privat.zeitstrafen || []).map((s) => ({ ...s, typ: "zeit" })),
+    ...(privat.disqualifikationen || []).map((s) => ({ ...s, typ: "dsq" })),
+  ].filter((s) => String(s.cust) === cust).map((s) => ({ serieName, typ: s.typ, punkte: s.punkte, sekunden: s.sekunden, grund: s.grund || "", ausReport: !!s.reportId })));
+  const gegen = faelle.filter((f) => f.rolle === "gemeldet");
+  return {
+    faelle, strafen,
+    summen: { gemeldet: gegen.length, selbstGemeldet: faelle.length - gegen.length, verwarnungen: gegen.filter((f) => f.urteil && f.urteil.art === "verwarnung").length, strafpunkte: strafen.reduce((t, s) => t + (s.typ === "punkte" ? s.punkte : 0), 0), zeitstrafen: strafen.filter((s) => s.typ === "zeit").length, disqualifikationen: strafen.filter((s) => s.typ === "dsq").length },
+  };
+}
+
 // Optionale kurze Meldung im Discord-Kanal. Details stehen nur im Fahrerbereich, niemand wird angepingt.
 async function discordMelden(report, urteil) {
   const url = process.env.LIGA_DISCORD_WEBHOOK;
@@ -149,4 +177,4 @@ async function discordMelden(report, urteil) {
   }
 }
 
-module.exports = { stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden };
+module.exports = { teamMelden, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden };

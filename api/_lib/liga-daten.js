@@ -8,7 +8,7 @@ const crypto = require("crypto");
 const { blobPut, blobGet, blobGetBinaer, blobDelete, blobList } = require("./blob");
 const { pruefeRegeln, berechneTabelle } = require("../../assets/liga-wertung.js");
 const { fahrerKennung } = require("./session");
-const { berlinNachUtc } = require("./liga-anmeldung");
+const { berlinNachUtc, dauerMinuten } = require("./liga-anmeldung");
 const { gueltig: landGueltig } = require("../../assets/liga-flaggen.js");
 
 const WURZEL = "liga/daten/";
@@ -56,6 +56,7 @@ function pruefeSerie(e) {
     anmeldungOffen: e.anmeldungOffen !== false && e.anmeldungOffen !== "false",
     farbe: FARBEN.includes(e.farbe) ? e.farbe : "rot",
     beschreibung: text(e.beschreibung, 400),
+    briefingVorlage: text(e.briefingVorlage, 10000),
     kategorie: KATEGORIEN.includes(e.kategorie) ? e.kategorie : "Sports_Car",
     fahrzeugklassen: (Array.isArray(e.fahrzeugklassen) ? e.fahrzeugklassen : String(e.fahrzeugklassen || "").split(",")).map((x) => text(x, 20)).filter(Boolean),
     rennenGesamt: ganzzahl(e.rennenGesamt, "Rennen gesamt", 1, 100),
@@ -161,6 +162,23 @@ function wirksamerStatus(serie, rennen, jetzt) {
   return gestartet ? "laeuft" : serie.status;
 }
 
+// Rechnet ein Datum (JJJJ-MM-TT) um eine Anzahl Tage weiter.
+function datumPlus(datum, tage) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(datum || ""));
+  if (!m) throw new Hinweis("Dieses Rennen hat kein gültiges Datum.");
+  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + tage)).toISOString().slice(0, 10);
+}
+
+// Gefahrene Rennen ohne eingelesenes Ergebnis. Ein Ergebnis gehört zum Rennen, wenn es höchstens zwölf Stunden daneben liegt.
+function rennenOhneErgebnis(rennen, ergebnisseJeSerie, jetzt) {
+  return rennen.filter((r) => {
+    if (r.status === "abgesagt") return false;
+    const start = berlinNachUtc(r.datum, r.startzeit);
+    if (start === null || start + dauerMinuten(r.renndauer) * 60e3 > jetzt) return false;
+    return !(ergebnisseJeSerie.get(r.serie) || []).some((e) => Math.abs(new Date(e.start).getTime() - start) <= 12 * 3600e3);
+  }).map((r) => ({ id: r.id, titel: r.titel, serie: r.serie, datum: r.datum }));
+}
+
 // Serien und Rennen, kurz pro Funktionsinstanz zwischengespeichert. Nach eigenen Änderungen wird neu gelesen.
 let katalogCache = { bis: 0, wert: null };
 async function katalog(frisch) {
@@ -214,4 +232,4 @@ async function tabelleNeu(serie, regeln, ergebnisse) {
   return warnungen;
 }
 
-module.exports = { wirksamerStatus, pruefeStrecke, streckeSpeichern, streckeLoeschen, serieDatenLoeschen, pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };
+module.exports = { datumPlus, rennenOhneErgebnis, wirksamerStatus, pruefeStrecke, streckeSpeichern, streckeLoeschen, serieDatenLoeschen, pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };
