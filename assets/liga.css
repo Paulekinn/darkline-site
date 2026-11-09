@@ -411,8 +411,12 @@ button.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--
 .liga-plus{color:var(--liga-gruen);font-weight:700}
 .liga-minus{color:var(--liga-rot);font-weight:700}
 .liga-bestzeit{color:var(--liga-lila);font-weight:700}
-/* Titel der Übersicht: wie im Logo ein großes Wort und eine ruhige, gesperrte Unterzeile */
-#liga-titel em{display:block;margin-top:.22em;font-size:.3em;font-style:normal;font-weight:700;font-variation-settings:"wdth" 110;line-height:1.1;letter-spacing:.3em;color:#d6dcd9;-webkit-text-stroke:0;text-shadow:none}
+/* Titel der Übersicht: wie im Logo ein großes Wort, darunter mittig die gesperrte Zeile zwischen zwei roten Strichen */
+.liga-marke{display:inline-grid;max-width:100%}
+#liga-titel .liga-marke em{display:flex;align-items:center;gap:.7em;margin-top:.22em;font-size:.3em;font-style:normal;font-weight:700;font-variation-settings:"wdth" 110;line-height:1.1;letter-spacing:.3em;white-space:nowrap;color:#d6dcd9}
+#liga-titel .liga-marke em::before,#liga-titel .liga-marke em::after{content:"";flex:1 1 0;min-width:1.2em;height:2px;background:var(--red)}
+/* Die Sperrung hängt auch hinter dem letzten Buchstaben, das gleicht der linke Strich aus. */
+#liga-titel .liga-marke em::before{margin-right:.3em}
 /* Logo der Darkline Simracing Series */
 .bar .liga-logo img{height:50px}
 @media (max-width:640px){.bar .liga-logo img{height:38px}}
