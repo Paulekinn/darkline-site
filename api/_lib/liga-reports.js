@@ -137,13 +137,31 @@ async function derSerieLoeschen(serieId) {
   verwerfen();
 }
 
+const ADMIN_LINK = "https://darklineperformance.de/liga-admin";
+const FARBE_REPORT = 0xd3121b;
+const FARBE_EINSPRUCH = 0xffb020;
+// Discord lehnt leere Felder ab und begrenzt die Länge.
+const feldWert = (v) => String(v || "–").slice(0, 1024);
+const kuerzen = (t, max) => { const s = String(t || "").trim(); return s.length > max ? `${s.slice(0, max - 1)}…` : s; };
+
+// Karte für den internen Kanal. beispiel kennzeichnet eine Testnachricht deutlich.
+function reportKarte(d, beispiel) {
+  const felder = [["Serie", d.serie], ["Rennen", d.rennen], ["Stelle", d.stelle], ["Melder", d.von], ["Gemeldet", d.gegen]].map(([name, wert]) => ({ name, value: feldWert(wert), inline: true }));
+  if (d.clip) felder.push({ name: "Clip", value: feldWert(d.clip), inline: false });
+  return { title: beispiel ? "Beispiel: Neuer Report" : "Neuer Report", url: ADMIN_LINK, color: FARBE_REPORT, description: kuerzen(d.beschreibung, 500), fields: felder, ...(beispiel ? { footer: { text: "Nur ein Test der Rennleitung, kein echter Report." } } : {}) };
+}
+
+function einspruchKarte(d) {
+  return { title: "Neuer Einspruch", url: ADMIN_LINK, color: FARBE_EINSPRUCH, description: kuerzen(d.text, 500), fields: [["Serie", d.serie], ["Rennen", d.rennen], ["Einspruch von", d.von], ["Gemeldet", d.gegen]].map(([name, wert]) => ({ name, value: feldWert(wert), inline: true })) };
+}
+
 // Meldung in den internen Kanal der Rennleitung, mit Ping der Rolle. Ohne eingetragenen Webhook passiert nichts.
-async function teamMelden(text) {
+async function teamMelden(karte) {
   const url = process.env.LIGA_DISCORD_WEBHOOK_TEAM;
   if (!url) return false;
   const rolle = (process.env.LIGA_ADMIN_ROLE_IDS || "").split(",").map((s) => s.trim()).find((s) => /^\d+$/.test(s));
   try {
-    const antwort = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(4000), body: JSON.stringify({ content: `${rolle ? `<@&${rolle}> ` : ""}${String(text).slice(0, 1800)}\nhttps://darklineperformance.de/liga-admin`, allowed_mentions: rolle ? { roles: [rolle] } : { parse: [] } }) });
+    const antwort = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(4000), body: JSON.stringify({ ...(rolle ? { content: `<@&${rolle}>` } : {}), embeds: [karte], allowed_mentions: rolle ? { roles: [rolle] } : { parse: [] } }) });
     if (!antwort.ok) console.error("Discord-Meldung an die Rennleitung abgelehnt:", antwort.status);
     return antwort.ok;
   } catch (e) {
@@ -180,4 +198,4 @@ async function discordMelden(report, urteil) {
   }
 }
 
-module.exports = { teamMelden, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden };
+module.exports = { reportKarte, einspruchKarte, teamMelden, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden };

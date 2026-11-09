@@ -716,7 +716,7 @@
     const b = e.target.closest("button");
     if (!b) return;
     if (b.id === "a-logout") { await sende({ aktion: "logout" }); d = { angemeldet: false }; return zeichne(); }
-    if (b.dataset.discordTest) return aktion({ aktion: "discord-test" }, "Testnachricht gesendet, bitte im Discord-Kanal nachsehen.");
+    if (b.dataset.discordTest) return aktion({ aktion: "discord-test" }, "Beispiel-Report gesendet, bitte im Discord-Kanal nachsehen.");
     if (b.dataset.akte) return akteOeffnen(b);
     if (b.dataset.akteZu) { akte = null; return zeichne(); }
     if (b.dataset.ergebnisImport) {

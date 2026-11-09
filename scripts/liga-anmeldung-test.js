@@ -180,18 +180,37 @@ const tests = {
     const aufrufe = [];
     global.fetch = async (url, o) => { aufrufe.push([url, JSON.parse(o.body)]); return { ok: true }; };
     delete process.env.LIGA_DISCORD_WEBHOOK_TEAM;
-    assert.strictEqual(await R.teamMelden("Test"), false);
+    assert.strictEqual(await R.teamMelden(R.einspruchKarte({ text: "x" })), false);
     assert.strictEqual(aufrufe.length, 0);
     process.env.LIGA_DISCORD_WEBHOOK_TEAM = "https://discord.example/hook";
     process.env.LIGA_ADMIN_ROLE_IDS = "123,456";
-    assert.strictEqual(await R.teamMelden("Neuer @everyone Report"), true);
+    assert.strictEqual(await R.teamMelden(R.reportKarte({ von: "@everyone", gegen: "B" })), true);
     delete process.env.LIGA_DISCORD_WEBHOOK_TEAM;
     delete process.env.LIGA_ADMIN_ROLE_IDS;
     global.fetch = original;
     const [url, body] = aufrufe[0];
     assert.strictEqual(url, "https://discord.example/hook");
-    assert.ok(body.content.startsWith("<@&123> "));
+    assert.strictEqual(body.content, "<@&123>");
+    assert.strictEqual(body.embeds.length, 1);
     assert.deepStrictEqual(body.allowed_mentions, { roles: ["123"] });
+  },
+  "Discord-Karte: Report mit allen Feldern, Beispiel klar gekennzeichnet": () => {
+    const d = { serie: "GT3", rennen: "R3", stelle: "Runde 5", von: "A", gegen: "B", beschreibung: "Text", clip: "https://x.test/1" };
+    const k = R.reportKarte(d);
+    assert.strictEqual(k.title, "Neuer Report");
+    assert.strictEqual(k.footer, undefined);
+    assert.deepStrictEqual(k.fields.map((f) => [f.name, f.value]), [["Serie", "GT3"], ["Rennen", "R3"], ["Stelle", "Runde 5"], ["Melder", "A"], ["Gemeldet", "B"], ["Clip", "https://x.test/1"]]);
+    const b = R.reportKarte(d, true);
+    assert.ok(b.title.startsWith("Beispiel"));
+    assert.ok(b.footer.text.includes("kein echter Report"));
+  },
+  "Discord-Karte: hält die Grenzen von Discord ein": () => {
+    const k = R.reportKarte({ von: "x".repeat(2000), beschreibung: "y".repeat(5000) });
+    assert.ok(k.description.length <= 500 && k.description.endsWith("…"));
+    assert.ok(k.fields.every((f) => f.value.length >= 1 && f.value.length <= 1024));
+    assert.strictEqual(k.fields.find((f) => f.name === "Serie").value, "–");
+    assert.ok(!k.fields.some((f) => f.name === "Clip"));
+    assert.strictEqual(R.einspruchKarte({ text: "Bitte prüfen", gegen: "B" }).title, "Neuer Einspruch");
   },
   "Ohne Klassen: Formular legt genau eine offene Klasse an und ignoriert Klassen-Eingaben": () => {
     const eingabe = { name: "Offen", typ: "event", ohneKlassen: true, klassen: [{ name: "kaputt", min: "x", max: "y" }], punkte: "30, 26", rennenGesamt: 1, gewerteteRennen: 1, anmeldeschlussMinuten: 60, punkteDanach: 0, bonusPole: 0, bonusSchnellsteRunde: 0, mindestRundenProzent: 75 };
