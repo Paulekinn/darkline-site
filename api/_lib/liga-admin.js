@@ -14,6 +14,15 @@ const serieFinden = (kat, id) => {
   return s;
 };
 
+// Alle für eine Serie oder eines ihrer Rennen gemeldeten Fahrer: Map Kundennummer → iRacing-Name
+async function gemeldeteFahrer(kat, serieId) {
+  const alle = await eintraege();
+  const rennen = new Set(kat.rennen.filter((r) => r.serie === serieId).map((r) => r.id));
+  const ids = [...new Set(alle.filter((e) => (e.typ === "serie" && e.serieId === serieId) || (e.typ === "rennen" && rennen.has(e.rennenId))).map((e) => e.discordId))];
+  const profile = await Promise.all(ids.map(async (d) => { const t = await blobGet(A.profilPfad(d)); return t ? JSON.parse(t) : null; }));
+  return new Map(profile.filter((p) => p && p.custId).map((p) => [String(p.custId), p.iracingName]));
+}
+
 // Details einer Serie: Fahrer mit Profil, Rennen mit Listen, Ergebnisse und Strafen
 async function serienDetails(kat, id) {
   const serie = serieFinden(kat, id);
@@ -96,14 +105,19 @@ const aktionen = {
   // Rechnet die Tabelle mit der Datei, ohne etwas zu speichern.
   async "ergebnis-vorschau"(b, kat) {
     const serie = serieFinden(kat, b.serie);
-    const neu = leseErgebnis(b.datei);
-    const bisher = (await D.ergebnisseLesen(b.serie)).filter((e) => e.id !== neu.id);
+    const eingelesen = leseErgebnis(b.datei);
+    const { ergebnis: neu, fremde, fehlend } = D.abgleichen(eingelesen, await gemeldeteFahrer(kat, b.serie), b.zugelassen);
+    const vorhanden = await D.ergebnisseLesen(b.serie);
+    const bisher = vorhanden.filter((e) => e.id !== neu.id);
     const { warnungen, ...tabelle } = berechneTabelle([...bisher, neu], serie, await D.privatLesen(b.serie));
-    return { warnungen, tabelle, ersetzt: bisher.length !== (await D.ergebnisseLesen(b.serie)).length, rennen: { id: neu.id, strecke: neu.strecke, start: neu.start, fahrer: neu.fahrer.length } };
+    return { warnungen, tabelle, ersetzt: bisher.length !== vorhanden.length, fremde, fehlend, rennen: { id: neu.id, strecke: neu.strecke, start: neu.start, gesamt: eingelesen.fahrer.length, gewertet: neu.fahrer.length } };
   },
   async "ergebnis-veroeffentlichen"(b, kat) {
     serieFinden(kat, b.serie);
-    await D.ergebnisSpeichern(b.serie, leseErgebnis(b.datei));
+    // Nicht gemeldete Fahrer werden nicht gewertet und auch nicht gespeichert.
+    const { ergebnis } = D.abgleichen(leseErgebnis(b.datei), await gemeldeteFahrer(kat, b.serie), b.zugelassen);
+    if (!ergebnis.fahrer.length) throw new Hinweis("Keiner der Fahrer in dieser Datei ist für diese Serie gemeldet. Prüfe die Serie und die Datei oder lasse einzelne Fahrer als Gast zu.");
+    await D.ergebnisSpeichern(b.serie, ergebnis);
     return { warnungen: (await neuBerechnen(kat, b.serie)) || [] };
   },
   async "ergebnis-loeschen"(b, kat) {
@@ -213,6 +227,7 @@ module.exports = async (req, res) => {
   const s = getLigaAdminSession(req);
   if (req.method === "GET") {
     if (!s) return res.status(200).json({ angemeldet: false });
+    if ((req.query || {}).nur === "status") return res.status(200).json({ angemeldet: true });
     const kat = await D.katalog(true);
     const details = D.istId((req.query || {}).serie) && kat.serien.some((x) => x.id === req.query.serie) ? await serienDetails(kat, req.query.serie) : null;
     const reports = (await R.alleReports(true)).map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id) }));

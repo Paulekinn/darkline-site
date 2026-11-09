@@ -15,6 +15,9 @@ a{color:inherit}
 .a-marke{font:900 1rem/1 var(--a-breit);text-transform:uppercase;letter-spacing:.01em}
 .a-marke span{color:var(--a-akzent)}
 .a-nutzer{margin-left:auto;font:.74rem var(--a-mono);color:var(--a-leise)}
+.a-nutzer a{color:var(--a-text)}
+.a-knopf.klein{vertical-align:middle}
+a.a-knopf{text-decoration:none}
 .a-nav{flex:1 0 100%;display:flex;gap:2px;overflow-x:auto}
 .a-nav button{all:unset;cursor:pointer;padding:10px 15px 9px;font:700 .76rem/1 var(--a-breit);text-transform:uppercase;color:var(--a-leise);border-bottom:3px solid transparent;white-space:nowrap}
 .a-nav button:hover{color:var(--a-text)}

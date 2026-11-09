@@ -85,6 +85,18 @@ function pruefeRennen(e, serienIds) {
   };
 }
 
+// Gleicht ein Ergebnis mit den Anmeldungen ab. Gewertet und gespeichert werden nur gemeldete Fahrer und ausdrücklich zugelassene Gäste.
+// gemeldet: Map Kundennummer → Name
+function abgleichen(ergebnis, gemeldet, zugelassen) {
+  const gaeste = new Set((zugelassen || []).map(String));
+  const imRennen = new Set(ergebnis.fahrer.map((f) => f.cust));
+  return {
+    ergebnis: { ...ergebnis, fahrer: ergebnis.fahrer.filter((f) => gemeldet.has(f.cust) || gaeste.has(f.cust)) },
+    fremde: ergebnis.fahrer.filter((f) => !gemeldet.has(f.cust)).map((f) => ({ cust: f.cust, name: f.name, gesamt: f.gesamt, gast: gaeste.has(f.cust) })),
+    fehlend: [...gemeldet].filter(([cust]) => !imRennen.has(cust)).map(([, name]) => name),
+  };
+}
+
 // Öffentliche Sicht: Passwort, Session-Name und Briefing bleiben intern.
 const oeffentlichesRennen = ({ passwort, briefing, server, ...rest }) => rest;
 
@@ -136,4 +148,4 @@ async function tabelleNeu(serie, regeln, ergebnisse) {
   return warnungen;
 }
 
-module.exports = { ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };
+module.exports = { abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };

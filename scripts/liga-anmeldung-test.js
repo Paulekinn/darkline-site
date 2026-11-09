@@ -185,6 +185,23 @@ const tests = {
     assert.strictEqual(baue([eintrag("r1", "5", 100, "Anna")], { discordId: "1" }).starter[0].discordId, undefined);
     assert.strictEqual(baue([eintrag("r1", "5", 100, "Anna")], { discordId: "", mitIds: true }).starter[0].discordId, "5");
   },
+  "Import: nur gemeldete Fahrer werden übernommen": () => {
+    const e = { id: "1", fahrer: [{ cust: "1", name: "A", gesamt: 1 }, { cust: "2", name: "B", gesamt: 2 }, { cust: "3", name: "C", gesamt: 3 }] };
+    const r = D.abgleichen(e, new Map([["1", "A"], ["3", "C"], ["9", "Fehlt"]]));
+    assert.deepStrictEqual(r.ergebnis.fahrer.map((f) => f.name), ["A", "C"]);
+    assert.deepStrictEqual(r.fremde.map((f) => f.name), ["B"]);
+    assert.deepStrictEqual(r.fehlend, ["Fehlt"]);
+    assert.strictEqual(e.fahrer.length, 3);
+  },
+  "Import: Gäste werden nur auf Wunsch gewertet": () => {
+    const e = { id: "1", fahrer: [{ cust: "1", name: "A", gesamt: 1 }, { cust: "2", name: "B", gesamt: 2 }] };
+    const r = D.abgleichen(e, new Map([["1", "A"]]), ["2"]);
+    assert.strictEqual(r.ergebnis.fahrer.length, 2);
+    assert.strictEqual(r.fremde[0].gast, true);
+  },
+  "Import: ohne Anmeldungen bleibt niemand übrig": () => {
+    assert.strictEqual(D.abgleichen({ id: "1", fahrer: [{ cust: "1", name: "A", gesamt: 1 }] }, new Map()).ergebnis.fahrer.length, 0);
+  },
   "Report wird geprüft": () => {
     assert.deepStrictEqual(R.pruefeMeldung({ stelle: "Runde 5, T3", beschreibung: "Er hat mich gedreht.", clip: "" }), { stelle: "Runde 5, T3", beschreibung: "Er hat mich gedreht.", clip: "" });
     assert.throws(() => R.pruefeMeldung({ stelle: "", beschreibung: "Er hat mich gedreht." }), /wann und wo/);

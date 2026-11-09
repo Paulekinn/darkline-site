@@ -32,6 +32,14 @@
   let vorschau = null;
   let beschaeftigt = false;
   let reportId = null;
+  let zugelassen = [];    // Kundennummern nicht gemeldeter Fahrer, die als Gast gewertet werden sollen
+
+  async function vorschauRechnen() {
+    const a = await sende({ aktion: "ergebnis-vorschau", serie: serieId, datei, zugelassen });
+    vorschau = a;
+    if (!a) { datei = null; zugelassen = []; }
+    zeichne();
+  }
 
   const setzeMeldung = (text, fehler) => { meldung = text ? { text, fehler: !!fehler } : null; };
 
@@ -115,7 +123,7 @@
   }
 
   function serienTab() {
-    const zeilen = d.serien.map((s) => `<tr><td>${esc(s.name)}</td><td>${s.typ === "event" ? "Event" : "Liga"}</td><td>${esc(s.saison)}</td><td>${statusChip(s.status)}</td><td>${s.anmeldungOffen === false ? "geschlossen" : "offen"}</td><td class="rechts">${d.rennen.filter((r) => r.serie === s.id).length}</td><td class="rechts"><button type="button" class="a-knopf zweit klein" data-serie-bearbeiten="${esc(s.id)}">Bearbeiten</button></td></tr>`).join("");
+    const zeilen = d.serien.map((s) => `<tr><td>${esc(s.name)}</td><td>${s.typ === "event" ? "Event" : "Liga"}</td><td>${esc(s.saison)}</td><td>${statusChip(s.status)}</td><td>${s.anmeldungOffen === false ? "geschlossen" : "offen"}</td><td class="rechts">${d.rennen.filter((r) => r.serie === s.id).length}</td><td class="rechts"><a class="a-knopf zweit klein" href="/liga?serie=${encodeURIComponent(s.id)}">Ansehen</a> <button type="button" class="a-knopf zweit klein" data-serie-bearbeiten="${esc(s.id)}">Bearbeiten</button></td></tr>`).join("");
     return `<section class="a-karte"><div class="a-kartenkopf"><h2>Serien und Events</h2><button type="button" class="a-knopf" data-serie-neu="1">Neue Serie</button></div>
       ${d.serien.length ? `<div class="a-scroll"><table><thead><tr><th>Name</th><th>Art</th><th>Saison</th><th>Status</th><th>Anmeldung</th><th class="rechts">Rennen</th><th></th></tr></thead><tbody>${zeilen}</tbody></table></div>` : '<p class="a-leer">Noch keine Serie angelegt. Leg die erste Liga oder das erste Event an.</p>'}
     </section>${form && form.art === "serie" ? serienForm() : ""}`;
@@ -187,11 +195,18 @@
       const l = f.rennen[f.rennen.length - 1];
       return `<tr><td>${f.pos}</td><td>${esc(f.name)}</td><td class="rechts">${l ? (l.status === "OK" ? `P${l.platz} · ${l.punkte}` : esc(l.status)) : "–"}</td><td class="rechts">${f.punkte}</td></tr>`;
     }).join("")}</tbody></table></div></div>`).join("");
-    return `<section class="a-karte"><div class="a-kartenkopf"><h2>Vorschau: ${esc(v.rennen.strecke)}</h2><span class="a-chip">${v.rennen.fahrer} Fahrer · ${esc(zeit(v.rennen.start))}</span></div>
+    const fremde = v.fremde.length ? `<details class="a-rennen"><summary>${v.fremde.length} nicht gemeldete Fahrer werden nicht gewertet und nicht gespeichert</summary>
+        <p class="a-hinweis" style="padding:0 12px 8px">Hak einen Fahrer an, um ihn ausnahmsweise als Gast zu werten.</p>
+        <ul class="a-namen">${v.fremde.map((f) => `<li><label class="a-check"><input type="checkbox" data-gast="${esc(f.cust)}"${f.gast ? " checked" : ""}> <span>P${f.gesamt} ${esc(f.name)}</span></label></li>`).join("")}</ul></details>` : "";
+    const fehlend = v.fehlend.length ? `<details class="a-rennen"><summary>${v.fehlend.length} gemeldete Fahrer sind nicht im Ergebnis</summary><ul class="a-namen">${v.fehlend.map((n) => `<li><span>${esc(n)}</span></li>`).join("")}</ul></details>` : "";
+    const keiner = v.rennen.gewertet === 0 ? '<p class="a-meldung fehler">Keiner der Fahrer in dieser Datei ist für diese Serie gemeldet. Prüfe, ob Serie und Datei zusammenpassen.</p>' : "";
+    return `<section class="a-karte"><div class="a-kartenkopf"><h2>Vorschau: ${esc(v.rennen.strecke)}</h2><span class="a-chip">${v.rennen.gewertet} von ${v.rennen.gesamt} Fahrern gewertet · ${esc(zeit(v.rennen.start))}</span></div>
+      ${keiner}
       ${v.ersetzt ? '<p class="a-meldung fehler">Dieses Rennen ist schon eingelesen und würde ersetzt.</p>' : ""}
       ${v.warnungen.length ? `<ul class="a-warnung">${v.warnungen.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}
+      ${fremde}${fehlend}
       ${gruppen}
-      <div class="a-leiste"><button type="button" class="a-knopf" data-veroeffentlichen="1">Veröffentlichen</button><button type="button" class="a-knopf zweit" data-verwerfen="1">Verwerfen</button></div>
+      <div class="a-leiste">${v.rennen.gewertet ? '<button type="button" class="a-knopf" data-veroeffentlichen="1">Veröffentlichen</button>' : ""}<button type="button" class="a-knopf zweit" data-verwerfen="1">Verwerfen</button></div>
     </section>`;
   }
 
@@ -289,7 +304,7 @@
     if (!d || !d.angemeldet) return zeigeLogin();
     const inhalt = tab === "serien" ? serienTab() : tab === "rennen" ? rennenTab() : tab === "fahrer" ? fahrerTab() : tab === "reports" ? reportsTab() : ergebnisTab();
     const offene = d.reports.filter(braucht).length;
-    app.innerHTML = `<header class="a-kopf"><div class="a-marke">Darkline <span>Rennleitung</span></div><div class="a-nutzer">${esc(d.name)} · <button type="button" id="a-logout" style="all:unset;cursor:pointer;text-decoration:underline">Ausloggen</button></div>
+    app.innerHTML = `<header class="a-kopf"><div class="a-marke">Darkline <span>Rennleitung</span></div><div class="a-nutzer"><a href="/liga">Zur Liga</a> · <a href="/fahrerbereich">Fahrerbereich</a> · ${esc(d.name)} · <button type="button" id="a-logout" style="all:unset;cursor:pointer;text-decoration:underline">Ausloggen</button></div>
       <nav class="a-nav" aria-label="Bereiche">${TABS.map(([id, t]) => `<button type="button" data-tab="${id}"${tab === id ? ' aria-current="page"' : ""}>${t}${id === "reports" && offene ? ` (${offene})` : ""}</button>`).join("")}</nav></header>
       <main class="a-inhalt">${meldung ? `<p class="a-meldung${meldung.fehler ? " fehler" : ""}" role="status">${esc(meldung.text)}</p>` : ""}${inhalt}</main>`;
   }
@@ -321,10 +336,10 @@
     if (b.dataset.rennenLoeschen && window.confirm("Dieses Rennen wirklich löschen?")) return aktion({ aktion: "rennen-loeschen", id: form.id }, "Rennen gelöscht.");
     if (b.dataset.ausSerie && window.confirm(`${b.dataset.name} aus der Serie und ihren Rennen entfernen?`)) return aktion({ aktion: "fahrer-aus-serie", serie: serieId, discordId: b.dataset.ausSerie }, "Fahrer entfernt.");
     if (b.dataset.ausRennen && window.confirm(`${b.dataset.name} aus diesem Rennen nehmen?`)) return aktion({ aktion: "fahrer-aus-rennen", rennen: b.dataset.ausRennen, discordId: b.dataset.fahrer }, "Fahrer aus dem Rennen genommen.");
-    if (b.dataset.verwerfen) { vorschau = null; datei = null; return zeichne(); }
+    if (b.dataset.verwerfen) { vorschau = null; datei = null; zugelassen = []; return zeichne(); }
     if (b.dataset.veroeffentlichen) {
-      const a = await aktion({ aktion: "ergebnis-veroeffentlichen", serie: serieId, datei }, "Ergebnis veröffentlicht, die Tabelle ist aktualisiert.");
-      if (a) { vorschau = null; datei = null; zeichne(); }
+      const a = await aktion({ aktion: "ergebnis-veroeffentlichen", serie: serieId, datei, zugelassen }, "Ergebnis veröffentlicht, die Tabelle ist aktualisiert.");
+      if (a) { vorschau = null; datei = null; zugelassen = []; zeichne(); }
       return;
     }
     if (b.dataset.ergebnisLoeschen && window.confirm("Dieses Ergebnis wirklich löschen? Die Tabelle wird neu berechnet.")) return aktion({ aktion: "ergebnis-loeschen", serie: serieId, id: b.dataset.ergebnisLoeschen }, "Ergebnis gelöscht.");
@@ -361,7 +376,7 @@
   app.addEventListener("change", async (e) => {
     const t = e.target;
     if (t.id === "a-serie") {
-      serieId = t.value; vorschau = null; datei = null; setzeMeldung("");
+      serieId = t.value; vorschau = null; datei = null; zugelassen = []; setzeMeldung("");
       await lade().catch(() => setzeMeldung("Die Daten konnten nicht geladen werden.", true));
       return zeichne();
     }
@@ -390,10 +405,12 @@
         setzeMeldung("Das ist keine gültige JSON-Datei.", true);
         return zeichne();
       }
-      const a = await sende({ aktion: "ergebnis-vorschau", serie: serieId, datei });
-      vorschau = a;
-      if (!a) datei = null;
-      zeichne();
+      zugelassen = [];
+      return vorschauRechnen();
+    }
+    if (t.dataset.gast !== undefined) {
+      zugelassen = t.checked ? [...zugelassen, t.dataset.gast] : zugelassen.filter((c) => c !== t.dataset.gast);
+      return vorschauRechnen();
     }
   });
 

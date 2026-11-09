@@ -122,6 +122,18 @@
 .liga-leer h3{margin:0;font:900 clamp(1.4rem,3vw,2rem)/1.05 var(--f-wide);font-variation-settings:"wdth" 118;text-transform:uppercase}
 .liga-leer p{margin:0;max-width:56ch;color:#c4cbc8}
 
+/* Feste Navigation der Liga, zweite Zeile im Seitenkopf */
+/* Die Selektoren sind bewusst genauer als ".bar nav" aus site.css, das Menüs am Handy einklappt. */
+.bar nav.liga-nav{display:block;position:static;width:auto;height:auto;margin:0;padding:0;overflow:visible;background:#0c0f11;border-top:1px solid var(--scan);box-shadow:none;transform:none}
+.bar nav.liga-nav .wrap{display:flex;min-height:0;gap:2px;align-items:stretch;overflow-x:auto;scrollbar-width:none}
+.bar nav.liga-nav a{flex:none;display:flex;align-items:center;gap:7px;min-height:0;padding:10px 13px 8px;border:0;border-bottom:3px solid transparent;text-decoration:none;font:800 .72rem/1 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase;color:#aeb6b3;white-space:nowrap}
+.bar nav.liga-nav a:hover{background:none;color:var(--ink)}
+.bar nav.liga-nav a[aria-current="page"]{color:var(--ink);border-bottom-color:var(--red)}
+.bar nav.liga-nav a:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
+.bar nav.liga-nav .liga-nav-serie::before{content:"";width:7px;height:7px;background:var(--s);transform:skewX(-12deg)}
+.bar nav.liga-nav .liga-nav-serie[aria-current="page"]{border-bottom-color:var(--s)}
+.bar nav.liga-nav .liga-nav-rechts{margin-left:auto}
+
 /* Serienfarben */
 .s-rot{--s:var(--liga-rot)} .s-blau{--s:var(--liga-blau)} .s-lila{--s:var(--liga-lila)} .s-gruen{--s:var(--liga-gruen)} .s-gelb{--s:var(--liga-gelb)} .s-tuerkis{--s:#45d0c8}
 
