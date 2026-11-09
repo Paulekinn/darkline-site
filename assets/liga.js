@@ -59,7 +59,7 @@
     const zeilen = rest.map((f) => `<li><span class="liga-tk-zeile"><span><em>P${f.pos}</em>${esc(f.name)}</span><span>${f.punkte}</span></span>${balken(f)}${status(f)}</li>`).join("");
     const weitere = titelLaeuft ? k.fahrer.slice(4).filter((f) => f.titel.status !== "raus").length : 0;
     return `<button type="button" class="liga-karte ${farbe(k)}" data-k="${esc(k.id)}" aria-label="Tabelle ${esc(k.name)} öffnen">
-      <span class="liga-karte-kopf"><span class="liga-karte-klasse">${esc(k.name)}</span><span class="liga-karte-bereich">iR ${esc(bereich(k))}</span></span>
+      <span class="liga-karte-kopf"><span class="liga-karte-klasse">${esc(k.name)}</span></span>
       <span class="liga-karte-erster"><span class="liga-karte-name">${esc(erster.name)}<small>${esc(abstand)} · ${erster.siege} ${erster.siege === 1 ? "Sieg" : "Siege"}</small>${status(erster)}</span><span class="liga-karte-punkte">${erster.punkte}</span></span>
       ${titelLaeuft ? `<span class="liga-tk-erster">${balken(erster)}</span>` : ""}
       ${zeilen ? `<ul class="liga-karte-rest">${zeilen}</ul>` : ""}
@@ -250,16 +250,14 @@
     const kopfzeile = d.rennen.map((r) => `<th class="zahl" title="${esc([r.strecke, r.variante].filter(Boolean).join(" · "))}">R${r.nr}<small>${esc(datum(r.start))}</small></th>`).join("");
     const zeilen = k.fahrer.map((f) => `<tr>
       <td><span class="liga-fahrer"><span class="liga-pos ${podium(f.pos)}"><b>${f.pos}</b></span>${k.gesamt ? fahrerLink(f.klasse.id, f.klassenPos, f.name) : f.karte ? fahrerLink(k.id, f.pos, f.name) : esc(f.name)}</span></td>
-      ${k.gesamt ? `<td>${klassenChip(f.klasse.id, k, d)}</td>` : ""}
-      <td class="zahl">${f.irating === null ? "–" : zahl(f.irating)}</td>
-      ${f.rennen.map(zelle).join("")}
+      ${k.gesamt ? `<td>${klassenChip(f.klasse.id, k, d)}</td>` : ""}      ${f.rennen.map(zelle).join("")}
       <td class="zahl">${f.siege}</td>
       <td class="zahl">${f.incidentsProRunde === null ? "–" : f.incidentsProRunde.toLocaleString("de-DE", { minimumFractionDigits: 2 })}</td>
       <td class="zahl ${f.strafpunkte ? "liga-strafe" : "liga-leerzelle"}">${f.strafpunkte ? "−" + f.strafpunkte : "–"}</td>
       <td class="zahl liga-punkte"><b>${f.punkte}</b><span class="liga-balken"><i style="width:${Math.max(0, Math.round((f.punkte / maximal) * 100))}%"></i></span></td>
     </tr>`).join("");
     return `<div class="liga-scroll ${farbe(k)}" tabindex="0" role="region" aria-label="Tabelle ${esc(k.name)}"><table class="liga-tabelle">
-      <thead><tr><th>Fahrer</th>${k.gesamt ? "<th>Klasse</th>" : ""}<th class="zahl">iRating</th>${kopfzeile}<th class="zahl">Siege</th><th class="zahl">Inc/Runde</th><th class="zahl">Strafe</th><th class="zahl">Punkte</th></tr></thead>
+      <thead><tr><th>Fahrer</th>${k.gesamt ? "<th>Klasse</th>" : ""}${kopfzeile}<th class="zahl">Siege</th><th class="zahl">Inc/Runde</th><th class="zahl">Strafe</th><th class="zahl">Punkte</th></tr></thead>
       <tbody>${zeilen}</tbody>
     </table></div>`;
   }
@@ -462,7 +460,7 @@
     });
     const rennenMitErgebnis = d.rennen.filter((r) => Array.isArray(r.ergebnisse) && r.ergebnisse.length);
     const ansichtWahl = d.rennenGesamt > 1 && rennenMitErgebnis.length ? `<div class="liga-ansicht" role="group" aria-label="Saison oder einzelnes Rennen"><button type="button" data-ansicht="saison" aria-pressed="true">Saison</button>${rennenMitErgebnis.map((r) => `<button type="button" data-ansicht="${r.nr}" aria-pressed="false" title="${esc(r.strecke)}">R${r.nr}</button>`).join("")}</div>` : "";
-    einfuegen(abschnitt("Tabelle", d.saison, "", `${ansichtWahl}<div class="liga-tabs" role="tablist" aria-label="Wertung wählen">${alleReiter.map((k) => `<button type="button" class="${farbe(k)}" role="tab" id="tab-${esc(k.id)}" data-k="${esc(k.id)}" aria-controls="liga-tabelle" aria-selected="false">${esc(k.name)}<small>${k.gesamt ? "Alle Klassen" : `iRating ${esc(bereich(k))}`}</small></button>`).join("")}</div>
+    einfuegen(abschnitt("Tabelle", d.saison, "", `${ansichtWahl}<div class="liga-tabs" role="tablist" aria-label="Wertung wählen">${alleReiter.map((k) => `<button type="button" class="${farbe(k)}" role="tab" id="tab-${esc(k.id)}" data-k="${esc(k.id)}" aria-controls="liga-tabelle" aria-selected="false">${esc(k.name)}</button>`).join("")}</div>
       <div id="liga-tabelle" role="tabpanel"></div>
       <p class="liga-legende" id="liga-legende"><span><b style="color:var(--liga-gold)">Gold</b>, <b style="color:var(--liga-silber)">Silber</b>, <b style="color:var(--liga-bronze)">Bronze</b> = Podium</span><span><b class="liga-tag pp">PP</b> = Pole</span><span><b class="liga-tag sr">SR</b> = schnellste Runde</span><span><b class="liga-tag aus">DNF</b> = nicht gewertet</span><span><b class="liga-tag aus">DSQ</b> = disqualifiziert</span><span>Durchgestrichen = Streichergebnis</span></p>`, "liga-tabelle-bereich"));
 
