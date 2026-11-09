@@ -366,14 +366,14 @@
   /* ---------- Seite ---------- */
   function zeigeLogin() {
     const fehler = FEHLER[new URLSearchParams(location.search).get("fehler")];
-    app.innerHTML = `<main class="a-login"><div class="a-login-karte"><h1>Darkline <span>Rennleitung</span></h1><p>Zugang nur mit der Discord-Rolle der Rennleitung.</p>${fehler ? `<p class="a-meldung fehler" role="alert">${esc(fehler)}</p>` : ""}<a class="a-knopf" href="/api/discord-login?ziel=liga-admin">Mit Discord anmelden</a></div></main>`;
+    app.innerHTML = `<main class="a-login"><div class="a-login-karte"><img class="a-login-logo" src="img/brand/dsrs-logo.png" alt="Darkline Simracing Series" width="654" height="165"><h1><span>Rennleitung</span></h1><p>Zugang nur mit der Discord-Rolle der Rennleitung.</p>${fehler ? `<p class="a-meldung fehler" role="alert">${esc(fehler)}</p>` : ""}<a class="a-knopf" href="/api/discord-login?ziel=liga-admin">Mit Discord anmelden</a></div></main>`;
   }
 
   function zeichne() {
     if (!d || !d.angemeldet) return zeigeLogin();
     const inhalt = tab === "serien" ? serienTab() : tab === "rennen" ? rennenTab() : tab === "fahrer" ? fahrerTab() : tab === "reports" ? reportsTab() : ergebnisTab();
     const offene = d.reports.filter(braucht).length;
-    app.innerHTML = `<header class="a-kopf"><div class="a-marke">Darkline <span>Rennleitung</span></div><div class="a-nutzer"><a href="/liga">Zur Liga</a> · <a href="/fahrerbereich">Fahrerbereich</a> · ${esc(d.name)} · <button type="button" id="a-logout" style="all:unset;cursor:pointer;text-decoration:underline">Ausloggen</button></div>
+    app.innerHTML = `<header class="a-kopf"><div class="a-marke"><img src="img/brand/dsrs-logo.png" alt="Darkline Simracing Series" width="654" height="165"><span>Rennleitung</span></div><div class="a-nutzer"><a href="/liga">Zur Liga</a> · <a href="/fahrerbereich">Fahrerbereich</a> · ${esc(d.name)} · <button type="button" id="a-logout" style="all:unset;cursor:pointer;text-decoration:underline">Ausloggen</button></div>
       <nav class="a-nav" aria-label="Bereiche">${TABS.map(([id, t]) => `<button type="button" data-tab="${id}"${tab === id ? ' aria-current="page"' : ""}>${t}${id === "reports" && offene ? ` (${offene})` : ""}</button>`).join("")}</nav></header>
       <main class="a-inhalt">${meldung ? `<p class="a-meldung${meldung.fehler ? " fehler" : ""}" role="status">${esc(meldung.text)}</p>` : ""}${inhalt}</main>`;
   }

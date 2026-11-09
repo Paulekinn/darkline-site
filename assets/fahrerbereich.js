@@ -164,7 +164,7 @@
 
   function zeigeLogin() {
     const fehler = FEHLER[new URLSearchParams(location.search).get("fehler")];
-    main.innerHTML = abschnitt("Fahrerbereich", "Darkline Liga", `<div class="fb-login">
+    main.innerHTML = abschnitt("Fahrerbereich", "Darkline Simracing Series", `<div class="fb-login">
       <h3>Melde dich mit Discord an</h3>
       <ul><li>Alle Rennen deiner Serien auf einen Blick</li><li>Für Serien und einzelne Rennen an- und abmelden</li><li>Startplatz, Warteliste und Briefing immer aktuell</li></ul>
       <a class="fb-knopf" href="/api/discord-login?ziel=liga">Mit Discord anmelden</a>
@@ -381,5 +381,5 @@
   fetch(API, { cache: "no-store" })
     .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
     .then((d) => { stand = d; zeichne(); })
-    .catch(() => { main.innerHTML = abschnitt("Fahrerbereich", "Darkline Liga", '<p class="fb-leer">Der Fahrerbereich ist gerade nicht erreichbar. Bitte versuche es gleich noch einmal.</p>'); });
+    .catch(() => { main.innerHTML = abschnitt("Fahrerbereich", "Darkline Simracing Series", '<p class="fb-leer">Der Fahrerbereich ist gerade nicht erreichbar. Bitte versuche es gleich noch einmal.</p>'); });
 })();

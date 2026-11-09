@@ -523,7 +523,7 @@
     $("liga-kopfbild").src = s && s.bildVersion ? eigenesBild(`serie-${s.id}`, s.bildVersion) : daten && daten.kopfbildVersion ? eigenesBild("uebersicht", daten.kopfbildVersion) : "img/hero.webp";
     if (!s) return uebersicht(serien, rennen);
 
-    document.title = `${s.name} · Darkline Liga`;
+    document.title = `${s.name} · Darkline Simracing Series`;
     $("liga-titel").innerHTML = esc(s.name);
     document.querySelector(".liga-kicker").innerHTML = artBadge(s.typ);
     $("liga-saison").textContent = [s.saison, s.beschreibung].filter(Boolean).join(" · ");
