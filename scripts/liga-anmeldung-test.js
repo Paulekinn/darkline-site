@@ -45,7 +45,88 @@ const kartenTabelle = () => new Map([["gt3", { rennenGesamt: 8, klassen: [{ id: 
 const G = require("../api/_lib/liga-strecken");
 const gpsRunde = (n, r = 0.01) => Array.from({ length: n }, (_, i) => { const w = (i / n) * 2 * Math.PI; return { d: i / (n - 1) * 0.999, lat: 50 + r * Math.sin(w), lon: 6 + r * Math.cos(w) }; });
 
+// Speicher-Attrappe, die zählt, was bei Vercel als Upload oder Auflistung berechnet würde
+function blobAttrappe() {
+  const dateien = new Map();
+  const zaehler = { list: 0, put: 0 };
+  const alt = { fetch: global.fetch, token: process.env.BLOB_READ_WRITE_TOKEN, jetzt: Date.now };
+  process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_STORE_geheim";
+  global.fetch = async (url, o = {}) => {
+    const u = new URL(url);
+    if (u.host.endsWith("blob.vercel-storage.com")) {
+      const p = u.pathname.slice(1);
+      return dateien.has(p) ? { ok: true, status: 200, text: async () => dateien.get(p) } : { ok: false, status: 404, text: async () => "" };
+    }
+    if (o.method === "PUT") { zaehler.put++; dateien.set(u.searchParams.get("pathname"), String(o.body)); return { ok: true, json: async () => ({}) }; }
+    if (o.method === "POST") { JSON.parse(o.body).urls.forEach((x) => dateien.delete(new URL(x).pathname.slice(1))); return { ok: true }; }
+    zaehler.list++;
+    const blobs = [...dateien.keys()].filter((p) => p.startsWith(u.searchParams.get("prefix"))).map((pathname) => ({ pathname, uploadedAt: "2026-11-01T00:00:00.000Z", url: "x" }));
+    return { ok: true, json: async () => ({ blobs, hasMore: false }) };
+  };
+  return { dateien, zaehler, ende: () => { global.fetch = alt.fetch; Date.now = alt.jetzt; if (alt.token === undefined) delete process.env.BLOB_READ_WRITE_TOKEN; else process.env.BLOB_READ_WRITE_TOKEN = alt.token; } };
+}
+const B = require("../api/_lib/blob");
+
 const tests = {
+  "Speicher: Wiederholtes Lesen kostet keine Auflistung, eine Änderung baut neu": async () => {
+    const a = blobAttrappe();
+    try {
+      await B.blobPut("liga/daten/serien/a.json", '{"n":1}', "application/json");
+      assert.deepStrictEqual(await B.blobInhalte("liga/daten/serien/"), [["liga/daten/serien/a.json", '{"n":1}']]);
+      assert.strictEqual(a.zaehler.list, 1);
+      await B.blobInhalte("liga/daten/serien/");
+      await B.blobInhalte("liga/daten/serien/");
+      assert.strictEqual(a.zaehler.list, 1);
+      await B.blobPut("liga/daten/serien/b.json", '{"n":2}', "application/json");
+      assert.strictEqual((await B.blobInhalte("liga/daten/serien/")).length, 2);
+      assert.strictEqual(a.zaehler.list, 2);
+      await B.blobDelete(["liga/daten/serien/a.json"]);
+      assert.strictEqual((await B.blobInhalte("liga/daten/serien/")).length, 1);
+      assert.strictEqual(a.zaehler.list, 3);
+    } finally { a.ende(); }
+  },
+  "Speicher: Der erste Stand gilt kurz, der zweite einen Tag": async () => {
+    const a = blobAttrappe();
+    const start = Date.now();
+    try {
+      await B.blobPut("liga/fahrerprofile/x", "1", "text/plain");
+      await B.blobList("liga/fahrerprofile/");
+      Date.now = () => start + 60e3;
+      await B.blobList("liga/fahrerprofile/");
+      assert.strictEqual(a.zaehler.list, 1);
+      Date.now = () => start + 120e3;
+      await B.blobList("liga/fahrerprofile/");
+      assert.strictEqual(a.zaehler.list, 2);
+      Date.now = () => start + 20 * 3600e3;
+      await B.blobList("liga/fahrerprofile/");
+      assert.strictEqual(a.zaehler.list, 2);
+      Date.now = () => start + 25 * 3600e3;
+      await B.blobList("liga/fahrerprofile/");
+      assert.strictEqual(a.zaehler.list, 3);
+    } finally { a.ende(); }
+  },
+  "Speicher: Anmeldungen unter liga/ werden nur durch Anmeldungen ungültig": async () => {
+    const a = blobAttrappe();
+    try {
+      const anmeldung = A.anmeldungPfad("r1", "7", "", "Lena");
+      await B.blobPut(anmeldung, "1", "text/plain");
+      assert.ok((await B.blobList("liga/")).some((b) => b.pathname === anmeldung));
+      await B.blobPut("liga/daten/serien/a.json", "{}", "application/json");
+      await B.blobList("liga/");
+      assert.strictEqual(a.zaehler.list, 1);
+      await B.blobDelete([anmeldung]);
+      assert.ok(!(await B.blobList("liga/")).some((b) => b.pathname === anmeldung));
+      assert.strictEqual(a.zaehler.list, 2);
+      assert.ok(![...a.dateien.keys()].some((p) => p.startsWith("liga/listen")));
+    } finally { a.ende(); }
+  },
+  "Speicher: Liste enthält nur Pfad und Datum": async () => {
+    const a = blobAttrappe();
+    try {
+      await B.blobPut("liga/reports/a.json", "{}", "application/json");
+      assert.deepStrictEqual(await B.blobList("liga/reports/"), [{ pathname: "liga/reports/a.json", uploadedAt: "2026-11-01T00:00:00.000Z" }]);
+    } finally { a.ende(); }
+  },
   "Streckenimport: Kennungen sind eindeutig, ungültige Einträge fehlen": () => {
     const liste = G.importListe(new Map([[1, { name: "Spa", variant: "Grand Prix" }], [2, { name: "Spa", variant: "Grand-Prix" }], [3, { name: "x", variant: "" }], [4, { name: "Nürburgring", variant: "" }]]));
     assert.deepStrictEqual(liste.map((s) => s.id), ["spa-grand-prix", "spa-grand-prix-2", "nuerburgring"]);

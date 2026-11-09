@@ -579,9 +579,20 @@
   }
 
   /* ---------- Protokoll ---------- */
+  let protokoll = null;
+  let protokollLaedt = false;
+  async function protokollLaden() {
+    protokollLaedt = true;
+    const a = await fetch(`${API}&nur=protokoll`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    protokollLaedt = false;
+    protokoll = (a && a.protokoll) || [];
+    if (tab === "protokoll") zeichne();
+  }
+
   function protokollTab() {
-    const zeilen = (d.protokoll || []).map((e) => `<tr><td>${esc(zeit(e.zeit))}</td><td>${esc(e.wer)}</td><td class="umbruch">${esc(e.text)}</td></tr>`).join("");
-    return `<section class="a-karte"><div class="a-kartenkopf"><h2>Änderungsprotokoll</h2><div class="a-leiste"><span class="a-chip">Letzte 300 Einträge</span><button type="button" class="a-knopf zweit klein" data-discord-test="1">Discord testen</button></div></div>${zeilen ? `<div class="a-scroll"><table><thead><tr><th>Zeit</th><th>Wer</th><th>Was</th></tr></thead><tbody>${zeilen}</tbody></table></div>` : '<p class="a-leer">Noch keine Änderungen protokolliert.</p>'}</section>`;
+    if (protokoll === null && !protokollLaedt) protokollLaden();
+    const zeilen = (protokoll || []).map((e) => `<tr><td>${esc(zeit(e.zeit))}</td><td>${esc(e.wer)}</td><td class="umbruch">${esc(e.text)}</td></tr>`).join("");
+    return `<section class="a-karte"><div class="a-kartenkopf"><h2>Änderungsprotokoll</h2><div class="a-leiste"><span class="a-chip">Letzte 300 Einträge</span><button type="button" class="a-knopf zweit klein" data-discord-test="1">Discord testen</button></div></div>${zeilen ? `<div class="a-scroll"><table><thead><tr><th>Zeit</th><th>Wer</th><th>Was</th></tr></thead><tbody>${zeilen}</tbody></table></div>` : `<p class="a-leer">${protokoll === null ? "Wird geladen …" : "Noch keine Änderungen protokolliert."}</p>`}</section>`;
   }
 
   /* ---------- Fahrer-Akte ---------- */
@@ -840,8 +851,10 @@
   }
 
   let reportStand = null;
+  let reportsGeprueft = 0;
   async function reportsPruefen() {
-    if (document.hidden || !d || !d.angemeldet || beschaeftigt) return;
+    if (document.hidden || !d || !d.angemeldet || beschaeftigt || Date.now() - reportsGeprueft < 60000) return;
+    reportsGeprueft = Date.now();
     const a = await fetch(`${API}&nur=stand`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
     if (!a || !a.angemeldet) return;
     const geaendert = reportStand !== null && a.stand !== reportStand;
@@ -906,7 +919,7 @@
       if (passwort === null) return;
       return aktion({ aktion: "passwort-setzen", serie: b.dataset.passwortAlle, passwort }, "Passwort für alle kommenden Rennen gesetzt.");
     }
-    if (b.dataset.tab) { tab = b.dataset.tab; form = null; planer = null; reportId = null; akte = null; setzeMeldung(""); if (tab === "reports") reportsAlsGesehen(); zeichne(); return window.scrollTo(0, 0); }
+    if (b.dataset.tab) { tab = b.dataset.tab; protokoll = null; form = null; planer = null; reportId = null; akte = null; setzeMeldung(""); if (tab === "reports") reportsAlsGesehen(); zeichne(); return window.scrollTo(0, 0); }
     if (b.dataset.report) {
       const r = d.reports.find((x) => x.id === b.dataset.report);
       tab = "reports"; reportId = r.id; setzeMeldung("");
@@ -1123,7 +1136,7 @@
     zeichne();
     // Neue Reports erscheinen ohne Neuladen. Im Hintergrund wird nicht abgefragt.
     reportsPruefen();
-    setInterval(reportsPruefen, 60000);
+    setInterval(reportsPruefen, 300000);
     document.addEventListener("visibilitychange", reportsPruefen);
   });
 })();

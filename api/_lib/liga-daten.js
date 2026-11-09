@@ -5,7 +5,7 @@
 //   liga/daten/ergebnisse/<serie>/<subsession>.json  eingelesene Ergebnisse
 //   liga/daten/privat/<serie>.json    Einstufungen und Strafen
 const crypto = require("crypto");
-const { blobPut, blobGet, blobGetBinaer, blobDelete, blobList } = require("./blob");
+const { blobPut, blobGet, blobGetBinaer, blobDelete, blobList, blobInhalte } = require("./blob");
 const { pruefeRegeln, berechneTabelle } = require("../../assets/liga-wertung.js");
 const { fahrerKennung } = require("./session");
 const { berlinNachUtc, dauerMinuten } = require("./liga-anmeldung");
@@ -147,9 +147,7 @@ const leseJson = async (p) => { const t = await blobGet(p); return t ? JSON.pars
 const schreibe = (p, o) => blobPut(p, JSON.stringify(o), "application/json");
 
 async function ordner(prefix) {
-  const blobs = await blobList(prefix);
-  const liste = await Promise.all(blobs.map(async (b) => { const d = await leseJson(b.pathname); return d ? { id: idAus(b.pathname), ...d } : null; }));
-  return liste.filter(Boolean);
+  return (await blobInhalte(prefix)).map(([pfad, inhalt]) => ({ id: idAus(pfad), ...JSON.parse(inhalt) }));
 }
 
 // Eine Serie läuft automatisch, sobald ihr erstes nicht abgesagtes Rennen gestartet ist. „Beendet“ bleibt immer eine Entscheidung der Rennleitung.
@@ -201,7 +199,7 @@ async function katalog(frisch) {
     return s && s.kartenVersion ? { ...r, streckenBild: { k: `strecke-${s.id}`, v: s.kartenVersion } } : r;
   });
   const serien = serienRoh.map((s) => ({ ...s, status: wirksamerStatus(s, rennen, Date.now()) }));
-  katalogCache = { bis: Date.now() + 20000, wert: { serien, rennen, strecken, einstellungen: einstellungen || {} } };
+  katalogCache = { bis: Date.now() + 60000, wert: { serien, rennen, strecken, einstellungen: einstellungen || {} } };
   return katalogCache.wert;
 }
 const katalogVerwerfen = () => { katalogCache = { bis: 0, wert: null }; };

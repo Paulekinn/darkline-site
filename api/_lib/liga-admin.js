@@ -2,7 +2,7 @@
 const crypto = require("crypto");
 const { getLigaAdminSession, clearLigaAdminSession, fahrerKennung } = require("./session");
 const P = require("./liga-profil");
-const { blobPut, blobGet, blobDelete, blobList } = require("./blob");
+const { blobPut, blobGet, blobDelete, blobList, blobListeDirekt } = require("./blob");
 const A = require("./liga-anmeldung");
 const D = require("./liga-daten");
 const R = require("./liga-reports");
@@ -136,7 +136,7 @@ async function protokollieren(s, b, kat) {
 }
 
 async function protokollLesen() {
-  const alle = (await blobList(PROTOKOLL)).map(leseProtokoll).filter(Boolean).sort((a, b) => b.pfad.localeCompare(a.pfad));
+  const alle = (await blobListeDirekt(PROTOKOLL)).map(leseProtokoll).filter(Boolean).sort((a, b) => b.pfad.localeCompare(a.pfad));
   const alt = alle.slice(MAX_PROTOKOLL).map((e) => e.pfad);
   if (alt.length) await blobDelete(alt).catch((e) => console.error("Liga-Protokoll:", e.message));
   return alle.slice(0, MAX_PROTOKOLL).map(({ pfad, ...e }) => e);
@@ -469,6 +469,8 @@ module.exports = async (req, res) => {
     if (!s) return res.status(200).json({ angemeldet: false });
     if ((req.query || {}).nur === "status") return res.status(200).json({ angemeldet: true });
     if ((req.query || {}).nur === "stand") return res.status(200).json({ angemeldet: true, stand: await R.stand() });
+    // Das Protokoll kostet eine Auflistung und wird deshalb nur beim Öffnen des Bereichs geholt.
+    if ((req.query || {}).nur === "protokoll") return res.status(200).json({ angemeldet: true, protokoll: await protokollLesen().catch(() => []) });
     const kat = await D.katalog(true);
     if ((req.query || {}).akte) {
       const privatJeSerie = await Promise.all(kat.serien.map(async (x) => ({ serieName: x.name, privat: await D.privatLesen(x.id) })));
@@ -480,7 +482,7 @@ module.exports = async (req, res) => {
     }
     const details = D.istId((req.query || {}).serie) && kat.serien.some((x) => x.id === req.query.serie) ? await serienDetails(kat, req.query.serie) : null;
     const reports = (await R.alleReports(true)).map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id) }));
-    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, protokoll: await protokollLesen().catch(() => []), fehlendeErgebnisse: await fehlendeErgebnisse(kat).catch(() => []), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, fehlendeErgebnisse: await fehlendeErgebnisse(kat).catch(() => []), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });

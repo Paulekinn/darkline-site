@@ -11,7 +11,7 @@ module.exports = async (req, res) => {
   // Das iRating dient nur der Einstufung und bleibt bei der Rennleitung.
   if (antwort.tabelle) antwort.fahrerprofile = await P.oeffentlicheProfile();
   if (antwort.tabelle) [...(antwort.tabelle.klassen || []), ...(antwort.tabelle.gesamt || [])].forEach((k) => k.fahrer.forEach((f) => { delete f.irating; }));
-  // Die CDN-Kopie schont den Speicher, Änderungen sind nach spätestens rund einer Minute sichtbar.
-  res.setHeader("Cache-Control", "public, s-maxage=20, stale-while-revalidate=40");
+  // Die CDN-Kopie schont den Speicher, Änderungen sind nach wenigen Minuten sichtbar.
+  res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=120");
   return res.status(200).json(antwort);
 };
