@@ -411,6 +411,8 @@ button.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--
 .liga-plus{color:var(--liga-gruen);font-weight:700}
 .liga-minus{color:var(--liga-rot);font-weight:700}
 .liga-bestzeit{color:var(--liga-lila);font-weight:700}
+/* Titel der Übersicht: wie im Logo ein großes Wort und eine ruhige, gesperrte Unterzeile */
+#liga-titel em{display:block;margin-top:.22em;font-size:.3em;font-style:normal;font-weight:700;font-variation-settings:"wdth" 110;line-height:1.1;letter-spacing:.3em;color:#d6dcd9;-webkit-text-stroke:0;text-shadow:none}
 /* Logo der Darkline Simracing Series */
 .bar .liga-logo img{height:50px}
 @media (max-width:640px){.bar .liga-logo img{height:38px}}
