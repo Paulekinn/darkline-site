@@ -53,7 +53,76 @@ const FUENF = [{ c: 1, n: "A" }, { c: 2, n: "B" }, { c: 3, n: "C" }, { c: 4, n: 
 const TITEL = { ...EINE_KLASSE, punkte: [25, 18, 15, 12, 10], punkteDanach: 0, rennenGesamt: 3, gewerteteRennen: 3 };
 const rennenMit = (anzahl, feld) => Array.from({ length: anzahl }, (_, i) => datei(i + 1, i + 1, feld));
 
+const OHNE_KATEGORIE = { ...OHNE_BONUS, kategorie: "" };
+
 const tests = {
+  "Gesamtwertung: Punkte nach Zieleinlauf statt Summe der Klassenpunkte": () => {
+    const t = tabelle([datei(1, 1, [
+      { c: 1, n: "Pro1", ir: 3000 }, { c: 2, n: "Pro2", ir: 2900 }, { c: 3, n: "Am1", ir: 1000 }, { c: 4, n: "Am2", ir: 900 },
+    ])], OHNE_KATEGORIE);
+    const [g] = t.gesamt;
+    assert.strictEqual(g.name, "Gesamt");
+    assert.deepStrictEqual(g.fahrer.map((f) => [f.name, f.pos, f.punkte]), [["Pro1", 1, 30], ["Pro2", 2, 26], ["Am1", 3, 23], ["Am2", 4, 21]]);
+    assert.strictEqual(fahrer(klasse(t, "am"), "Am1").punkte, 30);
+    assert.deepStrictEqual(g.fahrer[2].klasse, { id: "am", name: "Am" });
+    assert.strictEqual(g.fahrer[2].klassenPos, 1);
+    assert.strictEqual(g.fahrer[3].klassenPos, 2);
+  },
+  "Gesamtwertung: Bonus gilt für die ganze Fahrzeugklasse": () => {
+    const t = tabelle([datei(1, 1, [{ c: 1, n: "Pro", ir: 3000, s: 1, b: 200 }, { c: 2, n: "Am", ir: 1000, s: 0, b: 100 }])], { ...REGELN, kategorie: "" });
+    const [g] = t.gesamt;
+    assert.strictEqual(fahrer(g, "Pro").punkte, 30);
+    assert.strictEqual(fahrer(g, "Am").punkte, 28);
+    assert.strictEqual(fahrer(klasse(t, "pro"), "Pro").punkte, 32);
+  },
+  "Gesamtwertung: je Fahrzeugklasse getrennt, nie gemischt": () => {
+    const t = tabelle([datei(1, 1, [
+      { c: 1, n: "A", ir: 3000, fz: 1, fzn: "GTP" }, { c: 2, n: "B", ir: 1000, fz: 1, fzn: "GTP" }, { c: 3, n: "C", ir: 3000 }, { c: 4, n: "D", ir: 1000 },
+    ])], OHNE_KATEGORIE);
+    assert.deepStrictEqual(t.gesamt.map((g) => g.name), ["GTP Gesamt", "GT3 Gesamt"]);
+    assert.deepStrictEqual(t.gesamt[1].fahrer.map((f) => [f.name, f.punkte]), [["C", 30], ["D", 26]]);
+  },
+  "Gesamtwertung: Strafen und Streichergebnisse gelten auch hier": () => {
+    const privat = { strafen: [{ rennen: "1", cust: "1", punkte: 5 }], disqualifikationen: [{ rennen: "2", cust: "2" }] };
+    const t = tabelle([datei(1, 1, [{ c: 1, n: "A", ir: 3000 }, { c: 2, n: "B", ir: 1000 }]), datei(2, 2, [{ c: 1, n: "A", ir: 3000 }, { c: 2, n: "B", ir: 1000 }])], { ...OHNE_KATEGORIE, rennenGesamt: 2, gewerteteRennen: 1 }, privat);
+    const [g] = t.gesamt;
+    assert.strictEqual(fahrer(g, "A").punkte, 25);
+    assert.strictEqual(fahrer(g, "A").strafpunkte, 5);
+    assert.strictEqual(fahrer(g, "B").rennen[1].status, "DSQ");
+    assert.strictEqual(fahrer(g, "B").punkte, 26);
+  },
+  "Gesamtwertung: entfällt, wenn es nur eine Fahrerklasse gibt": () => {
+    assert.deepStrictEqual(tabelle([datei(1, 1, FUENF)], EINE_KLASSE).gesamt, []);
+  },
+  "Rennergebnis: enthält Start, Ziel, Abstand und beide Wertungen": () => {
+    const [e] = tabelle([datei(1, 1, [
+      { c: 1, n: "A", ir: 3000, s: 1, b: 1000, i: 2, ab: 0 },
+      { c: 2, n: "B", ir: 1000, s: 0, b: 900, i: 1, ab: 25000 },
+      { c: 3, n: "C", ir: 900, s: 2, b: 1100, ab: -1, l: 11 },
+    ])], OHNE_KATEGORIE).rennen[0].ergebnisse;
+    assert.strictEqual(e.fahrzeugklasse, "GT3");
+    const [a, b, c] = e.zeilen;
+    assert.deepStrictEqual([a.name, a.start, a.ziel, a.abstand, a.incidents], ["A", 2, 1, 0, 2]);
+    assert.deepStrictEqual([b.name, b.start, b.ziel, b.abstand, b.besteRunde], ["B", 1, 2, 25000, 900]);
+    assert.strictEqual(b.gesamt.punkte, 26);
+    assert.deepStrictEqual([b.wertung.platz, b.wertung.punkte], [1, 30]);
+    assert.strictEqual(b.klasse, "am");
+    assert.deepStrictEqual([c.abstand, c.runden], [null, 11]);
+    assert.strictEqual(c.klassenPos, 2);
+  },
+  "Rennergebnis: Zeitstrafe verschiebt Platz und Abstand": () => {
+    const privat = { zeitstrafen: [{ rennen: "1", cust: "1", sekunden: 5 }] };
+    const [e] = tabelle([datei(1, 1, [{ c: 1, n: "A", ab: 0 }, { c: 2, n: "B", ab: 10000 }])], EINE_KLASSE, privat).rennen[0].ergebnisse;
+    assert.deepStrictEqual(e.zeilen.map((z) => [z.name, z.ziel, z.abstand, z.zeitstrafe]), [["B", 1, 0, 0], ["A", 2, 40000, 5]]);
+  },
+  "Rennergebnis: Disqualifizierte stehen am Ende ohne Abstand": () => {
+    const [e] = tabelle([datei(1, 1, [{ c: 1, n: "A", out: "Disqualified", ab: 0 }, { c: 2, n: "B", ab: 10000 }])], EINE_KLASSE).rennen[0].ergebnisse;
+    assert.deepStrictEqual(e.zeilen.map((z) => [z.name, z.ziel, z.abstand, z.gesamt.status]), [["B", 1, 0, "OK"], ["A", 2, null, "DSQ"]]);
+  },
+  "Gesamtwertung und Rennergebnis enthalten keine iRacing-IDs": () => {
+    const text = JSON.stringify(tabelle([datei(1, 1, [{ c: 777123, n: "A", ir: 3000 }, { c: 888456, n: "B", ir: 1000 }])], OHNE_KATEGORIE));
+    assert.ok(!text.includes("777123") && !text.includes("888456") && !text.includes('"cust"'));
+  },
   "Titelkampf: Matchball und nötige Plätze stimmen rechnerisch": () => {
     const k = tabelle(rennenMit(2, FUENF), TITEL).klassen[0];
     assert.deepStrictEqual(k.fahrer.map((f) => f.punkte), [50, 36, 30, 24, 20]);

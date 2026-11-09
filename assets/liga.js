@@ -7,7 +7,7 @@
   const zahl = (n) => Number(n).toLocaleString("de-DE");
   const bereich = (k) => (k.max == null ? `ab ${zahl(k.min)}` : k.min === 0 ? `bis ${zahl(k.max)}` : `${zahl(k.min)} bis ${zahl(k.max)}`);
   // Farbe nach Lage der Klasse: oberste rot, unterste grün, dazwischen gelb
-  const farbe = (k) => (k.max == null ? "k-pro" : k.min === 0 ? "k-am" : "k-mid");
+  const farbe = (k) => (k.gesamt ? "k-ges" : k.max == null ? "k-pro" : k.min === 0 ? "k-am" : "k-mid");
   // iRacing liefert die Startzeit in UTC, angezeigt wird der Tag in deutscher Zeit.
   const datum = (s) => { const d = new Date(s); return isNaN(d) ? "" : d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" }); };
   const podium = (p) => (p >= 1 && p <= 3 ? `p${p}` : "");
@@ -186,12 +186,71 @@
     return `<td class="zahl liga-rennen ${podium(r.platz)}${gestrichen}"><b>${r.punkte}</b><small>P${r.platz}${tags}${strafe}</small></td>`;
   }
 
+  const fahrerLink = (klasseId, pos, name) => `<button type="button" class="liga-fahrerlink" data-karte-k="${esc(klasseId)}" data-karte-f="${pos}">${esc(name)}</button>`;
+  // Fahrerklasse als Farbchip, ohne die Fahrzeugklasse doppelt zu nennen
+  function klassenChip(id, k, d) {
+    const gruppe = d.klassen.find((x) => x.id === id);
+    if (!gruppe) return "";
+    return `<span class="liga-klassenchip ${farbe(gruppe)}">${esc(gruppe.name.replace(`${gruppe.fahrzeugklasse} `, ""))}</span>`;
+  }
+
+  /* ---------- Ergebnis eines einzelnen Rennens ---------- */
+  function rennTabelle(k, r, d) {
+    const block = (r.ergebnisse || []).find((e) => e.fahrzeugId === k.fahrzeugId);
+    const zeilen = block ? block.zeilen.filter((z) => k.gesamt || z.klasse === k.id) : [];
+    if (!zeilen.length) return `<div class="liga-scroll ${farbe(k)}"><p class="liga-hinweis">In diesem Rennen ist niemand aus dieser Wertung gestartet.</p></div>`;
+    const wert = (z) => (k.gesamt ? z.gesamt : z.wertung);
+    const startRang = new Map(zeilen.filter((z) => z.start !== null).sort((a, b) => a.start - b.start).map((z, i) => [z, i + 1]));
+    const spitze = zeilen.find((z) => wert(z).status === "OK");
+    const zeiten = zeilen.filter((z) => wert(z).status !== "DSQ" && z.besteRunde !== null).map((z) => z.besteRunde);
+    const bestzeit = zeiten.length ? Math.min(...zeiten) : null;
+    const abstand = (z) => {
+      if (z === spitze) return "Sieger";
+      if (!spitze || wert(z).status === "DSQ") return "–";
+      if (z.abstand !== null && spitze.abstand !== null) return `+${((z.abstand - spitze.abstand) / 10000).toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`;
+      const runden = spitze.runden - z.runden;
+      return runden > 0 ? `+${runden} Rd.` : "–";
+    };
+    const gewinn = (z) => {
+      const w = wert(z);
+      if (w.status !== "OK" || !startRang.has(z)) return '<span class="liga-leerzelle">–</span>';
+      const plaetze = startRang.get(z) - w.platz;
+      return plaetze > 0 ? `<span class="liga-plus">▲${plaetze}</span>` : plaetze < 0 ? `<span class="liga-minus">▼${-plaetze}</span>` : '<span class="liga-leerzelle">=</span>';
+    };
+    const punkte = (z) => {
+      const w = wert(z);
+      const strafe = (z.zeitstrafe ? `<span class="liga-tag minus">+${z.zeitstrafe}s</span>` : "") + (z.strafe ? `<span class="liga-tag minus">−${z.strafe}</span>` : "");
+      if (w.status !== "OK") return `<b><span class="liga-tag aus">${esc(w.status)}</span></b>${strafe ? `<small>${strafe}</small>` : ""}`;
+      const tags = (w.pole ? '<span class="liga-tag pp">PP</span>' : "") + (w.schnellsteRunde ? '<span class="liga-tag sr">SR</span>' : "");
+      return `<b>${w.punkte}</b>${tags || strafe ? `<small>${tags}${strafe}</small>` : ""}`;
+    };
+    const reihen = zeilen.map((z) => {
+      const w = wert(z);
+      return `<tr>
+        <td><span class="liga-fahrer"><span class="liga-pos ${w.status === "OK" ? podium(w.platz) : ""}"><b>${w.status === "OK" ? w.platz : "–"}</b></span>${fahrerLink(z.klasse, z.klassenPos, z.name)}</span></td>
+        ${k.gesamt ? `<td>${klassenChip(z.klasse, k, d)}</td>` : ""}
+        <td class="zahl">${startRang.has(z) ? startRang.get(z) : "–"}</td>
+        <td class="zahl">${gewinn(z)}</td>
+        <td class="zahl">${esc(abstand(z))}</td>
+        <td class="zahl">${z.runden}</td>
+        <td class="zahl${z.besteRunde === bestzeit ? " liga-bestzeit" : ""}">${z.besteRunde === null ? "–" : rundenzeit(z.besteRunde)}</td>
+        <td class="zahl">${z.incidents}x</td>
+        <td class="zahl liga-rennen">${punkte(z)}</td>
+      </tr>`;
+    }).join("");
+    return `<div class="liga-scroll ${farbe(k)}" tabindex="0" role="region" aria-label="Ergebnis ${esc(k.name)}, Rennen ${r.nr}"><table class="liga-tabelle">
+      <thead><tr><th>Fahrer</th>${k.gesamt ? "<th>Klasse</th>" : ""}<th class="zahl">Start</th><th class="zahl">+/−</th><th class="zahl">Abstand</th><th class="zahl">Runden</th><th class="zahl">Beste Runde</th><th class="zahl">Inc</th><th class="zahl">Punkte</th></tr></thead>
+      <tbody>${reihen}</tbody>
+    </table></div>`;
+  }
+
   function tabelle(k, d) {
     if (!k.fahrer.length) return `<div class="liga-scroll ${farbe(k)}"><p class="liga-hinweis">In dieser Klasse ist noch niemand gewertet.</p></div>`;
     const maximal = Math.max(1, ...k.fahrer.map((f) => f.punkte));
     const kopfzeile = d.rennen.map((r) => `<th class="zahl" title="${esc([r.strecke, r.variante].filter(Boolean).join(" · "))}">R${r.nr}<small>${esc(datum(r.start))}</small></th>`).join("");
     const zeilen = k.fahrer.map((f) => `<tr>
-      <td><span class="liga-fahrer"><span class="liga-pos ${podium(f.pos)}"><b>${f.pos}</b></span>${f.karte ? `<button type="button" class="liga-fahrerlink" data-karte-k="${esc(k.id)}" data-karte-f="${f.pos}">${esc(f.name)}</button>` : esc(f.name)}</span></td>
+      <td><span class="liga-fahrer"><span class="liga-pos ${podium(f.pos)}"><b>${f.pos}</b></span>${k.gesamt ? fahrerLink(f.klasse.id, f.klassenPos, f.name) : f.karte ? fahrerLink(k.id, f.pos, f.name) : esc(f.name)}</span></td>
+      ${k.gesamt ? `<td>${klassenChip(f.klasse.id, k, d)}</td>` : ""}
       <td class="zahl">${f.irating === null ? "–" : zahl(f.irating)}</td>
       ${f.rennen.map(zelle).join("")}
       <td class="zahl">${f.siege}</td>
@@ -200,7 +259,7 @@
       <td class="zahl liga-punkte"><b>${f.punkte}</b><span class="liga-balken"><i style="width:${Math.max(0, Math.round((f.punkte / maximal) * 100))}%"></i></span></td>
     </tr>`).join("");
     return `<div class="liga-scroll ${farbe(k)}" tabindex="0" role="region" aria-label="Tabelle ${esc(k.name)}"><table class="liga-tabelle">
-      <thead><tr><th>Fahrer</th><th class="zahl">iRating</th>${kopfzeile}<th class="zahl">Siege</th><th class="zahl">Inc/Runde</th><th class="zahl">Strafe</th><th class="zahl">Punkte</th></tr></thead>
+      <thead><tr><th>Fahrer</th>${k.gesamt ? "<th>Klasse</th>" : ""}<th class="zahl">iRating</th>${kopfzeile}<th class="zahl">Siege</th><th class="zahl">Inc/Runde</th><th class="zahl">Strafe</th><th class="zahl">Punkte</th></tr></thead>
       <tbody>${zeilen}</tbody>
     </table></div>`;
   }
@@ -237,6 +296,7 @@
         <li>Gewertet wird, wer mindestens ${r.mindestRundenProzent} % der Runden des Klassensiegers schafft.</li>
         ${r.gewerteteRennen < r.rennenGesamt ? `<li>Es zählen die besten ${r.gewerteteRennen} von ${r.rennenGesamt} Rennen. Strafpunkte werden immer abgezogen.</li>` : ""}
         <li>Die Klasse richtet sich nach dem iRating zum Start und bleibt danach gleich.</li>
+        ${r.klassen.length > 1 ? "<li>Die Gesamtwertung vergibt eigene Punkte nach dem Zieleinlauf der ganzen Fahrzeugklasse. Die Klassenwertungen bleiben davon unberührt.</li>" : ""}
         <li>Bei Punktgleichheit entscheiden die Anzahl der Siege, dann der zweiten Plätze und so weiter, zuletzt das jüngste Rennen.</li>
       </ul>`;
   }
@@ -394,9 +454,17 @@
     kopf(d, gruppen, regeln);
 
     // Die Tabelle ist das, wofür die meisten kommen, darum steht sie ganz oben.
-    einfuegen(abschnitt("Tabelle", d.saison, "", `<div class="liga-tabs" role="tablist" aria-label="Klasse wählen">${gruppen.map((k) => `<button type="button" class="${farbe(k)}" role="tab" id="tab-${esc(k.id)}" data-k="${esc(k.id)}" aria-controls="liga-tabelle" aria-selected="false">${esc(k.name)}<small>iRating ${esc(bereich(k))}</small></button>`).join("")}</div>
+    // Reiter je Fahrzeugklasse: zuerst Gesamt, dann die Fahrerklassen. Gesamt nur, wenn mindestens zwei Klassen besetzt sind.
+    const alleReiter = !Array.isArray(d.gesamt) || !d.gesamt.length ? gruppen : [...new Set(gruppen.map((k) => k.fahrzeugId))].flatMap((fz) => {
+      const eigene = gruppen.filter((k) => k.fahrzeugId === fz);
+      const gesamt = d.gesamt.find((g) => g.fahrzeugId === fz);
+      return gesamt && eigene.filter((k) => k.fahrer.length).length >= 2 ? [gesamt, ...eigene] : eigene;
+    });
+    const rennenMitErgebnis = d.rennen.filter((r) => Array.isArray(r.ergebnisse) && r.ergebnisse.length);
+    const ansichtWahl = d.rennenGesamt > 1 && rennenMitErgebnis.length ? `<div class="liga-ansicht" role="group" aria-label="Saison oder einzelnes Rennen"><button type="button" data-ansicht="saison" aria-pressed="true">Saison</button>${rennenMitErgebnis.map((r) => `<button type="button" data-ansicht="${r.nr}" aria-pressed="false" title="${esc(r.strecke)}">R${r.nr}</button>`).join("")}</div>` : "";
+    einfuegen(abschnitt("Tabelle", d.saison, "", `${ansichtWahl}<div class="liga-tabs" role="tablist" aria-label="Wertung wählen">${alleReiter.map((k) => `<button type="button" class="${farbe(k)}" role="tab" id="tab-${esc(k.id)}" data-k="${esc(k.id)}" aria-controls="liga-tabelle" aria-selected="false">${esc(k.name)}<small>${k.gesamt ? "Alle Klassen" : `iRating ${esc(bereich(k))}`}</small></button>`).join("")}</div>
       <div id="liga-tabelle" role="tabpanel"></div>
-      <p class="liga-legende"><span><b style="color:var(--liga-gold)">Gold</b>, <b style="color:var(--liga-silber)">Silber</b>, <b style="color:var(--liga-bronze)">Bronze</b> = Podium</span><span><b class="liga-tag pp">PP</b> = Pole</span><span><b class="liga-tag sr">SR</b> = schnellste Runde</span><span><b class="liga-tag aus">DNF</b> = nicht gewertet</span><span><b class="liga-tag aus">DSQ</b> = disqualifiziert</span><span>Durchgestrichen = Streichergebnis</span></p>`, "liga-tabelle-bereich"));
+      <p class="liga-legende" id="liga-legende"><span><b style="color:var(--liga-gold)">Gold</b>, <b style="color:var(--liga-silber)">Silber</b>, <b style="color:var(--liga-bronze)">Bronze</b> = Podium</span><span><b class="liga-tag pp">PP</b> = Pole</span><span><b class="liga-tag sr">SR</b> = schnellste Runde</span><span><b class="liga-tag aus">DNF</b> = nicht gewertet</span><span><b class="liga-tag aus">DSQ</b> = disqualifiziert</span><span>Durchgestrichen = Streichergebnis</span></p>`, "liga-tabelle-bereich"));
 
     // Letztes Rennen zuerst, ältere Berichte über die Rennnummern
     const berichte = d.rennen.filter((r) => Array.isArray(r.bericht) && r.bericht.length);
@@ -422,16 +490,27 @@
     einfuegen(`<section class="sheet"><div class="wrap liga-zwei">${block("Rennen", `${d.rennen.length} gefahren`, rennkarten(d, besetzt))}${regelnGueltig ? block("Regeln", "Punkte und Klassen", regelnHtml(regeln)) : ""}</div></section>`);
 
     const reiter = [...document.querySelectorAll(".liga-tabs button")];
-    const waehle = (id) => {
-      reiter.forEach((b) => b.setAttribute("aria-selected", String(b.dataset.k === id)));
-      $("liga-tabelle").innerHTML = tabelle(gruppen.find((k) => k.id === id), d);
+    const ansichtKnoepfe = [...document.querySelectorAll("[data-ansicht]")];
+    // Ein einzelnes Event hat keine Saison, dort zählt nur das Rennergebnis.
+    let ansicht = d.rennenGesamt === 1 && rennenMitErgebnis.length ? String(rennenMitErgebnis[0].nr) : "saison";
+    let aktiv = (alleReiter.find((k) => k.fahrer.length) || alleReiter[0]).id;
+    const zeichne = () => {
+      const k = alleReiter.find((x) => x.id === aktiv);
+      const r = ansicht === "saison" ? null : rennenMitErgebnis.find((x) => String(x.nr) === ansicht);
+      reiter.forEach((b) => b.setAttribute("aria-selected", String(b.dataset.k === aktiv)));
+      ansichtKnoepfe.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.ansicht === ansicht)));
+      $("liga-tabelle").innerHTML = r ? `<p class="liga-renninfo"><b>R${r.nr}</b>${esc([r.strecke, r.variante, datum(r.start)].filter(Boolean).join(" · "))}</p>${rennTabelle(k, r, d)}` : tabelle(k, d);
+      $("liga-legende").style.display = r ? "none" : "";
     };
+    const waehle = (id) => { aktiv = id; zeichne(); };
     reiter.forEach((b) => b.addEventListener("click", () => waehle(b.dataset.k)));
+    ansichtKnoepfe.forEach((b) => b.addEventListener("click", () => { ansicht = b.dataset.ansicht; zeichne(); }));
     document.querySelectorAll(".liga-karte").forEach((b) => b.addEventListener("click", () => {
+      ansicht = d.rennenGesamt === 1 && rennenMitErgebnis.length ? ansicht : "saison";
       waehle(b.dataset.k);
       $("liga-tabelle-bereich").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion:reduce)").matches ? "auto" : "smooth" });
     }));
-    waehle((besetzt[0] || gruppen[0]).id);
+    zeichne();
     fahrerDialog(besetzt, regeln, d);
   }
 

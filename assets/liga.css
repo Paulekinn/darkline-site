@@ -400,3 +400,15 @@ button.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--
 /* Fahrzeugklasse im Rennbericht */
 .liga-bericht-zeile{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
 .liga-bericht-klasse{padding:6px 13px;background:var(--ink);color:#08090a;font:900 1.05rem/1 var(--f-wide);font-variation-settings:"wdth" 112;text-transform:uppercase;transform:skewX(-10deg);white-space:nowrap}
+/* Gesamtwertung und Rennergebnis */
+.k-ges{--k:var(--ink)}
+.liga-ansicht{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.liga-ansicht button{min-width:44px;padding:8px 11px;background:var(--paper);border:0;color:var(--muted);font:800 .78rem/1 var(--f-wide);text-transform:uppercase;cursor:pointer;transform:skewX(-10deg)}
+.liga-ansicht button:hover{color:var(--ink)}
+.liga-ansicht button[aria-pressed="true"]{background:var(--liga-gold);color:#17120a}
+.liga-ansicht button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.liga-renninfo{display:flex;flex-wrap:wrap;align-items:baseline;gap:9px;margin:10px 0;font:.86rem/1.3 var(--f-mono);color:var(--muted)}
+.liga-renninfo b{font:900 1.05rem/1 var(--f-wide);color:var(--ink)}
+.liga-plus{color:var(--liga-gruen);font-weight:700}
+.liga-minus{color:var(--liga-rot);font-weight:700}
+.liga-bestzeit{color:var(--liga-lila);font-weight:700}
