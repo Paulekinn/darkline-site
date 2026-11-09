@@ -2,7 +2,7 @@
 //   liga/daten/reports/<id>.json                     Vorfall, Status, interne Notizen, Urteil
 //   liga/daten/einsprueche/<report>/<discordId>.json Einspruch eines Beteiligten
 const crypto = require("crypto");
-const { blobPut, blobGet, blobList } = require("./blob");
+const { blobPut, blobGet, blobDelete, blobList } = require("./blob");
 const D = require("./liga-daten");
 const A = require("./liga-anmeldung");
 const { Hinweis } = D;
@@ -121,6 +121,22 @@ async function einspruchSpeichern(reportId, discordId, inhalt) {
 }
 const neueId = () => `${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
 
+// Kurzer Fingerabdruck für die Rennleitung: ändert sich bei jedem neuen oder geänderten Report. Braucht nur zwei Abfragen.
+async function stand() {
+  const dateien = (await Promise.all([blobList(R), blobList(E)])).flat();
+  return `${dateien.length}:${dateien.map((b) => b.uploadedAt).sort().pop() || ""}`;
+}
+
+// Löscht alle Reports und Einsprüche einer Serie.
+async function derSerieLoeschen(serieId) {
+  verwerfen();
+  const betroffen = (await alleReports(true)).filter((r) => r.serie === serieId).map((r) => r.id);
+  if (!betroffen.length) return;
+  const einsprueche = (await blobList(E)).map((b) => b.pathname).filter((p) => betroffen.includes(p.split("/").slice(-2)[0]));
+  await blobDelete([...betroffen.map((id) => `${R}${id}.json`), ...einsprueche]);
+  verwerfen();
+}
+
 // Optionale kurze Meldung im Discord-Kanal. Details stehen nur im Fahrerbereich, niemand wird angepingt.
 async function discordMelden(report, urteil) {
   const url = process.env.LIGA_DISCORD_WEBHOOK;
@@ -133,4 +149,4 @@ async function discordMelden(report, urteil) {
   }
 }
 
-module.exports = { MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden };
+module.exports = { stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden };

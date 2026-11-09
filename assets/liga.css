@@ -420,6 +420,7 @@ button.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--
 /* Logo der Darkline Simracing Series */
 .bar .liga-logo img{height:50px}
 @media (max-width:640px){.bar .liga-logo img{height:38px}}
+.liga-feature-karte{display:block;width:100%;max-height:150px;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(0,0,0,.7))}
 /* Fahrerkarte: Bild, Nummer, Flagge */
 a.liga-fk{cursor:pointer;color:var(--ink)}
 a.liga-fk:hover{transform:translateY(-4px)}

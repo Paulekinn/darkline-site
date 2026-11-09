@@ -98,7 +98,7 @@ function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, ser
         // In einer beendeten Serie ändert sich nichts mehr. Ist nur die Anmeldung der Serie zu, kann man sich noch abmelden.
         offen: !abgesagt && serie.status !== "beendet" && jetzt < schlussMs,
         anmeldungZu: serie.anmeldungOffen === false,
-        strecke: r.strecke || "", fahrzeuge: r.fahrzeuge || "", fahrzeugklassen: serie.fahrzeugklassen || [], plaetze: r.plaetze || 0,
+        strecke: r.strecke || "", streckenBild: r.streckenBild || null, fahrzeuge: r.fahrzeuge || "", fahrzeugklassen: serie.fahrzeugklassen || [], plaetze: r.plaetze || 0,
         training: r.training || "", qualifying: r.qualifying || "", renndauer: r.renndauer || "", wetter: r.wetter || "", server: r.server || "", briefing: r.briefing || "",
         starter: starter.map(oeffentlich), warteliste: warteliste.map(oeffentlich),
         ich: eigen ? { status: iS >= 0 ? "starter" : "warteliste", platz: (iS >= 0 ? iS : iW) + 1, fahrzeugklasse: eigen.fahrzeugklasse, quelle: eigen.typ, ...(mitIds ? { discordId } : {}) } : null,

@@ -8,6 +8,7 @@ const crypto = require("crypto");
 const { blobPut, blobGet, blobGetBinaer, blobDelete, blobList } = require("./blob");
 const { pruefeRegeln, berechneTabelle } = require("../../assets/liga-wertung.js");
 const { fahrerKennung } = require("./session");
+const { gueltig: landGueltig } = require("../../assets/liga-flaggen.js");
 
 const WURZEL = "liga/daten/";
 const ID = /^[a-z0-9][a-z0-9-]{0,79}$/;
@@ -80,10 +81,23 @@ function pruefeRennen(e, serienIds) {
   if (!/^\d{1,2}:\d{2}$/.test(String(e.startzeit || "").trim())) throw new Hinweis("Bitte gib die Startzeit als 20:00 an.");
   return {
     titel, serie: e.serie, status: e.status === "abgesagt" ? "abgesagt" : "geplant", datum: e.datum, startzeit: String(e.startzeit).trim(),
-    strecke: text(e.strecke, 80), fahrzeuge: text(e.fahrzeuge, 80), plaetze: ganzzahl(e.plaetze, "Startplätze", 1, 200),
+    strecke: text(e.strecke, 80), streckeId: istId(e.streckeId) ? e.streckeId : "", fahrzeuge: text(e.fahrzeuge, 80), plaetze: ganzzahl(e.plaetze, "Startplätze", 1, 200),
     training: text(e.training, 20), qualifying: text(e.qualifying, 20), renndauer: text(e.renndauer, 20), wetter: text(e.wetter, 60), server: text(e.server, 60),
     passwort: text(e.passwort, 60), briefing: text(e.briefing, 10000),
   };
+}
+
+// Prüft eine Strecke aus der Streckenbibliothek. Länge und Kurven sind freiwillig.
+function pruefeStrecke(e) {
+  const name = text(e.name, 80);
+  if (name.length < 2) throw new Hinweis("Bitte gib der Strecke einen Namen.");
+  const land = String(e.land || "");
+  if (land && !landGueltig(land)) throw new Hinweis("Bitte wähle ein Land aus der Liste.");
+  const laengeText = String(e.laengeKm ?? "").trim().replace(",", ".");
+  const laengeKm = laengeText ? Number(laengeText) : null;
+  if (laengeKm !== null && !(laengeKm > 0 && laengeKm <= 50)) throw new Hinweis("Bitte gib die Länge in Kilometern an, zum Beispiel 7,004.");
+  const kurvenText = String(e.kurven ?? "").trim();
+  return { name, variante: text(e.variante, 60), land, laengeKm, kurven: kurvenText ? ganzzahl(kurvenText, "Kurven", 1, 200) : null, notiz: text(e.notiz, 300) };
 }
 
 // Gleicht ein Ergebnis mit den Anmeldungen ab. Gewertet und gespeichert werden nur gemeldete Fahrer und ausdrücklich zugelassene Gäste.
@@ -137,8 +151,13 @@ async function ordner(prefix) {
 let katalogCache = { bis: 0, wert: null };
 async function katalog(frisch) {
   if (!frisch && katalogCache.wert && katalogCache.bis > Date.now()) return katalogCache.wert;
-  const [serien, rennen, einstellungen] = await Promise.all([ordner(`${WURZEL}serien/`), ordner(`${WURZEL}rennen/`), leseJson(`${WURZEL}einstellungen.json`)]);
-  katalogCache = { bis: Date.now() + 20000, wert: { serien, rennen, einstellungen: einstellungen || {} } };
+  const [serien, rennenRoh, strecken, einstellungen] = await Promise.all([ordner(`${WURZEL}serien/`), ordner(`${WURZEL}rennen/`), ordner(`${WURZEL}strecken/`), leseJson(`${WURZEL}einstellungen.json`)]);
+  // Streckenkarte direkt am Rennen, damit jede Ansicht sie ohne weiteren Abruf zeigen kann
+  const rennen = rennenRoh.map((r) => {
+    const s = r.streckeId && strecken.find((x) => x.id === r.streckeId);
+    return s && s.kartenVersion ? { ...r, streckenBild: { k: `strecke-${s.id}`, v: s.kartenVersion } } : r;
+  });
+  katalogCache = { bis: Date.now() + 20000, wert: { serien, rennen, strecken, einstellungen: einstellungen || {} } };
   return katalogCache.wert;
 }
 const katalogVerwerfen = () => { katalogCache = { bis: 0, wert: null }; };
@@ -153,6 +172,13 @@ const serieSpeichern = (id, d) => { katalogVerwerfen(); return schreibe(`${WURZE
 const rennenSpeichern = (id, d) => { katalogVerwerfen(); return schreibe(`${WURZEL}rennen/${brauchtId(id)}.json`, d); };
 const serieLoeschen = (id) => { katalogVerwerfen(); return blobDelete([`${WURZEL}serien/${brauchtId(id)}.json`]); };
 const rennenLoeschen = (id) => { katalogVerwerfen(); return blobDelete([`${WURZEL}rennen/${brauchtId(id)}.json`]); };
+const streckeSpeichern = (id, d) => { katalogVerwerfen(); return schreibe(`${WURZEL}strecken/${brauchtId(id)}.json`, d); };
+const streckeLoeschen = (id) => { katalogVerwerfen(); return blobDelete([`${WURZEL}strecken/${brauchtId(id)}.json`]); };
+// Löscht Ergebnisse, Tabelle sowie Einstufungen und Strafen einer Serie.
+async function serieDatenLoeschen(id) {
+  const ergebnisse = (await blobList(`${WURZEL}ergebnisse/${brauchtId(id)}/`)).map((b) => b.pathname);
+  await blobDelete([...ergebnisse, `${WURZEL}tabellen/${id}.json`, `${WURZEL}privat/${id}.json`]);
+}
 
 const tabelleLesen = (serie) => leseJson(`${WURZEL}tabellen/${brauchtId(serie)}.json`);
 const privatLesen = async (serie) => (await leseJson(`${WURZEL}privat/${brauchtId(serie)}.json`)) || { einstufung: {}, strafen: [] };
@@ -173,4 +199,4 @@ async function tabelleNeu(serie, regeln, ergebnisse) {
   return warnungen;
 }
 
-module.exports = { pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };
+module.exports = { pruefeStrecke, streckeSpeichern, streckeLoeschen, serieDatenLoeschen, pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };

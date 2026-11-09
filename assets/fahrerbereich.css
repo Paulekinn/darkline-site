@@ -126,6 +126,8 @@
 .fb-haupt-kicker{margin-bottom:8px;color:var(--liga-gelb)}
 .fb-titel{margin:10px 0 0;font:900 clamp(1.5rem,3.4vw,2.5rem)/1.04 var(--f-wide);font-variation-settings:"wdth" 116;text-transform:uppercase;overflow-wrap:anywhere}
 .fb-unter{margin:7px 0 0;font-size:.92rem;color:#d6dcd9}
+.fb-haupt-rechts{flex:none;display:grid;gap:8px;justify-items:end}
+.fb-streckenkarte{display:block;width:210px;max-width:100%;max-height:130px;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(0,0,0,.7))}
 .fb-countdown{flex:none;display:flex;gap:4px}
 .fb-countdown span{display:grid;justify-items:center;gap:4px;min-width:62px;padding:10px 6px;background:color-mix(in srgb,var(--black) 86%,transparent);border-bottom:3px solid var(--s)}
 .fb-countdown b{font:900 1.7rem/1 var(--f-wide);font-variant-numeric:tabular-nums}

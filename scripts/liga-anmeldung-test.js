@@ -134,6 +134,25 @@ const tests = {
     assert.deepStrictEqual(A.eigeneKarten(serien, kartenTabelle(), "Tom Muster"), []);
     assert.deepStrictEqual(A.eigeneKarten(serien, kartenTabelle(), "Niemand"), []);
   },
+  "Strecke: gültige Angaben werden vereinheitlicht": () => {
+    assert.deepStrictEqual(D.pruefeStrecke({ name: " Spa ", variante: "GP", land: "BE", laengeKm: "7,004", kurven: "20", notiz: "" }), { name: "Spa", variante: "GP", land: "BE", laengeKm: 7.004, kurven: 20, notiz: "" });
+    assert.deepStrictEqual(D.pruefeStrecke({ name: "Monza" }), { name: "Monza", variante: "", land: "", laengeKm: null, kurven: null, notiz: "" });
+  },
+  "Strecke: ungültige Angaben werden abgelehnt": () => {
+    assert.throws(() => D.pruefeStrecke({ name: "x" }), /Namen/);
+    assert.throws(() => D.pruefeStrecke({ name: "Spa", land: "XX" }), /Land/);
+    assert.throws(() => D.pruefeStrecke({ name: "Spa", laengeKm: "viel" }), /Kilometern/);
+    assert.throws(() => D.pruefeStrecke({ name: "Spa", laengeKm: "0" }), /Kilometern/);
+    assert.throws(() => D.pruefeStrecke({ name: "Spa", kurven: "0" }), /Kurven/);
+  },
+  "Rennen: Streckenkarte und gültige Strecken-Kennung werden übernommen": () => {
+    const basis = { titel: "Runde 1", serie: "gt3", datum: "2026-12-10", startzeit: "20:00", plaetze: 30 };
+    assert.strictEqual(D.pruefeRennen({ ...basis, streckeId: "spa-gp" }, ["gt3"]).streckeId, "spa-gp");
+    assert.strictEqual(D.pruefeRennen({ ...basis, streckeId: "../boese" }, ["gt3"]).streckeId, "");
+    const r = A.baueRennen([{ ...SERIENRENNEN, streckenBild: { k: "strecke-spa", v: 5 } }], [], OPT)[0];
+    assert.deepStrictEqual(r.streckenBild, { k: "strecke-spa", v: 5 });
+    assert.strictEqual(A.baueRennen([SERIENRENNEN], [], OPT)[0].streckenBild, null);
+  },
   "Anmeldung: in einer beendeten Serie ist kein Rennen mehr offen": () => {
     const r = A.baueRennen([SERIENRENNEN], [], { ...OPT, serien: { gt3: { name: "GT3", status: "beendet" } } })[0];
     assert.strictEqual(r.offen, false);

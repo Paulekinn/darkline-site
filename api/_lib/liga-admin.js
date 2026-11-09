@@ -64,6 +64,15 @@ async function neuBerechnen(kat, id) {
   return D.tabelleNeu(id, serieFinden(kat, id), await D.ergebnisseLesen(id));
 }
 
+// Bildziel „strecke:<id>“ führt zu einer Strecke der Bibliothek.
+function streckeZiel(kat, ziel) {
+  const m = /^strecke:(.+)$/.exec(String(ziel || ""));
+  if (!m) return null;
+  const strecke = kat.strecken.find((s) => s.id === m[1]);
+  if (!strecke) throw new Hinweis("Diese Strecke gibt es nicht.");
+  return strecke;
+}
+
 const aktionen = {
   async "serie-speichern"(b, kat) {
     const daten = D.pruefeSerie(b.serie || {});
@@ -82,20 +91,63 @@ const aktionen = {
     return { id };
   },
   async "serie-loeschen"(b, kat) {
-    serieFinden(kat, b.id);
-    if (kat.rennen.some((r) => r.serie === b.id)) throw new Hinweis("Diese Serie hat noch Rennen. Lösche zuerst die Rennen oder setze die Serie auf „Beendet“.");
-    const alle = await eintraege();
-    if (alle.some((e) => e.typ === "serie" && e.serieId === b.id)) throw new Hinweis("In dieser Serie sind noch Fahrer gemeldet. Setze sie stattdessen auf „Beendet“.");
-    if ((await D.ergebnisseLesen(b.id)).length) throw new Hinweis("Diese Serie hat bereits Ergebnisse. Setze sie stattdessen auf „Beendet“.");
+    const serie = serieFinden(kat, b.id);
+    const rennen = kat.rennen.filter((r) => r.serie === b.id);
+    const ids = new Set(rennen.map((r) => r.id));
+    const meldungen = (await eintraege()).filter((e) => (e.typ === "serie" && e.serieId === b.id) || (e.typ !== "serie" && ids.has(e.rennenId)));
+    const hatDaten = rennen.length || meldungen.length || (await D.ergebnisseLesen(b.id)).length;
+    if (hatDaten && serie.status !== "beendet") throw new Hinweis("Diese Serie hat noch Rennen, Meldungen oder Ergebnisse. Setze sie zuerst auf „Beendet“, dann lässt sie sich komplett löschen.");
+    if (hatDaten && b.bestaetigung !== serie.name) throw new Hinweis("Bitte bestätige das Löschen mit dem genauen Namen der Serie.");
+    if (meldungen.length) await blobDelete(meldungen.map((e) => e.pfad));
+    await Promise.all(rennen.map((r) => D.rennenLoeschen(r.id)));
+    await R.derSerieLoeschen(b.id);
+    await D.serieDatenLoeschen(b.id);
     await D.serieLoeschen(b.id);
-    if (serieFinden(kat, b.id).bildVersion) await D.bildLoeschen(`serie-${b.id}`);
+    if (serie.bildVersion) await D.bildLoeschen(`serie-${b.id}`);
     return {};
+  },
+  async "strecke-speichern"(b, kat) {
+    const daten = D.pruefeStrecke(b.strecke || {});
+    let id = b.id;
+    if (id) {
+      const bisher = kat.strecken.find((s) => s.id === id);
+      if (!bisher) throw new Hinweis("Diese Strecke gibt es nicht.");
+      if (bisher.kartenVersion) daten.kartenVersion = bisher.kartenVersion;
+    } else {
+      id = D.slug([daten.name, daten.variante].filter(Boolean).join(" "));
+      if (!D.istId(id)) throw new Hinweis("Dieser Name ergibt keine gültige Kennung.");
+      if (kat.strecken.some((s) => s.id === id)) throw new Hinweis("Diese Strecke gibt es schon.");
+    }
+    await D.streckeSpeichern(id, daten);
+    return { id };
+  },
+  // Geplante Rennen behalten den Streckennamen, nur die Karte entfällt.
+  async "strecke-loeschen"(b, kat) {
+    const strecke = kat.strecken.find((s) => s.id === b.id);
+    if (!strecke) throw new Hinweis("Diese Strecke gibt es nicht.");
+    await D.streckeLoeschen(b.id);
+    if (strecke.kartenVersion) await D.bildLoeschen(`strecke-${b.id}`);
+    return {};
+  },
+  // Legt alle Rennen einer Saison auf einmal an. Erst wenn jede Zeile gültig ist, wird gespeichert.
+  async "saison-planen"(b, kat) {
+    serieFinden(kat, b.serie);
+    const liste = Array.isArray(b.rennen) ? b.rennen : [];
+    if (!liste.length || liste.length > 60) throw new Hinweis("Bitte plane zwischen 1 und 60 Rennen auf einmal.");
+    const daten = liste.map((r) => D.pruefeRennen({ ...r, serie: b.serie }, kat.serien.map((s) => s.id)));
+    await Promise.all(daten.map((r) => D.rennenSpeichern(D.neueRennenId(r), r)));
+    return { anzahl: daten.length };
   },
   // ziel ist „uebersicht“ für das Titelbild der Liga oder die Kennung einer Serie
   async "bild-speichern"(b, kat) {
     const buf = D.pruefeBild(b.daten);
     const version = Date.now();
-    if (b.ziel === "uebersicht") {
+    const strecke = streckeZiel(kat, b.ziel);
+    if (strecke) {
+      const { id, ...daten } = strecke;
+      await D.bildSpeichern(`strecke-${id}`, buf);
+      await D.streckeSpeichern(id, { ...daten, kartenVersion: version });
+    } else if (b.ziel === "uebersicht") {
       await D.bildSpeichern("uebersicht", buf);
       await D.einstellungenSpeichern({ ...kat.einstellungen, kopfbildVersion: version });
     } else {
@@ -106,7 +158,12 @@ const aktionen = {
     return { version };
   },
   async "bild-loeschen"(b, kat) {
-    if (b.ziel === "uebersicht") {
+    const strecke = streckeZiel(kat, b.ziel);
+    if (strecke) {
+      const { id, kartenVersion, ...daten } = strecke;
+      await D.bildLoeschen(`strecke-${id}`);
+      await D.streckeSpeichern(id, daten);
+    } else if (b.ziel === "uebersicht") {
       await D.bildLoeschen("uebersicht");
       const { kopfbildVersion, ...rest } = kat.einstellungen;
       await D.einstellungenSpeichern(rest);
@@ -126,8 +183,9 @@ const aktionen = {
   },
   async "rennen-loeschen"(b, kat) {
     if (!kat.rennen.some((r) => r.id === b.id)) throw new Hinweis("Dieses Rennen gibt es nicht.");
-    const alle = await eintraege();
-    if (alle.some((e) => e.typ === "rennen" && e.rennenId === b.id)) throw new Hinweis("Für dieses Rennen gibt es Einzelmeldungen. Setze es stattdessen auf „Abgesagt“.");
+    // Einzelmeldungen und Abmeldungen gehören zum Rennen und gehen mit. Eingelesene Ergebnisse sind getrennt gespeichert und bleiben.
+    const meldungen = (await eintraege()).filter((e) => e.typ !== "serie" && e.rennenId === b.id);
+    if (meldungen.length) await blobDelete(meldungen.map((e) => e.pfad));
     await D.rennenLoeschen(b.id);
     return {};
   },
@@ -257,10 +315,11 @@ module.exports = async (req, res) => {
   if (req.method === "GET") {
     if (!s) return res.status(200).json({ angemeldet: false });
     if ((req.query || {}).nur === "status") return res.status(200).json({ angemeldet: true });
+    if ((req.query || {}).nur === "stand") return res.status(200).json({ angemeldet: true, stand: await R.stand() });
     const kat = await D.katalog(true);
     const details = D.istId((req.query || {}).serie) && kat.serien.some((x) => x.id === req.query.serie) ? await serienDetails(kat, req.query.serie) : null;
     const reports = (await R.alleReports(true)).map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id) }));
-    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });

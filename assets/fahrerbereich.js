@@ -93,7 +93,7 @@
       <div class="fb-haupt-bild" ${motiv(rennBild(r))} aria-hidden="true"></div>
       <div class="fb-haupt-kopf">
         <div><div class="lbl fb-haupt-kicker">${r.id === auswahl ? "Ausgewähltes Rennen" : r.ich ? "Dein nächster Start" : "Nächstes Rennen"}</div><div class="fb-tags">${serienTag(r)}${statusChip(r)}</div><h3 class="fb-titel">${esc(r.titel)}</h3><p class="fb-unter">${esc([r.strecke, datum(r.start), uhr(r.start)].filter(Boolean).join(" · "))}</p></div>
-        <div class="fb-countdown" data-start="${esc(r.start)}" aria-hidden="true"></div>
+        <div class="fb-haupt-rechts"><div class="fb-countdown" data-start="${esc(r.start)}" aria-hidden="true"></div>${r.streckenBild ? `<img class="fb-streckenkarte" src="api/liga?r=bild&k=${encodeURIComponent(r.streckenBild.k)}&v=${encodeURIComponent(r.streckenBild.v)}" alt="Streckenkarte ${esc(r.strecke)}" loading="lazy">` : ""}</div>
       </div>
       ${ablauf(r)}
       ${konflikt}

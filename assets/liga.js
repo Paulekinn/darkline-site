@@ -570,6 +570,7 @@
     return `<aside class="liga-feature ${farbeSerie(s)}">
       <div class="liga-feature-kopf"><span class="lbl">Nächstes Rennen</span><span class="liga-poster-kopf">${artBadge(s.typ)}<span class="liga-pill farbig">${esc(s.name)}</span></span></div>
       <h2>${esc(r.strecke || r.titel)}</h2>
+      ${r.streckenBild ? `<img class="liga-feature-karte" src="api/liga?r=bild&k=${encodeURIComponent(r.streckenBild.k)}&v=${encodeURIComponent(r.streckenBild.v)}" alt="Streckenkarte ${esc(r.strecke)}" loading="lazy">` : ""}
       <p>${esc(terminText(r))} Uhr${r.strecke && r.titel !== r.strecke ? ` · ${esc(r.titel)}` : ""}</p>
       ${start ? `<div class="liga-countdown" data-countdown="${start}" aria-hidden="true"></div>` : ""}
       <div class="liga-serie-aktion">${serienAktion(s)}<a class="liga-mini zweit" href="${serienLink(s)}">Zur Serie</a></div>
