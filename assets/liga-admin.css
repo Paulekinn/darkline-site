@@ -97,6 +97,18 @@ a.a-knopf{text-decoration:none}
 .a-zwei{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
 .a-liste{display:grid;gap:6px}
 .a-rechts{margin-left:auto}
+.a-fahrer{display:flex;align-items:center;gap:9px;min-width:210px}
+.a-fahrer>div{min-width:0}
+.a-fahrer b{display:block;font:800 .88rem/1.2 var(--a-breit)}
+.a-fahrer small{display:block;margin-top:2px;font:.68rem/1.2 var(--a-mono);color:var(--a-leise)}
+.a-avatar{flex:none;width:34px;height:34px;object-fit:cover;clip-path:polygon(12% 0,100% 0,88% 100%,0 100%);background:var(--a-flaeche2)}
+.a-avatar.leer{display:grid;place-items:center;font:900 .86rem/1 var(--a-breit);color:var(--a-leise)}
+.a-nr{color:var(--a-gold)}
+.a-fz{flex:none;margin-left:auto;padding:3px 7px;background:color-mix(in srgb,var(--fz) 20%,var(--a-flaeche));border-left:3px solid var(--fz);color:var(--fz);font:800 .68rem/1.2 var(--a-breit);text-transform:uppercase;white-space:nowrap}
+.a-namen .a-fz{margin-left:0}
+.a-namen li span:first-of-type{flex:1}
+.a-suche{flex:1 1 220px;width:auto;max-width:340px;margin-left:auto;padding:7px 10px}
+tr[hidden]{display:none}
 .a-karte-info{border-top-color:var(--a-gelb)}
 .a-abschluss{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 14px;padding:10px 12px;background:var(--a-flaeche2);border-left:4px solid var(--s)}
 .a-abschluss span{display:grid;gap:3px;min-width:0}

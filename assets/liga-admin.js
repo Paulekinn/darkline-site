@@ -35,6 +35,7 @@
   let planer = null;      // Saisonplaner, solange er offen ist
   let rennenFilter = "alle";
   let serienReiter = "liga"; // "liga", "event", "archiv" oder "bild"
+  let fahrerFilter = "alle";
   let akte = null;        // geöffnete Fahrer-Akte: { name, daten }
   let neuSeit = null;     // Zeitpunkt, bis zu dem Reports beim Öffnen des Bereichs schon bekannt waren
   let zugelassen = [];    // iRacing-IDs nicht gemeldeter Fahrer, die als Gast gewertet werden sollen
@@ -511,23 +512,52 @@
   }
 
   /* ---------- Fahrer ---------- */
+  // Farben der Fahrzeugklassen an einer Stelle, unbekannte Klassen bekommen immer dieselbe Farbe aus der Reihe.
+  const FAHRZEUG_FARBEN = { GTP: "#ff4a54", LMP2: "#62bdff", LMP3: "#2fd6c3", GT3: "#ffb020", GTD: "#ffb020", GT4: "#3fd277", TCR: "#c58bff" };
+  const FAHRZEUG_REIHE = ["#62bdff", "#c58bff", "#2fd6c3", "#ffb020", "#3fd277", "#ff8a4c"];
+  function fahrzeugChip(name) {
+    if (!name) return "";
+    const schluessel = String(name).toUpperCase().replace(/\s+/g, "");
+    const treffer = Object.keys(FAHRZEUG_FARBEN).find((k) => schluessel.startsWith(k));
+    const farbe = treffer ? FAHRZEUG_FARBEN[treffer] : FAHRZEUG_REIHE[[...schluessel].reduce((t, c) => t + c.charCodeAt(0), 0) % FAHRZEUG_REIHE.length];
+    return `<span class="a-fz" style="--fz:${farbe}">${esc(name)}</span>`;
+  }
+  const abweichung = (f) => f.iratingAngabe !== null && f.iratingErgebnis !== null && Math.abs(f.iratingAngabe - f.iratingErgebnis) > 150;
+
+  function fahrerZeile(f, serie) {
+    const klassenOption = (auto, fest) => `<option value="">Automatisch${auto ? ` (${esc((serie.klassen.find((k) => k.id === auto) || {}).name || auto)})` : ""}</option>${serie.klassen.map((k) => `<option value="${esc(k.id)}"${k.id === fest ? " selected" : ""}>${esc(k.name)}</option>`).join("")}`;
+    const bild = f.bild && f.pid ? `<img class="a-avatar" src="${esc(window.LigaKarte.avatarVon(f.pid, f.bild))}" alt="" width="34" height="34" loading="lazy">` : `<span class="a-avatar leer" aria-hidden="true">${esc(String(f.name).trim().charAt(0).toUpperCase())}</span>`;
+    const klasse = f.custId && !serie.ohneKlassen ? `<select data-einstufung="${esc(f.custId)}" aria-label="Klasse von ${esc(f.name)}">${klassenOption(f.klasseAuto, f.klasseFest)}</select>` : "–";
+    const abw = abweichung(f);
+    return `<tr data-suche="${esc(`${f.name} ${f.custId} ${f.team || ""} ${f.nummer || ""}`.toLowerCase())}">
+      <td><div class="a-fahrer">${bild}<div><b>${f.nummer ? `<span class="a-nr">#${esc(f.nummer)}</span> ` : ""}${window.LigaKarte.flagge(f.land)}${esc(f.name)}</b>${f.team ? `<small>${esc(f.team)}</small>` : ""}</div>${fahrzeugChip(f.fahrzeugklasse)}</div></td>
+      <td>${f.mitglied ? '<span class="a-chip hell">Season</span>' : '<span class="a-chip">Einzeln</span>'}${f.custId ? "" : ' <span class="a-chip rot">Kein Profil</span>'}</td>
+      <td>${esc(f.custId) || "–"}</td>
+      <td class="rechts">${zahl(f.iratingAngabe)}</td>
+      <td class="rechts ${abw ? "a-abweichung" : ""}">${zahl(f.iratingErgebnis)}${abw ? " !" : ""}</td>
+      <td>${klasse}</td>
+      <td class="rechts">${akteKnopf(f.name, f.custId, f.discordId)} <button type="button" class="a-knopf gefahr klein" data-aus-serie="${esc(f.discordId)}" data-name="${esc(f.name)}">Entfernen</button></td>
+    </tr>`;
+  }
+
   function fahrerTab() {
     if (!d.serien.length) return '<section class="a-karte"><p class="a-leer">Leg zuerst eine Serie an.</p></section>';
     const serie = d.serien.find((s) => s.id === serieId);
     const det = d.details;
-    const klassenOption = (auto, fest) => `<option value="">Automatisch${auto ? ` (${esc((serie.klassen.find((k) => k.id === auto) || {}).name || auto)})` : ""}</option>${serie.klassen.map((k) => `<option value="${esc(k.id)}"${k.id === fest ? " selected" : ""}>${esc(k.name)}</option>`).join("")}`;
-    const zeilen = det.fahrer.map((f) => {
-      const abweichung = f.iratingAngabe !== null && f.iratingErgebnis !== null && Math.abs(f.iratingAngabe - f.iratingErgebnis) > 150;
-      return `<tr><td>${esc(f.name)}${f.fahrzeugklasse ? ` <span class="a-chip">${esc(f.fahrzeugklasse)}</span>` : ""}</td><td>${f.mitglied ? "Serie" : "Einzeln"}</td><td>${esc(f.custId) || "–"}</td><td class="rechts">${zahl(f.iratingAngabe)}</td><td class="rechts ${abweichung ? "a-abweichung" : ""}">${zahl(f.iratingErgebnis)}${abweichung ? " !" : ""}</td>
-        <td>${f.custId && !serie.ohneKlassen ? `<select data-einstufung="${esc(f.custId)}" aria-label="Klasse von ${esc(f.name)}">${klassenOption(f.klasseAuto, f.klasseFest)}</select>` : "–"}</td>
-        <td class="rechts">${akteKnopf(f.name, f.custId, f.discordId)} <button type="button" class="a-knopf gefahr klein" data-aus-serie="${esc(f.discordId)}" data-name="${esc(f.name)}">Entfernen</button></td></tr>`;
-    }).join("");
-    const liste = (r, l) => l.map((f, i) => `<li><span>${i + 1}. ${esc(f.name)}${f.fahrzeugklasse ? ` · ${esc(f.fahrzeugklasse)}` : ""}</span><button type="button" class="a-weg" data-aus-rennen="${esc(r.id)}" data-fahrer="${esc(f.discordId)}" data-name="${esc(f.name)}" aria-label="${esc(f.name)} aus dem Rennen nehmen">×</button></li>`).join("");
+    const ohneProfil = det.fahrer.filter((f) => !f.custId);
+    const abweichend = det.fahrer.filter(abweichung);
+    const filter = { alle: det.fahrer, profil: ohneProfil, abweichung: abweichend }[fahrerFilter] || det.fahrer;
+    const chips = [["alle", `Alle ${det.fahrer.length}`], ["profil", `Ohne Profil ${ohneProfil.length}`], ["abweichung", `iRating-Abweichung ${abweichend.length}`]].map(([id, t]) => `<button type="button" class="a-filter" data-fahrer-filter="${id}" aria-pressed="${fahrerFilter === id}">${esc(t)}</button>`).join("");
+    const kachel = (w, t, art) => `<div class="a-kennzahl ${w && art ? art : ""}"><b>${w}</b><span>${esc(t)}</span></div>`;
+    const liste = (r, l) => l.map((f, i) => `<li><span>${i + 1}. ${esc(f.name)}</span>${fahrzeugChip(f.fahrzeugklasse)}<button type="button" class="a-weg" data-aus-rennen="${esc(r.id)}" data-fahrer="${esc(f.discordId)}" data-name="${esc(f.name)}" aria-label="${esc(f.name)} aus dem Rennen nehmen">×</button></li>`).join("");
     const rennen = det.rennen.map((r) => `<details class="a-rennen"><summary>${esc(r.titel)} · ${esc(zeit(r.start))} · ${r.starter.length}/${r.plaetze}${r.warteliste.length ? ` · ${r.warteliste.length} warten` : ""}</summary>
         ${r.starter.length ? `<ol class="a-namen">${liste(r, r.starter)}</ol>` : '<p class="a-hinweis" style="padding:0 12px 10px">Noch niemand gemeldet.</p>'}
         ${r.warteliste.length ? `<h4>Warteliste</h4><ol class="a-namen">${liste(r, r.warteliste)}</ol>` : ""}</details>`).join("");
     return `${akteHtml()}<section class="a-karte"><div class="a-kartenkopf"><h2>Fahrer</h2>${serienAuswahl()}</div>
-      ${det.fahrer.length ? `<div class="a-scroll"><table><thead><tr><th>Name</th><th>Meldung</th><th>iRacing-ID</th><th class="rechts">iR Angabe</th><th class="rechts">iR Ergebnis</th><th>Klasse</th><th></th></tr></thead><tbody>${zeilen}</tbody></table></div><p class="a-hinweis">„!“ bedeutet: Angabe und letztes Ergebnis liegen mehr als 150 auseinander.</p>` : '<p class="a-leer">Noch keine Fahrer gemeldet.</p>'}
+      <div class="a-kennzahlen">${kachel(det.fahrer.length, "Gemeldet")}${kachel(det.fahrer.filter((f) => f.mitglied).length, "In der Season")}${kachel(det.fahrer.filter((f) => !f.mitglied).length, "Einzelmeldungen")}${kachel(ohneProfil.length, "Ohne Profil", "alarm")}${kachel(abweichend.length, "iRating-Abweichung", "warnung")}</div>
+      ${det.fahrer.length ? `<div class="a-leiste">${chips}<input type="search" id="a-fahrer-suche" class="a-suche" placeholder="Fahrer, ID oder Team suchen" aria-label="Fahrer suchen"></div>
+      ${filter.length ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>Meldung</th><th>iRacing-ID</th><th class="rechts" title="Vom Fahrer im Profil angegeben">iRating Profil</th><th class="rechts" title="Aus dem zuletzt eingelesenen Rennergebnis">iRating letztes Rennen</th><th>Klasse</th><th></th></tr></thead><tbody>${filter.map((f) => fahrerZeile(f, serie)).join("")}</tbody></table></div>` : '<p class="a-leer">Keine Fahrer in dieser Ansicht.</p>'}
+      <p class="a-hinweis">„iRating Profil“ hat der Fahrer selbst angegeben. „iRating letztes Rennen“ stammt aus dem zuletzt eingelesenen Ergebnis und ist leer, solange kein Ergebnis dieses Fahrers vorliegt. Ein „!“ zeigt mehr als 150 Punkte Unterschied.</p>` : '<p class="a-leer">Noch keine Fahrer gemeldet.</p>'}
     </section>
     <section class="a-karte"><h2>Starterlisten</h2>${rennen || '<p class="a-leer">Keine kommenden Rennen.</p>'}</section>`;
   }
@@ -737,6 +767,7 @@
     if (b.id === "a-logout") { await sende({ aktion: "logout" }); d = { angemeldet: false }; return zeichne(); }
     if (b.dataset.discordTest) return aktion({ aktion: "discord-test" }, "Beispiel-Report gesendet, bitte im Discord-Kanal nachsehen.");
     if (b.dataset.akte) return akteOeffnen(b);
+    if (b.dataset.fahrerFilter) { fahrerFilter = b.dataset.fahrerFilter; return zeichne(); }
     if (b.dataset.akteZu) { akte = null; return zeichne(); }
     if (b.dataset.akteBearbeiten) { akte.bearbeiten = b.dataset.akteBearbeiten === "auf"; akte.werte = null; setzeMeldung(""); return zeichne(); }
     if (b.dataset.ergebnisImport) {
@@ -944,6 +975,11 @@
   app.addEventListener("input", (e) => {
     const t = e.target;
     if (t.closest && t.closest("#a-klassen")) return klassenKontrolle();
+    if (t.id === "a-fahrer-suche") {
+      const q = t.value.trim().toLowerCase();
+      app.querySelectorAll("tr[data-suche]").forEach((z) => { z.hidden = !!q && !z.dataset.suche.includes(q); });
+      return;
+    }
     if (t.id === "r-strecke") document.getElementById("a-karte-vorschau").innerHTML = kartenVorschau(streckeAus(t.value));
   });
 

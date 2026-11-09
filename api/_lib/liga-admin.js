@@ -32,7 +32,7 @@ async function gemeldeteFahrer(kat, serieId) {
 // Details einer Serie: Fahrer mit Profil, Rennen mit Listen, Ergebnisse und Strafen
 async function serienDetails(kat, id) {
   const serie = serieFinden(kat, id);
-  const [alle, ergebnisse, privat] = await Promise.all([eintraege(), D.ergebnisseLesen(id), D.privatLesen(id)]);
+  const [alle, ergebnisse, privat, oeffentlich] = await Promise.all([eintraege(), D.ergebnisseLesen(id), D.privatLesen(id), P.oeffentlicheProfile()]);
   const mitglieder = alle.filter((e) => e.typ === "serie" && e.serieId === id);
   const direkt = alle.filter((e) => e.typ === "rennen" && kat.rennen.some((r) => r.id === e.rennenId && r.serie === id));
   const ids = [...new Set([...mitglieder, ...direkt].map((e) => e.discordId))];
@@ -46,7 +46,8 @@ async function serienDetails(kat, id) {
     const eintrag = mitglieder.find((e) => e.discordId === d) || direkt.find((e) => e.discordId === d);
     const irating = p ? ausErgebnis.get(p.custId) ?? p.irating : null;
     const auto = sportsCar && irating !== null ? (klasseFuer(irating, serie.klassen) || {}).id || "" : "";
-    return { discordId: d, name: eintrag.name, mitglied: mitglieder.some((e) => e.discordId === d), fahrzeugklasse: eintrag.fahrzeugklasse, custId: p ? p.custId : "", iratingAngabe: p ? p.irating : null, iratingErgebnis: p && ausErgebnis.has(p.custId) ? ausErgebnis.get(p.custId) : null, klasseAuto: auto, klasseFest: p ? privat.einstufung[p.custId] || "" : "" };
+    const pid = p && p.custId ? fahrerKennung(p.custId) : "";
+    return { pid, nummer: p ? p.nummer ?? "" : "", land: p ? p.land || "" : "", team: p ? p.team || "" : "", bild: (pid && oeffentlich[pid] && oeffentlich[pid].bild) || "", discordId: d, name: eintrag.name, mitglied: mitglieder.some((e) => e.discordId === d), fahrzeugklasse: eintrag.fahrzeugklasse, custId: p ? p.custId : "", iratingAngabe: p ? p.irating : null, iratingErgebnis: p && ausErgebnis.has(p.custId) ? ausErgebnis.get(p.custId) : null, klasseAuto: auto, klasseFest: p ? privat.einstufung[p.custId] || "" : "" };
   }).sort((a, b) => a.name.localeCompare(b.name, "de"));
   const opt = { jetzt: Date.now(), schlussMinuten: 60, discordId: "", serien: { [id]: serie }, mitIds: true };
   return {
