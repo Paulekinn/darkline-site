@@ -1,6 +1,7 @@
 // Liga-Admin (/liga-admin): nur für die Rolle aus LIGA_ADMIN_ROLE_IDS, mit eigenem Cookie.
 const crypto = require("crypto");
-const { getLigaAdminSession, clearLigaAdminSession } = require("./session");
+const { getLigaAdminSession, clearLigaAdminSession, fahrerKennung } = require("./session");
+const P = require("./liga-profil");
 const { blobPut, blobGet, blobDelete, blobList } = require("./blob");
 const A = require("./liga-anmeldung");
 const D = require("./liga-daten");
@@ -114,6 +115,7 @@ async function protokollText(b, kat) {
     "einstufung-setzen": () => `Einstufung geändert in ${serie(b.serie)}`,
     "fahrer-aus-serie": () => `Fahrer aus Serie entfernt: ${serie(b.serie)}`,
     "fahrer-aus-rennen": () => `Fahrer aus Rennen genommen: ${rennen(b.rennen)}`,
+    "profil-bearbeiten": () => `Fahrerprofil geändert: ${(b.profil || {}).iracingName}${b.bildEntfernen ? ", Profilbild entfernt" : ""}`,
     "report-status": async () => `Report-Status geändert: ${await report()}`,
     "report-urteil": async () => `Urteil gesprochen (${(b.urteil || {}).art}): ${await report()}`,
   };
@@ -213,6 +215,18 @@ const aktionen = {
     await D.streckeLoeschen(b.id);
     if (strecke.kartenVersion) await D.bildLoeschen(`strecke-${b.id}`);
     return {};
+  },
+  // Korrigiert das Profil eines Fahrers. Es gelten dieselben Prüfungen wie im Fahrerbereich.
+  async "profil-bearbeiten"(b) {
+    const discordId = D.brauchtId(b.discordId);
+    const gespeichert = await blobGet(A.profilPfad(discordId));
+    if (!gespeichert) throw new Hinweis("Dieser Fahrer hat noch kein Profil.");
+    const bisher = JSON.parse(gespeichert);
+    const extras = { ...A.pruefeExtras(b.profil), zeigeBild: !b.bildEntfernen && bisher.zeigeBild !== false };
+    const profil = { ...bisher, ...A.pruefeProfil(b.profil), ...extras };
+    await P.speichern({ id: discordId, avatar: "" }, profil, extras);
+    await blobPut(A.profilPfad(discordId), JSON.stringify({ ...profil, gespeichert: new Date().toISOString() }), "application/json");
+    return { custId: profil.custId };
   },
   async "discord-test"(b, kat, s) {
     if (!process.env.LIGA_DISCORD_WEBHOOK_TEAM) throw new Hinweis("Der Discord-Webhook ist noch nicht eingerichtet.");
@@ -439,7 +453,11 @@ module.exports = async (req, res) => {
     const kat = await D.katalog(true);
     if ((req.query || {}).akte) {
       const privatJeSerie = await Promise.all(kat.serien.map(async (x) => ({ serieName: x.name, privat: await D.privatLesen(x.id) })));
-      return res.status(200).json(R.fahrerAkte(await R.alleReports(true), privatJeSerie, { cust: String(req.query.cust || ""), discordId: String(req.query.discord || "") }));
+      const discordId = String(req.query.discord || "");
+      const text = D.istId(discordId) ? await blobGet(A.profilPfad(discordId)) : null;
+      const p = text ? JSON.parse(text) : null;
+      const profil = p ? { iracingName: p.iracingName, custId: p.custId, irating: p.irating, nummer: p.nummer ?? "", land: p.land || "", team: p.team || "", kanal: p.kanal || "", hatBild: !!((await P.angabenVon(fahrerKennung(p.custId)).catch(() => null)) || {}).bild } : null;
+      return res.status(200).json({ ...R.fahrerAkte(await R.alleReports(true), privatJeSerie, { cust: String(req.query.cust || (p && p.custId) || ""), discordId }), profil });
     }
     const details = D.istId((req.query || {}).serie) && kat.serien.some((x) => x.id === req.query.serie) ? await serienDetails(kat, req.query.serie) : null;
     const reports = (await R.alleReports(true)).map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id) }));

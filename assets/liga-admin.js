@@ -467,15 +467,33 @@
 
   /* ---------- Fahrer-Akte ---------- */
   const akteKnopf = (name, cust, discord) => `<button type="button" class="a-knopf zweit klein" data-akte="1" data-name="${esc(name)}" data-cust="${esc(cust || "")}" data-discord="${esc(discord || "")}">Akte</button>`;
-  async function akteOeffnen(b) {
-    setzeMeldung("");
-    const r = await fetch(`${API}&akte=1&cust=${encodeURIComponent(b.dataset.cust)}&discord=${encodeURIComponent(b.dataset.discord)}`, { cache: "no-store" }).catch(() => null);
+  async function akteLaden(name, cust, discord) {
+    const r = await fetch(`${API}&akte=1&cust=${encodeURIComponent(cust)}&discord=${encodeURIComponent(discord)}`, { cache: "no-store" }).catch(() => null);
     const daten = r && r.ok ? await r.json() : null;
     if (!daten) { setzeMeldung("Die Akte konnte nicht geladen werden.", true); return zeichne(); }
-    akte = { name: b.dataset.name, daten };
+    akte = { name, cust, discord, daten, bearbeiten: false, werte: null };
     tab = "fahrer"; reportId = null;
     zeichne();
     window.scrollTo(0, 0);
+  }
+  const akteOeffnen = (b) => { setzeMeldung(""); return akteLaden(b.dataset.name, b.dataset.cust, b.dataset.discord); };
+
+  function akteProfilForm() {
+    const w = akte.werte || akte.daten.profil;
+    return `<form id="f-akte-profil" class="a-abschnitt" novalidate><h3>Profil bearbeiten</h3>
+      <div class="a-felder">
+        ${feld("iRacing-Name", eingabe("iracingName", w.iracingName, 'maxlength="40" autocomplete="off"'))}
+        ${feld("iRacing-ID", eingabe("custId", w.custId, 'inputmode="numeric" maxlength="9" autocomplete="off"'))}
+        ${feld("Sports-Car-iRating", eingabe("irating", w.irating, 'inputmode="numeric" maxlength="5" autocomplete="off"'))}
+        ${feld("Startnummer", eingabe("nummer", w.nummer ?? "", 'inputmode="numeric" maxlength="3" placeholder="1 bis 999"'))}
+        ${feld("Land", auswahl("land", w.land || "", [["", "Keine Angabe"], ...window.LigaFlaggen.LAENDER]))}
+        ${feld("Team oder Club", eingabe("team", w.team || "", 'maxlength="40"'))}
+        ${feld("Twitch- oder YouTube-Link", eingabe("kanal", w.kanal || "", 'maxlength="150" placeholder="https://"'), true)}
+      </div>
+      ${akte.daten.profil.hatBild ? '<label class="a-check"><input type="checkbox" name="bildEntfernen"> Discord-Profilbild entfernen</label>' : ""}
+      <p class="a-hinweis">Eine geänderte iRacing-ID gilt erst ab dem nächsten Import. In bestehenden Starterlisten bleibt der alte Name, bis sich der Fahrer neu anmeldet.</p>
+      <div class="a-leiste"><button type="submit" class="a-knopf">Profil speichern</button><button type="button" class="a-knopf zweit" data-akte-bearbeiten="zu">Abbrechen</button></div>
+    </form>`;
   }
 
   function akteHtml() {
@@ -484,7 +502,8 @@
     const zahl_ = (w, t, art) => `<div class="a-kennzahl ${w && art ? art : ""}"><b>${w}</b><span>${t}</span></div>`;
     const fall = (f) => `<button type="button" class="a-fall" data-report="${esc(f.id)}"><span class="a-fall-kopf"><span class="a-chip ${f.rolle === "gemeldet" ? "rot" : ""}">${f.rolle === "gemeldet" ? "Gemeldet" : "Hat gemeldet"}</span>${f.urteil ? `<span class="a-chip">${esc(urteilKurz(f.urteil))}</span>` : '<span class="a-chip gelb">Offen</span>'}<time>${esc(zeit(f.erstellt))}</time></span><b>${esc(f.von)} <span>meldet</span> ${esc(f.gegen)}</b><small>${esc([f.serieName, f.rennenTitel].filter(Boolean).join(" · "))}</small></button>`;
     const strafeZeile = (x) => `<tr><td>${esc(x.serieName)}</td><td class="rechts">${esc(x.typ === "zeit" ? `+${x.sekunden} s` : x.typ === "dsq" ? "DSQ" : `−${x.punkte}`)}</td><td class="umbruch">${esc(x.grund)}</td><td>${x.ausReport ? '<span class="a-chip">aus Report</span>' : ""}</td></tr>`;
-    return `<section class="a-karte a-form"><div class="a-kartenkopf"><h2>Akte: ${esc(akte.name)}</h2><button type="button" class="a-knopf zweit klein" data-akte-zu="1">Schließen</button></div>
+    return `<section class="a-karte a-form"><div class="a-kartenkopf"><h2>Akte: ${esc(akte.name)}</h2><div class="a-leiste">${akte.daten.profil && !akte.bearbeiten ? '<button type="button" class="a-knopf klein" data-akte-bearbeiten="auf">Profil bearbeiten</button>' : ""}<button type="button" class="a-knopf zweit klein" data-akte-zu="1">Schließen</button></div></div>
+      ${akte.bearbeiten ? akteProfilForm() : ""}
       <div class="a-kennzahlen">${zahl_(s.gemeldet, "Gemeldet worden", "warnung")}${zahl_(s.selbstGemeldet, "Selbst gemeldet")}${zahl_(s.verwarnungen, "Verwarnungen", "warnung")}${zahl_(s.strafpunkte, "Strafpunkte", "alarm")}${zahl_(s.zeitstrafen, "Zeitstrafen", "alarm")}${zahl_(s.disqualifikationen, "Disqualifikationen", "alarm")}</div>
       ${faelle.length ? `<h3>Fälle</h3><div class="a-liste">${faelle.map(fall).join("")}</div>` : '<p class="a-leer">Keine Reports zu diesem Fahrer.</p>'}
       ${strafen.length ? `<h3>Strafen</h3><div class="a-scroll"><table><thead><tr><th>Serie</th><th class="rechts">Strafe</th><th>Grund</th><th></th></tr></thead><tbody>${strafen.map(strafeZeile).join("")}</tbody></table></div>` : ""}
@@ -719,6 +738,7 @@
     if (b.dataset.discordTest) return aktion({ aktion: "discord-test" }, "Beispiel-Report gesendet, bitte im Discord-Kanal nachsehen.");
     if (b.dataset.akte) return akteOeffnen(b);
     if (b.dataset.akteZu) { akte = null; return zeichne(); }
+    if (b.dataset.akteBearbeiten) { akte.bearbeiten = b.dataset.akteBearbeiten === "auf"; akte.werte = null; setzeMeldung(""); return zeichne(); }
     if (b.dataset.ergebnisImport) {
       serieId = b.dataset.ergebnisImport; tab = "ergebnisse"; form = null; vorschau = null; datei = null; zugelassen = []; setzeMeldung("");
       await lade().catch(() => setzeMeldung("Die Daten konnten nicht geladen werden.", true));
@@ -812,6 +832,14 @@
     e.preventDefault();
     const f = e.target;
     const w = werte(f);
+    if (f.id === "f-akte-profil") {
+      const { bildEntfernen, ...profil } = w;
+      akte.werte = profil; // Bei einem Fehler bleibt alles Eingetippte stehen.
+      const stand = akte;
+      const a = await aktion({ aktion: "profil-bearbeiten", discordId: stand.discord, profil, bildEntfernen: !!bildEntfernen }, "Profil gespeichert.");
+      if (a) { const hinweis = meldung; await akteLaden(profil.iracingName, a.custId, stand.discord); meldung = hinweis; zeichne(); }
+      return;
+    }
     if (f.id === "f-notiz") return aktion({ aktion: "report-notiz", id: reportId, notizen: w.notizen }, "Notizen gespeichert.");
     if (f.id === "f-urteil") {
       const { ergebnis, cust, ...urteil } = w;
