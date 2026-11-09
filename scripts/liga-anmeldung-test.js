@@ -23,7 +23,36 @@ function res() { const h = {}; return { h, getHeader: (k) => h[k], setHeader: (k
 const wert = (r) => [].concat(r.h["Set-Cookie"])[0].split(";")[0].split("=")[1];
 const anfrage = (name, v) => ({ headers: { cookie: `${name}=${v}` } });
 
+const teilen = require("../api/_lib/liga-teilen");
+const TEILEN_SERIE = { id: "gt3", name: "GT3 Sprint", bildVersion: 0 };
+const TEILEN_GRUPPE = { id: "pro", name: "Pro" };
+const teilenFahrer = (karte) => ({ name: "Lena Beispiel", pos: 2, punkte: 77, karte: { rating: 88, speed: 90, sauberkeit: 80, racecraft: 85, konstanz: null, abzeichen: [{ art: "hattrick", text: "Hattrick" }], ...karte } });
+
 const tests = {
+  "Teilen: Vorschau enthält Rating, Platz, Werte und Abzeichen": () => {
+    const html = teilen.baueSeite(TEILEN_SERIE, TEILEN_GRUPPE, teilenFahrer());
+    assert.ok(html.includes('og:title" content="Lena Beispiel · Darkline Rating 88"'));
+    assert.ok(html.includes("GT3 Sprint · Pro · P2 · 77 Punkte"));
+    assert.ok(html.includes("Speed 90 · Sauberkeit 80 · Racecraft 85"));
+    assert.ok(!html.includes("Konstanz"));
+    assert.ok(html.includes("Hattrick"));
+    assert.ok(html.includes('content="#ffd966"'));
+  },
+  "Teilen: ohne Rating steht nur der Name im Titel": () => {
+    const html = teilen.baueSeite(TEILEN_SERIE, TEILEN_GRUPPE, teilenFahrer({ rating: null }));
+    assert.ok(html.includes("<title>Lena Beispiel</title>"));
+  },
+  "Teilen: Bild und Weiterleitung passen zur Serie": () => {
+    const eigen = teilen.baueSeite({ ...TEILEN_SERIE, bildVersion: 5 }, TEILEN_GRUPPE, teilenFahrer());
+    assert.ok(eigen.includes("/api/liga?r=bild&amp;k=serie-gt3&amp;v=5"));
+    assert.ok(eigen.includes('url=/liga?serie=gt3#fahrer/pro/Lena%20Beispiel"'));
+    assert.ok(/img\/cars\/(porsche|ferrari|bmw|amg|ford)\.webp/.test(teilen.baueSeite(TEILEN_SERIE, TEILEN_GRUPPE, teilenFahrer())));
+  },
+  "Teilen: Namen werden sicher ausgegeben": () => {
+    const html = teilen.baueSeite(TEILEN_SERIE, TEILEN_GRUPPE, { ...teilenFahrer(), name: '<script>"x"' });
+    assert.ok(!html.includes("<script>"));
+    assert.ok(html.includes("&lt;script&gt;&quot;x&quot;"));
+  },
   "Dateiname enthält alle Angaben, auch Umlaute": () => {
     const e = eintrag("2026-12-spa", "123", 5000, "Jörg Müller~/", "GT3");
     assert.deepStrictEqual([e.rennenId, e.discordId, e.name, e.fahrzeugklasse, e.zeit], ["2026-12-spa", "123", "Jörg Müller~/", "GT3", 5000]);

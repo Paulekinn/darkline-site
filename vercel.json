@@ -20,6 +20,10 @@
     {
       "source": "/vergleich",
       "destination": "/api/team/preview"
+    },
+    {
+      "source": "/karte",
+      "destination": "/api/liga?r=teilen"
     }
   ],
   "headers": [

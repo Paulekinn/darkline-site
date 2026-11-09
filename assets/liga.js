@@ -128,13 +128,158 @@
     return abschnitt("Fahrerkarten", `Top ${gezeigt.length} von ${alle.length}`, "Nach jedem Rennen automatisch neu berechnet. Ein Klick auf einen Namen in der Tabelle öffnet die Karte jedes Fahrers.", `<div class="liga-fk-raster">${karten}</div>`);
   }
 
-  // Größere Ansicht einer Karte mit eigenem Link zum Teilen
+  /* ---------- Fahrerkarte als Bild zum Posten in Discord und sozialen Medien ---------- */
+  const cssFarbe = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const ladeBild = (src) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
+  const RANG_FARBE = { "r-gold": "--liga-gold", "r-silber": "--liga-silber", "r-bronze": "--liga-bronze", "r-offen": "--muted" };
+  const KLASSEN_FARBE = { "k-pro": "--liga-rot", "k-mid": "--liga-gelb", "k-am": "--liga-gruen" };
+
+  // Zeichnet die Karte in fester Größe, unabhängig vom Bildschirm des Fahrers.
+  async function kartenLeinwand(k, f, s, d) {
+    const B = 1000;
+    const H = 1240;
+    const R = 60;
+    const c = f.karte;
+    await Promise.all(["900 80px Archivo", "800 40px Archivo", "500 30px 'IBM Plex Mono'", "600 30px 'IBM Plex Mono'"].map((x) => document.fonts.load(x, "Darkline 0123456789")));
+    const [motiv, logo] = await Promise.all([ladeBild(kartenBild(s)), ladeBild("img/brand/dsrs-logo.png")]);
+    const leinwand = document.createElement("canvas");
+    leinwand.width = B;
+    leinwand.height = H;
+    const x = leinwand.getContext("2d");
+    const rangFarbe = cssFarbe(RANG_FARBE[rang(c.rating)]);
+    const schrift = (gew, groesse, fam) => { x.font = `${gew} ${groesse}px ${fam === "mono" ? "'IBM Plex Mono'" : "Archivo"}`; };
+
+    // Abgeschrägte Ecken wie auf der Website
+    x.beginPath();
+    [[0, 0], [B - 60, 0], [B, 60], [B, H], [60, H], [0, H - 60]].forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b)));
+    x.closePath();
+    x.clip();
+    x.fillStyle = cssFarbe("--paper");
+    x.fillRect(0, 0, B, H);
+
+    if (motiv) {
+      const bildH = 500;
+      const faktor = Math.max(B / motiv.width, bildH / motiv.height);
+      x.globalAlpha = 0.34;
+      x.drawImage(motiv, (B - motiv.width * faktor) / 2, (bildH - motiv.height * faktor) / 2, motiv.width * faktor, motiv.height * faktor);
+      x.globalAlpha = 1;
+      const blende = x.createLinearGradient(0, 120, 0, 500);
+      blende.addColorStop(0, "rgba(17,20,22,0)");
+      blende.addColorStop(1, cssFarbe("--paper"));
+      x.fillStyle = blende;
+      x.fillRect(0, 0, B, bildH);
+      // Das Motiv kann höher sein als sein Bereich, darunter bleibt die Karte einfarbig.
+      x.fillStyle = cssFarbe("--paper");
+      x.fillRect(0, bildH, B, H - bildH);
+    }
+    x.globalAlpha = 0.2;
+    const schimmer = x.createLinearGradient(0, 0, B, H * 0.7);
+    schimmer.addColorStop(0, rangFarbe);
+    schimmer.addColorStop(1, "rgba(0,0,0,0)");
+    x.fillStyle = schimmer;
+    x.fillRect(0, 0, B, H);
+    x.globalAlpha = 1;
+    x.fillStyle = rangFarbe;
+    x.fillRect(0, 0, B, 12);
+
+    // Rating und Klasse
+    x.textBaseline = "alphabetic";
+    x.fillStyle = rangFarbe;
+    schrift(900, 190);
+    x.fillText(c.rating === null ? "–" : String(c.rating), R, 225);
+    x.fillStyle = "#c3cac7";
+    schrift(500, 28, "mono");
+    x.fillText((c.rating === null ? (d.rennenGesamt < 3 ? "Einzelwertung" : "Noch in Wertung") : "Darkline Rating").toUpperCase(), R, 275);
+
+    const klassenText = k.name.toUpperCase();
+    schrift(900, 34);
+    const textB = x.measureText(klassenText).width;
+    x.save();
+    x.translate(B - R - textB - 40, 62);
+    x.transform(1, 0, -0.18, 1, 0, 0);
+    x.fillStyle = cssFarbe(KLASSEN_FARBE[farbe(k)] || "--ink");
+    x.fillRect(0, 0, textB + 40, 58);
+    x.fillStyle = "#08090a";
+    x.fillText(klassenText, 20, 42);
+    x.restore();
+
+    // Name: wird kleiner, bis er in die Zeile passt
+    const name = f.name.toUpperCase();
+    let groesse = 76;
+    do { schrift(900, groesse); groesse -= 2; } while (x.measureText(name).width > B - 2 * R && groesse > 30);
+    x.fillStyle = cssFarbe("--ink");
+    x.fillText(name, R, 370);
+    x.fillStyle = cssFarbe("--muted");
+    schrift(500, 30, "mono");
+    x.fillText(`${s.name} · P${f.pos} · ${f.punkte} Punkte`, R, 420);
+
+    // Vier Werte
+    const FARBEN_WERTE = { speed: "--liga-rot", sauberkeit: "--liga-gruen", racecraft: "--liga-gelb", konstanz: "--liga-blau" };
+    WERTE.forEach(([label, feld], i) => {
+      const y = 500 + i * 66;
+      const wert = c[feld];
+      x.fillStyle = cssFarbe("--muted");
+      schrift(500, 32, "mono");
+      x.textAlign = "left";
+      x.fillText(label, R, y + 22);
+      x.fillStyle = "#2a2f33";
+      x.fillRect(300, y, 560, 22);
+      if (wert !== null) { x.fillStyle = cssFarbe(FARBEN_WERTE[feld]); x.fillRect(300, y, 560 * (wert / 100), 22); }
+      x.fillStyle = cssFarbe("--ink");
+      schrift(600, 34, "mono");
+      x.textAlign = "right";
+      x.fillText(wert === null ? "–" : String(wert), B - R, y + 24);
+    });
+    x.textAlign = "left";
+
+    // Form der letzten Rennen
+    f.rennen.slice(-8).forEach((r, i) => {
+      const a = R + i * 84;
+      const y = 790;
+      const text = !r ? "–" : r.status !== "OK" ? r.status : String(r.platz);
+      const farbeKasten = !r ? "#1a1d20" : r.status !== "OK" ? "#4b2428" : r.platz === 1 ? cssFarbe("--liga-gold") : r.platz === 2 ? cssFarbe("--liga-silber") : r.platz === 3 ? cssFarbe("--liga-bronze") : "#2a2f33";
+      x.fillStyle = farbeKasten;
+      x.fillRect(a, y, 74, 62);
+      x.fillStyle = r && r.status === "OK" && r.platz <= 3 ? "#12100a" : "#e8ecea";
+      schrift(600, r && r.status !== "OK" ? 22 : 30, "mono");
+      x.textAlign = "center";
+      x.fillText(text, a + 37, y + 42);
+      x.textAlign = "left";
+    });
+
+    // Abzeichen, bei Bedarf in mehreren Zeilen
+    const FARBEN_ABZEICHEN = { sauber: "--liga-gruen", ziel: "--liga-gruen", comeback: "--liga-blau" };
+    let a = R;
+    let y = 890;
+    schrift(600, 26, "mono");
+    c.abzeichen.forEach((z) => {
+      const breite = x.measureText(z.text).width + 34;
+      if (a + breite > B - R) { a = R; y += 66; }
+      x.strokeStyle = x.fillStyle = cssFarbe(FARBEN_ABZEICHEN[z.art] || "--liga-gold");
+      x.lineWidth = 2;
+      x.strokeRect(a, y, breite, 52);
+      x.fillText(z.text, a + 17, y + 35);
+      a += breite + 12;
+    });
+
+    if (logo) x.drawImage(logo, R, H - 145, 352, 89);
+    x.fillStyle = cssFarbe("--muted");
+    schrift(500, 26, "mono");
+    x.textAlign = "right";
+    x.fillText("darklineperformance.de/liga", B - R, H - 76);
+    return leinwand;
+  }
+  const alsPng = (leinwand) => new Promise((ok) => leinwand.toBlob(ok, "image/png"));
+
+  // Größere Ansicht einer Karte mit Bild und Link zum Teilen
   function fahrerDialog(gruppen, s, d) {
     document.body.insertAdjacentHTML("beforeend", '<dialog id="liga-fk-dialog" class="liga-fk-dialog" aria-label="Fahrerkarte"></dialog>');
     const dialog = $("liga-fk-dialog");
     const anker = (k, f) => `#fahrer/${encodeURIComponent(k.id)}/${encodeURIComponent(f.name)}`;
     const ohneAnker = () => history.replaceState(null, "", location.pathname + location.search);
+    let geoeffnet = null;
     const oeffne = (k, f) => {
+      geoeffnet = { k, f };
       const c = f.karte;
       const inc = f.incidentsProRunde === null ? "–" : f.incidentsProRunde.toLocaleString("de-DE", { minimumFractionDigits: 2 });
       dialog.innerHTML = `<div class="liga-fk ${farbe(k)} ${rang(c.rating)} gross">${fahrerkarte(k, f, s, d)}</div>
@@ -143,7 +288,8 @@
           <div><dt>Ausfälle</dt><dd>${c.ausfaelle}</dd></div><div><dt>Inc/Runde</dt><dd>${inc}</dd></div><div><dt>Strafpunkte</dt><dd>${f.strafpunkte}</dd></div>
         </dl>
         ${c.rating === null && d.rennenGesamt >= 3 ? '<p class="liga-fk-hinweis">Das Gesamtrating erscheint nach drei gefahrenen Rennen.</p>' : ""}
-        <div class="liga-serie-aktion"><button type="button" class="liga-mini" data-fk-link>Link kopieren</button><button type="button" class="liga-mini zweit" data-fk-zu>Schließen</button></div>`;
+        <div class="liga-serie-aktion"><button type="button" class="liga-mini" data-fk-bild>Bild kopieren</button><button type="button" class="liga-mini zweit" data-fk-speichern>Bild speichern</button><button type="button" class="liga-mini zweit" data-fk-link>Link kopieren</button><button type="button" class="liga-mini zweit" data-fk-zu>Schließen</button></div>
+        <p class="liga-fk-hinweis">Das Bild kannst du in Discord mit Strg+V einfügen. Der Link zeigt dort eine Vorschau mit Rating und Werten.</p>`;
       // Voller Pfad, weil die Seite ein base-Element hat und ein reiner #-Link sonst auf die Startseite zeigen würde
       history.replaceState(null, "", location.pathname + location.search + anker(k, f));
       dialog.showModal();
@@ -157,8 +303,38 @@
         return;
       }
       const kopieren = e.target.closest("[data-fk-link]");
-      if (kopieren) {
-        try { await navigator.clipboard.writeText(location.href); kopieren.textContent = "Link kopiert"; } catch (err) { window.prompt("Link zur Fahrerkarte:", location.href); }
+      if (kopieren && geoeffnet) {
+        const link = `${location.origin}/karte?serie=${encodeURIComponent(s.id)}&k=${encodeURIComponent(geoeffnet.k.id)}&f=${encodeURIComponent(geoeffnet.f.name)}`;
+        try { await navigator.clipboard.writeText(link); kopieren.textContent = "Link kopiert"; } catch (err) { window.prompt("Link zur Fahrerkarte:", link); }
+        return;
+      }
+      const bild = e.target.closest("[data-fk-bild]");
+      if (bild && geoeffnet) {
+        if (!window.ClipboardItem || !navigator.clipboard || !navigator.clipboard.write) { bild.textContent = "Bitte speichern"; return; }
+        bild.textContent = "Wird erstellt…";
+        // Das Bild wird als Promise übergeben, sonst lehnen manche Browser das Kopieren nach der Wartezeit ab.
+        const { k, f } = geoeffnet;
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ "image/png": kartenLeinwand(k, f, s, d).then(alsPng) })]);
+          bild.textContent = "Bild kopiert";
+        } catch (err) { bild.textContent = "Bitte speichern"; }
+        return;
+      }
+      const speichern = e.target.closest("[data-fk-speichern]");
+      if (speichern && geoeffnet) {
+        const { k, f } = geoeffnet;
+        speichern.textContent = "Wird erstellt…";
+        try {
+          const url = URL.createObjectURL(await alsPng(await kartenLeinwand(k, f, s, d)));
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `dsrs-${f.name.toLowerCase().replace(/[^a-z0-9äöüß]+/g, "-").replace(/^-|-$/g, "") || "fahrerkarte"}.png`;
+          document.body.append(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 10000);
+          speichern.textContent = "Gespeichert";
+        } catch (err) { speichern.textContent = "Fehlgeschlagen"; }
         return;
       }
       // Ein Klick neben die Karte trifft den Dialog selbst.
