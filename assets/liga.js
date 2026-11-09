@@ -42,16 +42,138 @@
       </div>`;
   }
 
-  /* ---------- Tabellenführer ---------- */
-  function karte(k) {
-    const [erster, zweiter, dritter] = k.fahrer;
+  /* ---------- Titelkampf: die Spitze jeder Wertung und was jeder noch braucht ---------- */
+  function karte(k, d) {
+    const erster = k.fahrer[0];
+    const zweiter = k.fahrer[1];
+    const rest = k.fahrer.slice(1, 4);
+    const titelLaeuft = d.rennenGesamt > 1 && d.restRennen > 0 && !!erster.titel;
+    const ende = titelLaeuft ? Math.max(1, ...k.fahrer.slice(0, 4).map((f) => f.titel.maxEnde)) : 1;
+    const anteil = (w) => Math.max(0, Math.min(100, Math.round((w / ende) * 100)));
+    // Voller Balken: heutige Punkte. Heller Balken: was bis zum Saisonende noch möglich ist.
+    const balken = (f) => (titelLaeuft ? `<span class="liga-tk-balken"><u style="width:${anteil(f.titel.maxEnde)}%"></u><i style="width:${anteil(f.punkte)}%"></i></span>` : "");
+    // Früh in der Saison ist fast jeder noch im Rennen, dann sagt der Rückstand mehr.
+    const titelText = (f) => (f !== erster && f.titel.text === "Noch im Titelrennen" ? `${erster.punkte - f.punkte} Punkte Rückstand` : f.titel.text);
+    const status = (f) => (d.rennenGesamt > 1 && f.titel && f.titel.text ? `<span class="liga-tk-status ${esc(f.titel.status)}">${esc(titelText(f))}</span>` : "");
     const abstand = zweiter ? `${erster.punkte - zweiter.punkte} vor Platz 2` : "Allein in der Klasse";
-    const rest = [zweiter, dritter].filter(Boolean).map((f) => `<li><span><em>P${f.pos}</em>${esc(f.name)}</span><span>${f.punkte}</span></li>`).join("");
+    const zeilen = rest.map((f) => `<li><span class="liga-tk-zeile"><span><em>P${f.pos}</em>${esc(f.name)}</span><span>${f.punkte}</span></span>${balken(f)}${status(f)}</li>`).join("");
+    const weitere = titelLaeuft ? k.fahrer.slice(4).filter((f) => f.titel.status !== "raus").length : 0;
     return `<button type="button" class="liga-karte ${farbe(k)}" data-k="${esc(k.id)}" aria-label="Tabelle ${esc(k.name)} öffnen">
       <span class="liga-karte-kopf"><span class="liga-karte-klasse">${esc(k.name)}</span><span class="liga-karte-bereich">iR ${esc(bereich(k))}</span></span>
-      <span class="liga-karte-erster"><span class="liga-karte-name">${esc(erster.name)}<small>${esc(abstand)} · ${erster.siege} ${erster.siege === 1 ? "Sieg" : "Siege"}</small></span><span class="liga-karte-punkte">${erster.punkte}</span></span>
-      ${rest ? `<ul class="liga-karte-rest">${rest}</ul>` : ""}
+      <span class="liga-karte-erster"><span class="liga-karte-name">${esc(erster.name)}<small>${esc(abstand)} · ${erster.siege} ${erster.siege === 1 ? "Sieg" : "Siege"}</small>${status(erster)}</span><span class="liga-karte-punkte">${erster.punkte}</span></span>
+      ${titelLaeuft ? `<span class="liga-tk-erster">${balken(erster)}</span>` : ""}
+      ${zeilen ? `<ul class="liga-karte-rest">${zeilen}</ul>` : ""}
+      ${weitere ? `<span class="liga-tk-weitere">+${weitere} weitere noch im Titelrennen</span>` : ""}
     </button>`;
+  }
+
+  /* ---------- Rennbericht: entsteht automatisch beim Import ---------- */
+  function rundenzeit(z) {
+    const ms = Math.round(z / 10);
+    const min = Math.floor(ms / 60000);
+    return `${min}:${((ms - min * 60000) / 1000).toFixed(3).padStart(6, "0")}`;
+  }
+  const kachel = (art, titel, name, wert) => `<div class="liga-kachel ${art}"><span>${esc(titel)}</span><b>${esc(name)}</b><small>${esc(wert)}</small></div>`;
+
+  function berichtHtml(r, s) {
+    const mehrere = r.bericht.length > 1;
+    return r.bericht.map((b) => {
+      const [sieger, ...verfolger] = b.podium;
+      const kopfzeile = [`R${r.nr}`, datum(r.start), mehrere ? b.fahrzeugklasse : "", `${b.starter} Starter`].filter(Boolean).join(" · ");
+      const kacheln = [
+        b.aufholer ? kachel("auf", "Größter Aufholer", b.aufholer.name, `+${b.aufholer.plaetze} ${b.aufholer.plaetze === 1 ? "Platz" : "Plätze"}`) : "",
+        b.schnellste ? kachel("runde", "Schnellste Runde", b.schnellste.name, rundenzeit(b.schnellste.zeit)) : "",
+        b.sauberster ? kachel("sauber", "Sauberster Fahrer", b.sauberster.name, `${b.sauberster.incidents}x Incidents`) : "",
+      ].join("");
+      return `<article class="liga-bericht ${farbeSerie(s)}">
+        <div class="liga-bericht-bild" style="background-image:url('${esc(kartenBild(s))}')" aria-hidden="true"></div>
+        <div class="liga-bericht-haupt">
+          <span class="lbl">${esc(kopfzeile)}</span>
+          <h3>${esc(sieger)} <small>gewinnt ${r.strecke ? `in ${esc(r.strecke)}` : "das Rennen"}</small></h3>
+          ${verfolger.length ? `<ol class="liga-bericht-podium" start="2">${verfolger.map((n, i) => `<li class="p${i + 2}"><b>P${i + 2}</b>${esc(n)}</li>`).join("")}</ol>` : ""}
+        </div>
+        <div class="liga-kacheln">${kacheln}</div>
+      </article>`;
+    }).join("");
+  }
+
+  /* ---------- Fahrerkarten ---------- */
+  const WERTE = [["Speed", "speed", "s"], ["Sauberkeit", "sauberkeit", "c"], ["Racecraft", "racecraft", "r"], ["Konstanz", "konstanz", "k"]];
+  const rang = (w) => (w === null ? "r-offen" : w >= 85 ? "r-gold" : w >= 70 ? "r-silber" : "r-bronze");
+  const formKasten = (r) => {
+    if (!r) return '<i class="leer" title="Nicht gefahren">–</i>';
+    if (r.status !== "OK") return `<i class="aus" title="${esc(r.status)}">${esc(r.status)}</i>`;
+    return `<i class="${podium(r.platz)}" title="Platz ${r.platz}">${r.platz}</i>`;
+  };
+
+  function fahrerkarte(k, f, s, d) {
+    const c = f.karte;
+    const ohneRating = d.rennenGesamt < 3 ? "Einzelwertung" : "Noch in Wertung";
+    return `<div class="liga-fk-bild" style="background-image:url('${esc(kartenBild(s))}')" aria-hidden="true"></div>
+      <div class="liga-fk-kopf">
+        <div class="liga-fk-rating"><b>${c.rating === null ? "–" : c.rating}</b><span>${c.rating === null ? esc(ohneRating) : "Darkline Rating"}</span></div>
+        <span class="liga-fk-klasse">${esc(k.name)}</span>
+      </div>
+      <div class="liga-fk-name"><strong>${esc(f.name)}</strong><small>${esc(s.name)} · P${f.pos} · ${f.punkte} Punkte</small></div>
+      <div class="liga-fk-werte">${WERTE.map(([label, feld, art]) => `<div class="w-${art}"><span>${label}</span><span class="liga-fk-balken"><i style="width:${c[feld] === null ? 0 : c[feld]}%"></i></span><b>${c[feld] === null ? "–" : c[feld]}</b></div>`).join("")}</div>
+      <div class="liga-fk-form" aria-label="Ergebnisse der letzten Rennen">${f.rennen.slice(-6).map(formKasten).join("")}</div>
+      ${c.abzeichen.length ? `<div class="liga-fk-abzeichen">${c.abzeichen.map((a) => `<span class="a-${esc(a.art)}">${esc(a.text)}</span>`).join("")}</div>` : ""}`;
+  }
+
+  function fahrerkartenAbschnitt(gruppen, s, d) {
+    const alle = gruppen.flatMap((k) => k.fahrer.filter((f) => f.karte).map((f) => ({ k, f })));
+    const gezeigt = [...alle].sort((a, b) => (b.f.karte.rating ?? -1) - (a.f.karte.rating ?? -1) || b.f.punkte - a.f.punkte).slice(0, 4);
+    if (!gezeigt.length || d.rennenGesamt < 3) return "";
+    const karten = gezeigt.map(({ k, f }) => `<button type="button" class="liga-fk ${farbe(k)} ${rang(f.karte.rating)}" data-karte-k="${esc(k.id)}" data-karte-f="${f.pos}" aria-label="Fahrerkarte von ${esc(f.name)} öffnen">${fahrerkarte(k, f, s, d)}</button>`).join("");
+    return abschnitt("Fahrerkarten", `Top ${gezeigt.length} von ${alle.length}`, "Nach jedem Rennen automatisch neu berechnet. Ein Klick auf einen Namen in der Tabelle öffnet die Karte jedes Fahrers.", `<div class="liga-fk-raster">${karten}</div>`);
+  }
+
+  // Größere Ansicht einer Karte mit eigenem Link zum Teilen
+  function fahrerDialog(gruppen, s, d) {
+    document.body.insertAdjacentHTML("beforeend", '<dialog id="liga-fk-dialog" class="liga-fk-dialog" aria-label="Fahrerkarte"></dialog>');
+    const dialog = $("liga-fk-dialog");
+    const anker = (k, f) => `#fahrer/${encodeURIComponent(k.id)}/${encodeURIComponent(f.name)}`;
+    const ohneAnker = () => history.replaceState(null, "", location.pathname + location.search);
+    const oeffne = (k, f) => {
+      const c = f.karte;
+      const inc = f.incidentsProRunde === null ? "–" : f.incidentsProRunde.toLocaleString("de-DE", { minimumFractionDigits: 2 });
+      dialog.innerHTML = `<div class="liga-fk ${farbe(k)} ${rang(c.rating)} gross">${fahrerkarte(k, f, s, d)}</div>
+        <dl class="liga-fk-zahlen">
+          <div><dt>Rennen</dt><dd>${c.rennen}</dd></div><div><dt>Siege</dt><dd>${f.siege}</dd></div><div><dt>Podien</dt><dd>${c.podien}</dd></div>
+          <div><dt>Ausfälle</dt><dd>${c.ausfaelle}</dd></div><div><dt>Inc/Runde</dt><dd>${inc}</dd></div><div><dt>Strafpunkte</dt><dd>${f.strafpunkte}</dd></div>
+        </dl>
+        ${c.rating === null && d.rennenGesamt >= 3 ? '<p class="liga-fk-hinweis">Das Gesamtrating erscheint nach drei gefahrenen Rennen.</p>' : ""}
+        <div class="liga-serie-aktion"><button type="button" class="liga-mini" data-fk-link>Link kopieren</button><button type="button" class="liga-mini zweit" data-fk-zu>Schließen</button></div>`;
+      // Voller Pfad, weil die Seite ein base-Element hat und ein reiner #-Link sonst auf die Startseite zeigen würde
+      history.replaceState(null, "", location.pathname + location.search + anker(k, f));
+      dialog.showModal();
+    };
+    document.addEventListener("click", async (e) => {
+      const knopf = e.target.closest("[data-karte-k]");
+      if (knopf) {
+        const k = gruppen.find((x) => x.id === knopf.dataset.karteK);
+        const f = k && k.fahrer.find((x) => String(x.pos) === knopf.dataset.karteF);
+        if (f && f.karte) oeffne(k, f);
+        return;
+      }
+      const kopieren = e.target.closest("[data-fk-link]");
+      if (kopieren) {
+        try { await navigator.clipboard.writeText(location.href); kopieren.textContent = "Link kopiert"; } catch (err) { window.prompt("Link zur Fahrerkarte:", location.href); }
+        return;
+      }
+      // Ein Klick neben die Karte trifft den Dialog selbst.
+      if (e.target.closest("[data-fk-zu]") || e.target === dialog) dialog.close();
+    });
+    dialog.addEventListener("close", ohneAnker);
+    // Geteilter Link: die Karte öffnet sich direkt
+    const teile = location.hash.split("/");
+    if (teile[0] === "#fahrer" && teile.length === 3) {
+      try {
+        const k = gruppen.find((x) => x.id === decodeURIComponent(teile[1]));
+        const f = k && k.fahrer.find((x) => x.name === decodeURIComponent(teile[2]));
+        if (f && f.karte) oeffne(k, f);
+      } catch (err) { /* ein beschädigter Link öffnet einfach keine Karte */ }
+    }
   }
 
   /* ---------- Tabelle ---------- */
@@ -69,7 +191,7 @@
     const maximal = Math.max(1, ...k.fahrer.map((f) => f.punkte));
     const kopfzeile = d.rennen.map((r) => `<th class="zahl" title="${esc([r.strecke, r.variante].filter(Boolean).join(" · "))}">R${r.nr}<small>${esc(datum(r.start))}</small></th>`).join("");
     const zeilen = k.fahrer.map((f) => `<tr>
-      <td><span class="liga-fahrer"><span class="liga-pos ${podium(f.pos)}"><b>${f.pos}</b></span>${esc(f.name)}</span></td>
+      <td><span class="liga-fahrer"><span class="liga-pos ${podium(f.pos)}"><b>${f.pos}</b></span>${f.karte ? `<button type="button" class="liga-fahrerlink" data-karte-k="${esc(k.id)}" data-karte-f="${f.pos}">${esc(f.name)}</button>` : esc(f.name)}</span></td>
       <td class="zahl">${f.irating === null ? "–" : zahl(f.irating)}</td>
       ${f.rennen.map(zelle).join("")}
       <td class="zahl">${f.siege}</td>
@@ -271,7 +393,24 @@
     const besetzt = gruppen.filter((k) => k.fahrer.length);
     kopf(d, gruppen, regeln);
 
-    einfuegen(abschnitt("Die Spitze", `Nach ${d.rennen.length} von ${d.rennenGesamt} Rennen`, "", `<div class="liga-karten">${besetzt.map(karte).join("")}</div>`));
+    // Letztes Rennen zuerst, ältere Berichte über die Rennnummern
+    const berichte = d.rennen.filter((r) => Array.isArray(r.bericht) && r.bericht.length);
+    if (berichte.length) {
+      const letzter = berichte[berichte.length - 1];
+      const wahl = berichte.length > 1 ? `<div class="liga-bericht-wahl" role="group" aria-label="Rennen wählen">${berichte.map((r) => `<button type="button" data-bericht="${r.nr}" aria-pressed="${r === letzter}" title="${esc(r.strecke)}">R${r.nr}</button>`).join("")}</div>` : "";
+      einfuegen(abschnitt("Rennbericht", `Aus Runde ${letzter.nr}`, "", `${wahl}<div id="liga-bericht">${berichtHtml(letzter, regeln)}</div>`));
+      document.querySelectorAll("[data-bericht]").forEach((b) => b.addEventListener("click", () => {
+        document.querySelectorAll("[data-bericht]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+        $("liga-bericht").innerHTML = berichtHtml(berichte.find((r) => String(r.nr) === b.dataset.bericht), regeln);
+      }));
+    }
+
+    const titelLaeuft = d.rennenGesamt > 1 && d.restRennen > 0;
+    const spitzeTitel = titelLaeuft ? "Titelkampf" : d.rennenGesamt > 1 && d.restRennen === 0 ? "Endstand" : "Die Spitze";
+    const spitzeMeta = titelLaeuft ? `Noch ${d.restRennen} Rennen · bis zu ${d.maxProRennen} Punkte pro Rennen` : `Nach ${d.rennen.length} von ${d.rennenGesamt} Rennen`;
+    einfuegen(abschnitt(spitzeTitel, spitzeMeta, "", `<div class="liga-karten">${besetzt.map((k) => karte(k, d)).join("")}</div>${titelLaeuft ? '<p class="liga-legende"><span>Voller Balken = aktuelle Punkte</span><span>Heller Balken = bis Saisonende noch möglich</span><span>Stand ohne künftige Strafen</span></p>' : ""}`));
+    const fahrerkarten = fahrerkartenAbschnitt(besetzt, regeln, d);
+    if (fahrerkarten) einfuegen(fahrerkarten);
     einfuegen(abschnitt("Tabelle", d.saison, "", `<div class="liga-tabs" role="tablist" aria-label="Klasse wählen">${gruppen.map((k) => `<button type="button" class="${farbe(k)}" role="tab" id="tab-${esc(k.id)}" data-k="${esc(k.id)}" aria-controls="liga-tabelle" aria-selected="false">${esc(k.name)}<small>iRating ${esc(bereich(k))}</small></button>`).join("")}</div>
       <div id="liga-tabelle" role="tabpanel"></div>
       <p class="liga-legende"><span><b style="color:var(--liga-gold)">Gold</b>, <b style="color:var(--liga-silber)">Silber</b>, <b style="color:var(--liga-bronze)">Bronze</b> = Podium</span><span><b class="liga-tag pp">PP</b> = Pole</span><span><b class="liga-tag sr">SR</b> = schnellste Runde</span><span><b class="liga-tag aus">DNF</b> = nicht gewertet</span><span><b class="liga-tag aus">DSQ</b> = disqualifiziert</span><span>Durchgestrichen = Streichergebnis</span></p>`, "liga-tabelle-bereich"));
@@ -291,6 +430,7 @@
       $("liga-tabelle-bereich").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion:reduce)").matches ? "auto" : "smooth" });
     }));
     waehle((besetzt[0] || gruppen[0]).id);
+    fahrerDialog(besetzt, regeln, d);
   }
 
   const lade = (pfad) => fetch(pfad, { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);

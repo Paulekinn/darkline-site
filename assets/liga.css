@@ -302,3 +302,98 @@
 @media (prefers-reduced-motion:reduce){.liga-poster,.liga-poster-bild{transition:none}.liga-poster:hover{transform:none}.liga-poster:hover .liga-poster-bild{transform:none}}
 
 @media (prefers-reduced-motion:reduce){.liga-karte,.liga-tabs button{transition:none}.liga-karte:hover{transform:none}}
+
+/* Titelkampf */
+.liga-tk-erster{display:block;padding:0 18px}
+.liga-tk-balken{position:relative;display:block;height:7px;margin-top:5px;background:#22272a}
+.liga-tk-balken u,.liga-tk-balken i{position:absolute;inset:0 auto 0 0;display:block;text-decoration:none}
+.liga-tk-balken u{background:color-mix(in srgb,var(--k) 28%,transparent)}
+.liga-tk-balken i{background:var(--k)}
+.liga-tk-zeile{display:flex;justify-content:space-between;gap:12px}
+.liga-tk-zeile span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.liga-tk-status{display:block;margin-top:4px;font:700 .68rem/1.25 var(--f-mono);color:var(--muted)}
+.liga-tk-status.meister,.liga-tk-status.matchball{color:var(--liga-gold)}
+.liga-tk-status.eigen{color:var(--liga-gruen)}
+.liga-tk-status.hilfe{color:var(--liga-blau)}
+.liga-tk-status.raus{color:#7f8785;font-weight:500}
+.liga-tk-weitere{padding:0 18px;font:500 .68rem/1.2 var(--f-mono);color:var(--muted)}
+.liga-karte-rest li{display:block}
+
+/* Rennbericht */
+.liga-bericht-wahl{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.liga-bericht-wahl button{min-width:44px;padding:7px 10px;background:var(--paper);border:0;color:var(--muted);font:800 .78rem/1 var(--f-wide);cursor:pointer;transform:skewX(-10deg)}
+.liga-bericht-wahl button:hover{color:var(--ink)}
+.liga-bericht-wahl button[aria-pressed="true"]{background:var(--s,var(--red));color:#08090a}
+.liga-bericht-wahl button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+#liga-bericht{display:grid;gap:10px}
+.liga-bericht{position:relative;isolation:isolate;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:18px;align-items:center;padding:20px 22px;background:var(--paper);border-left:5px solid var(--s,var(--red))}
+.liga-bericht-bild{position:absolute;inset:0 0 0 30%;z-index:-2;background-size:cover;background-position:center;opacity:.34}
+.liga-bericht::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,var(--paper) 34%,color-mix(in srgb,var(--paper) 62%,transparent))}
+.liga-bericht-haupt{display:grid;gap:8px;min-width:0}
+.liga-bericht h3{margin:0;font:900 clamp(1.5rem,3.2vw,2.5rem)/1.05 var(--f-wide);font-variation-settings:"wdth" 118;text-transform:uppercase;overflow-wrap:anywhere}
+.liga-bericht h3 small{display:block;margin-top:5px;font:600 .95rem/1.25 var(--f-mono);text-transform:none;color:var(--liga-gold);font-variation-settings:normal}
+.liga-bericht-podium{display:flex;flex-wrap:wrap;gap:4px 18px;margin:0;padding:0;list-style:none;font:.84rem/1.3 var(--f-mono)}
+.liga-bericht-podium b{margin-right:6px}
+.liga-bericht-podium .p2 b{color:var(--liga-silber)}
+.liga-bericht-podium .p3 b{color:var(--liga-bronze)}
+.liga-kacheln{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,132px),1fr));gap:6px}
+.liga-kachel{display:grid;gap:3px;min-width:0;padding:11px 12px;background:color-mix(in srgb,var(--monitor) 86%,transparent);border-top:3px solid var(--a)}
+.liga-kachel.auf{--a:var(--liga-gruen)} .liga-kachel.runde{--a:var(--liga-lila)} .liga-kachel.sauber{--a:var(--liga-blau)}
+.liga-kachel span{font:500 .62rem/1.2 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.liga-kachel b{font:800 .95rem/1.15 var(--f-wide);overflow-wrap:anywhere}
+.liga-kachel small{font:700 .8rem/1.2 var(--f-mono);color:var(--a);font-variant-numeric:tabular-nums}
+
+/* Fahrerkarten */
+.liga-fk-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:12px}
+.liga-fk{--rang:var(--muted);all:unset;box-sizing:border-box;position:relative;isolation:isolate;overflow:hidden;display:grid;align-content:start;gap:11px;padding:15px 15px 17px;background:linear-gradient(155deg,color-mix(in srgb,var(--rang) 30%,var(--paper)),var(--paper) 58%);border-top:4px solid var(--rang);clip-path:polygon(0 0,calc(100% - 24px) 0,100% 24px,100% 100%,24px 100%,0 calc(100% - 24px));transition:transform .18s}
+button.liga-fk{cursor:pointer}
+button.liga-fk:hover{transform:translateY(-4px)}
+button.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--paper))}
+.liga-fk.r-gold{--rang:var(--liga-gold)} .liga-fk.r-silber{--rang:var(--liga-silber)} .liga-fk.r-bronze{--rang:var(--liga-bronze)}
+.liga-fk-bild{position:absolute;inset:0 0 auto;height:150px;z-index:-2;background-size:cover;background-position:center;opacity:.22;-webkit-mask-image:linear-gradient(180deg,#000,transparent);mask-image:linear-gradient(180deg,#000,transparent)}
+.liga-fk::after{content:"";position:absolute;inset:-40% -60%;z-index:-1;background:linear-gradient(115deg,transparent 44%,color-mix(in srgb,var(--rang) 30%,transparent) 50%,transparent 56%);transform:translateX(-45%);transition:transform .7s ease;pointer-events:none}
+.liga-fk:hover::after{transform:translateX(45%)}
+.liga-fk-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.liga-fk-rating{display:grid;gap:3px}
+.liga-fk-rating b{font:900 3.1rem/.9 var(--f-wide);font-variation-settings:"wdth" 112;color:var(--rang);font-variant-numeric:tabular-nums}
+.liga-fk-rating span{font:500 .62rem/1.2 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:#c3cac7}
+.liga-fk-klasse{padding:4px 8px;background:var(--k);color:#08090a;font:900 .68rem/1 var(--f-wide);text-transform:uppercase;transform:skewX(-10deg);white-space:nowrap}
+.liga-fk-name{display:grid;gap:3px;min-width:0}
+.liga-fk-name strong{font:900 1.22rem/1.1 var(--f-wide);font-variation-settings:"wdth" 112;text-transform:uppercase;overflow-wrap:anywhere}
+.liga-fk-name small{font:500 .7rem/1.25 var(--f-mono);color:var(--muted)}
+.liga-fk-werte{display:grid;gap:6px;font:.74rem/1 var(--f-mono)}
+.liga-fk-werte>div{display:grid;grid-template-columns:82px minmax(0,1fr) 24px;align-items:center;gap:7px}
+.liga-fk-werte>div>span:first-child{color:var(--muted)}
+.liga-fk-werte b{text-align:right;font-variant-numeric:tabular-nums}
+.liga-fk-balken{display:block;height:6px;background:#2a2f33;transform:skewX(-14deg)}
+.liga-fk-balken i{display:block;height:100%;background:var(--w)}
+.w-s{--w:var(--liga-rot)} .w-c{--w:var(--liga-gruen)} .w-r{--w:var(--liga-gelb)} .w-k{--w:var(--liga-blau)}
+.liga-fk-form{display:flex;gap:3px}
+.liga-fk-form i{display:grid;place-items:center;min-width:25px;height:22px;padding:0 3px;background:#2a2f33;font:700 .64rem/1 var(--f-mono);font-style:normal;color:var(--ink)}
+.liga-fk-form i.p1{background:var(--liga-gold);color:#17120a}
+.liga-fk-form i.p2{background:var(--liga-silber);color:#101314}
+.liga-fk-form i.p3{background:var(--liga-bronze);color:#1b0f06}
+.liga-fk-form i.aus{background:color-mix(in srgb,var(--liga-rot) 34%,#1a1d20);color:#ffc9cc}
+.liga-fk-form i.leer{color:var(--muted);background:transparent;outline:1px solid #2a2f33;outline-offset:-1px}
+.liga-fk-abzeichen{display:flex;flex-wrap:wrap;gap:4px}
+.liga-fk-abzeichen span{--a:var(--liga-gold);padding:3px 6px;border:1px solid var(--a);color:var(--a);font:700 .62rem/1.1 var(--f-mono)}
+.liga-fk-abzeichen .a-sauber,.liga-fk-abzeichen .a-ziel{--a:var(--liga-gruen)}
+.liga-fk-abzeichen .a-comeback{--a:var(--liga-blau)}
+.liga-fahrerlink{all:unset;cursor:pointer;border-bottom:1px dotted var(--muted)}
+.liga-fahrerlink:hover{color:var(--liga-gold);border-bottom-color:var(--liga-gold)}
+.liga-fahrerlink:focus-visible{outline:2px solid var(--liga-gold);outline-offset:2px}
+.liga-fk-dialog{width:min(380px,calc(100vw - 32px));max-height:calc(100vh - 32px);padding:0;overflow:auto;background:var(--monitor);color:var(--ink);border:0}
+.liga-fk-dialog::backdrop{background:rgba(4,5,6,.8)}
+.liga-fk-dialog .liga-serie-aktion{padding:0 14px 14px}
+.liga-fk.gross{width:100%}
+.liga-fk-zahlen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;margin:12px 14px;background:var(--scan)}
+.liga-fk-zahlen div{display:grid;gap:3px;padding:8px;background:var(--monitor)}
+.liga-fk-zahlen dt{font:500 .6rem/1.2 var(--f-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.liga-fk-zahlen dd{margin:0;font:800 1rem/1 var(--f-wide);font-variant-numeric:tabular-nums}
+.liga-fk-hinweis{margin:0 14px 12px;font:.74rem/1.35 var(--f-mono);color:var(--muted)}
+@media (max-width:760px){
+  .liga-bericht{grid-template-columns:minmax(0,1fr);padding:16px}
+  .liga-bericht-bild{inset:0}
+  .liga-bericht::before{background:color-mix(in srgb,var(--paper) 74%,transparent)}
+}
+@media (prefers-reduced-motion:reduce){.liga-fk,.liga-fk::after{transition:none}button.liga-fk:hover{transform:none}.liga-fk:hover::after{transform:translateX(-45%)}}

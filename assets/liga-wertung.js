@@ -162,6 +162,168 @@
     return { ...rennen, fahrer: fahrer.sort((a, b) => a.gesamt - b.gesamt) };
   }
 
+  /* ---------- Fahrerkarte, Rennbericht und Titelkampf: alles wird aus den Ergebnisdateien abgeleitet ---------- */
+
+  // Ab so vielen Rennen ist das Gesamtrating aussagekräftig genug, um es zu zeigen.
+  const RATING_MIN_RENNEN = 3;
+  const skala = (w) => Math.round(Math.min(99, Math.max(40, w)));
+  const schnitt = (l) => l.reduce((t, x) => t + x, 0) / l.length;
+
+  // Vergleichswerte eines Rennens innerhalb der Fahrzeugklasse. Map iRacing-ID → Kennzahlen.
+  function rennKennzahlen(rennen) {
+    const map = new Map();
+    for (const fz of new Set(rennen.fahrer.map((f) => f.fahrzeugklasseId))) {
+      const feld = rennen.fahrer.filter((f) => f.fahrzeugklasseId === fz);
+      const zielListe = [...feld.filter((f) => !f.disqualifiziert), ...feld.filter((f) => f.disqualifiziert)];
+      const startListe = feld.filter((f) => f.start !== null).sort((a, b) => a.start - b.start);
+      const mitRunde = feld.filter((f) => !f.disqualifiziert && f.besteRunde !== null);
+      // Ohne zweite Rundenzeit gibt es nichts zu vergleichen.
+      const bestzeit = mitRunde.length > 1 ? Math.min(...mitRunde.map((f) => f.besteRunde)) : null;
+      zielListe.forEach((f, ziel) => {
+        const start = startListe.indexOf(f);
+        map.set(f.cust, {
+          aufgeholt: start >= 0 ? start - ziel : null,
+          startAnteil: start >= 0 && startListe.length > 1 ? start / (startListe.length - 1) : null,
+          zielAnteil: feld.length > 1 ? ziel / (feld.length - 1) : null,
+          speedAbstand: bestzeit !== null && f.besteRunde !== null ? (f.besteRunde / bestzeit - 1) * 100 : null,
+        });
+      });
+    }
+    return map;
+  }
+
+  // Automatischer Rennbericht je Fahrzeugklasse
+  function rennBericht(rennen, wertung, kennzahlen, fahrzeugklassen) {
+    return fahrzeugklassen.map((fz) => {
+      const feld = rennen.fahrer.filter((f) => f.fahrzeugklasseId === fz.id);
+      const gewertet = feld.filter((f) => wertung.get(f.cust).status === "OK");
+      if (!gewertet.length) return null;
+      // reduce behält bei Gleichstand den Fahrer, der weiter vorn angekommen ist.
+      const gewinne = gewertet.filter((f) => kennzahlen.get(f.cust).aufgeholt > 0);
+      const aufholer = gewinne.length ? gewinne.reduce((a, b) => (kennzahlen.get(b.cust).aufgeholt > kennzahlen.get(a.cust).aufgeholt ? b : a)) : null;
+      const mitRunde = feld.filter((f) => !f.disqualifiziert && f.besteRunde !== null);
+      const schnellste = mitRunde.length ? mitRunde.reduce((a, b) => (b.besteRunde < a.besteRunde ? b : a)) : null;
+      const sauberster = gewertet.reduce((a, b) => (b.incidents < a.incidents ? b : a));
+      return {
+        fahrzeugklasse: fz.name,
+        starter: feld.length,
+        podium: gewertet.slice(0, 3).map((f) => f.name),
+        aufholer: aufholer ? { name: aufholer.name, plaetze: kennzahlen.get(aufholer.cust).aufgeholt } : null,
+        schnellste: schnellste ? { name: schnellste.name, zeit: schnellste.besteRunde } : null,
+        sauberster: { name: sauberster.name, incidents: sauberster.incidents },
+      };
+    }).filter(Boolean);
+  }
+
+  // Längste Folge von Rennen, die die Bedingung erfüllen. Ein ausgelassenes Rennen beendet die Folge.
+  function laengsteFolge(rennen, bedingung) {
+    let beste = 0;
+    let aktuell = 0;
+    for (const r of rennen) {
+      aktuell = r && bedingung(r) ? aktuell + 1 : 0;
+      beste = Math.max(beste, aktuell);
+    }
+    return beste;
+  }
+
+  function fahrerKarte(rennen, kennzahlen, strafpunkte) {
+    const gefahren = rennen.map((r, i) => r && { r, z: kennzahlen[i].get(r.cust) }).filter(Boolean);
+    const abstaende = gefahren.map((x) => x.z.speedAbstand).filter((x) => x !== null);
+    const runden = gefahren.reduce((t, x) => t + x.r.runden, 0);
+    const incidents = gefahren.reduce((t, x) => t + x.r.incidents, 0);
+    const dsq = gefahren.filter((x) => x.r.status === "DSQ").length;
+    const zeitstrafen = gefahren.filter((x) => x.r.zeitstrafe).length;
+    // Entscheidungen der Rennleitung kosten Sauberkeit, auch wenn die Incidents niedrig waren.
+    const abzug = Math.min(25, strafpunkte + dsq * 5 + zeitstrafen * 2);
+    const racecraftWerte = gefahren.filter((x) => x.z.startAnteil !== null && x.z.zielAnteil !== null).map(({ z }) => skala(52 + 55 * (z.startAnteil - z.zielAnteil) + 40 * (1 - z.zielAnteil)));
+    // Ein Ausfall zählt wie der letzte Platz.
+    const zielWerte = gefahren.filter((x) => x.z.zielAnteil !== null).map((x) => (x.r.status === "OK" ? x.z.zielAnteil : 1));
+    const mittel = zielWerte.length ? schnitt(zielWerte) : 0;
+
+    const speed = abstaende.length ? skala(99 - 13 * schnitt(abstaende)) : null;
+    const sauberkeit = runden > 0 ? skala(99 - 120 * (incidents / runden) - abzug) : null;
+    const racecraft = racecraftWerte.length ? skala(schnitt(racecraftWerte)) : null;
+    const konstanz = zielWerte.length >= 2 ? skala(99 - 200 * Math.sqrt(schnitt(zielWerte.map((w) => (w - mittel) ** 2)))) : null;
+    const vollstaendig = gefahren.length >= RATING_MIN_RENNEN && [speed, sauberkeit, racecraft, konstanz].every((w) => w !== null);
+
+    const abzeichen = [];
+    const hattricks = gefahren.filter((x) => x.r.platz === 1 && x.r.pole && x.r.schnellsteRunde).length;
+    if (hattricks) abzeichen.push({ art: "hattrick", text: hattricks > 1 ? `${hattricks}× Hattrick` : "Hattrick" });
+    const siegesserie = laengsteFolge(rennen, (r) => r.platz === 1);
+    if (siegesserie >= 3) abzeichen.push({ art: "siege", text: `${siegesserie} Siege in Folge` });
+    const podeste = laengsteFolge(rennen, (r) => r.platz !== null && r.platz <= 3);
+    if (podeste >= 3 && podeste > siegesserie) abzeichen.push({ art: "podest", text: `${podeste}× Podest in Folge` });
+    const sauber = gefahren.filter((x) => x.r.status === "OK" && x.r.incidents === 0).length;
+    if (sauber >= 2) abzeichen.push({ art: "sauber", text: `${sauber}× sauber` });
+    const comeback = Math.max(0, ...gefahren.filter((x) => x.r.status === "OK").map((x) => x.z.aufgeholt || 0));
+    if (comeback >= 5) abzeichen.push({ art: "comeback", text: `Comeback +${comeback}` });
+    if (gefahren.length >= RATING_MIN_RENNEN && gefahren.length === rennen.length && gefahren.every((x) => x.r.status === "OK")) abzeichen.push({ art: "ziel", text: "Immer im Ziel" });
+
+    return {
+      rating: vollstaendig ? Math.round(0.35 * speed + 0.25 * sauberkeit + 0.25 * racecraft + 0.15 * konstanz) : null,
+      speed, sauberkeit, racecraft, konstanz,
+      rennen: gefahren.length,
+      podien: gefahren.filter((x) => x.r.platz !== null && x.r.platz <= 3).length,
+      ausfaelle: gefahren.filter((x) => x.r.status !== "OK").length,
+      abzeichen,
+    };
+  }
+
+  // Titelkampf einer Wertung. Jede Aussage gilt nach aktuellem Stand mathematisch, auch mit Streichergebnissen.
+  // Ein neu einsteigender Fahrer wird mitgerechnet, damit niemand zu früh zum Meister erklärt wird.
+  function titelStand(fahrer, regeln, rest) {
+    if (!fahrer.length) return;
+    const punkteAus = (f, neu) => [...f.rennen.filter(Boolean).map((r) => r.punkte), ...neu].sort((a, b) => b - a).slice(0, regeln.gewerteteRennen).reduce((t, p) => t + p, 0) - f.strafpunkte;
+    const mal = (n, wert) => Array.from({ length: Math.max(0, n) }, () => wert);
+    const bonus = (regeln.bonusPole || 0) + (regeln.bonusSchnellsteRunde || 0);
+    const sieg = punkteFuer(1, regeln);
+    const zweiter = punkteFuer(2, regeln);
+    const maximal = sieg + bonus;
+    const anzahl = fahrer.length;
+    const tabellenplaetze = regeln.punkte.length;
+    const erster = fahrer[0];
+    const neuling = { rennen: [], strafpunkte: 0 };
+    const rivalen = (f) => [...fahrer.filter((x) => x !== f), neuling];
+    fahrer.forEach((f) => { f.titel = { status: "", text: "", maxEnde: punkteAus(f, mal(rest, maximal)) }; });
+
+    if (rest <= 0) {
+      erster.titel = { ...erster.titel, status: "meister", text: "Meister" };
+      return;
+    }
+    // Wer alle restlichen Rennen ohne Bonus gewinnt, darf von niemandem mehr eingeholt werden, der immer Zweiter mit vollem Bonus wird.
+    const inEigenerHand = (f) => {
+      const eigene = punkteAus(f, mal(rest, sieg));
+      return rivalen(f).every((r) => eigene > punkteAus(r, mal(rest, zweiter + bonus)));
+    };
+
+    fahrer.forEach((f) => {
+      if (f === erster) {
+        if (rivalen(f).every((r) => punkteAus(r, mal(rest, maximal)) < f.punkte)) { f.titel.status = "meister"; f.titel.text = "Meister"; return; }
+        // Matchball: der schlechteste Platz im nächsten Rennen, mit dem kein Rivale mehr vorbeikommt, ohne Bonus für den Führenden.
+        for (let platz = tabellenplaetze; platz >= 1; platz--) {
+          const eigene = punkteAus(f, [punkteFuer(platz, regeln)]);
+          const naechstes = platz === 1 ? zweiter + bonus : maximal;
+          if (rivalen(f).every((r) => eigene > punkteAus(r, [naechstes, ...mal(rest - 1, maximal)]))) {
+            const noetig = Math.min(platz, anzahl);
+            f.titel.status = "matchball";
+            f.titel.text = noetig === 1 ? "Titel mit einem Sieg sicher" : `Titel mit P${noetig} sicher`;
+            return;
+          }
+        }
+        if (inEigenerHand(f)) { f.titel.status = "eigen"; f.titel.text = "Titel in eigener Hand"; return; }
+        f.titel.status = "fuehrt"; f.titel.text = "Führt die Wertung an";
+        return;
+      }
+      if (f.titel.maxEnde < erster.punkte) { f.titel.status = "raus"; f.titel.text = "Titel nicht mehr möglich"; return; }
+      if (inEigenerHand(f)) { f.titel.status = "eigen"; f.titel.text = rest === 1 ? "Mit einem Sieg Meister" : "Titel in eigener Hand"; return; }
+      f.titel.status = "hilfe";
+      // Der schlechteste Platz im nächsten Rennen, mit dem der Titel überhaupt noch erreichbar bleibt.
+      let platz = tabellenplaetze;
+      while (platz > 1 && punkteAus(f, [punkteFuer(platz, regeln) + bonus, ...mal(rest - 1, maximal)]) < erster.punkte) platz--;
+      f.titel.text = platz === 1 ? "Braucht einen Sieg" : platz < Math.min(tabellenplaetze, anzahl) ? `Braucht mindestens P${platz}` : "Noch im Titelrennen";
+    });
+  }
+
   // Reihenfolge bei Punktgleichheit: mehr Siege, mehr zweite Plätze usw., dann das bessere jüngste Rennen.
   function vergleiche(a, b, anzahlRennen) {
     if (b.punkte !== a.punkte) return b.punkte - a.punkte;
@@ -192,6 +354,7 @@
     const rennenListe = [...rennenEingabe].sort((a, b) => String(a.start).localeCompare(String(b.start))).map((r) => wendeEntscheidungenAn(r, privat, warnungen));
     const einstufung = einstufen(rennenListe, regeln, privat, warnungen);
     const wertungen = rennenListe.map((r) => werteRennen(r, einstufung, regeln));
+    const kennzahlen = rennenListe.map(rennKennzahlen);
 
     const strafen = new Map();
     for (const s of (privat && privat.strafen) || []) {
@@ -225,7 +388,7 @@
         const rennen = wertungen.map((w, i) => {
           const r = w.get(cust);
           if (!inGruppe(r)) return null;
-          return { platz: r.platz, status: r.status, punkte: r.punkte, pole: r.pole, schnellsteRunde: r.schnellsteRunde, strafe: strafen.get(`${i}:${cust}`) || 0, gestrichen: false, runden: r.runden, incidents: r.incidents, zeitstrafe: r.zeitstrafe };
+          return { cust, platz: r.platz, status: r.status, punkte: r.punkte, pole: r.pole, schnellsteRunde: r.schnellsteRunde, strafe: strafen.get(`${i}:${cust}`) || 0, gestrichen: false, runden: r.runden, incidents: r.incidents, zeitstrafe: r.zeitstrafe };
         });
         // Beste Rennen zählen. Bei gleichen Punkten bleibt das jüngere Rennen in der Wertung.
         const gefahren = rennen.map((r, i) => ({ r, i })).filter((x) => x.r).sort((a, b) => b.r.punkte - a.r.punkte || b.i - a.i);
@@ -243,10 +406,12 @@
           strafpunkte,
           punkte: summe - strafpunkte,
           incidentsProRunde: runden > 0 ? Math.round((incidents / runden) * 100) / 100 : null,
+          karte: fahrerKarte(rennen, kennzahlen, strafpunkte),
         };
       });
       fahrer.sort((a, b) => vergleiche(a, b, rennenListe.length));
       fahrer.forEach((f, i) => { f.pos = i + 1; });
+      titelStand(fahrer, regeln, Math.max(0, regeln.rennenGesamt - rennenListe.length));
       return { id: mehrere ? `${fz.id}-${k.id}` : k.id, name: mehrere ? `${fz.name} ${k.name}` : k.name, fahrzeugklasse: fz.name, min: k.min, max: k.max, fahrer };
     }));
 
@@ -254,7 +419,9 @@
       saison: regeln.saison,
       rennenGesamt: regeln.rennenGesamt,
       gewerteteRennen: regeln.gewerteteRennen,
-      rennen: rennenListe.map((r, i) => ({ nr: i + 1, strecke: r.strecke, variante: r.variante, start: r.start })),
+      restRennen: Math.max(0, regeln.rennenGesamt - rennenListe.length),
+      maxProRennen: punkteFuer(1, regeln) + (regeln.bonusPole || 0) + (regeln.bonusSchnellsteRunde || 0),
+      rennen: rennenListe.map((r, i) => ({ nr: i + 1, strecke: r.strecke, variante: r.variante, start: r.start, bericht: rennBericht(r, wertungen[i], kennzahlen[i], fahrzeugklassen) })),
       klassen,
       warnungen,
     };

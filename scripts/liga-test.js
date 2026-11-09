@@ -48,7 +48,144 @@ const tabelle = (dateien, regeln, privat) => berechneTabelle(dateien.map(lies), 
 const klasse = (t, id) => t.klassen.find((k) => k.id === id);
 const fahrer = (k, name) => k.fahrer.find((f) => f.name === name);
 
+// Fünf Fahrer in fester Reihenfolge, in jedem Rennen derselbe Zieleinlauf
+const FUENF = [{ c: 1, n: "A" }, { c: 2, n: "B" }, { c: 3, n: "C" }, { c: 4, n: "D" }, { c: 5, n: "E" }];
+const TITEL = { ...EINE_KLASSE, punkte: [25, 18, 15, 12, 10], punkteDanach: 0, rennenGesamt: 3, gewerteteRennen: 3 };
+const rennenMit = (anzahl, feld) => Array.from({ length: anzahl }, (_, i) => datei(i + 1, i + 1, feld));
+
 const tests = {
+  "Titelkampf: Matchball und nötige Plätze stimmen rechnerisch": () => {
+    const k = tabelle(rennenMit(2, FUENF), TITEL).klassen[0];
+    assert.deepStrictEqual(k.fahrer.map((f) => f.punkte), [50, 36, 30, 24, 20]);
+    assert.strictEqual(fahrer(k, "A").titel.text, "Titel mit P4 sicher");
+    assert.strictEqual(fahrer(k, "B").titel.text, "Braucht mindestens P3");
+    assert.strictEqual(fahrer(k, "C").titel.text, "Braucht einen Sieg");
+    assert.strictEqual(fahrer(k, "D").titel.status, "raus");
+    assert.strictEqual(fahrer(k, "B").titel.maxEnde, 61);
+  },
+  "Titelkampf: Streichergebnis kann den Titel vorzeitig entscheiden": () => {
+    const t = tabelle(rennenMit(3, FUENF.slice(0, 2)), { ...TITEL, rennenGesamt: 4, gewerteteRennen: 3 });
+    assert.strictEqual(t.restRennen, 1);
+    assert.strictEqual(fahrer(t.klassen[0], "A").titel.status, "meister");
+    assert.strictEqual(fahrer(t.klassen[0], "B").titel.maxEnde, 61);
+  },
+  "Titelkampf: ohne Streichergebnis ist derselbe Stand noch nicht entschieden": () => {
+    const t = tabelle(rennenMit(3, FUENF.slice(0, 2)), { ...TITEL, rennenGesamt: 4, gewerteteRennen: 4 });
+    assert.notStrictEqual(fahrer(t.klassen[0], "A").titel.status, "meister");
+  },
+  "Titelkampf: Punktgleichheit gilt nicht als entschieden": () => {
+    // A hat 50 Punkte, B kann mit zwei Siegen genau 50 erreichen.
+    const k = tabelle(rennenMit(2, FUENF.slice(0, 2)), { ...TITEL, punkte: [25, 0], rennenGesamt: 4, gewerteteRennen: 4 }).klassen[0];
+    assert.strictEqual(fahrer(k, "A").punkte, 50);
+    assert.strictEqual(fahrer(k, "B").titel.maxEnde, 50);
+    assert.notStrictEqual(fahrer(k, "A").titel.status, "meister");
+    assert.notStrictEqual(fahrer(k, "B").titel.status, "raus");
+  },
+  "Titelkampf: ein neuer Fahrer wird mitgerechnet": () => {
+    const k = tabelle(rennenMit(1, FUENF.slice(0, 1)), { ...TITEL, rennenGesamt: 4, gewerteteRennen: 4 }).klassen[0];
+    assert.notStrictEqual(k.fahrer[0].titel.status, "meister");
+  },
+  "Titelkampf: wer alles gewinnt, hat es in der eigenen Hand": () => {
+    const k = tabelle(rennenMit(1, FUENF.slice(0, 2)), { ...TITEL, rennenGesamt: 4, gewerteteRennen: 4 }).klassen[0];
+    assert.strictEqual(fahrer(k, "A").titel.status, "eigen");
+    assert.strictEqual(fahrer(k, "B").titel.status, "eigen");
+  },
+  "Titelkampf: am Saisonende steht der Meister fest": () => {
+    const t = tabelle(rennenMit(3, FUENF), TITEL);
+    assert.strictEqual(t.restRennen, 0);
+    assert.strictEqual(fahrer(t.klassen[0], "A").titel.text, "Meister");
+    assert.strictEqual(fahrer(t.klassen[0], "B").titel.text, "");
+    assert.strictEqual(fahrer(t.klassen[0], "B").titel.maxEnde, 54);
+  },
+  "Titelkampf: Strafpunkte zählen mit": () => {
+    const privat = { strafen: [{ rennen: "1", cust: "1", punkte: 20 }] };
+    const k = tabelle(rennenMit(2, FUENF), TITEL, privat).klassen[0];
+    assert.strictEqual(fahrer(k, "A").punkte, 30);
+    assert.strictEqual(fahrer(k, "A").titel.maxEnde, 55);
+  },
+  "Fahrerkarte: Speed folgt dem Abstand zur schnellsten Runde der Fahrzeugklasse": () => {
+    const k = tabelle([datei(1, 1, [{ c: 1, n: "A", b: 1000000 }, { c: 2, n: "B", b: 1010000 }])], EINE_KLASSE).klassen[0];
+    assert.strictEqual(fahrer(k, "A").karte.speed, 99);
+    assert.strictEqual(fahrer(k, "B").karte.speed, 86);
+  },
+  "Fahrerkarte: Sauberkeit folgt den Incidents je Runde und fällt nie unter 40": () => {
+    const k = tabelle([datei(1, 1, [{ c: 1, n: "A", i: 1 }, { c: 2, n: "B", i: 12 }])], EINE_KLASSE).klassen[0];
+    assert.strictEqual(fahrer(k, "A").karte.sauberkeit, 89);
+    assert.strictEqual(fahrer(k, "B").karte.sauberkeit, 40);
+  },
+  "Fahrerkarte: Disqualifikation kostet Sauberkeit": () => {
+    const k = tabelle([datei(1, 1, [{ c: 1, n: "A" }, { c: 2, n: "B", out: "Disqualified" }, { c: 3, n: "C" }])], EINE_KLASSE).klassen[0];
+    assert.strictEqual(fahrer(k, "A").karte.sauberkeit, 99);
+    assert.strictEqual(fahrer(k, "B").karte.sauberkeit, 94);
+  },
+  "Fahrerkarte: das Rating erscheint erst ab drei Rennen": () => {
+    assert.strictEqual(tabelle(rennenMit(2, FUENF), TITEL).klassen[0].fahrer[0].karte.rating, null);
+    const karte = tabelle(rennenMit(3, FUENF), TITEL).klassen[0].fahrer[0].karte;
+    assert.ok(karte.rating >= 40 && karte.rating <= 99);
+    assert.strictEqual(karte.konstanz, 99);
+    assert.strictEqual(karte.podien, 3);
+  },
+  "Fahrerkarte: Abzeichen werden korrekt vergeben": () => {
+    const k = tabelle([datei(1, 1, [{ c: 1, n: "A", s: 0, b: 900000 }, { c: 2, n: "B", s: 7 }, { c: 3, n: "C", s: 1 }, { c: 4, n: "D", s: 2 }, { c: 5, n: "E", s: 3 }, { c: 6, n: "F", s: 4 }, { c: 7, n: "G", s: 5 }, { c: 8, n: "H", s: 6 }])], { ...EINE_KLASSE, rennenGesamt: 8 }).klassen[0];
+    const texte = (n) => fahrer(k, n).karte.abzeichen.map((a) => a.text);
+    assert.ok(texte("A").includes("Hattrick"));
+    assert.ok(texte("B").includes("Comeback +6"));
+    assert.ok(!texte("C").some((t) => t.startsWith("Comeback")));
+  },
+  "Fahrerkarte: ein ausgelassenes Rennen beendet die Serie und Immer im Ziel": () => {
+    const k = tabelle([datei(1, 1, FUENF), datei(2, 2, FUENF), datei(3, 3, FUENF.slice(1)), datei(4, 4, FUENF)], { ...TITEL, rennenGesamt: 8, gewerteteRennen: 8 }).klassen[0];
+    const a = fahrer(k, "A").karte.abzeichen.map((x) => x.text);
+    assert.ok(!a.includes("3 Siege in Folge"));
+    assert.ok(!a.includes("Immer im Ziel"));
+    assert.ok(fahrer(k, "C").karte.abzeichen.some((x) => x.text === "4× Podest in Folge"));
+    assert.ok(fahrer(k, "B").karte.abzeichen.some((x) => x.text === "Immer im Ziel"));
+  },
+  "Rennbericht: Kategorien je Fahrzeugklasse": () => {
+    const t = tabelle([datei(1, 1, [
+      { c: 1, n: "A", fz: 1, fzn: "GTP", s: 1, b: 900000, i: 4 },
+      { c: 2, n: "B", fz: 1, fzn: "GTP", s: 0, b: 910000, i: 0 },
+      { c: 3, n: "C", s: 4, b: 1000000, i: 2 },
+      { c: 4, n: "D", s: 2, b: 990000, i: 1 },
+      { c: 5, n: "E", s: 3, b: 995000, i: 1 },
+    ])], EINE_KLASSE);
+    const [gtp, gt3] = t.rennen[0].bericht;
+    assert.deepStrictEqual(gtp.podium, ["A", "B"]);
+    assert.strictEqual(gtp.starter, 2);
+    assert.deepStrictEqual(gtp.aufholer, { name: "A", plaetze: 1 });
+    assert.deepStrictEqual(gtp.schnellste, { name: "A", zeit: 900000 });
+    assert.deepStrictEqual(gtp.sauberster, { name: "B", incidents: 0 });
+    assert.strictEqual(gt3.fahrzeugklasse, "GT3");
+    assert.deepStrictEqual(gt3.aufholer, { name: "C", plaetze: 2 });
+    assert.deepStrictEqual(gt3.schnellste, { name: "D", zeit: 990000 });
+    assert.deepStrictEqual(gt3.sauberster, { name: "D", incidents: 1 });
+  },
+  "Rennbericht: Disqualifizierte und Ausfälle bekommen keine Auszeichnung": () => {
+    const b = tabelle([datei(1, 1, [
+      { c: 1, n: "A", s: 1, b: 1000000, i: 3 },
+      { c: 2, n: "B", s: 2, b: 900000, i: 0, out: "Disqualified" },
+      { c: 3, n: "C", s: 3, b: 1010000, i: 2, l: 1 },
+      { c: 4, n: "D", s: 0, b: 1020000, i: 5 },
+    ])], EINE_KLASSE).rennen[0].bericht[0];
+    assert.deepStrictEqual(b.podium, ["A", "D"]);
+    assert.strictEqual(b.schnellste.name, "A");
+    assert.strictEqual(b.sauberster.name, "A");
+    assert.strictEqual(b.aufholer.name, "A");
+  },
+  "Rennbericht: eine Zeitstrafe ändert den Sieger": () => {
+    const privat = { zeitstrafen: [{ rennen: "1", cust: "1", sekunden: 5 }] };
+    const b = tabelle([datei(1, 1, [{ c: 1, n: "A", ab: 0 }, { c: 2, n: "B", ab: 10000 }])], EINE_KLASSE, privat).rennen[0].bericht[0];
+    assert.deepStrictEqual(b.podium, ["B", "A"]);
+  },
+  "Rennbericht: ohne Platzgewinn gibt es keinen Aufholer": () => {
+    const b = tabelle([datei(1, 1, FUENF)], EINE_KLASSE).rennen[0].bericht[0];
+    assert.strictEqual(b.aufholer, null);
+  },
+  "Karten und Berichte enthalten keine iRacing-IDs": () => {
+    const t = tabelle(rennenMit(3, [{ c: 777123, n: "A" }, { c: 888456, n: "B" }]), TITEL);
+    const text = JSON.stringify(t);
+    assert.ok(!text.includes("777123") && !text.includes("888456"));
+    assert.ok(!text.includes('"cust"'));
+  },
   "Platzierungen aus der Datei beginnen bei 1 statt 0": () => {
     const r = lies(datei(1, 1, [{ c: 1 }, { c: 2 }]));
     assert.deepStrictEqual(r.fahrer.map((f) => f.gesamt), [1, 2]);
