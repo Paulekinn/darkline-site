@@ -155,28 +155,91 @@
     return `${auswahl}<button type="button" class="liga-mini" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Anmelden</button>`;
   }
 
+  // Eure Livery-Bilder als Motiv der Karten. Je Serie immer dasselbe Bild.
+  const LIVERYS = ["porsche", "ferrari", "bmw", "amg", "ford"];
+  const livery = (id) => LIVERYS[[...String(id)].reduce((t, c) => t + c.charCodeAt(0), 0) % LIVERYS.length];
+  const serienLink = (s) => `/liga?serie=${encodeURIComponent(s.id)}`;
+  const MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+
+  // Startzeitpunkt aus Datum und Uhrzeit in deutscher Zeit
+  function startMs(r) {
+    const d = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.datum || "");
+    const z = /^(\d{1,2}):(\d{2})/.exec(r.startzeit || "");
+    if (!d || !z) return null;
+    const wunsch = Date.UTC(+d[1], +d[2] - 1, +d[3], +z[1], +z[2]);
+    const format = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Berlin", hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric" });
+    const versatz = (t) => { const p = Object.fromEntries(format.formatToParts(new Date(t)).map((x) => [x.type, x.value])); return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - t; };
+    return wunsch - versatz(wunsch - versatz(wunsch));
+  }
+
+  function countdown() {
+    document.querySelectorAll("[data-countdown]").forEach((el) => {
+      const ms = Number(el.dataset.countdown) - Date.now();
+      if (ms <= 0) { el.innerHTML = '<span class="liga-live">Rennen läuft</span>'; return; }
+      const teile = [[Math.floor(ms / 864e5), "Tage"], [Math.floor(ms / 36e5) % 24, "Std"], [Math.floor(ms / 6e4) % 60, "Min"]];
+      el.innerHTML = teile.map(([v, l]) => `<span><b>${String(v).padStart(2, "0")}</b><small>${l}</small></span>`).join("");
+    });
+  }
+
   function serienKarte(s, rennen) {
     const naechstes = offeneRennen(rennen.filter((r) => r.serie === s.id))[0];
-    return `<article class="liga-serie ${farbeSerie(s)}">
-      <div class="liga-serie-kopf"><span>${esc(art(s))}${s.saison ? ` · ${esc(s.saison)}` : ""}</span><span>${esc(STATUS[s.status] || "")}</span></div>
-      <h3><a href="/liga?serie=${encodeURIComponent(s.id)}">${esc(s.name)}</a></h3>
-      <p>${esc(s.beschreibung || "")}</p>
-      <p class="liga-serie-termin">${naechstes ? `Nächstes Rennen: ${esc(terminText(naechstes))} · ${esc(naechstes.strecke || naechstes.titel)}` : "Termine folgen"}</p>
-      <div class="liga-serie-aktion"><a class="liga-mini zweit" href="/liga?serie=${encodeURIComponent(s.id)}">${s.typ === "event" ? "Infos" : "Tabelle"}</a>${serienAktion(s)}</div>
+    const klassen = (s.klassen || []).map((k) => `<span class="liga-klassenchip ${farbe(k)}">${esc(k.name)}</span>`).join("");
+    const umfang = s.typ === "event" ? "Einzelrennen" : `${s.rennenGesamt} Rennen`;
+    return `<article class="liga-poster ${farbeSerie(s)}${s.status === "beendet" ? " beendet" : ""}">
+      <div class="liga-poster-bild" style="background-image:url('img/cars/${livery(s.id)}.webp')" aria-hidden="true"></div>
+      <div class="liga-poster-inhalt">
+        <div class="liga-poster-kopf"><span class="liga-pill">${esc(art(s))}${s.saison ? ` · ${esc(s.saison)}` : ""}</span><span class="liga-pill farbig">${esc(STATUS[s.status] || "")}</span></div>
+        <h3><a href="${serienLink(s)}">${esc(s.name)}</a></h3>
+        ${s.beschreibung ? `<p>${esc(s.beschreibung)}</p>` : ""}
+        <div class="liga-poster-klassen">${klassen}</div>
+        <dl class="liga-poster-daten"><div><dt>Umfang</dt><dd>${esc(umfang)}</dd></div><div><dt>Nächstes Rennen</dt><dd>${naechstes ? `${esc(terminText(naechstes))} · ${esc(naechstes.strecke || naechstes.titel)}` : "Termine folgen"}</dd></div></dl>
+        <div class="liga-serie-aktion">${serienAktion(s)}<a class="liga-mini zweit" href="${serienLink(s)}">${s.typ === "event" ? "Infos" : "Tabelle"}</a></div>
+      </div>
     </article>`;
   }
 
+  function terminZeile(r, s) {
+    const d = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.datum || "");
+    return `<a class="liga-termin ${farbeSerie(s)}" href="${serienLink(s)}">
+      <span class="liga-termin-datum"><b>${d ? d[3] : "–"}</b><small>${d ? MONATE[+d[2] - 1] : ""}</small></span>
+      <span class="liga-termin-text"><b>${esc(r.titel)}</b><small>${esc(s.name)}${r.startzeit ? ` · ${esc(r.startzeit)} Uhr` : ""}</small></span>
+    </a>`;
+  }
+
+  // Das nächste Rennen groß im Kopfbereich
+  function feature(r, s) {
+    const start = startMs(r);
+    return `<aside class="liga-feature ${farbeSerie(s)}">
+      <div class="liga-feature-kopf"><span class="lbl">Nächstes Rennen</span><span class="liga-pill farbig">${esc(s.name)}</span></div>
+      <h2>${esc(r.strecke || r.titel)}</h2>
+      <p>${esc(terminText(r))} Uhr${r.strecke && r.titel !== r.strecke ? ` · ${esc(r.titel)}` : ""}</p>
+      ${start ? `<div class="liga-countdown" data-countdown="${start}" aria-hidden="true"></div>` : ""}
+      <div class="liga-serie-aktion">${serienAktion(s)}<a class="liga-mini zweit" href="${serienLink(s)}">Zur Serie</a></div>
+    </aside>`;
+  }
+
   function uebersicht(serien, rennen) {
+    if (!serien.length) return leer(null);
     const aktiv = serien.filter((s) => s.status !== "beendet");
     const archiv = serien.filter((s) => s.status === "beendet");
-    if (!serien.length) return leer(null);
-    const termine = offeneRennen(rennen).slice(0, 6).map((r) => {
-      const s = serien.find((x) => x.id === r.serie);
-      return s ? `<a class="liga-termin ${farbeSerie(s)}" href="/liga?serie=${encodeURIComponent(s.id)}"><b>${esc(terminText(r))}</b><span>${esc(s.name)}</span><span>${esc(r.strecke || r.titel)}</span></a>` : "";
-    }).join("");
-    if (termine) einfuegen(abschnitt("Nächste Termine", "Alle Serien", "", `<div class="liga-termine">${termine}</div>`));
-    const liste = (l) => `<div class="liga-serien">${l.map((s) => serienKarte(s, rennen)).join("")}</div>`;
+    // Rennen von heute bleiben drei Stunden nach dem Start stehen, danach rückt das nächste nach.
+    const termine = offeneRennen(rennen).filter((r) => { const t = startMs(r); return t === null || t + 3 * 3600e3 > Date.now(); }).map((r) => ({ r, s: serien.find((x) => x.id === r.serie) })).filter((x) => x.s);
+
+    // Kopfbereich: nächstes Rennen und Zahlen
+    const kopfBereich = document.querySelector(".liga-kopf");
+    kopfBereich.classList.add("gross");
+    $("liga-fortschritt").innerHTML = `<div class="liga-fakten"><div><b>${aktiv.length}</b><span>${aktiv.length === 1 ? "Aktive Serie" : "Aktive Serien"}</span></div><div><b>${termine.length}</b><span>Geplante Rennen</span></div><div><b>${Math.max(0, ...aktiv.map((s) => (s.klassen || []).length))}</b><span>Klassen</span></div></div>`;
+    if (termine[0]) { kopfBereich.querySelector(".wrap").insertAdjacentHTML("beforeend", feature(termine[0].r, termine[0].s)); countdown(); setInterval(countdown, 30000); }
+
+    const liste = (l) => `<div class="liga-poster-raster">${l.map((s) => serienKarte(s, rennen)).join("")}</div>`;
     einfuegen(abschnitt("Ligen und Events", `${aktiv.length} aktiv`, "", aktiv.length ? liste(aktiv) : '<p class="liga-hinweis">Neue Serien werden hier und im Discord angekündigt.</p>'));
+    const weitere = termine.slice(1, 7);
+    if (weitere.length) einfuegen(abschnitt("Weitere Termine", "Alle Serien", "", `<div class="liga-termine">${weitere.map((x) => terminZeile(x.r, x.s)).join("")}</div>`));
+    einfuegen(abschnitt("So bist du dabei", "In drei Schritten", "", `<ol class="liga-schritte">
+      <li><b>1</b><div><h3>Mit Discord anmelden</h3><p>Du brauchst nur ein Konto auf unserem Discord-Server.</p></div></li>
+      <li><b>2</b><div><h3>Profil ausfüllen</h3><p>iRacing-Name, Kundennummer und iRating, einmal und fertig.</p></div></li>
+      <li><b>3</b><div><h3>Serie wählen</h3><p>Anmelden und in deiner Klasse gegen Fahrer auf deinem Niveau antreten.</p></div></li>
+    </ol>`));
     if (archiv.length) einfuegen(abschnitt("Archiv", `${archiv.length} beendet`, "", liste(archiv)));
   }
 

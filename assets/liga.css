@@ -137,22 +137,68 @@
 /* Serienfarben */
 .s-rot{--s:var(--liga-rot)} .s-blau{--s:var(--liga-blau)} .s-lila{--s:var(--liga-lila)} .s-gruen{--s:var(--liga-gruen)} .s-gelb{--s:var(--liga-gelb)} .s-tuerkis{--s:#45d0c8}
 
-/* Übersicht aller Serien */
-.liga-termine{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr));gap:6px}
-.liga-termin{display:grid;gap:1px;padding:8px 11px;background:var(--paper);border-left:4px solid var(--s);text-decoration:none;font:.72rem/1.3 var(--f-mono);color:var(--muted);min-width:0}
-.liga-termin b{color:var(--ink);font-weight:600;font-size:.8rem}
-.liga-termin span:nth-of-type(1){color:var(--s)}
+/* Übersicht: Kopfbereich mit großem Bild und dem nächsten Rennen */
+.liga-kopf.gross .photo{inset:0;clip-path:none}
+.liga-kopf.gross .photo img{object-position:60% 42%;filter:contrast(1.08) brightness(.82) saturate(1.1)}
+.liga-kopf.gross::after{background:linear-gradient(90deg,var(--monitor) 8%,color-mix(in srgb,var(--monitor) 74%,transparent) 42%,color-mix(in srgb,var(--monitor) 18%,transparent) 72%),linear-gradient(0deg,var(--monitor),transparent 34%)}
+.liga-kopf.gross .wrap{grid-template-columns:minmax(0,1fr) minmax(300px,390px);column-gap:40px;align-items:center;padding-block:clamp(34px,5vw,64px) clamp(30px,4.4vw,54px)}
+.liga-kopf.gross .wrap>*{grid-column:1}
+.liga-kopf.gross .wrap>.liga-feature{grid-column:2;grid-row:1 / span 5}
+.liga-kopf.gross h1{font-size:clamp(2.6rem,6.6vw,5.6rem)}
+.liga-kopf.gross .lead{font-size:1.05rem}
+.liga-feature{display:grid;gap:11px;padding:18px 20px 20px;background:color-mix(in srgb,#07090a 84%,transparent);border-top:4px solid var(--s);backdrop-filter:blur(5px);min-width:0}
+.liga-feature-kopf{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 10px}
+.liga-feature h2{margin:0;font:900 clamp(1.4rem,2.5vw,1.95rem)/1.05 var(--f-wide);font-variation-settings:"wdth" 116;text-transform:uppercase;overflow-wrap:anywhere}
+.liga-feature p{margin:0;font-size:.9rem;color:#c4cbc8}
+.liga-countdown{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.liga-countdown span{display:grid;justify-items:center;gap:4px;padding:11px 4px;background:#020303}
+.liga-countdown b{font:900 clamp(1.5rem,2.6vw,2rem)/1 var(--f-wide);font-variant-numeric:tabular-nums;color:var(--s)}
+.liga-countdown small{font:500 .6rem/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.liga-countdown .liga-live{grid-column:1/-1;font:800 .9rem/1.2 var(--f-wide);color:var(--s)}
+.liga-pill{display:inline-block;padding:3px 8px;font:700 .62rem/1.3 var(--f-mono);letter-spacing:.05em;text-transform:uppercase;background:rgba(5,6,6,.72);color:#c4cbc8}
+.liga-pill.farbig{background:color-mix(in srgb,var(--s) 24%,#07090a);color:var(--s)}
+
+/* Serien als Plakatkarten */
+.liga-poster-raster{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:12px}
+.liga-poster{position:relative;display:flex;min-height:286px;overflow:hidden;isolation:isolate;background:var(--paper);border-top:4px solid var(--s);transition:transform .18s}
+.liga-poster:hover{transform:translateY(-3px)}
+.liga-poster-bild{position:absolute;inset:0 0 0 34%;z-index:-2;background-size:cover;background-position:center;filter:saturate(1.08);transition:transform .35s}
+.liga-poster:hover .liga-poster-bild{transform:scale(1.04)}
+.liga-poster::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(95deg,var(--paper) 32%,color-mix(in srgb,var(--paper) 78%,transparent) 58%,color-mix(in srgb,var(--paper) 16%,transparent) 88%),linear-gradient(0deg,color-mix(in srgb,var(--s) 22%,transparent),transparent 50%)}
+.liga-poster::after{content:"";position:absolute;right:-30px;bottom:-16px;z-index:-1;width:190px;height:56px;background:repeating-linear-gradient(115deg,var(--s) 0 14px,transparent 14px 28px);opacity:.75}
+.liga-poster.beendet .liga-poster-bild{filter:grayscale(1) brightness(.7)}
+.liga-poster.beendet{opacity:.86}
+.liga-poster-inhalt{display:flex;flex-direction:column;gap:10px;width:min(100%,620px);padding:16px 18px 18px}
+.liga-poster-kopf{display:flex;flex-wrap:wrap;gap:5px}
+.liga-poster h3{margin:4px 0 0;font:900 clamp(1.6rem,3vw,2.35rem)/1 var(--f-wide);font-variation-settings:"wdth" 118;text-transform:uppercase;transform:skewX(-6deg);transform-origin:left bottom;overflow-wrap:anywhere}
+.liga-poster h3 a{text-decoration:none}
+.liga-poster h3 a:hover{color:var(--s)}
+.liga-poster p{margin:0;max-width:44ch;font-size:.9rem;color:#d6dcd9}
+.liga-poster-klassen{display:flex;flex-wrap:wrap;gap:4px}
+.liga-klassenchip{padding:3px 8px;background:color-mix(in srgb,var(--k) 22%,#07090a);border-left:3px solid var(--k);font:700 .64rem/1.3 var(--f-mono);text-transform:uppercase;color:var(--k)}
+.liga-poster-daten{display:flex;flex-wrap:wrap;gap:6px 22px;margin:auto 0 0}
+.liga-poster-daten dt{font:500 .58rem/1.2 var(--f-mono);letter-spacing:.09em;text-transform:uppercase;color:#aeb6b3}
+.liga-poster-daten dd{margin:3px 0 0;font-size:.84rem;font-weight:700}
+
+/* Termine als Leiste */
+.liga-termine{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,255px),1fr));gap:8px}
+.liga-termin{display:flex;align-items:stretch;background:var(--paper);text-decoration:none;min-width:0;transition:background .15s}
 .liga-termin:hover{background:#171b1d}
 .liga-termin:focus-visible{outline:2px solid var(--s);outline-offset:2px}
-.liga-serien{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,270px),1fr));gap:9px}
-.liga-serie{display:grid;grid-template-rows:auto auto 1fr auto auto;gap:6px;padding:12px 14px;background:linear-gradient(160deg,color-mix(in srgb,var(--s) 16%,var(--paper)),var(--paper) 62%);border-top:3px solid var(--s);min-width:0}
-.liga-serie-kopf{display:flex;justify-content:space-between;gap:10px;font:500 .64rem/1.2 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.liga-serie-kopf span:last-child{color:var(--s)}
-.liga-serie h3{margin:0;font:900 1.12rem/1.1 var(--f-wide);font-variation-settings:"wdth" 116;text-transform:uppercase}
-.liga-serie h3 a{text-decoration:none}
-.liga-serie h3 a:hover{color:var(--s)}
-.liga-serie p{margin:0;font-size:.82rem;color:#c4cbc8}
-.liga-serie .liga-serie-termin{font:.7rem/1.35 var(--f-mono);color:var(--muted)}
+.liga-termin-datum{flex:none;display:grid;place-content:center;justify-items:center;width:64px;padding:9px 0;background:color-mix(in srgb,var(--s) 24%,#07090a);color:var(--s)}
+.liga-termin-datum b{font:900 1.55rem/1 var(--f-wide);font-variant-numeric:tabular-nums}
+.liga-termin-datum small{margin-top:3px;font:700 .62rem/1 var(--f-mono);text-transform:uppercase}
+.liga-termin-text{display:grid;align-content:center;gap:3px;min-width:0;padding:9px 13px}
+.liga-termin-text b{font-size:.92rem;font-weight:800;line-height:1.2;overflow-wrap:anywhere}
+.liga-termin-text small{font:.68rem/1.3 var(--f-mono);color:var(--muted)}
+
+/* So bist du dabei */
+.liga-schritte{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:8px;margin:0;padding:0;list-style:none}
+.liga-schritte li{display:flex;align-items:center;gap:15px;padding:15px 18px;background:var(--paper)}
+.liga-schritte li>b{flex:none;font:900 2.7rem/1 var(--f-wide);color:var(--red);transform:skewX(-9deg)}
+.liga-schritte h3{margin:0;font:800 1rem/1.2 var(--f-wide);font-variation-settings:"wdth" 110;text-transform:uppercase}
+.liga-schritte p{margin:4px 0 0;font-size:.84rem;color:var(--muted)}
+
 .liga-serie-aktion,#liga-cta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .liga-serie-aktion{margin-top:3px}
 .liga-mini{all:unset;box-sizing:border-box;cursor:pointer;display:inline-block;padding:8px 13px;background:var(--red);color:#fff;font:800 .68rem/1 var(--f-wide);font-variation-settings:"wdth" 112;text-transform:uppercase;transform:skewX(-8deg)}
@@ -230,6 +276,15 @@
   .liga-kopf .photo{inset:0;height:auto;clip-path:none;opacity:.32}
   .liga-kopf::after{background:linear-gradient(180deg,transparent,var(--monitor))}
   .liga-kopf .wrap{padding-block:20px 18px}
+  .liga-kopf.gross .wrap{grid-template-columns:minmax(0,1fr);padding-block:22px 20px}
+  .liga-kopf.gross .wrap>.liga-feature{grid-column:1;grid-row:auto}
+  .liga-kopf.gross::after{background:linear-gradient(180deg,color-mix(in srgb,var(--monitor) 40%,transparent),var(--monitor) 78%)}
+  .liga-kopf.gross .photo{opacity:.6}
+  .liga-poster-bild{inset:0}
+  .liga-poster::after{display:none}
+  .liga-kopf.gross .liga-fakten{gap:8px 20px}
+  .liga-poster::before{background:linear-gradient(180deg,color-mix(in srgb,var(--paper) 74%,transparent),var(--paper) 88%)}
 }
+@media (prefers-reduced-motion:reduce){.liga-poster,.liga-poster-bild{transition:none}.liga-poster:hover{transform:none}.liga-poster:hover .liga-poster-bild{transform:none}}
 
 @media (prefers-reduced-motion:reduce){.liga-karte,.liga-tabs button{transition:none}.liga-karte:hover{transform:none}}
