@@ -397,3 +397,6 @@ button.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--
   .liga-bericht::before{background:color-mix(in srgb,var(--paper) 74%,transparent)}
 }
 @media (prefers-reduced-motion:reduce){.liga-fk,.liga-fk::after{transition:none}button.liga-fk:hover{transform:none}.liga-fk:hover::after{transform:translateX(-45%)}}
+/* Fahrzeugklasse im Rennbericht */
+.liga-bericht-zeile{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.liga-bericht-klasse{padding:6px 13px;background:var(--ink);color:#08090a;font:900 1.05rem/1 var(--f-wide);font-variation-settings:"wdth" 112;text-transform:uppercase;transform:skewX(-10deg);white-space:nowrap}

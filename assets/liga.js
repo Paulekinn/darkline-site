@@ -79,7 +79,7 @@
     const mehrere = r.bericht.length > 1;
     return r.bericht.map((b) => {
       const [sieger, ...verfolger] = b.podium;
-      const kopfzeile = [`R${r.nr}`, datum(r.start), mehrere ? b.fahrzeugklasse : "", `${b.starter} Starter`].filter(Boolean).join(" · ");
+      const kopfzeile = [`R${r.nr}`, datum(r.start), `${b.starter} Starter`].filter(Boolean).join(" · ");
       const kacheln = [
         b.aufholer ? kachel("auf", "Größter Aufholer", b.aufholer.name, `+${b.aufholer.plaetze} ${b.aufholer.plaetze === 1 ? "Platz" : "Plätze"}`) : "",
         b.schnellste ? kachel("runde", "Schnellste Runde", b.schnellste.name, rundenzeit(b.schnellste.zeit)) : "",
@@ -88,7 +88,7 @@
       return `<article class="liga-bericht ${farbeSerie(s)}">
         <div class="liga-bericht-bild" style="background-image:url('${esc(kartenBild(s))}')" aria-hidden="true"></div>
         <div class="liga-bericht-haupt">
-          <span class="lbl">${esc(kopfzeile)}</span>
+          <div class="liga-bericht-zeile">${mehrere ? `<span class="liga-bericht-klasse">${esc(b.fahrzeugklasse)}</span>` : ""}<span class="lbl">${esc(kopfzeile)}</span></div>
           <h3>${esc(sieger)} <small>gewinnt ${r.strecke ? `in ${esc(r.strecke)}` : "das Rennen"}</small></h3>
           ${verfolger.length ? `<ol class="liga-bericht-podium" start="2">${verfolger.map((n, i) => `<li class="p${i + 2}"><b>P${i + 2}</b>${esc(n)}</li>`).join("")}</ol>` : ""}
         </div>
@@ -393,6 +393,11 @@
     const besetzt = gruppen.filter((k) => k.fahrer.length);
     kopf(d, gruppen, regeln);
 
+    // Die Tabelle ist das, wofür die meisten kommen, darum steht sie ganz oben.
+    einfuegen(abschnitt("Tabelle", d.saison, "", `<div class="liga-tabs" role="tablist" aria-label="Klasse wählen">${gruppen.map((k) => `<button type="button" class="${farbe(k)}" role="tab" id="tab-${esc(k.id)}" data-k="${esc(k.id)}" aria-controls="liga-tabelle" aria-selected="false">${esc(k.name)}<small>iRating ${esc(bereich(k))}</small></button>`).join("")}</div>
+      <div id="liga-tabelle" role="tabpanel"></div>
+      <p class="liga-legende"><span><b style="color:var(--liga-gold)">Gold</b>, <b style="color:var(--liga-silber)">Silber</b>, <b style="color:var(--liga-bronze)">Bronze</b> = Podium</span><span><b class="liga-tag pp">PP</b> = Pole</span><span><b class="liga-tag sr">SR</b> = schnellste Runde</span><span><b class="liga-tag aus">DNF</b> = nicht gewertet</span><span><b class="liga-tag aus">DSQ</b> = disqualifiziert</span><span>Durchgestrichen = Streichergebnis</span></p>`, "liga-tabelle-bereich"));
+
     // Letztes Rennen zuerst, ältere Berichte über die Rennnummern
     const berichte = d.rennen.filter((r) => Array.isArray(r.bericht) && r.bericht.length);
     if (berichte.length) {
@@ -411,9 +416,6 @@
     einfuegen(abschnitt(spitzeTitel, spitzeMeta, "", `<div class="liga-karten">${besetzt.map((k) => karte(k, d)).join("")}</div>${titelLaeuft ? '<p class="liga-legende"><span>Voller Balken = aktuelle Punkte</span><span>Heller Balken = bis Saisonende noch möglich</span><span>Stand ohne künftige Strafen</span></p>' : ""}`));
     const fahrerkarten = fahrerkartenAbschnitt(besetzt, regeln, d);
     if (fahrerkarten) einfuegen(fahrerkarten);
-    einfuegen(abschnitt("Tabelle", d.saison, "", `<div class="liga-tabs" role="tablist" aria-label="Klasse wählen">${gruppen.map((k) => `<button type="button" class="${farbe(k)}" role="tab" id="tab-${esc(k.id)}" data-k="${esc(k.id)}" aria-controls="liga-tabelle" aria-selected="false">${esc(k.name)}<small>iRating ${esc(bereich(k))}</small></button>`).join("")}</div>
-      <div id="liga-tabelle" role="tabpanel"></div>
-      <p class="liga-legende"><span><b style="color:var(--liga-gold)">Gold</b>, <b style="color:var(--liga-silber)">Silber</b>, <b style="color:var(--liga-bronze)">Bronze</b> = Podium</span><span><b class="liga-tag pp">PP</b> = Pole</span><span><b class="liga-tag sr">SR</b> = schnellste Runde</span><span><b class="liga-tag aus">DNF</b> = nicht gewertet</span><span><b class="liga-tag aus">DSQ</b> = disqualifiziert</span><span>Durchgestrichen = Streichergebnis</span></p>`, "liga-tabelle-bereich"));
     // Rennen und Regeln nebeneinander
     const block = (titel, meta, inhalt) => `<div class="liga-block"><div class="doc-head"><h2 class="wide">${esc(titel)}</h2><div class="doc-meta lbl">${esc(meta)}</div></div><div class="liga-abschnitt-inhalt">${inhalt}</div></div>`;
     const regelnGueltig = regeln && Array.isArray(regeln.klassen) && Array.isArray(regeln.punkte);
