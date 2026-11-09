@@ -137,7 +137,7 @@
   const FARBEN = ["rot", "blau", "lila", "gruen", "gelb", "tuerkis"];
   const farbeSerie = (s) => `s-${FARBEN.includes(s.farbe) ? s.farbe : "rot"}`;
   const STATUS = { anmeldung: "Anmeldung offen", laeuft: "Läuft", beendet: "Beendet" };
-  const art = (s) => (s.typ === "event" ? "Event" : "Liga");
+  const artBadge = (typ, klein) => `<span class="liga-art ${typ === "event" ? "event" : "liga"}${klein ? " klein" : ""}">${typ === "event" ? "Event" : "Liga"}</span>`;
   const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
   const terminText = (r) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.datum || ""); return `${m ? `${m[3]}.${m[2]}.` : ""}${r.startzeit ? ` · ${r.startzeit}` : ""}`; };
   const offeneRennen = (rennen) => rennen.filter((r) => r.status !== "abgesagt" && String(r.datum || "") >= heute).sort((a, b) => `${a.datum} ${a.startzeit}`.localeCompare(`${b.datum} ${b.startzeit}`));
@@ -187,10 +187,10 @@
     const naechstes = offeneRennen(rennen.filter((r) => r.serie === s.id))[0];
     const klassen = (s.klassen || []).map((k) => `<span class="liga-klassenchip ${farbe(k)}">${esc(k.name)}</span>`).join("");
     const umfang = s.typ === "event" ? "Einzelrennen" : `${s.rennenGesamt} Rennen`;
-    return `<article class="liga-poster ${farbeSerie(s)}${s.status === "beendet" ? " beendet" : ""}">
+    return `<article class="liga-poster ${farbeSerie(s)}${s.typ === "event" ? " ist-event" : ""}${s.status === "beendet" ? " beendet" : ""}">
       <div class="liga-poster-bild" style="background-image:url('${esc(kartenBild(s))}')" aria-hidden="true"></div>
       <div class="liga-poster-inhalt">
-        <div class="liga-poster-kopf"><span class="liga-pill">${esc(art(s))}${s.saison ? ` · ${esc(s.saison)}` : ""}</span><span class="liga-pill farbig">${esc(STATUS[s.status] || "")}</span></div>
+        <div class="liga-poster-kopf">${artBadge(s.typ)}${s.saison ? `<span class="liga-pill">${esc(s.saison)}</span>` : ""}<span class="liga-pill farbig">${esc(STATUS[s.status] || "")}</span></div>
         <h3><a href="${serienLink(s)}">${esc(s.name)}</a></h3>
         ${s.beschreibung ? `<p>${esc(s.beschreibung)}</p>` : ""}
         <div class="liga-poster-klassen">${klassen}</div>
@@ -202,9 +202,9 @@
 
   function terminZeile(r, s) {
     const d = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.datum || "");
-    return `<a class="liga-termin ${farbeSerie(s)}" href="${serienLink(s)}">
+    return `<a class="liga-termin ${farbeSerie(s)}${s.typ === "event" ? " ist-event" : ""}" href="${serienLink(s)}">
       <span class="liga-termin-datum"><b>${d ? d[3] : "–"}</b><small>${d ? MONATE[+d[2] - 1] : ""}</small></span>
-      <span class="liga-termin-text"><b>${esc(r.titel)}</b><small>${esc(s.name)}${r.startzeit ? ` · ${esc(r.startzeit)} Uhr` : ""}</small></span>
+      <span class="liga-termin-text">${artBadge(s.typ, true)}<b>${esc(r.titel)}</b><small>${esc(s.name)}${r.startzeit ? ` · ${esc(r.startzeit)} Uhr` : ""}</small></span>
     </a>`;
   }
 
@@ -212,7 +212,7 @@
   function feature(r, s) {
     const start = startMs(r);
     return `<aside class="liga-feature ${farbeSerie(s)}">
-      <div class="liga-feature-kopf"><span class="lbl">Nächstes Rennen</span><span class="liga-pill farbig">${esc(s.name)}</span></div>
+      <div class="liga-feature-kopf"><span class="lbl">Nächstes Rennen</span><span class="liga-poster-kopf">${artBadge(s.typ)}<span class="liga-pill farbig">${esc(s.name)}</span></span></div>
       <h2>${esc(r.strecke || r.titel)}</h2>
       <p>${esc(terminText(r))} Uhr${r.strecke && r.titel !== r.strecke ? ` · ${esc(r.titel)}` : ""}</p>
       ${start ? `<div class="liga-countdown" data-countdown="${start}" aria-hidden="true"></div>` : ""}
@@ -234,7 +234,11 @@
     if (termine[0]) { kopfBereich.querySelector(".wrap").insertAdjacentHTML("beforeend", feature(termine[0].r, termine[0].s)); countdown(); setInterval(countdown, 30000); }
 
     const liste = (l) => `<div class="liga-poster-raster">${l.map((s) => serienKarte(s, rennen)).join("")}</div>`;
-    einfuegen(abschnitt("Ligen und Events", `${aktiv.length} aktiv`, "", aktiv.length ? liste(aktiv) : '<p class="liga-hinweis">Neue Serien werden hier und im Discord angekündigt.</p>'));
+    const ligen = aktiv.filter((s) => s.typ !== "event");
+    const events = aktiv.filter((s) => s.typ === "event");
+    if (ligen.length) einfuegen(abschnitt("Ligen", `${ligen.length} aktiv`, "", liste(ligen)));
+    if (events.length) einfuegen(abschnitt("Events", `${events.length} ${events.length === 1 ? "Termin" : "Termine"}`, "", liste(events)));
+    if (!aktiv.length) einfuegen(abschnitt("Ligen und Events", "In Planung", "", '<p class="liga-hinweis">Neue Serien werden hier und im Discord angekündigt.</p>'));
     const weitere = termine.slice(1, 7);
     if (weitere.length) einfuegen(abschnitt("Weitere Termine", "Alle Serien", "", `<div class="liga-termine">${weitere.map((x) => terminZeile(x.r, x.s)).join("")}</div>`));
     einfuegen(abschnitt("So bist du dabei", "In drei Schritten", "", `<ol class="liga-schritte">
@@ -302,6 +306,7 @@
 
     document.title = `${s.name} · Darkline Liga`;
     $("liga-titel").innerHTML = esc(s.name);
+    document.querySelector(".liga-kicker").innerHTML = artBadge(s.typ);
     $("liga-saison").textContent = [s.saison, s.beschreibung].filter(Boolean).join(" · ");
     $("liga-cta").innerHTML = `<a class="liga-mini zweit" href="/liga">Alle Serien</a>${serienAktion(s)}`;
     const d = daten.tabelle;

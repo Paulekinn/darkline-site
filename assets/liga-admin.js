@@ -190,7 +190,7 @@
   }
 
   function serienTab() {
-    const zeilen = d.serien.map((s) => `<tr><td>${esc(s.name)}</td><td>${s.typ === "event" ? "Event" : "Liga"}</td><td>${esc(s.saison)}</td><td>${statusChip(s.status)}</td><td>${s.anmeldungOffen === false ? "geschlossen" : "offen"}</td><td class="rechts">${d.rennen.filter((r) => r.serie === s.id).length}</td><td class="rechts"><a class="a-knopf zweit klein" href="/liga?serie=${encodeURIComponent(s.id)}">Ansehen</a> <button type="button" class="a-knopf zweit klein" data-serie-bearbeiten="${esc(s.id)}">Bearbeiten</button></td></tr>`).join("");
+    const zeilen = d.serien.map((s) => `<tr><td>${esc(s.name)}</td><td>${s.typ === "event" ? '<span class="a-chip gelb">★ Event</span>' : '<span class="a-chip">Liga</span>'}</td><td>${esc(s.saison)}</td><td>${statusChip(s.status)}</td><td>${s.anmeldungOffen === false ? "geschlossen" : "offen"}</td><td class="rechts">${d.rennen.filter((r) => r.serie === s.id).length}</td><td class="rechts"><a class="a-knopf zweit klein" href="/liga?serie=${encodeURIComponent(s.id)}">Ansehen</a> <button type="button" class="a-knopf zweit klein" data-serie-bearbeiten="${esc(s.id)}">Bearbeiten</button></td></tr>`).join("");
     return `<section class="a-karte"><div class="a-kartenkopf"><h2>Serien und Events</h2><button type="button" class="a-knopf" data-serie-neu="1">Neue Serie</button></div>
       ${d.serien.length ? `<div class="a-scroll"><table><thead><tr><th>Name</th><th>Art</th><th>Saison</th><th>Status</th><th>Anmeldung</th><th class="rechts">Rennen</th><th></th></tr></thead><tbody>${zeilen}</tbody></table></div>` : '<p class="a-leer">Noch keine Serie angelegt. Leg die erste Liga oder das erste Event an.</p>'}
     </section>

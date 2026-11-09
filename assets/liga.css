@@ -137,6 +137,20 @@
 /* Serienfarben */
 .s-rot{--s:var(--liga-rot)} .s-blau{--s:var(--liga-blau)} .s-lila{--s:var(--liga-lila)} .s-gruen{--s:var(--liga-gruen)} .s-gelb{--s:var(--liga-gelb)} .s-tuerkis{--s:#45d0c8}
 
+/* Art der Serie: Liga hell, Event gold mit Stern. Bewusst unabhängig von den Serienfarben. */
+.liga-art{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;font:900 .74rem/1 var(--f-wide);font-variation-settings:"wdth" 112;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;transform:skewX(-10deg)}
+.liga-art.liga{background:var(--ink);color:#08090a}
+.liga-art.event{background:var(--liga-gold);color:#17120a}
+.liga-art.event::before{content:"★";font-size:.9em}
+.liga-art.klein{padding:3px 7px;font-size:.6rem}
+.liga-poster.ist-event{border-top-color:var(--liga-gold);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--liga-gold) 35%,transparent)}
+.liga-poster.ist-event::after{background:repeating-linear-gradient(115deg,var(--liga-gold) 0 14px,transparent 14px 28px)}
+.liga-termin.ist-event .liga-termin-datum{background:var(--liga-gold);color:#17120a}
+.liga-termin-text .liga-art{justify-self:start;margin-bottom:2px}
+.liga-kicker .liga-art{letter-spacing:.03em}
+.bar nav.liga-nav .liga-nav-event::before{content:"★";width:auto;height:auto;background:none;color:var(--liga-gold);font-size:.8rem;transform:none}
+.bar nav.liga-nav .liga-nav-event[aria-current="page"]{border-bottom-color:var(--liga-gold)}
+
 /* Übersicht: Kopfbereich mit großem Bild und dem nächsten Rennen */
 .liga-kopf.gross .photo{inset:0;clip-path:none}
 .liga-kopf.gross .photo img{object-position:60% 42%;filter:contrast(1.08) brightness(.82) saturate(1.1)}

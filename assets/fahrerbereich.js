@@ -40,7 +40,8 @@
     return '<span class="fb-status">Nicht angemeldet</span>';
   }
 
-  const serienTag = (r) => (r.serieName ? `<span class="fb-serie-tag ${farbe(r.serieFarbe)}">${esc(r.serieName)}</span>` : "");
+  const artBadge = (typ) => `<span class="liga-art klein ${typ === "event" ? "event" : "liga"}">${typ === "event" ? "Event" : "Liga"}</span>`;
+  const serienTag = (r) => (r.serieName ? `${artBadge(r.serieTyp)} <span class="fb-serie-tag ${farbe(r.serieFarbe)}">${esc(r.serieName)}</span>` : "");
 
   function belegung(r) {
     const teile = [r.plaetze ? `${r.starter.length} von ${r.plaetze} Plätzen` : `${r.starter.length} gemeldet`];
@@ -130,8 +131,8 @@
       let aktion = "";
       if (s.ich) aktion = `<button type="button" class="fb-knopf zweit" data-serie-aktion="serie-abmelden" data-serie="${esc(s.id)}">Abmelden</button>`;
       else if (s.anmeldungOffen && stand.fahrer.profil) aktion = `${klassenAuswahl("s-" + s.id, s.fahrzeugklassen)}<button type="button" class="fb-knopf" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Anmelden</button>`;
-      const info = [s.typ === "event" ? "Event" : "Liga", s.ich ? `Dabei${s.fahrzeugklasse ? ` · ${s.fahrzeugklasse}` : ""}` : "", s.einstufungDurchRennleitung ? "Einstufung durch Rennleitung" : s.klasse].filter(Boolean).join(" · ");
-      return `<li class="${farbe(s.farbe)}"><div><a href="/liga?serie=${encodeURIComponent(s.id)}">${esc(s.name)}</a><small>${esc(info)}</small></div><div class="fb-serie-aktion">${aktion}</div></li>`;
+      const info = [s.ich ? `Dabei${s.fahrzeugklasse ? ` · ${s.fahrzeugklasse}` : ""}` : "", s.einstufungDurchRennleitung ? "Einstufung durch Rennleitung" : s.klasse].filter(Boolean).join(" · ");
+      return `<li class="${farbe(s.farbe)}"><div>${artBadge(s.typ)} <a href="/liga?serie=${encodeURIComponent(s.id)}">${esc(s.name)}</a>${info ? `<small>${esc(info)}</small>` : ""}</div><div class="fb-serie-aktion">${aktion}</div></li>`;
     }).join("");
     return `<section class="fb-panel"><h3>Serien und Events</h3><ul class="fb-serien">${zeilen}</ul></section>`;
   }
@@ -232,7 +233,7 @@
   }
 
   function filterChips() {
-    const chips = [["meine", "Meine Rennen"], ["alle", "Alle"], ...stand.serien.filter((s) => s.status !== "beendet").map((s) => [s.id, s.name])];
+    const chips = [["meine", "Meine Rennen"], ["alle", "Alle"], ...stand.serien.filter((s) => s.status !== "beendet").map((s) => [s.id, s.typ === "event" ? `★ ${s.name}` : s.name])];
     return `<div class="fb-filter" role="group" aria-label="Rennen filtern">${chips.map(([id, name]) => `<button type="button" data-filter="${esc(id)}" aria-pressed="${filter === id}">${esc(name)}</button>`).join("")}</div>`;
   }
 
