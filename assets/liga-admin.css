@@ -96,6 +96,11 @@ a.a-knopf{text-decoration:none}
 .a-kennzahl.warnung b{color:var(--a-gelb)}
 .a-zwei{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
 .a-liste{display:grid;gap:6px}
+.a-karte-info{border-top-color:var(--a-gelb)}
+.a-abschluss{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 14px;padding:10px 12px;background:var(--a-flaeche2);border-left:4px solid var(--s)}
+.a-abschluss span{display:grid;gap:3px;min-width:0}
+.a-abschluss b{font-size:.96rem;font-weight:800;overflow-wrap:anywhere}
+.a-abschluss small{font:.74rem/1.3 var(--a-mono);color:var(--a-leise)}
 
 /* Reports */
 .a-fall{all:unset;box-sizing:border-box;cursor:pointer;display:grid;gap:5px;padding:11px 13px;background:var(--a-flaeche2);border-left:4px solid var(--s,var(--a-linie));min-width:0}

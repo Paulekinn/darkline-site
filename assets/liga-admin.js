@@ -184,6 +184,9 @@
     const laufend = d.serien.filter((s) => s.status !== "beendet");
     const kommend = [...d.rennen].filter((r) => r.status !== "abgesagt" && String(r.datum) >= heute()).sort((a, b) => `${a.datum} ${a.startzeit}`.localeCompare(`${b.datum} ${b.startzeit}`));
     const unfertig = kommend.filter((r) => rennenWarnungen(r).length);
+    // Alle Rennen gefahren, aber noch nicht beendet: Das entscheidet die Rennleitung, wenn Reports und Strafen erledigt sind.
+    const fertig = laufend.filter((s) => { const eigene = d.rennen.filter((r) => r.serie === s.id && r.status !== "abgesagt"); return eigene.length >= s.rennenGesamt && eigene.every((r) => String(r.datum) < heute()); });
+    const abschluss = fertig.length ? `<section class="a-karte a-karte-info"><h2>Kann beendet werden</h2><div class="a-liste">${fertig.map((s) => `<div class="a-abschluss s-${esc(s.farbe || "rot")}"><span><b>${esc(s.name)}</b><small>Alle Rennen sind gefahren. Beende die Serie, sobald Reports und Strafen erledigt sind.</small></span><button type="button" class="a-knopf zweit klein" data-serie-bearbeiten="${esc(s.id)}">Öffnen</button></div>`).join("")}</div></section>` : "";
     const kachel = (wert, text, art, ziel) => `<button type="button" class="a-kennzahl ${art}" data-tab="${ziel}"><b>${wert}</b><span>${esc(text)}</span></button>`;
     const reportsHtml = offene.slice(0, 5).map(reportZeile).join("");
     const termine = kommend.slice(0, 5).map(terminZeile).join("");
@@ -195,6 +198,7 @@
         ${kachel(kommend.length, "Geplante Rennen", "", "rennen")}
         ${kachel(unfertig.length, "Rennen unvollständig", unfertig.length ? "warnung" : "", "rennen")}
       </div>
+      ${abschluss}
       <div class="a-zwei">
         <section class="a-karte"><div class="a-kartenkopf"><h2>Zu entscheiden</h2><button type="button" class="a-knopf zweit klein" data-tab="reports">Alle Reports</button></div>${reportsHtml ? `<div class="a-liste">${reportsHtml}</div>` : '<p class="a-leer">Aktuell liegt nichts an.</p>'}</section>
         <section class="a-karte"><div class="a-kartenkopf"><h2>Nächste Rennen</h2><button type="button" class="a-knopf zweit klein" data-tab="rennen">Alle Rennen</button></div>${termine ? `<div class="a-liste">${termine}</div>` : '<p class="a-leer">Keine Rennen geplant.</p>'}</section>
@@ -688,7 +692,14 @@
     if (b.dataset.serienReiter) { serienReiter = b.dataset.serienReiter; form = null; setzeMeldung(""); return zeichne(); }
     if (b.dataset.serieNeu) { form = { art: "serie", id: null, werte: b.dataset.serieNeu === "event" ? { ...NEUE_SERIE, typ: "event", rennenGesamt: 1, gewerteteRennen: 1 } : NEUE_SERIE }; planer = null; return zeigeFormular(); }
     if (b.dataset.terminNeu) { const s = serieVon(b.dataset.terminNeu); rennenFilter = s.id; tab = "rennen"; planer = null; form = { art: "rennen", id: null, werte: { ...NEUES_RENNEN, serie: s.id, titel: s.name } }; return zeigeFormular(); }
-    if (b.dataset.serieBearbeiten) { form = { art: "serie", id: b.dataset.serieBearbeiten, werte: serieVon(b.dataset.serieBearbeiten) }; planer = null; return zeigeFormular(); }
+    if (b.dataset.serieBearbeiten) {
+      const s = serieVon(b.dataset.serieBearbeiten);
+      form = { art: "serie", id: s.id, werte: s };
+      planer = null;
+      tab = "serien";
+      serienReiter = s.status === "beendet" ? "archiv" : s.typ === "event" ? "event" : "liga";
+      return zeigeFormular();
+    }
     if (b.dataset.serieKopie) {
       // Neue Saison: Regeln und Klassen bleiben, Status und Bild beginnen neu.
       const { id, bildVersion: bild, ...s } = serieVon(b.dataset.serieKopie);

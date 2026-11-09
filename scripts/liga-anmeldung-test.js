@@ -134,6 +134,21 @@ const tests = {
     assert.deepStrictEqual(A.eigeneKarten(serien, kartenTabelle(), "Tom Muster"), []);
     assert.deepStrictEqual(A.eigeneKarten(serien, kartenTabelle(), "Niemand"), []);
   },
+  "Status: vor dem ersten Start bleibt die Serie in der Anmeldung": () => {
+    assert.strictEqual(D.wirksamerStatus({ id: "gt3", status: "anmeldung" }, [SERIENRENNEN], START - 1), "anmeldung");
+    assert.strictEqual(D.wirksamerStatus({ id: "gt3", status: "anmeldung" }, [], START), "anmeldung");
+  },
+  "Status: mit dem ersten Start läuft die Serie": () => {
+    assert.strictEqual(D.wirksamerStatus({ id: "gt3", status: "anmeldung" }, [SERIENRENNEN], START), "laeuft");
+  },
+  "Status: abgesagte Rennen und Rennen anderer Serien zählen nicht": () => {
+    assert.strictEqual(D.wirksamerStatus({ id: "gt3", status: "anmeldung" }, [{ ...SERIENRENNEN, status: "abgesagt" }], START + 1), "anmeldung");
+    assert.strictEqual(D.wirksamerStatus({ id: "andere", status: "anmeldung" }, [SERIENRENNEN], START + 1), "anmeldung");
+  },
+  "Status: Beendet wird nie automatisch verändert": () => {
+    assert.strictEqual(D.wirksamerStatus({ id: "gt3", status: "beendet" }, [SERIENRENNEN], START + 1), "beendet");
+    assert.strictEqual(D.wirksamerStatus({ id: "gt3", status: "laeuft" }, [], 0), "laeuft");
+  },
   "Strecke: gültige Angaben werden vereinheitlicht": () => {
     assert.deepStrictEqual(D.pruefeStrecke({ name: " Spa ", variante: "GP", land: "BE", laengeKm: "7,004", kurven: "20", notiz: "" }), { name: "Spa", variante: "GP", land: "BE", laengeKm: 7.004, kurven: 20, notiz: "" });
     assert.deepStrictEqual(D.pruefeStrecke({ name: "Monza" }), { name: "Monza", variante: "", land: "", laengeKm: null, kurven: null, notiz: "" });

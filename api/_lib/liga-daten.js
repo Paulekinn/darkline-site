@@ -8,6 +8,7 @@ const crypto = require("crypto");
 const { blobPut, blobGet, blobGetBinaer, blobDelete, blobList } = require("./blob");
 const { pruefeRegeln, berechneTabelle } = require("../../assets/liga-wertung.js");
 const { fahrerKennung } = require("./session");
+const { berlinNachUtc } = require("./liga-anmeldung");
 const { gueltig: landGueltig } = require("../../assets/liga-flaggen.js");
 
 const WURZEL = "liga/daten/";
@@ -147,16 +148,27 @@ async function ordner(prefix) {
   return liste.filter(Boolean);
 }
 
+// Eine Serie läuft automatisch, sobald ihr erstes nicht abgesagtes Rennen gestartet ist. „Beendet“ bleibt immer eine Entscheidung der Rennleitung.
+function wirksamerStatus(serie, rennen, jetzt) {
+  if (serie.status !== "anmeldung") return serie.status;
+  const gestartet = rennen.some((r) => {
+    const start = r.serie === serie.id && r.status !== "abgesagt" ? berlinNachUtc(r.datum, r.startzeit) : null;
+    return start !== null && start <= jetzt;
+  });
+  return gestartet ? "laeuft" : serie.status;
+}
+
 // Serien und Rennen, kurz pro Funktionsinstanz zwischengespeichert. Nach eigenen Änderungen wird neu gelesen.
 let katalogCache = { bis: 0, wert: null };
 async function katalog(frisch) {
   if (!frisch && katalogCache.wert && katalogCache.bis > Date.now()) return katalogCache.wert;
-  const [serien, rennenRoh, strecken, einstellungen] = await Promise.all([ordner(`${WURZEL}serien/`), ordner(`${WURZEL}rennen/`), ordner(`${WURZEL}strecken/`), leseJson(`${WURZEL}einstellungen.json`)]);
+  const [serienRoh, rennenRoh, strecken, einstellungen] = await Promise.all([ordner(`${WURZEL}serien/`), ordner(`${WURZEL}rennen/`), ordner(`${WURZEL}strecken/`), leseJson(`${WURZEL}einstellungen.json`)]);
   // Streckenkarte direkt am Rennen, damit jede Ansicht sie ohne weiteren Abruf zeigen kann
   const rennen = rennenRoh.map((r) => {
     const s = r.streckeId && strecken.find((x) => x.id === r.streckeId);
     return s && s.kartenVersion ? { ...r, streckenBild: { k: `strecke-${s.id}`, v: s.kartenVersion } } : r;
   });
+  const serien = serienRoh.map((s) => ({ ...s, status: wirksamerStatus(s, rennen, Date.now()) }));
   katalogCache = { bis: Date.now() + 20000, wert: { serien, rennen, strecken, einstellungen: einstellungen || {} } };
   return katalogCache.wert;
 }
@@ -199,4 +211,4 @@ async function tabelleNeu(serie, regeln, ergebnisse) {
   return warnungen;
 }
 
-module.exports = { pruefeStrecke, streckeSpeichern, streckeLoeschen, serieDatenLoeschen, pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };
+module.exports = { wirksamerStatus, pruefeStrecke, streckeSpeichern, streckeLoeschen, serieDatenLoeschen, pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };
