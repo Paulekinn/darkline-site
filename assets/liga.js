@@ -11,7 +11,6 @@
   // iRacing liefert die Startzeit in UTC, angezeigt wird der Tag in deutscher Zeit.
   const datum = (s) => { const d = new Date(s); return isNaN(d) ? "" : d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" }); };
   const podium = (p) => (p >= 1 && p <= 3 ? `p${p}` : "");
-  const DISCORD = "https://discord.gg/QP2rKy6n8U";
 
   $("year").textContent = new Date().getFullYear();
 
@@ -482,8 +481,7 @@
   function leer(regeln) {
     einfuegen(abschnitt("Ergebnisse", "In Vorbereitung", "", `<div class="liga-leer">
       <h3>Noch keine Ergebnisse</h3>
-      <p>Sobald die ersten Rennen gefahren sind, stehen hier Tabellen, Tabellenführer und Ergebnisse aller Klassen. Alle Neuigkeiten gibt es zuerst auf unserem Discord.</p>
-      <a class="hbtn" href="${DISCORD}">Discord beitreten ↗</a>
+      <p>Sobald die ersten Rennen gefahren sind, stehen hier Tabellen, Rennberichte und Fahrerkarten aller Klassen.</p>
     </div>`));
     regelnAnhaengen(regeln);
   }
