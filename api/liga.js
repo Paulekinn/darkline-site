@@ -1,7 +1,7 @@
-// Einstieg für alle Liga-Anfragen: ?r=oeffentlich, ?r=fahrer oder ?r=admin. Eine Funktion statt drei hält die Zahl der Vercel-Funktionen klein.
+// Einstieg für alle Liga-Anfragen: ?r=oeffentlich, ?r=bild, ?r=fahrer oder ?r=admin. Eine Funktion statt drei hält die Zahl der Vercel-Funktionen klein.
 const { useRequest } = require("./_lib/blob");
 const { Hinweis } = require("./_lib/liga-daten");
-const bereiche = { oeffentlich: require("./_lib/liga-oeffentlich"), fahrer: require("./_lib/liga-fahrer"), admin: require("./_lib/liga-admin") };
+const bereiche = { bild: require("./_lib/liga-bild"), oeffentlich: require("./_lib/liga-oeffentlich"), fahrer: require("./_lib/liga-fahrer"), admin: require("./_lib/liga-admin") };
 
 // Texte aus Eingabe- und Dateiprüfung sind für den Nutzer gedacht, technische Fehler nicht.
 const FUER_NUTZER = /^(Bitte|Die iRacing|Regeln:|Einstufung:|Das ist keine|In der Datei|Die Rennsession|Teamrennen|Unerwartete|Ein Rennen)/;

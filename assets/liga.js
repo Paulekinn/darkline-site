@@ -159,6 +159,8 @@
   const LIVERYS = ["porsche", "ferrari", "bmw", "amg", "ford"];
   const livery = (id) => LIVERYS[[...String(id)].reduce((t, c) => t + c.charCodeAt(0), 0) % LIVERYS.length];
   const serienLink = (s) => `/liga?serie=${encodeURIComponent(s.id)}`;
+  const eigenesBild = (k, v) => `api/liga?r=bild&k=${encodeURIComponent(k)}&v=${encodeURIComponent(v)}`;
+  const kartenBild = (s) => (s.bildVersion ? eigenesBild(`serie-${s.id}`, s.bildVersion) : `img/cars/${livery(s.id)}.webp`);
   const MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 
   // Startzeitpunkt aus Datum und Uhrzeit in deutscher Zeit
@@ -186,7 +188,7 @@
     const klassen = (s.klassen || []).map((k) => `<span class="liga-klassenchip ${farbe(k)}">${esc(k.name)}</span>`).join("");
     const umfang = s.typ === "event" ? "Einzelrennen" : `${s.rennenGesamt} Rennen`;
     return `<article class="liga-poster ${farbeSerie(s)}${s.status === "beendet" ? " beendet" : ""}">
-      <div class="liga-poster-bild" style="background-image:url('img/cars/${livery(s.id)}.webp')" aria-hidden="true"></div>
+      <div class="liga-poster-bild" style="background-image:url('${esc(kartenBild(s))}')" aria-hidden="true"></div>
       <div class="liga-poster-inhalt">
         <div class="liga-poster-kopf"><span class="liga-pill">${esc(art(s))}${s.saison ? ` · ${esc(s.saison)}` : ""}</span><span class="liga-pill farbig">${esc(STATUS[s.status] || "")}</span></div>
         <h3><a href="${serienLink(s)}">${esc(s.name)}</a></h3>
@@ -294,6 +296,8 @@
     const serien = (daten && daten.serien) || [];
     const rennen = (daten && daten.rennen) || [];
     const s = kennung && serien.find((x) => x.id === kennung);
+    // Titelbild: Bild der Serie, sonst das Bild der Übersicht, sonst das Teamfoto
+    $("liga-kopfbild").src = s && s.bildVersion ? eigenesBild(`serie-${s.id}`, s.bildVersion) : daten && daten.kopfbildVersion ? eigenesBild("uebersicht", daten.kopfbildVersion) : "img/hero.webp";
     if (!s) return uebersicht(serien, rennen);
 
     document.title = `${s.name} · Darkline Liga`;

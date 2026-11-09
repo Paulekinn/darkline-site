@@ -202,6 +202,22 @@ const tests = {
   "Import: ohne Anmeldungen bleibt niemand übrig": () => {
     assert.strictEqual(D.abgleichen({ id: "1", fahrer: [{ cust: "1", name: "A", gesamt: 1 }] }, new Map()).ergebnis.fahrer.length, 0);
   },
+  "Bild: echte JPEG- und WebP-Dateien werden angenommen": () => {
+    const jpg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(20)]);
+    const webp = Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WEBP"), Buffer.alloc(20)]);
+    assert.strictEqual(D.bildTyp(D.pruefeBild(`data:image/jpeg;base64,${jpg.toString("base64")}`)), "image/jpeg");
+    assert.strictEqual(D.bildTyp(D.pruefeBild(`data:image/webp;base64,${webp.toString("base64")}`)), "image/webp");
+  },
+  "Bild: falscher Inhalt wird abgelehnt, auch wenn das Format behauptet wird": () => {
+    const html = Buffer.from("<script>alert(1)</script><svg></svg>");
+    assert.throws(() => D.pruefeBild(`data:image/jpeg;base64,${html.toString("base64")}`), /kein gültiges Bild/);
+    assert.throws(() => D.pruefeBild(`data:image/svg+xml;base64,${html.toString("base64")}`), /JPG, PNG oder WebP/);
+    assert.throws(() => D.pruefeBild(""), /JPG, PNG oder WebP/);
+  },
+  "Bild: zu große Dateien werden abgelehnt": () => {
+    const gross = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(3 * 1024 * 1024)]);
+    assert.throws(() => D.pruefeBild(`data:image/jpeg;base64,${gross.toString("base64")}`), /zu groß/);
+  },
   "Report wird geprüft": () => {
     assert.deepStrictEqual(R.pruefeMeldung({ stelle: "Runde 5, T3", beschreibung: "Er hat mich gedreht.", clip: "" }), { stelle: "Runde 5, T3", beschreibung: "Er hat mich gedreht.", clip: "" });
     assert.throws(() => R.pruefeMeldung({ stelle: "", beschreibung: "Er hat mich gedreht." }), /wann und wo/);

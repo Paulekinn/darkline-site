@@ -63,6 +63,15 @@ async function blobDelete(pathnames) {
   if (!r.ok) throw await failure("Löschen", r);
 }
 
+// Inhalt als Buffer (Bilder), null wenn es die Datei nicht gibt
+async function blobGetBinaer(pathname) {
+  const { token, store } = auth();
+  const r = await fetch(fileUrl(store, pathname), { headers: { authorization: `Bearer ${token}` }, cache: "no-store" });
+  if (r.status === 404) return null;
+  if (!r.ok) throw await failure("Lesen", r);
+  return Buffer.from(await r.arrayBuffer());
+}
+
 // Alle Dateien unter einem Pfad, mit pathname und uploadedAt
 async function blobList(prefix) {
   const { token, store } = auth();
@@ -80,4 +89,4 @@ async function blobList(prefix) {
   return blobs;
 }
 
-module.exports = { useRequest, blobPut, blobGet, blobDelete, blobList };
+module.exports = { useRequest, blobPut, blobGet, blobGetBinaer, blobDelete, blobList };

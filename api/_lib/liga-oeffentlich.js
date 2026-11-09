@@ -3,8 +3,8 @@ const D = require("./liga-daten");
 
 module.exports = async (req, res) => {
   if (req.method !== "GET") return res.status(405).json({ error: "Nicht erlaubt" });
-  const { serien, rennen } = await D.katalog(false);
-  const antwort = { serien, rennen: rennen.map(D.oeffentlichesRennen) };
+  const { serien, rennen, einstellungen } = await D.katalog(false);
+  const antwort = { serien, rennen: rennen.map(D.oeffentlichesRennen), kopfbildVersion: einstellungen.kopfbildVersion || 0 };
   const kennung = (req.query || {}).serie;
   if (D.istId(kennung) && serien.some((s) => s.id === kennung)) antwort.tabelle = await D.tabelleLesen(kennung);
   // Die CDN-Kopie schont den Speicher, Änderungen sind nach spätestens rund einer Minute sichtbar.

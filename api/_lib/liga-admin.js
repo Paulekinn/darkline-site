@@ -68,8 +68,10 @@ const aktionen = {
   async "serie-speichern"(b, kat) {
     const daten = D.pruefeSerie(b.serie || {});
     let id = b.id;
-    if (id) serieFinden(kat, D.brauchtId(id));
-    else {
+    if (id) {
+      const bisher = serieFinden(kat, D.brauchtId(id));
+      if (bisher.bildVersion) daten.bildVersion = bisher.bildVersion;
+    } else {
       id = D.slug(daten.name);
       if (!D.istId(id)) throw new Hinweis("Dieser Name ergibt keine gültige Kennung.");
       if (kat.serien.some((s) => s.id === id)) throw new Hinweis("Eine Serie mit diesem Namen gibt es schon.");
@@ -86,6 +88,33 @@ const aktionen = {
     if (alle.some((e) => e.typ === "serie" && e.serieId === b.id)) throw new Hinweis("In dieser Serie sind noch Fahrer gemeldet. Setze sie stattdessen auf „Beendet“.");
     if ((await D.ergebnisseLesen(b.id)).length) throw new Hinweis("Diese Serie hat bereits Ergebnisse. Setze sie stattdessen auf „Beendet“.");
     await D.serieLoeschen(b.id);
+    if (serieFinden(kat, b.id).bildVersion) await D.bildLoeschen(`serie-${b.id}`);
+    return {};
+  },
+  // ziel ist „uebersicht“ für das Titelbild der Liga oder die Kennung einer Serie
+  async "bild-speichern"(b, kat) {
+    const buf = D.pruefeBild(b.daten);
+    const version = Date.now();
+    if (b.ziel === "uebersicht") {
+      await D.bildSpeichern("uebersicht", buf);
+      await D.einstellungenSpeichern({ ...kat.einstellungen, kopfbildVersion: version });
+    } else {
+      const { id, ...serie } = serieFinden(kat, b.ziel);
+      await D.bildSpeichern(`serie-${id}`, buf);
+      await D.serieSpeichern(id, { ...serie, bildVersion: version });
+    }
+    return { version };
+  },
+  async "bild-loeschen"(b, kat) {
+    if (b.ziel === "uebersicht") {
+      await D.bildLoeschen("uebersicht");
+      const { kopfbildVersion, ...rest } = kat.einstellungen;
+      await D.einstellungenSpeichern(rest);
+    } else {
+      const { id, bildVersion, ...serie } = serieFinden(kat, b.ziel);
+      await D.bildLoeschen(`serie-${id}`);
+      await D.serieSpeichern(id, serie);
+    }
     return {};
   },
   async "rennen-speichern"(b, kat) {
@@ -231,7 +260,7 @@ module.exports = async (req, res) => {
     const kat = await D.katalog(true);
     const details = D.istId((req.query || {}).serie) && kat.serien.some((x) => x.id === req.query.serie) ? await serienDetails(kat, req.query.serie) : null;
     const reports = (await R.alleReports(true)).map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id) }));
-    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, details, reports });
+    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });

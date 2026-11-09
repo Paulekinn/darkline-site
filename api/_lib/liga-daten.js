@@ -5,7 +5,7 @@
 //   liga/daten/ergebnisse/<serie>/<subsession>.json  eingelesene Ergebnisse
 //   liga/daten/privat/<serie>.json    Einstufungen und Strafen
 const crypto = require("crypto");
-const { blobPut, blobGet, blobDelete, blobList } = require("./blob");
+const { blobPut, blobGet, blobGetBinaer, blobDelete, blobList } = require("./blob");
 const { pruefeRegeln, berechneTabelle } = require("../../assets/liga-wertung.js");
 
 const WURZEL = "liga/daten/";
@@ -97,6 +97,24 @@ function abgleichen(ergebnis, gemeldet, zugelassen) {
   };
 }
 
+const MAX_BILD_BYTES = 3 * 1024 * 1024;
+// Erkennt das Bildformat an den ersten Bytes, null wenn es weder JPEG noch WebP ist.
+function bildTyp(buf) {
+  if (buf.length > 12 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
+  if (buf.length > 12 && buf.toString("latin1", 0, 4) === "RIFF" && buf.toString("latin1", 8, 12) === "WEBP") return "image/webp";
+  return null;
+}
+
+// Prüft ein hochgeladenes Bild (data:-URL) anhand des echten Inhalts und gibt es als Buffer zurück.
+function pruefeBild(daten) {
+  const m = /^data:image\/(?:webp|jpeg);base64,([A-Za-z0-9+/=]+)$/.exec(String(daten || ""));
+  if (!m) throw new Hinweis("Bitte wähle ein Bild im Format JPG, PNG oder WebP aus.");
+  const buf = Buffer.from(m[1], "base64");
+  if (buf.length > MAX_BILD_BYTES) throw new Hinweis("Das Bild ist zu groß. Bitte wähle ein kleineres aus.");
+  if (!bildTyp(buf)) throw new Hinweis("Die Datei ist kein gültiges Bild.");
+  return buf;
+}
+
 // Öffentliche Sicht: Passwort, Session-Name und Briefing bleiben intern.
 const oeffentlichesRennen = ({ passwort, briefing, server, ...rest }) => rest;
 
@@ -118,11 +136,17 @@ async function ordner(prefix) {
 let katalogCache = { bis: 0, wert: null };
 async function katalog(frisch) {
   if (!frisch && katalogCache.wert && katalogCache.bis > Date.now()) return katalogCache.wert;
-  const [serien, rennen] = await Promise.all([ordner(`${WURZEL}serien/`), ordner(`${WURZEL}rennen/`)]);
-  katalogCache = { bis: Date.now() + 20000, wert: { serien, rennen } };
+  const [serien, rennen, einstellungen] = await Promise.all([ordner(`${WURZEL}serien/`), ordner(`${WURZEL}rennen/`), leseJson(`${WURZEL}einstellungen.json`)]);
+  katalogCache = { bis: Date.now() + 20000, wert: { serien, rennen, einstellungen: einstellungen || {} } };
   return katalogCache.wert;
 }
 const katalogVerwerfen = () => { katalogCache = { bis: 0, wert: null }; };
+
+const einstellungenSpeichern = (d) => { katalogVerwerfen(); return schreibe(`${WURZEL}einstellungen.json`, d); };
+const bildPfad = (schluessel) => `${WURZEL}bilder/${brauchtId(schluessel)}`;
+const bildSpeichern = (schluessel, buf) => blobPut(bildPfad(schluessel), buf, bildTyp(buf));
+const bildLesen = (schluessel) => blobGetBinaer(bildPfad(schluessel));
+const bildLoeschen = (schluessel) => blobDelete([bildPfad(schluessel)]);
 
 const serieSpeichern = (id, d) => { katalogVerwerfen(); return schreibe(`${WURZEL}serien/${brauchtId(id)}.json`, d); };
 const rennenSpeichern = (id, d) => { katalogVerwerfen(); return schreibe(`${WURZEL}rennen/${brauchtId(id)}.json`, d); };
@@ -148,4 +172,4 @@ async function tabelleNeu(serie, regeln, ergebnisse) {
   return warnungen;
 }
 
-module.exports = { abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };
+module.exports = { pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };

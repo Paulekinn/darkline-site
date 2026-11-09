@@ -161,6 +161,8 @@ scripts/liga-test.js, scripts/liga-anmeldung-test.js   Tests (mit node ausführe
 
 **Speicher:** Alles liegt im vorhandenen privaten Blob-Speicher unter `liga/`, nicht im Repository. Änderungen sind ohne Commit und Deploy nach spätestens rund einer Minute öffentlich sichtbar.
 
+**Bilder:** Unter `/liga-admin` → Serien lassen sich ein Titelbild für die Übersicht und je Serie ein eigenes Bild hochladen (JPG, PNG oder WebP, wird im Browser auf höchstens 1920 Pixel Breite verkleinert). Ohne Upload erscheinen das Teamfoto und die Livery-Bilder aus `img/cars`.
+
 **Serien und Anmeldung:** Eine Serie ist eine Liga oder ein Event. Wer sich für eine Serie anmeldet, ist automatisch für alle ihre Rennen gemeldet und kann einzelne auslassen. Rennen, die sich überschneiden, lassen sich nicht zusätzlich einzeln anmelden. Entsteht eine Überschneidung durch Serien-Anmeldungen, zeigt der Fahrerbereich eine Warnung.
 
 **Ergebnisse:** In iRacing das Ergebnis öffnen, „Export Results“ wählen, die JSON-Datei unter `/liga-admin` → Ergebnisse hochladen, die Vorschau prüfen und veröffentlichen. Gewertet und gespeichert werden nur Fahrer, die für die Serie oder eines ihrer Rennen gemeldet sind (Abgleich über die iRacing-ID aus dem Profil). Andere zeigt die Vorschau an, einzelne lassen sich dort als Gast zulassen. Die Klasse wird beim ersten Rennen eines Fahrers aus dem iRating festgelegt, die Rennleitung kann sie überschreiben. Bei Multiclass wird in jeder Fahrzeugklasse getrennt nach iRating-Klassen gewertet. Teamrennen werden noch nicht gewertet.

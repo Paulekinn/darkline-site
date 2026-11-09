@@ -85,11 +85,78 @@
   const statusChip = (s) => (s === "laeuft" ? '<span class="a-chip gruen">Läuft</span>' : s === "beendet" ? '<span class="a-chip">Beendet</span>' : s === "abgesagt" ? '<span class="a-chip rot">Abgesagt</span>' : s === "geplant" ? '<span class="a-chip gruen">Geplant</span>' : '<span class="a-chip gelb">Anmeldung</span>');
   const klasseZeile = (k) => `<div class="a-klasse"><input name="k_name" value="${esc(k.name)}" placeholder="Name" aria-label="Klassenname"><input name="k_min" type="number" min="0" value="${esc(k.min)}" aria-label="iRating von"><input name="k_max" type="number" min="0" value="${esc(k.max ?? "")}" placeholder="offen" aria-label="iRating bis"><button type="button" class="a-knopf zweit klein" data-klasse-weg="1">Weg</button></div>`;
 
+  /* ---------- Bilder ---------- */
+  const bildSchluessel = (ziel) => (ziel === "uebersicht" ? "uebersicht" : `serie-${ziel}`);
+  const bildVersion = (ziel) => (ziel === "uebersicht" ? d.kopfbildVersion : (d.serien.find((s) => s.id === ziel) || {}).bildVersion) || 0;
+  function bildFeldInhalt(ziel, status, fehler) {
+    const v = bildVersion(ziel);
+    const klein = ziel === "uebersicht" ? "Querformat, am besten mindestens 1920 Pixel breit." : "Querformat, am besten mindestens 1200 Pixel breit. Ohne eigenes Bild wird ein Livery-Bild verwendet.";
+    return `<div class="a-bild-rahmen">${v ? `<img src="api/liga?r=bild&amp;k=${esc(bildSchluessel(ziel))}&amp;v=${v}" alt="Aktuelles Bild">` : "<span>Standardbild</span>"}</div>
+      <div class="a-bild-steuerung">
+        <div class="a-feld"><label for="bild-${esc(ziel)}">Neues Bild (JPG, PNG oder WebP)</label><input type="file" id="bild-${esc(ziel)}" accept="image/jpeg,image/png,image/webp" data-bild-ziel="${esc(ziel)}"></div>
+        <p class="a-hinweis${fehler ? " a-bild-fehler" : ""}">${esc(status || klein)}</p>
+        ${v ? `<div><button type="button" class="a-knopf gefahr klein" data-bild-weg="${esc(ziel)}">Bild entfernen</button></div>` : ""}
+      </div>`;
+  }
+  const bildFeld = (ziel) => `<div class="a-bild" data-bild-box="${esc(ziel)}">${bildFeldInhalt(ziel)}</div>`;
+  // Aktualisiert nur dieses Feld, damit Eingaben in einem offenen Formular erhalten bleiben.
+  function bildFeldNeu(ziel, status, fehler) {
+    const box = app.querySelector(`[data-bild-box="${CSS.escape(ziel)}"]`);
+    if (box) box.innerHTML = bildFeldInhalt(ziel, status, fehler);
+  }
+
+  // Verkleinert das Bild im Browser. WebP, wo es der Browser kann, sonst JPEG.
+  async function bildVorbereiten(datei) {
+    const url = URL.createObjectURL(datei);
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      const faktor = Math.min(1, 1920 / img.naturalWidth);
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.naturalWidth * faktor);
+      c.height = Math.round(img.naturalHeight * faktor);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      const format = c.toDataURL("image/webp", 0.8).startsWith("data:image/webp") ? "image/webp" : "image/jpeg";
+      for (const q of [0.82, 0.72, 0.6, 0.45]) {
+        const daten = c.toDataURL(format, q);
+        if (daten.length < 3500000) return daten;
+      }
+      throw new Error("zu gross");
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function bildHochladen(ziel, datei) {
+    bildFeldNeu(ziel, "Wird hochgeladen …");
+    let daten;
+    try {
+      daten = await bildVorbereiten(datei);
+    } catch (e) {
+      return bildFeldNeu(ziel, "Dieses Bild konnte nicht gelesen werden. Bitte wähle ein anderes aus.", true);
+    }
+    const a = await sende({ aktion: "bild-speichern", ziel, daten });
+    const fehler = a ? "" : (meldung && meldung.text) || "Das hat nicht geklappt.";
+    setzeMeldung("");
+    await lade().catch(() => {});
+    bildFeldNeu(ziel, fehler || "Bild gespeichert.", !!fehler);
+  }
+
+  async function bildEntfernen(ziel) {
+    const a = await sende({ aktion: "bild-loeschen", ziel });
+    const fehler = a ? "" : (meldung && meldung.text) || "Das hat nicht geklappt.";
+    setzeMeldung("");
+    await lade().catch(() => {});
+    bildFeldNeu(ziel, fehler || "Bild entfernt.", !!fehler);
+  }
+
   /* ---------- Serien ---------- */
   function serienForm() {
     const w = form.werte;
     return `<form class="a-karte" id="f-serie" novalidate>
       <div class="a-kartenkopf"><h2>${form.id ? "Serie bearbeiten" : "Neue Serie"}</h2></div>
+      ${form.id ? `<h3>Bild der Serie</h3>${bildFeld(form.id)}` : '<p class="a-hinweis">Ein eigenes Bild kannst du hinzufügen, sobald die Serie gespeichert ist.</p>'}
       <div class="a-felder">
         ${feld("Name", eingabe("name", w.name, 'maxlength="60"'))}
         ${feld("Art", auswahl("typ", w.typ, [["liga", "Liga"], ["event", "Event"]]))}
@@ -126,7 +193,9 @@
     const zeilen = d.serien.map((s) => `<tr><td>${esc(s.name)}</td><td>${s.typ === "event" ? "Event" : "Liga"}</td><td>${esc(s.saison)}</td><td>${statusChip(s.status)}</td><td>${s.anmeldungOffen === false ? "geschlossen" : "offen"}</td><td class="rechts">${d.rennen.filter((r) => r.serie === s.id).length}</td><td class="rechts"><a class="a-knopf zweit klein" href="/liga?serie=${encodeURIComponent(s.id)}">Ansehen</a> <button type="button" class="a-knopf zweit klein" data-serie-bearbeiten="${esc(s.id)}">Bearbeiten</button></td></tr>`).join("");
     return `<section class="a-karte"><div class="a-kartenkopf"><h2>Serien und Events</h2><button type="button" class="a-knopf" data-serie-neu="1">Neue Serie</button></div>
       ${d.serien.length ? `<div class="a-scroll"><table><thead><tr><th>Name</th><th>Art</th><th>Saison</th><th>Status</th><th>Anmeldung</th><th class="rechts">Rennen</th><th></th></tr></thead><tbody>${zeilen}</tbody></table></div>` : '<p class="a-leer">Noch keine Serie angelegt. Leg die erste Liga oder das erste Event an.</p>'}
-    </section>${form && form.art === "serie" ? serienForm() : ""}`;
+    </section>
+    <section class="a-karte"><h2>Titelbild der Liga-Übersicht</h2>${bildFeld("uebersicht")}</section>
+    ${form && form.art === "serie" ? serienForm() : ""}`;
   }
 
   /* ---------- Rennen ---------- */
@@ -332,6 +401,7 @@
     if (b.dataset.rennenBearbeiten) { form = { art: "rennen", id: b.dataset.rennenBearbeiten, werte: d.rennen.find((r) => r.id === b.dataset.rennenBearbeiten) }; return zeichne(); }
     if (b.dataset.klasseNeu) return document.getElementById("a-klassen").insertAdjacentHTML("beforeend", klasseZeile({ name: "", min: "", max: "" }));
     if (b.dataset.klasseWeg) return b.closest(".a-klasse").remove();
+    if (b.dataset.bildWeg && window.confirm("Dieses Bild wirklich entfernen?")) return bildEntfernen(b.dataset.bildWeg);
     if (b.dataset.serieLoeschen && window.confirm("Diese Serie wirklich löschen?")) return aktion({ aktion: "serie-loeschen", id: form.id }, "Serie gelöscht.");
     if (b.dataset.rennenLoeschen && window.confirm("Dieses Rennen wirklich löschen?")) return aktion({ aktion: "rennen-loeschen", id: form.id }, "Rennen gelöscht.");
     if (b.dataset.ausSerie && window.confirm(`${b.dataset.name} aus der Serie und ihren Rennen entfernen?`)) return aktion({ aktion: "fahrer-aus-serie", serie: serieId, discordId: b.dataset.ausSerie }, "Fahrer entfernt.");
@@ -380,6 +450,7 @@
       await lade().catch(() => setzeMeldung("Die Daten konnten nicht geladen werden.", true));
       return zeichne();
     }
+    if (t.dataset.bildZiel && t.files[0]) return bildHochladen(t.dataset.bildZiel, t.files[0]);
     if (t.id === "u-art") {
       const strafend = ["strafpunkte", "zeitstrafe", "dsq"].includes(t.value);
       app.querySelectorAll("[data-nur]").forEach((el) => { el.hidden = el.dataset.nur === "strafe" ? !strafend : el.dataset.nur !== t.value; });
