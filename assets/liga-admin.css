@@ -177,6 +177,8 @@ tr[hidden]{display:none}
 
 /* Strecken */
 .a-strecken{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,210px),1fr));gap:8px}
+.a-mehr{display:flex;justify-content:center;margin-top:12px}
+#a-strecken-liste{margin-top:12px}
 .a-strecke{all:unset;box-sizing:border-box;cursor:pointer;display:grid;background:var(--a-flaeche2);border-top:3px solid var(--a-linie);transition:border-color .15s}
 .a-strecke:hover{border-top-color:var(--a-rot-hell)}
 .a-strecke:focus-visible{outline:2px solid var(--a-text);outline-offset:-2px}

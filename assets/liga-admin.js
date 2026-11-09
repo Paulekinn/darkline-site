@@ -36,6 +36,9 @@
   let rennenFilter = "alle";
   let serienReiter = "liga"; // "liga", "event", "archiv" oder "bild"
   let fahrerFilter = "alle";
+  let streckenFilter = "alle";
+  let streckenSuche = "";
+  let streckenAlle = false;
   let akte = null;        // geöffnete Fahrer-Akte: { name, daten }
   let neuSeit = null;     // Zeitpunkt, bis zu dem Reports beim Öffnen des Bereichs schon bekannt waren
   let zugelassen = [];    // iRacing-IDs nicht gemeldeter Fahrer, die als Gast gewertet werden sollen
@@ -102,6 +105,7 @@
       <div class="a-bild-steuerung">
         <div class="a-feld"><label for="bild-${esc(ziel)}">Neues Bild (${istStrecke(ziel) ? "PNG, SVG, JPG oder WebP" : "JPG, PNG oder WebP"})</label><input type="file" id="bild-${esc(ziel)}" accept="image/jpeg,image/png,image/webp${istStrecke(ziel) ? ",image/svg+xml" : ""}" data-bild-ziel="${esc(ziel)}"></div>
         <p class="a-hinweis${fehler ? " a-bild-fehler" : ""}">${esc(status || klein)}</p>
+        ${istStrecke(ziel) ? `<div><button type="button" class="a-knopf zweit klein" data-karte-erzeugen="${esc(ziel)}">Aus Team-Runde erzeugen</button></div>` : ""}
         ${v ? `<div><button type="button" class="a-knopf gefahr klein" data-bild-weg="${esc(ziel)}">Bild entfernen</button></div>` : ""}
       </div>`;
   }
@@ -159,6 +163,98 @@
     setzeMeldung("");
     await lade().catch(() => {});
     bildFeldNeu(ziel, fehler || "Bild entfernt.", !!fehler);
+  }
+
+  /* ---------- Streckenkarte aus Garage 61 ---------- */
+  // Umrisse, die schon für die Website gezeichnet wurden. Sie springen ein, wenn das Team auf der Strecke noch keine Runde hat.
+  const WEBSITE_UMRISSE = [[/spa[- ]francorchamps/i, "spa-francorchamps"], [/road america/i, "road-america"], [/watkins glen/i, "watkins-glen"], [/le mans|24 heures/i, "circuit-des-24-heures-du-mans"]];
+  const KARTE_FEHLT = {
+    zuordnung: "Name und Variante passen zu keiner Strecke in Garage 61. Importiere die Streckenliste und nimm den Eintrag von dort.",
+    runde: "Das Team hat auf dieser Strecke noch keine Runde mit Telemetrie. Du kannst stattdessen ein Bild hochladen.",
+    telemetrie: "Die Runden des Teams enthalten keine vollständigen GPS-Daten. Du kannst stattdessen ein Bild hochladen.",
+  };
+
+  async function websiteUmriss(s) {
+    const treffer = WEBSITE_UMRISSE.find(([muster]) => muster.test(s.name));
+    if (!treffer) return null;
+    const r = await fetch(`img/tracks/${treffer[1]}.svg`);
+    if (!r.ok) return null;
+    const svg = await r.text();
+    const punkte = [...svg.matchAll(/[ML]\s*(-?[\d.]+)[ ,]+(-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+    return punkte.length > 20 ? { punkte, geschlossen: /Z\s*"/i.test(svg) } : null;
+  }
+
+  // Zeichnet die Linie auf transparentem Grund, mit roter Markierung an Start und Ziel.
+  function karteAlsBild(punkte, geschlossen) {
+    const c = document.createElement("canvas");
+    c.width = 1400;
+    c.height = 1000;
+    const g = c.getContext("2d");
+    const xs = punkte.map((p) => p[0]);
+    const ys = punkte.map((p) => p[1]);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const breite = Math.max(...xs) - minX || 1;
+    const hoehe = Math.max(...ys) - minY || 1;
+    const rand = 80;
+    const faktor = Math.min((c.width - 2 * rand) / breite, (c.height - 2 * rand) / hoehe);
+    const dx = (c.width - breite * faktor) / 2;
+    const dy = (c.height - hoehe * faktor) / 2;
+    const linie = punkte.map(([x, y]) => [(x - minX) * faktor + dx, (y - minY) * faktor + dy]);
+    g.lineJoin = "round";
+    g.lineCap = "round";
+    const ziehe = (farbe, staerke) => {
+      g.beginPath();
+      linie.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+      if (geschlossen) g.closePath();
+      g.strokeStyle = farbe;
+      g.lineWidth = staerke;
+      g.stroke();
+    };
+    ziehe("rgba(0,0,0,.5)", 22);
+    ziehe("#f3f4f6", 11);
+    const [x0, y0] = linie[0];
+    const [x1, y1] = linie[Math.min(4, linie.length - 1)];
+    const laenge = Math.hypot(x1 - x0, y1 - y0) || 1;
+    const nx = -(y1 - y0) / laenge * 30;
+    const ny = (x1 - x0) / laenge * 30;
+    g.beginPath();
+    g.moveTo(x0 - nx, y0 - ny);
+    g.lineTo(x0 + nx, y0 + ny);
+    g.lineCap = "butt";
+    g.strokeStyle = "#e30613";
+    g.lineWidth = 14;
+    g.stroke();
+    const format = c.toDataURL("image/webp", 0.85).startsWith("data:image/webp") ? "image/webp" : "image/jpeg";
+    return c.toDataURL(format, 0.85);
+  }
+
+  let karteLaeuft = false;
+  async function karteErzeugen(ziel) {
+    const s = d.strecken.find((x) => x.id === ziel.slice(8));
+    if (karteLaeuft || !s) return;
+    if (s.kartenVersion && !window.confirm("Die vorhandene Karte wird ersetzt. Fortfahren?")) return;
+    karteLaeuft = true;
+    bildFeldNeu(ziel, "Team-Runde wird gesucht …");
+    let status = "";
+    let fehler = false;
+    try {
+      const a = await sende({ aktion: "strecke-karte", id: s.id });
+      if (!a) throw new Error((meldung && meldung.text) || "Das hat nicht geklappt.");
+      const website = a.punkte ? null : await websiteUmriss(s).catch(() => null);
+      const linie = a.punkte ? a : website;
+      if (!linie) throw new Error(KARTE_FEHLT[a.fehlt] || "Das hat nicht geklappt.");
+      const gespeichert = await sende({ aktion: "bild-speichern", ziel, daten: karteAlsBild(linie.punkte, linie.geschlossen) });
+      if (!gespeichert) throw new Error((meldung && meldung.text) || "Das hat nicht geklappt.");
+      status = website ? "Noch keine Team-Runde, deshalb wurde der Umriss der Website übernommen. Bitte prüfe, ob er zur Variante passt." : "Karte aus einer Team-Runde erzeugt.";
+    } catch (e) {
+      status = e.message;
+      fehler = true;
+    }
+    setzeMeldung("");
+    await lade().catch(() => {});
+    karteLaeuft = false;
+    bildFeldNeu(ziel, status, fehler);
   }
 
   /* ---------- Hilfen für Serien, Rennen und Strecken ---------- */
@@ -342,7 +438,7 @@
       ${formLeiste("Rennen speichern", form.id ? '<button type="button" class="a-knopf gefahr" data-rennen-loeschen="1">Löschen</button>' : "")}
     </form>`;
   }
-  const kartenVorschau = (s) => (s && s.id ? (s.kartenVersion ? `<img class="a-karten-bild" src="${esc(streckeBild(s))}" alt="Streckenkarte ${esc(streckeLabel(s))}">` : '<p class="a-leer">Für diese Strecke gibt es noch keine Karte. Du kannst sie unter „Strecken“ hochladen.</p>') : '<p class="a-leer">Noch keine Strecke aus der Bibliothek gewählt.</p>');
+  const kartenVorschau = (s) => (s && s.id ? (s.kartenVersion ? `<img class="a-karten-bild" src="${esc(streckeBild(s))}" alt="Streckenkarte ${esc(streckeLabel(s))}">` : '<p class="a-leer">Für diese Strecke gibt es noch keine Karte. Du kannst sie unter „Strecken“ erzeugen oder hochladen.</p>') : '<p class="a-leer">Noch keine Strecke aus der Bibliothek gewählt.</p>');
 
   function terminZeile(r) {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.datum || "");
@@ -445,19 +541,41 @@
     </form>`;
   }
 
-  function streckenTab() {
-    const karten = [...d.strecken].sort((a, b) => streckeLabel(a).localeCompare(streckeLabel(b), "de")).map((s) => {
-      const einsaetze = d.rennen.filter((r) => r.streckeId === s.id).length;
-      const daten = [s.laengeKm ? `${String(s.laengeKm).replace(".", ",")} km` : "", s.kurven ? `${s.kurven} Kurven` : "", einsaetze ? `${einsaetze}× im Kalender` : ""].filter(Boolean).join(" · ");
+  const STRECKEN_SEITE = 48;
+  const einsaetzeJeStrecke = () => d.rennen.reduce((m, r) => (r.streckeId ? m.set(r.streckeId, (m.get(r.streckeId) || 0) + 1) : m), new Map());
+  const STRECKEN_FILTER = { alle: () => true, karte: (s) => !!s.kartenVersion, ohne: (s) => !s.kartenVersion };
+
+  function streckenListe() {
+    const einsaetze = einsaetzeJeStrecke();
+    const passt = streckenFilter === "kalender" ? (s) => einsaetze.has(s.id) : STRECKEN_FILTER[streckenFilter];
+    const woerter = streckenSuche.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    // Was schon genutzt wird, steht vorne, damit es in der langen Importliste nicht untergeht.
+    const wichtig = (s) => (s.kartenVersion || einsaetze.has(s.id) ? 0 : 1);
+    const treffer = d.strecken.filter((s) => passt(s) && woerter.every((w) => streckeLabel(s).toLowerCase().includes(w))).sort((a, b) => wichtig(a) - wichtig(b) || streckeLabel(a).localeCompare(streckeLabel(b), "de"));
+    if (!d.strecken.length) return '<p class="a-leer">Noch keine Strecke angelegt. Importiere die Liste aus Garage 61 oder lege eine Strecke von Hand an.</p>';
+    if (!treffer.length) return '<p class="a-leer">Keine Strecke gefunden.</p>';
+    const karten = (streckenAlle ? treffer : treffer.slice(0, STRECKEN_SEITE)).map((s) => {
+      const anzahl = einsaetze.get(s.id) || 0;
+      const daten = [s.laengeKm ? `${String(s.laengeKm).replace(".", ",")} km` : "", s.kurven ? `${s.kurven} Kurven` : "", anzahl ? `${anzahl}× im Kalender` : ""].filter(Boolean).join(" · ");
       return `<button type="button" class="a-strecke" data-strecke-bearbeiten="${esc(s.id)}">
         <span class="a-strecke-karte">${s.kartenVersion ? `<img src="${esc(streckeBild(s))}" alt="" loading="lazy">` : "<em>Keine Karte</em>"}</span>
         <span class="a-strecke-text"><b>${window.LigaKarte.flagge(s.land)}${esc(s.name)}</b>${s.variante ? `<small>${esc(s.variante)}</small>` : ""}${daten ? `<small>${esc(daten)}</small>` : ""}</span>
       </button>`;
     }).join("");
+    const rest = streckenAlle ? 0 : treffer.length - STRECKEN_SEITE;
+    return `<div class="a-strecken">${karten}</div>${rest > 0 ? `<div class="a-mehr"><button type="button" class="a-knopf zweit" data-strecken-alle="1">Alle ${treffer.length} anzeigen</button></div>` : ""}`;
+  }
+  const streckenListeNeu = () => { document.getElementById("a-strecken-liste").innerHTML = streckenListe(); };
+
+  function streckenTab() {
+    const einsaetze = einsaetzeJeStrecke();
+    const anzahl = (f) => d.strecken.filter(f).length;
+    const chips = [["alle", "Alle", d.strecken.length], ["karte", "Mit Karte", anzahl(STRECKEN_FILTER.karte)], ["ohne", "Ohne Karte", anzahl(STRECKEN_FILTER.ohne)], ["kalender", "Im Kalender", anzahl((s) => einsaetze.has(s.id))]].map(([id, t, n]) => `<button type="button" class="a-filter" data-strecken-filter="${id}" aria-pressed="${streckenFilter === id}">${t} ${n}</button>`).join("");
     return `${form && form.art === "strecke" ? streckenForm() : ""}
-      <section class="a-karte"><div class="a-kartenkopf"><h2>Streckenbibliothek</h2><button type="button" class="a-knopf" data-strecke-neu="1">Neue Strecke</button></div>
-      <p class="a-hinweis">Einmal anlegen, in jeder Saison wiederverwenden. Die Karte erscheint automatisch beim Rennen und im Fahrerbereich.</p>
-      ${karten ? `<div class="a-strecken">${karten}</div>` : '<p class="a-leer">Noch keine Strecke angelegt.</p>'}</section>`;
+      <section class="a-karte"><div class="a-kartenkopf"><h2>Streckenbibliothek</h2><div class="a-leiste"><button type="button" class="a-knopf zweit" data-strecken-import="1">Aus Garage 61 importieren</button><button type="button" class="a-knopf" data-strecke-neu="1">Neue Strecke</button></div></div>
+      <p class="a-hinweis">Einmal anlegen, in jeder Saison wiederverwenden. Die Karte erscheint automatisch beim Rennen und im Fahrerbereich. Öffne eine Strecke, um ihre Karte aus einer Team-Runde zu erzeugen.</p>
+      <div class="a-leiste">${chips}<input type="search" id="a-strecken-suche" class="a-suche" value="${esc(streckenSuche)}" placeholder="Strecke oder Variante suchen" aria-label="Strecke suchen"></div>
+      <div id="a-strecken-liste">${streckenListe()}</div></section>`;
   }
 
   /* ---------- Protokoll ---------- */
@@ -822,6 +940,22 @@
     if (b.dataset.planer) { planer = neuerPlaner(b.dataset.planer); tab = "rennen"; form = null; return zeigeFormular(); }
     if (b.dataset.rennenFilter) { rennenFilter = b.dataset.rennenFilter; return zeichne(); }
     if (b.dataset.punkteVorlage) { app.querySelector('#f-serie [name="punkte"]').value = PUNKTE_VORLAGEN[Number(b.dataset.punkteVorlage)][1].join(", "); return; }
+    if (b.dataset.karteErzeugen) return karteErzeugen(b.dataset.karteErzeugen);
+    if (b.dataset.streckenFilter) {
+      streckenFilter = b.dataset.streckenFilter;
+      streckenAlle = false;
+      app.querySelectorAll("[data-strecken-filter]").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.streckenFilter === streckenFilter)));
+      return streckenListeNeu();
+    }
+    if (b.dataset.streckenAlle) { streckenAlle = true; return streckenListeNeu(); }
+    if (b.dataset.streckenImport) {
+      setzeMeldung("Streckenliste wird aus Garage 61 geladen …");
+      zeichne();
+      const a = await sende({ aktion: "strecken-import" });
+      if (a) setzeMeldung(`${a.gelesen} Strecken aus Garage 61 gelesen, davon ${a.neu} neu in der Bibliothek.`);
+      await lade().catch(() => {});
+      return zeichne();
+    }
     if (b.dataset.streckeNeu) { form = { art: "strecke", id: null, werte: { name: "", variante: "", land: "", laengeKm: "", kurven: "", notiz: "" } }; return zeigeFormular(); }
     if (b.dataset.streckeBearbeiten) { form = { art: "strecke", id: b.dataset.streckeBearbeiten, werte: d.strecken.find((s) => s.id === b.dataset.streckeBearbeiten) }; return zeigeFormular(); }
     if (b.dataset.streckeLoeschen && window.confirm("Diese Strecke wirklich löschen? Geplante Rennen behalten den Namen, die Karte entfällt.")) return aktion({ aktion: "strecke-loeschen", id: form.id }, "Strecke gelöscht.");
@@ -975,6 +1109,7 @@
   app.addEventListener("input", (e) => {
     const t = e.target;
     if (t.closest && t.closest("#a-klassen")) return klassenKontrolle();
+    if (t.id === "a-strecken-suche") { streckenSuche = t.value; streckenAlle = false; return streckenListeNeu(); }
     if (t.id === "a-fahrer-suche") {
       const q = t.value.trim().toLowerCase();
       app.querySelectorAll("tr[data-suche]").forEach((z) => { z.hidden = !!q && !z.dataset.suche.includes(q); });

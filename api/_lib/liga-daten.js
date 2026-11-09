@@ -179,11 +179,22 @@ function rennenOhneErgebnis(rennen, ergebnisseJeSerie, jetzt) {
   }).map((r) => ({ id: r.id, titel: r.titel, serie: r.serie, datum: r.datum }));
 }
 
+// Die importierte Streckenliste liegt in einer einzigen Datei, damit der Katalog nicht hunderte Dateien lesen muss.
+// Eine eigene Datei unter strecken/ entsteht erst, wenn eine Strecke bearbeitet wird oder eine Karte bekommt, und hat dann Vorrang.
+const STRECKEN_IMPORT = `${WURZEL}strecken-import.json`;
+function streckenZusammen(eigene, importiert) {
+  const name = (s) => [s.name, s.variante].filter(Boolean).join(" ").toLowerCase();
+  const ids = new Set(eigene.map((s) => s.id));
+  const namen = new Set(eigene.map(name));
+  return [...eigene, ...importiert.filter((s) => !ids.has(s.id) && !namen.has(name(s))).map((s) => ({ land: "", laengeKm: null, kurven: null, notiz: "", ...s, importiert: true }))];
+}
+
 // Serien und Rennen, kurz pro Funktionsinstanz zwischengespeichert. Nach eigenen Änderungen wird neu gelesen.
 let katalogCache = { bis: 0, wert: null };
 async function katalog(frisch) {
   if (!frisch && katalogCache.wert && katalogCache.bis > Date.now()) return katalogCache.wert;
-  const [serienRoh, rennenRoh, strecken, einstellungen] = await Promise.all([ordner(`${WURZEL}serien/`), ordner(`${WURZEL}rennen/`), ordner(`${WURZEL}strecken/`), leseJson(`${WURZEL}einstellungen.json`)]);
+  const [serienRoh, rennenRoh, eigeneStrecken, importiert, einstellungen] = await Promise.all([ordner(`${WURZEL}serien/`), ordner(`${WURZEL}rennen/`), ordner(`${WURZEL}strecken/`), leseJson(STRECKEN_IMPORT), leseJson(`${WURZEL}einstellungen.json`)]);
+  const strecken = streckenZusammen(eigeneStrecken, importiert || []);
   // Streckenkarte direkt am Rennen, damit jede Ansicht sie ohne weiteren Abruf zeigen kann
   const rennen = rennenRoh.map((r) => {
     const s = r.streckeId && strecken.find((x) => x.id === r.streckeId);
@@ -205,7 +216,14 @@ const serieSpeichern = (id, d) => { katalogVerwerfen(); return schreibe(`${WURZE
 const rennenSpeichern = (id, d) => { katalogVerwerfen(); return schreibe(`${WURZEL}rennen/${brauchtId(id)}.json`, d); };
 const serieLoeschen = (id) => { katalogVerwerfen(); return blobDelete([`${WURZEL}serien/${brauchtId(id)}.json`]); };
 const rennenLoeschen = (id) => { katalogVerwerfen(); return blobDelete([`${WURZEL}rennen/${brauchtId(id)}.json`]); };
-const streckeSpeichern = (id, d) => { katalogVerwerfen(); return schreibe(`${WURZEL}strecken/${brauchtId(id)}.json`, d); };
+const streckeSpeichern = (id, { importiert, ...d }) => { katalogVerwerfen(); return schreibe(`${WURZEL}strecken/${brauchtId(id)}.json`, d); };
+const streckenImportSpeichern = (liste) => { katalogVerwerfen(); return schreibe(STRECKEN_IMPORT, liste); };
+// Nimmt eine Strecke aus der importierten Liste, damit sie nach dem Löschen nicht wieder auftaucht.
+async function streckeAusImportEntfernen(id) {
+  const liste = (await leseJson(STRECKEN_IMPORT)) || [];
+  const rest = liste.filter((s) => s.id !== id);
+  if (rest.length !== liste.length) await streckenImportSpeichern(rest);
+}
 const streckeLoeschen = (id) => { katalogVerwerfen(); return blobDelete([`${WURZEL}strecken/${brauchtId(id)}.json`]); };
 // Löscht Ergebnisse, Tabelle sowie Einstufungen und Strafen einer Serie.
 async function serieDatenLoeschen(id) {
@@ -232,4 +250,4 @@ async function tabelleNeu(serie, regeln, ergebnisse) {
   return warnungen;
 }
 
-module.exports = { datumPlus, rennenOhneErgebnis, wirksamerStatus, pruefeStrecke, streckeSpeichern, streckeLoeschen, serieDatenLoeschen, pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };
+module.exports = { streckenZusammen, streckenImportSpeichern, streckeAusImportEntfernen, datumPlus, rennenOhneErgebnis, wirksamerStatus, pruefeStrecke, streckeSpeichern, streckeLoeschen, serieDatenLoeschen, pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };

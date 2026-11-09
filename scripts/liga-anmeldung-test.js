@@ -42,7 +42,52 @@ const akteSerien = [{ id: "a", name: "Serie A" }, { id: "b", name: "Serie B", ty
 
 const kartenTabelle = () => new Map([["gt3", { rennenGesamt: 8, klassen: [{ id: "pro", name: "Pro", min: 2500, max: null, fahrer: [{ name: "Lena Beispiel", pos: 1, punkte: 50, rennen: [], irating: 3000, karte: { rating: 90 } }, { name: "Tom Muster", pos: 2, punkte: 40, rennen: [], karte: null }] }] }], ["leer", null]]);
 
+const G = require("../api/_lib/liga-strecken");
+const gpsRunde = (n, r = 0.01) => Array.from({ length: n }, (_, i) => { const w = (i / n) * 2 * Math.PI; return { d: i / (n - 1) * 0.999, lat: 50 + r * Math.sin(w), lon: 6 + r * Math.cos(w) }; });
+
 const tests = {
+  "Streckenimport: Kennungen sind eindeutig, ungültige Einträge fehlen": () => {
+    const liste = G.importListe(new Map([[1, { name: "Spa", variant: "Grand Prix" }], [2, { name: "Spa", variant: "Grand-Prix" }], [3, { name: "x", variant: "" }], [4, { name: "Nürburgring", variant: "" }]]));
+    assert.deepStrictEqual(liste.map((s) => s.id), ["spa-grand-prix", "spa-grand-prix-2", "nuerburgring"]);
+    assert.strictEqual(liste[0].g61, 1);
+  },
+  "Streckenimport: eigene Strecken haben Vorrang vor der Importliste": () => {
+    const eigene = [{ id: "spa-grand-prix", name: "Spa", variante: "Grand Prix", kartenVersion: 5 }, { id: "imola-von-hand", name: "Imola", variante: "" }];
+    const s = D.streckenZusammen(eigene, [{ id: "spa-grand-prix", name: "Spa", variante: "Grand Prix", g61: 1 }, { id: "imola-kopie", name: "imola", variante: "", g61: 2 }, { id: "monza", name: "Monza", variante: "", g61: 3 }]);
+    assert.deepStrictEqual(s.map((x) => x.id), ["spa-grand-prix", "imola-von-hand", "monza"]);
+    assert.strictEqual(s[0].kartenVersion, 5);
+    assert.strictEqual(s[0].importiert, undefined);
+    assert.strictEqual(s[2].importiert, true);
+    assert.strictEqual(s[2].notiz, "");
+  },
+  "Streckenkarte: Zuordnung und Rundenwahl": () => {
+    const g = new Map([[7, { name: "Spa", variant: "Grand Prix" }]]);
+    assert.strictEqual(G.zuordnung({ name: "SPA", variante: "grand prix" }, g), 7);
+    assert.strictEqual(G.zuordnung({ name: "Spa", variante: "" }, g), null);
+    const runden = G.besteRunden([{ id: "a", lapTime: 90, canViewTelemetry: true }, { id: "b", lapTime: 80, canViewTelemetry: false }, { id: "c", lapTime: 95, clean: true, canViewTelemetry: true }, { id: "d", lapTime: 0, canViewTelemetry: true }]);
+    assert.deepStrictEqual(runden.map((r) => r.id), ["c", "a"]);
+  },
+  "Streckenkarte: CSV liefert nur die eine Runde": () => {
+    const csv = "Speed,LapDistPct,Lat,Lon\n1,0.99,50,6\n1,0.001,50.1,6.1\n1,0.5,50.2,6.2\n1,0.5,50.3,6.3\n1,0.6,0,0\n1,0.999,50.4,6.4\n1,0.002,50.5,6.5";
+    assert.deepStrictEqual(G.gpsAusCsv(csv), [{ d: 0.001, lat: 50.1, lon: 6.1 }, { d: 0.5, lat: 50.2, lon: 6.2 }, { d: 0.999, lat: 50.4, lon: 6.4 }]);
+    assert.deepStrictEqual(G.gpsAusCsv("a,b\n1,2"), []);
+  },
+  "Streckenkarte: Linie ist begrenzt, passt in 0 bis 1000 und erkennt Rundkurse": () => {
+    const u = G.umriss(gpsRunde(6000));
+    assert.ok(u.punkte.length <= 1201);
+    assert.ok(u.punkte.every(([x, y]) => x >= 0 && x <= 1000 && y >= 0 && y <= 1000));
+    assert.strictEqual(u.geschlossen, true);
+    const gerade = Array.from({ length: 500 }, (_, i) => ({ d: i / 499, lat: 50 + i * 0.0001, lon: 6 }));
+    assert.strictEqual(G.umriss(gerade).geschlossen, false);
+  },
+  "Streckenkarte: unvollständige und springende Runden ergeben keine Karte": () => {
+    assert.strictEqual(G.umriss([]), null);
+    assert.strictEqual(G.umriss(gpsRunde(1000).slice(0, 800)), null);
+    const sprung = gpsRunde(1000);
+    sprung[500] = { ...sprung[500], lat: 51 };
+    assert.strictEqual(G.umriss(sprung), null);
+  },
+
   "Kennung: stabil, je iRacing-ID verschieden und ohne die ID selbst": () => {
     const a = S.fahrerKennung("123456");
     assert.ok(/^[0-9a-f]{16}$/.test(a));

@@ -7,6 +7,7 @@ const A = require("./liga-anmeldung");
 const D = require("./liga-daten");
 const R = require("./liga-reports");
 const { Hinweis } = D;
+const G = require("./liga-strecken");
 const { leseErgebnis, berechneTabelle, klasseFuer } = require("../../assets/liga-wertung.js");
 
 const eintraege = async () => (await blobList(A.PREFIX)).map(A.leseEintrag).filter(Boolean);
@@ -103,6 +104,7 @@ async function protokollText(b, kat) {
     "serie-loeschen": () => `Serie gelöscht: ${serie(b.id)}`,
     "strecke-speichern": () => `${b.id ? "Strecke geändert" : "Strecke angelegt"}: ${(b.strecke || {}).name}`,
     "strecke-loeschen": () => `Strecke gelöscht: ${strecke(b.id)}`,
+    "strecken-import": () => "Streckenliste aus Garage 61 importiert",
     "saison-planen": () => `${(b.rennen || []).length} Rennen geplant in ${serie(b.serie)}`,
     "rennen-speichern": () => `${b.id ? "Rennen geändert" : "Rennen angelegt"}: ${(b.rennen || {}).titel}`,
     "rennen-loeschen": () => `Rennen gelöscht: ${rennen(b.id)}`,
@@ -201,6 +203,7 @@ const aktionen = {
       const bisher = kat.strecken.find((s) => s.id === id);
       if (!bisher) throw new Hinweis("Diese Strecke gibt es nicht.");
       if (bisher.kartenVersion) daten.kartenVersion = bisher.kartenVersion;
+      if (bisher.g61) daten.g61 = bisher.g61;
     } else {
       id = D.slug([daten.name, daten.variante].filter(Boolean).join(" "));
       if (!D.istId(id)) throw new Hinweis("Dieser Name ergibt keine gültige Kennung.");
@@ -213,9 +216,24 @@ const aktionen = {
   async "strecke-loeschen"(b, kat) {
     const strecke = kat.strecken.find((s) => s.id === b.id);
     if (!strecke) throw new Hinweis("Diese Strecke gibt es nicht.");
-    await D.streckeLoeschen(b.id);
+    if (!strecke.importiert) await D.streckeLoeschen(b.id);
+    await D.streckeAusImportEntfernen(b.id);
     if (strecke.kartenVersion) await D.bildLoeschen(`strecke-${b.id}`);
     return {};
+  },
+  // Holt alle Strecken aus Garage 61. Eigene Strecken und ihre Karten bleiben unverändert.
+  async "strecken-import"(b, kat) {
+    const liste = await G.streckenLaden();
+    if (!liste.length) throw new Hinweis("Garage 61 hat keine Strecken geliefert.");
+    await D.streckenImportSpeichern(liste);
+    const gesamt = D.streckenZusammen(kat.strecken.filter((s) => !s.importiert), liste).length;
+    return { gelesen: liste.length, neu: Math.max(0, gesamt - kat.strecken.length) };
+  },
+  // Liefert nur die Linie. Gezeichnet und über „bild-speichern“ abgelegt wird sie im Browser, wie jedes hochgeladene Bild.
+  async "strecke-karte"(b, kat) {
+    const strecke = kat.strecken.find((s) => s.id === b.id);
+    if (!strecke) throw new Hinweis("Diese Strecke gibt es nicht.");
+    return G.kartendaten(strecke);
   },
   // Korrigiert das Profil eines Fahrers. Es gelten dieselben Prüfungen wie im Fahrerbereich.
   async "profil-bearbeiten"(b) {
