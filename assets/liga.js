@@ -7,7 +7,7 @@
   const zahl = (n) => Number(n).toLocaleString("de-DE");
   const bereich = (k) => (k.max == null ? `ab ${zahl(k.min)}` : k.min === 0 ? `bis ${zahl(k.max)}` : `${zahl(k.min)} bis ${zahl(k.max)}`);
   // Farbe nach Lage der Klasse: oberste rot, unterste grün, dazwischen gelb
-  const farbe = (k) => (k.gesamt ? "k-ges" : k.max == null ? "k-pro" : k.min === 0 ? "k-am" : "k-mid");
+  const farbe = (k) => (k.gesamt || k.offen ? "k-ges" : k.max == null ? "k-pro" : k.min === 0 ? "k-am" : "k-mid");
   // iRacing liefert die Startzeit in UTC, angezeigt wird der Tag in deutscher Zeit.
   const datum = (s) => { const d = new Date(s); return isNaN(d) ? "" : d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" }); };
   const podium = (p) => (p >= 1 && p <= 3 ? `p${p}` : "");
@@ -463,14 +463,14 @@
   function regelnHtml(r) {
     const klassen = [...r.klassen].sort((a, b) => b.min - a.min).map((k) => `<div class="liga-regel-klasse ${farbe(k)}"><b>${esc(k.name)}</b><span>iRating ${esc(bereich(k))}</span></div>`).join("");
     const punkte = r.punkte.map((p, i) => `<div class="${podium(i + 1)}">P${i + 1}<b>${p}</b></div>`).join("") + (r.punkteDanach ? `<div>P${r.punkte.length + 1}+<b>${r.punkteDanach}</b></div>` : "");
-    return `<div class="liga-regel-klassen">${klassen}</div>
-      <h3 class="liga-regel-titel">Punkte pro Rennen und Klasse</h3>
+    return `${r.ohneKlassen ? "" : `<div class="liga-regel-klassen">${klassen}</div>`}
+      <h3 class="liga-regel-titel">${r.ohneKlassen ? "Punkte pro Rennen" : "Punkte pro Rennen und Klasse"}</h3>
       <div class="liga-punktetafel">${punkte}</div>
       <ul class="liga-regelliste">
         <li>Je ${r.bonusPole} Bonuspunkt für die Pole und ${r.bonusSchnellsteRunde} für die schnellste Runde der eigenen Klasse.</li>
         <li>Gewertet wird, wer mindestens ${r.mindestRundenProzent} % der Runden des Klassensiegers schafft.</li>
         ${r.gewerteteRennen < r.rennenGesamt ? `<li>Es zählen die besten ${r.gewerteteRennen} von ${r.rennenGesamt} Rennen. Strafpunkte werden immer abgezogen.</li>` : ""}
-        <li>Die Klasse richtet sich nach dem iRating zum Start und bleibt danach gleich.</li>
+        ${r.ohneKlassen ? "" : "<li>Die Klasse richtet sich nach dem iRating zum Start und bleibt danach gleich.</li>"}
         ${r.typ !== "event" ? "<li>Gaststarter erscheinen im Rennergebnis, bekommen aber keine Punkte und nehmen auch niemandem welche weg.</li>" : ""}
         ${r.klassen.length > 1 ? "<li>Die Gesamtwertung vergibt eigene Punkte nach dem Zieleinlauf der ganzen Fahrzeugklasse. Die Klassenwertungen bleiben davon unberührt.</li>" : ""}
         <li>Bei Punktgleichheit entscheiden die Anzahl der Siege, dann der zweiten Plätze und so weiter, zuletzt das jüngste Rennen.</li>
@@ -542,7 +542,8 @@
 
   function serienKarte(s, rennen) {
     const naechstes = offeneRennen(rennen.filter((r) => r.serie === s.id))[0];
-    const klassen = (s.klassen || []).map((k) => `<span class="liga-klassenchip ${farbe(k)}">${esc(k.name)}</span>`).join("");
+    // Ohne iRating-Klassen zeigen die Chips die Fahrzeugklassen, sofern welche eingetragen sind.
+    const klassen = s.ohneKlassen ? (s.fahrzeugklassen || []).map((k) => `<span class="liga-klassenchip k-ges">${esc(k)}</span>`).join("") : (s.klassen || []).map((k) => `<span class="liga-klassenchip ${farbe(k)}">${esc(k.name)}</span>`).join("");
     const umfang = s.typ === "event" ? "Einzelrennen" : `${s.rennenGesamt} Rennen`;
     return `<article class="liga-poster ${farbeSerie(s)}${s.typ === "event" ? " ist-event" : ""}${s.status === "beendet" ? " beendet" : ""}">
       <div class="liga-poster-bild" style="background-image:url('${esc(kartenBild(s))}')" aria-hidden="true"></div>
@@ -588,7 +589,7 @@
     // Kopfbereich: nächstes Rennen und Zahlen
     const kopfBereich = document.querySelector(".liga-kopf");
     kopfBereich.classList.add("gross");
-    $("liga-fortschritt").innerHTML = `<div class="liga-fakten"><div><b>${aktiv.length}</b><span>${aktiv.length === 1 ? "Aktive Serie" : "Aktive Serien"}</span></div><div><b>${termine.length}</b><span>Geplante Rennen</span></div><div><b>${Math.max(0, ...aktiv.map((s) => (s.klassen || []).length))}</b><span>Klassen</span></div></div>`;
+    $("liga-fortschritt").innerHTML = `<div class="liga-fakten"><div><b>${aktiv.length}</b><span>${aktiv.length === 1 ? "Aktive Serie" : "Aktive Serien"}</span></div><div><b>${termine.length}</b><span>Geplante Rennen</span></div>${aktiv.some((s) => !s.ohneKlassen) ? `<div><b>${Math.max(0, ...aktiv.filter((s) => !s.ohneKlassen).map((s) => (s.klassen || []).length))}</b><span>Klassen</span></div>` : ""}</div>`;
     if (termine[0]) { kopfBereich.querySelector(".wrap").insertAdjacentHTML("beforeend", feature(termine[0].r, termine[0].s)); countdown(); setInterval(countdown, 30000); }
 
     const liste = (l) => `<div class="liga-poster-raster">${l.map((s) => serienKarte(s, rennen)).join("")}</div>`;

@@ -79,7 +79,8 @@
   // Die Klasse wird beim ersten Auftreten festgelegt und gilt die ganze Saison. Einträge in privat.einstufung haben Vorrang.
   function einstufen(rennenListe, regeln, privat, warnungen) {
     const unterste = [...regeln.klassen].sort((a, b) => a.min - b.min)[0];
-    const fest = (privat && privat.einstufung) || {};
+    // Ohne Klassen zählt keine frühere Einstufung, sie könnte auf eine Klasse zeigen, die es nicht mehr gibt.
+    const fest = (!regeln.ohneKlassen && privat && privat.einstufung) || {};
     const map = new Map();
     for (const rennen of rennenListe) {
       for (const f of rennen.fahrer) {
@@ -91,7 +92,7 @@
         } else if (f.irating > 0) {
           map.set(f.cust, { klasse: klasseFuer(f.irating, regeln.klassen).id, irating: f.irating });
         } else {
-          warnungen.push(`${f.name} hat kein iRating in der Datei und wurde vorläufig in ${unterste.name} eingestuft.`);
+          if (!regeln.ohneKlassen) warnungen.push(`${f.name} hat kein iRating in der Datei und wurde vorläufig in ${unterste.name} eingestuft.`);
           map.set(f.cust, { klasse: unterste.id, irating: null });
         }
       }
@@ -387,7 +388,7 @@
     if (rennenEingabe.length > regeln.rennenGesamt) warnungen.push(`Es sind mehr Rennen angegeben (${rennenEingabe.length}) als die Saison vorsieht (${regeln.rennenGesamt}).`);
     for (const r of rennenEingabe) {
       if (r.offiziell) warnungen.push(`Rennen ${r.id} ist ein offizielles iRacing-Rennen und keine Ligasession.`);
-      if (regeln.kategorie && r.kategorie !== regeln.kategorie) warnungen.push(`Rennen ${r.id} hat die Kategorie ${r.kategorie || "unbekannt"} statt ${regeln.kategorie}, das iRating stammt also aus einer anderen Wertung.`);
+      if (!regeln.ohneKlassen && regeln.kategorie && r.kategorie !== regeln.kategorie) warnungen.push(`Rennen ${r.id} hat die Kategorie ${r.kategorie || "unbekannt"} statt ${regeln.kategorie}, das iRating stammt also aus einer anderen Wertung.`);
     }
     const rennenListe = [...rennenEingabe].sort((a, b) => String(a.start).localeCompare(String(b.start))).map((r) => wendeEntscheidungenAn(r, privat, warnungen));
     const einstufung = einstufen(rennenListe, regeln, privat, warnungen);
@@ -457,7 +458,8 @@
     const klassenPlatz = new Map();
     const klassen = fahrzeugklassen.flatMap((fz) => regeln.klassen.map((k) => {
       const id = mehrere ? `${fz.id}-${k.id}` : k.id;
-      const name = mehrere ? `${fz.name} ${k.name}` : k.name;
+      // Ohne iRating-Klassen heißt die Wertung einfach wie die Fahrzeugklasse.
+      const name = regeln.ohneKlassen ? fz.name : mehrere ? `${fz.name} ${k.name}` : k.name;
       const inGruppe = (r) => r && r.fahrzeugklasse === fz.id;
       const reihen = [...einstufung.entries()].filter(([cust, e]) => e.klasse === k.id && wertungen.some((w) => inGruppe(w.get(cust)))).map(([cust, e]) => {
         const { zeile, rennen } = saisonZeile(cust, e.irating, wertungen, fz.id);
@@ -468,7 +470,7 @@
       reihen.forEach((x, i) => { x.zeile.pos = i + 1; klassenPlatz.set(`${fz.id}:${x.cust}`, { id, name, pos: i + 1, pid: x.zeile.pid }); });
       const fahrer = reihen.map((x) => x.zeile);
       titelStand(fahrer, regeln, Math.max(0, regeln.rennenGesamt - rennenListe.length));
-      return { id, name, fahrzeugId: fz.id, fahrzeugklasse: fz.name, min: k.min, max: k.max, fahrer };
+      return { id, name, ...(regeln.ohneKlassen ? { offen: true } : {}), fahrzeugId: fz.id, fahrzeugklasse: fz.name, min: k.min, max: k.max, fahrer };
     }));
 
     // Gesamtwertung: eigene Punkte nach dem Zieleinlauf der ganzen Fahrzeugklasse, weil jede Fahrerklasse sonst ihre eigenen Siegpunkte vergibt.

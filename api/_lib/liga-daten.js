@@ -38,7 +38,9 @@ const KATEGORIEN = ["Sports_Car", "Formula", "Oval", "Dirt_Road", "Dirt_Oval"];
 function pruefeSerie(e) {
   const name = text(e.name, 60);
   if (name.length < 2) throw new Hinweis("Bitte gib der Serie einen Namen.");
-  const klassen = (Array.isArray(e.klassen) ? e.klassen : []).map((k) => ({
+  const ohneKlassen = e.ohneKlassen === true || e.ohneKlassen === "true";
+  // Ohne iRating-Klassen gibt es intern genau eine offene Klasse für alle.
+  const klassen = ohneKlassen ? [{ id: "offen", name: "Offen", min: 0, max: null }] : (Array.isArray(e.klassen) ? e.klassen : []).map((k) => ({
     id: slug(k.name),
     name: text(k.name, 30),
     min: ganzzahl(k.min, `Klasse ${text(k.name, 30)}, Von`, 0, 20000),
@@ -62,6 +64,7 @@ function pruefeSerie(e) {
     reportStunden: ganzzahl(e.reportStunden ?? 24, "Report-Frist", 1, 720),
     einspruchStunden: ganzzahl(e.einspruchStunden ?? 48, "Einspruchsfrist", 1, 720),
     klassen,
+    ohneKlassen,
     fahrzeugklassenNamen: { "GT3 Class": "GT3", IMSA23: "GT3" },
     punkte,
     punkteDanach: ganzzahl(e.punkteDanach, "Punkte danach", 0, 1000),

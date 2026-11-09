@@ -6,7 +6,7 @@
   const rang = (w) => (w === null || w === undefined ? "r-offen" : w >= 85 ? "r-gold" : w >= 70 ? "r-silber" : "r-bronze");
   const podium = (p) => (p >= 1 && p <= 3 ? `p${p}` : "");
   // Oberste Klasse rot, unterste grün, dazwischen gelb
-  const klassenFarbe = (k) => (k.max == null ? "k-pro" : k.min === 0 ? "k-am" : "k-mid");
+  const klassenFarbe = (k) => (k.offen ? "k-ges" : k.max == null ? "k-pro" : k.min === 0 ? "k-am" : "k-mid");
   const LIVERYS = ["porsche", "ferrari", "bmw", "amg", "ford"];
   const livery = (id) => LIVERYS[[...String(id)].reduce((t, c) => t + c.charCodeAt(0), 0) % LIVERYS.length];
   const bildVon = (id, version) => (version ? `api/liga?r=bild&k=${encodeURIComponent(`serie-${id}`)}&v=${encodeURIComponent(version)}` : `img/cars/${livery(id)}.webp`);

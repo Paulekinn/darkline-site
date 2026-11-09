@@ -134,6 +134,18 @@ const tests = {
     assert.deepStrictEqual(A.eigeneKarten(serien, kartenTabelle(), "Tom Muster"), []);
     assert.deepStrictEqual(A.eigeneKarten(serien, kartenTabelle(), "Niemand"), []);
   },
+  "Ohne Klassen: Formular legt genau eine offene Klasse an und ignoriert Klassen-Eingaben": () => {
+    const eingabe = { name: "Offen", typ: "event", ohneKlassen: true, klassen: [{ name: "kaputt", min: "x", max: "y" }], punkte: "30, 26", rennenGesamt: 1, gewerteteRennen: 1, anmeldeschlussMinuten: 60, punkteDanach: 0, bonusPole: 0, bonusSchnellsteRunde: 0, mindestRundenProzent: 75 };
+    const s = D.pruefeSerie(eingabe);
+    assert.deepStrictEqual(s.klassen, [{ id: "offen", name: "Offen", min: 0, max: null }]);
+    assert.strictEqual(s.ohneKlassen, true);
+    assert.strictEqual(D.pruefeSerie({ ...eingabe, ohneKlassen: false, klassen: [{ name: "Alle", min: 0, max: "" }] }).ohneKlassen, false);
+  },
+  "Ohne Klassen: Fahrerbereich nennt keine iRating-Klasse": () => {
+    const { klasseFuer } = require("../assets/liga-wertung.js");
+    const [s] = A.baueSerien([{ id: "e", name: "E", kategorie: "Formula", ohneKlassen: true, klassen: [{ id: "offen", name: "Offen", min: 0, max: null }] }], [], { discordId: "2", profil: { irating: 2000 }, klasseFuer });
+    assert.deepStrictEqual([s.klasse, s.einstufungDurchRennleitung], ["", false]);
+  },
   "Gast: nicht in der Season gemeldet ist Gast, Season-Fahrer nicht": () => {
     const f = (c) => ({ cust: c, name: `F${c}`, gesamt: 1 });
     const { ergebnis } = D.abgleichen({ fahrer: [f("1"), f("2"), f("3")] }, new Map([["1", "A"], ["2", "B"]]), ["3"], new Set(["1"]));

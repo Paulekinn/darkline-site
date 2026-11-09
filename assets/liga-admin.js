@@ -235,7 +235,7 @@
         <div class="a-feld" data-nur-liga${w.typ === "event" ? " hidden" : ""}><label>Saison</label>${eingabe("saison", w.saison, 'maxlength="40" placeholder="Saison 1"')}</div>
         ${feld("Status", auswahl("status", w.status, [["anmeldung", "Anmeldung"], ["laeuft", "Läuft"], ["beendet", "Beendet"]]))}
         ${farben}
-        ${feld("iRating-Kategorie", auswahl("kategorie", w.kategorie, [["Sports_Car", "Sports Car"], ["Formula", "Formula"], ["Oval", "Oval"], ["Dirt_Road", "Dirt Road"], ["Dirt_Oval", "Dirt Oval"]]))}
+        ${feld("iRacing-Kategorie", auswahl("kategorie", w.kategorie, [["Sports_Car", "Sports Car"], ["Formula", "Formula"], ["Oval", "Oval"], ["Dirt_Road", "Dirt Road"], ["Dirt_Oval", "Dirt Oval"]]))}
         ${feld("Beschreibung", `<textarea name="beschreibung" maxlength="400" style="min-height:60px">${esc(w.beschreibung)}</textarea>`, true)}
       </div>`)}
       ${abschnittForm(2, "Umfang und Fristen", `<div class="a-felder">
@@ -246,7 +246,8 @@
         ${feld("Report-Frist (Stunden)", eingabe("reportStunden", w.reportStunden ?? 24, 'type="number" min="1"'))}
         ${feld("Einspruchsfrist (Stunden)", eingabe("einspruchStunden", w.einspruchStunden ?? 48, 'type="number" min="1"'))}
       </div><label class="a-check"><input type="checkbox" name="anmeldungOffen"${w.anmeldungOffen !== false ? " checked" : ""}> Fahrer können sich anmelden</label>`)}
-      ${abschnittForm(3, "Klassen nach iRating", `<div class="a-klassen-kopf"><span>Name</span><span>Von</span><span>Bis</span><span></span></div><div class="a-klassen" id="a-klassen">${w.klassen.map(klasseZeile).join("")}</div><div><button type="button" class="a-knopf zweit klein" data-klasse-neu="1">Klasse hinzufügen</button></div><div id="a-klassen-check"></div>`)}
+      ${abschnittForm(3, "Klassen", `<label class="a-check"><input type="checkbox" name="ohneKlassen" id="s-ohne-klassen"${w.ohneKlassen ? " checked" : ""}> Keine Klassen nach iRating: alle fahren in einer gemeinsamen Wertung, bei Multiclass je Fahrzeugklasse</label>
+        <div class="a-spalte" id="a-klassen-bereich"${w.ohneKlassen ? " hidden" : ""}><div class="a-klassen-kopf"><span>Name</span><span>Von</span><span>Bis</span><span></span></div><div class="a-klassen" id="a-klassen">${w.klassen.map(klasseZeile).join("")}</div><div><button type="button" class="a-knopf zweit klein" data-klasse-neu="1">Klasse hinzufügen</button></div><div id="a-klassen-check"></div></div>`)}
       ${abschnittForm(4, "Punkte", `<div class="a-leiste"><span class="a-beschriftung">Vorlage</span>${PUNKTE_VORLAGEN.map(([t], i) => `<button type="button" class="a-knopf zweit klein" data-punkte-vorlage="${i}">${esc(t)}</button>`).join("")}</div><div class="a-felder">
         ${feld("Punkte nach Platz", eingabe("punkte", w.punkte.join(", ")), true)}
         ${feld("Punkte für alle danach", eingabe("punkteDanach", w.punkteDanach, 'type="number" min="0"'))}
@@ -277,7 +278,7 @@
       <div class="a-serie-inhalt">
         <div class="a-leiste">${istEvent ? '<span class="a-chip gold">★ Event</span>' : '<span class="a-chip hell">Season</span>'}${statusChip(s.status)}${s.anmeldungOffen === false ? '<span class="a-chip">Anmeldung zu</span>' : ""}</div>
         <h3>${esc(s.name)}</h3>
-        <p class="a-hinweis">${esc([istEvent ? "" : s.saison, `${(s.klassen || []).length} Klassen`, istEvent ? "" : `${s.gewerteteRennen} von ${s.rennenGesamt} Rennen gewertet`].filter(Boolean).join(" · "))}</p>
+        <p class="a-hinweis">${esc([istEvent ? "" : s.saison, s.ohneKlassen ? "Ohne iRating-Klassen" : `${(s.klassen || []).length} Klassen`, istEvent ? "" : `${s.gewerteteRennen} von ${s.rennenGesamt} Rennen gewertet`].filter(Boolean).join(" · "))}</p>
         ${info}
         <div class="a-leiste"><button type="button" class="a-knopf klein" data-serie-bearbeiten="${esc(s.id)}">Bearbeiten</button>${aktionen}<a class="a-knopf zweit klein" href="/liga?serie=${encodeURIComponent(s.id)}">Ansehen</a></div>
       </div>
@@ -464,7 +465,7 @@
     const zeilen = det.fahrer.map((f) => {
       const abweichung = f.iratingAngabe !== null && f.iratingErgebnis !== null && Math.abs(f.iratingAngabe - f.iratingErgebnis) > 150;
       return `<tr><td>${esc(f.name)}${f.fahrzeugklasse ? ` <span class="a-chip">${esc(f.fahrzeugklasse)}</span>` : ""}</td><td>${f.mitglied ? "Serie" : "Einzeln"}</td><td>${esc(f.custId) || "–"}</td><td class="rechts">${zahl(f.iratingAngabe)}</td><td class="rechts ${abweichung ? "a-abweichung" : ""}">${zahl(f.iratingErgebnis)}${abweichung ? " !" : ""}</td>
-        <td>${f.custId ? `<select data-einstufung="${esc(f.custId)}" aria-label="Klasse von ${esc(f.name)}">${klassenOption(f.klasseAuto, f.klasseFest)}</select>` : "–"}</td>
+        <td>${f.custId && !serie.ohneKlassen ? `<select data-einstufung="${esc(f.custId)}" aria-label="Klasse von ${esc(f.name)}">${klassenOption(f.klasseAuto, f.klasseFest)}</select>` : "–"}</td>
         <td class="rechts"><button type="button" class="a-knopf gefahr klein" data-aus-serie="${esc(f.discordId)}" data-name="${esc(f.name)}">Entfernen</button></td></tr>`;
     }).join("");
     const liste = (r, l) => l.map((f, i) => `<li><span>${i + 1}. ${esc(f.name)}${f.fahrzeugklasse ? ` · ${esc(f.fahrzeugklasse)}` : ""}</span><button type="button" class="a-weg" data-aus-rennen="${esc(r.id)}" data-fahrer="${esc(f.discordId)}" data-name="${esc(f.name)}" aria-label="${esc(f.name)} aus dem Rennen nehmen">×</button></li>`).join("");
@@ -761,6 +762,7 @@
       const namen = fd.getAll("k_name"), min = fd.getAll("k_min"), max = fd.getAll("k_max");
       w.klassen = namen.map((name, i) => ({ name, min: min[i], max: max[i] }));
       w.anmeldungOffen = f.elements.anmeldungOffen.checked;
+      w.ohneKlassen = f.elements.ohneKlassen.checked;
       // Eingaben merken, damit sie bei einem Fehler im Formular stehen bleiben
       form.werte = { ...w, punkte: String(w.punkte).split(/[\s,;]+/).filter(Boolean), fahrzeugklassen: String(w.fahrzeugklassen).split(",").map((x) => x.trim()).filter(Boolean) };
       // Nach dem Speichern steht man im Reiter, in den die Serie jetzt gehört.
@@ -794,6 +796,7 @@
       return zeichne();
     }
     if (t.dataset.bildZiel && t.files[0]) return bildHochladen(t.dataset.bildZiel, t.files[0]);
+    if (t.id === "s-ohne-klassen") { document.getElementById("a-klassen-bereich").hidden = t.checked; return; }
     if (t.name === "typ" && t.closest("#f-serie")) {
       const f = t.closest("#f-serie");
       f.querySelectorAll("[data-nur-liga]").forEach((el) => { el.hidden = t.value === "event"; });

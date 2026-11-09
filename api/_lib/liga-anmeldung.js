@@ -130,8 +130,8 @@ function baueSerien(serienListe, eintraege, { discordId, profil, klasseFuer }) {
     const mitglieder = eintraege.filter((e) => e.typ === "serie" && e.serieId === s.id);
     const eigen = mitglieder.find((e) => e.discordId === discordId);
     const sportsCar = !s.kategorie || s.kategorie === "Sports_Car";
-    const klasse = profil && sportsCar ? (klasseFuer(profil.irating, s.klassen || []) || {}).name || "" : "";
-    return { id: s.id, name: s.name, typ: s.typ || "liga", saison: s.saison || "", status: s.status || "anmeldung", anmeldungOffen: s.anmeldungOffen !== false && s.status !== "beendet", farbe: s.farbe || "rot", bildVersion: s.bildVersion || 0, fahrzeugklassen: s.fahrzeugklassen || [], fahrer: mitglieder.length, ich: !!eigen, fahrzeugklasse: eigen ? eigen.fahrzeugklasse : "", klasse, einstufungDurchRennleitung: !sportsCar };
+    const klasse = profil && sportsCar && !s.ohneKlassen ? (klasseFuer(profil.irating, s.klassen || []) || {}).name || "" : "";
+    return { id: s.id, name: s.name, typ: s.typ || "liga", saison: s.saison || "", status: s.status || "anmeldung", anmeldungOffen: s.anmeldungOffen !== false && s.status !== "beendet", farbe: s.farbe || "rot", bildVersion: s.bildVersion || 0, fahrzeugklassen: s.fahrzeugklassen || [], fahrer: mitglieder.length, ich: !!eigen, fahrzeugklasse: eigen ? eigen.fahrzeugklasse : "", klasse, einstufungDurchRennleitung: !sportsCar && !s.ohneKlassen };
   });
 }
 
@@ -145,7 +145,7 @@ function eigeneKarten(serienListe, tabellen, iracingName, pid) {
     return t.klassen.flatMap((k) => {
       const f = k.fahrer.find((x) => x.karte && (x.pid ? x.pid === pid : x.name.trim().toLowerCase() === name));
       if (!f) return [];
-      return [{ pid: f.pid, serie: s.id, serieName: s.name, bildVersion: s.bildVersion || 0, rennenGesamt: t.rennenGesamt, klasseId: k.id, klasse: k.name, min: k.min, max: k.max, name: f.name, pos: f.pos, punkte: f.punkte, rennen: f.rennen, karte: f.karte }];
+      return [{ pid: f.pid, serie: s.id, serieName: s.name, bildVersion: s.bildVersion || 0, rennenGesamt: t.rennenGesamt, klasseId: k.id, klasse: k.name, offen: k.offen, min: k.min, max: k.max, name: f.name, pos: f.pos, punkte: f.punkte, rennen: f.rennen, karte: f.karte }];
     });
   });
 }

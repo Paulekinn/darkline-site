@@ -119,6 +119,24 @@ const tests = {
     const [e] = tabelle([datei(1, 1, [{ c: 1, n: "A", out: "Disqualified", ab: 0 }, { c: 2, n: "B", ab: 10000 }])], EINE_KLASSE).rennen[0].ergebnisse;
     assert.deepStrictEqual(e.zeilen.map((z) => [z.name, z.ziel, z.abstand, z.gesamt.status]), [["B", 1, 0, "OK"], ["A", 2, null, "DSQ"]]);
   },
+  "Ohne Klassen: eine Wertung, benannt nach der Fahrzeugklasse": () => {
+    const regeln = { ...OHNE_BONUS, kategorie: "Formula", ohneKlassen: true, klassen: [{ id: "offen", name: "Offen", min: 0, max: null }] };
+    const t = tabelle([datei(1, 1, [{ c: 1, n: "A", ir: 5000 }, { c: 2, n: "B", ir: 800 }, { c: 3, n: "C", ir: 0 }])], regeln);
+    assert.strictEqual(t.klassen.length, 1);
+    assert.deepStrictEqual([t.klassen[0].name, t.klassen[0].offen], ["GT3", true]);
+    assert.deepStrictEqual(t.klassen[0].fahrer.map((f) => [f.name, f.punkte]), [["A", 30], ["B", 26], ["C", 23]]);
+    assert.deepStrictEqual(t.gesamt, []);
+    assert.deepStrictEqual(t.warnungen, []);
+  },
+  "Ohne Klassen: Multiclass bleibt je Fahrzeugklasse getrennt": () => {
+    const regeln = { ...OHNE_BONUS, kategorie: "", ohneKlassen: true, klassen: [{ id: "offen", name: "Offen", min: 0, max: null }] };
+    const t = tabelle([datei(1, 1, [{ c: 1, n: "A", fz: 1, fzn: "GTP" }, { c: 2, n: "B" }, { c: 3, n: "C" }])], regeln);
+    assert.deepStrictEqual(t.klassen.map((k) => [k.name, k.fahrer.map((f) => [f.name, f.punkte])]), [["GTP", [["A", 30]]], ["GT3", [["B", 30], ["C", 26]]]]);
+  },
+  "Ohne Klassen: frühere Einstufungen stören nicht": () => {
+    const regeln = { ...OHNE_BONUS, kategorie: "", ohneKlassen: true, klassen: [{ id: "offen", name: "Offen", min: 0, max: null }] };
+    assert.doesNotThrow(() => tabelle([datei(1, 1, [{ c: 1, n: "A" }])], regeln, { einstufung: { 1: "pro" }, strafen: [] }));
+  },
   "Gast: bekommt keine Punkte und nimmt niemandem welche weg": () => {
     const r = lies(datei(1, 1, [{ c: 1, n: "Gast", ir: 3000, s: 0, b: 900 }, { c: 2, n: "A", ir: 3000, s: 1, b: 1000 }, { c: 3, n: "B", ir: 3000, s: 2, b: 1100 }]));
     r.fahrer[0].gast = true;

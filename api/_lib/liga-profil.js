@@ -131,7 +131,7 @@ function fahrerAkte(serien, tabellen, pid) {
   return {
     name: treffer[0].f.name,
     bilanz: { starts: verlauf.length, siege: anzahl((r) => r.platz === 1), podien: anzahl((r) => r.platz !== null && r.platz <= 3), poles: anzahl((r) => r.pole), schnellste: anzahl((r) => r.schnellsteRunde), ausfaelle: anzahl((r) => r.status !== "OK") },
-    karten: treffer.map(({ s, t, k, f }) => ({ pid, serie: s.id, serieName: s.name, serieTyp: s.typ || "liga", bildVersion: s.bildVersion || 0, rennenGesamt: t.rennenGesamt, klasseId: k.id, klasse: k.name, min: k.min, max: k.max, name: f.name, pos: f.pos, punkte: f.punkte, rennen: f.rennen, karte: f.karte })),
+    karten: treffer.map(({ s, t, k, f }) => ({ pid, serie: s.id, serieName: s.name, serieTyp: s.typ || "liga", bildVersion: s.bildVersion || 0, rennenGesamt: t.rennenGesamt, klasseId: k.id, klasse: k.name, offen: k.offen, min: k.min, max: k.max, name: f.name, pos: f.pos, punkte: f.punkte, rennen: f.rennen, karte: f.karte })),
     verlauf,
   };
 }
