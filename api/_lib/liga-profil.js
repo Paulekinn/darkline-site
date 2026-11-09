@@ -55,8 +55,30 @@ async function avatarSichern(pid, s) {
     await D.bildSpeichern(`fahrer-${pid}`, buf);
     return true;
   } catch (e) {
+    console.warn("Liga: Discord-Bild konnte nicht übernommen werden:", e.message);
     return false;
   }
+}
+
+const besitzerVon = (s) => crypto.createHash("sha256").update(`liga-besitzer:${s.id}:${process.env.SESSION_SECRET}`).digest("hex").slice(0, 16);
+const bildVeraltet = (p, besitzer, version) => !!p && p.o === besitzer && !!version && p.b !== version;
+
+// Ein fehlgeschlagener Abruf wird pro Funktionsinstanz nur einmal versucht, damit der Fahrerbereich nicht jedes Mal wartet.
+const bildVersuche = new Set();
+
+// Beim Öffnen des Fahrerbereichs: nach dem Login steht das aktuelle Discord-Bild bereit, das Profil muss dafür nicht neu gespeichert werden.
+async function bildNachziehen(s, profil) {
+  if (!profil || profil.zeigeBild !== true || !s.avatar) return;
+  const pid = fahrerKennung(profil.custId);
+  const version = String(s.avatar).slice(-8);
+  const p = (await alleProfile(false)).find((x) => x.pid === pid);
+  if (!bildVeraltet(p, besitzerVon(s), version) || bildVersuche.has(`${pid}:${version}`)) return;
+  bildVersuche.add(`${pid}:${version}`);
+  if (!await avatarSichern(pid, s)) return;
+  const { pfad, pid: kennung, ...daten } = p;
+  await blobPut(profilPfad(pid, { ...daten, b: version }), "1", "text/plain");
+  await blobDelete([pfad]);
+  cache = { bis: 0, wert: null };
 }
 
 function pruefeKonflikte(alle, pid, besitzer, nummer) {
@@ -68,7 +90,7 @@ function pruefeKonflikte(alle, pid, besitzer, nummer) {
 async function speichern(s, profil, extras) {
   const alle = await alleProfile(true);
   const pid = fahrerKennung(profil.custId);
-  const besitzer = crypto.createHash("sha256").update(`liga-besitzer:${s.id}:${process.env.SESSION_SECRET}`).digest("hex").slice(0, 16);
+  const besitzer = besitzerVon(s);
   pruefeKonflikte(alle, pid, besitzer, extras.nummer);
   const eigene = alle.filter((p) => p.o === besitzer);
   const vorher = eigene.find((p) => p.pid === pid);
@@ -135,4 +157,4 @@ async function handler(req, res) {
 }
 
 module.exports = handler;
-Object.assign(module.exports, { oeffentlicheProfile, speichern, angabenVon, fahrerAkte, leseProfil, profilPfad, oeffentlich, avatarUrl, pruefeKonflikte });
+Object.assign(module.exports, { bildNachziehen, bildVeraltet, oeffentlicheProfile, speichern, angabenVon, fahrerAkte, leseProfil, profilPfad, oeffentlich, avatarUrl, pruefeKonflikte });

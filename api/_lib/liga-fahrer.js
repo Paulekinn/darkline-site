@@ -186,7 +186,9 @@ module.exports = async (req, res) => {
   if (req.method === "GET") {
     if (!s) return res.status(200).json({ angemeldet: false });
     if ((req.query || {}).nur === "status") return res.status(200).json({ angemeldet: true });
-    return await antwort(res, s, await profilLesen(s.id), await eintraege(false), await D.katalog(false), false);
+    const gespeichert = await profilLesen(s.id);
+    await P.bildNachziehen(s, gespeichert).catch((e) => console.warn("Liga: Profilbild:", e.message));
+    return await antwort(res, s, gespeichert, await eintraege(false), await D.katalog(false), false);
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });

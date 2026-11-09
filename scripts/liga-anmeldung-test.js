@@ -98,6 +98,14 @@ const tests = {
     assert.doesNotThrow(() => P.pruefeKonflikte(alle, "p1", "x", 46));
     assert.doesNotThrow(() => P.pruefeKonflikte(alle, "p2", "y", 7));
   },
+  "Profil: Bild wird nur bei eigenem Eintrag und neuer Version nachgezogen": () => {
+    assert.strictEqual(P.bildVeraltet({ o: "ich", b: "" }, "ich", "abcd1234"), true);
+    assert.strictEqual(P.bildVeraltet({ o: "ich", b: "alt" }, "ich", "abcd1234"), true);
+    assert.strictEqual(P.bildVeraltet({ o: "ich", b: "abcd1234" }, "ich", "abcd1234"), false);
+    assert.strictEqual(P.bildVeraltet({ o: "fremd", b: "" }, "ich", "abcd1234"), false);
+    assert.strictEqual(P.bildVeraltet(undefined, "ich", "abcd1234"), false);
+    assert.strictEqual(P.bildVeraltet({ o: "ich", b: "" }, "ich", ""), false);
+  },
   "Profil: Discord-Bild nur mit gültigen Werten": () => {
     assert.strictEqual(P.avatarUrl("123456789012", "0123456789abcdef0123456789abcdef"), "https://cdn.discordapp.com/avatars/123456789012/0123456789abcdef0123456789abcdef.webp?size=256");
     assert.strictEqual(P.avatarUrl("1/../x", "0123456789abcdef0123456789abcdef"), null);

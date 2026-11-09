@@ -196,16 +196,23 @@
 
   function profilAnsicht() {
     const p = stand.fahrer.profil;
+    const bild = eigenesBild();
+    const bildFehlt = p.zeigeBild === true && !bild;
     return `<div class="fb-lizenz">
         <div class="fb-lizenz-kopf"><img src="img/brand/dsrs-logo.png" alt="" width="654" height="165"><span>Fahrerlizenz</span></div>
-        <strong>${p.nummer ? `<span class="fb-lizenz-nr">#${esc(p.nummer)}</span> ` : ""}${esc(p.iracingName)}</strong>
+        <div class="fb-lizenz-fahrer">${bild ? `<img class="fb-lizenz-bild" src="${esc(bild)}" alt="" width="52" height="52">` : ""}<strong>${p.nummer ? `<span class="fb-lizenz-nr">#${esc(p.nummer)}</span> ` : ""}${esc(p.iracingName)}</strong></div>
         ${p.land || p.team ? `<small class="fb-lizenz-info">${window.LigaKarte.flagge(p.land)}${esc([window.LigaFlaggen.name(p.land), p.team].filter(Boolean).join(" · "))}</small>` : ""}
         <dl><div><dt>iRacing-ID</dt><dd>${esc(p.custId)}</dd></div><div><dt>Sports-Car-iRating</dt><dd>${esc(Number(p.irating).toLocaleString("de-DE"))}</dd></div></dl>
       </div>
+      ${bildFehlt ? '<p class="fb-klein">Dein Discord-Bild ist noch nicht übernommen. Logge dich einmal aus und wieder ein, dann erscheint es hier. Ohne eigenes Bild bei Discord bleibt der Platz leer.</p>' : ""}
       <p class="fb-profil-link"><button type="button" class="fb-link" data-profil="1">Profil ändern</button>${(stand.meineKarten || []).some((k) => k.pid) ? ` <a class="fb-link" href="/fahrer?id=${encodeURIComponent(stand.fahrer.pid)}">Öffentliches Profil</a>` : ""}</p>`;
   }
 
   /* ---------- Kopfbereich mit persönlicher Fahrerkarte ---------- */
+  function eigenesBild() {
+    const o = stand.fahrer.oeffentlich;
+    return o && o.bild && stand.fahrer.pid ? window.LigaKarte.avatarVon(stand.fahrer.pid, o.bild) : "";
+  }
   const { rang, klassenFarbe, werte: wertZeilen } = window.LigaKarte;
 
   function meineKarte(k) {
@@ -218,7 +225,7 @@
     if (!karten.length) {
       return `<div class="liga-fk r-offen fb-platzhalter">
         <div class="liga-fk-kopf"><div class="liga-fk-rating"><b>–</b><span>Noch keine Wertung</span></div></div>
-        <div class="liga-fk-name"><strong>${esc(name)}</strong><small>Deine Fahrerkarte entsteht nach deinem ersten gewerteten Rennen.</small></div>
+        <div class="liga-fk-fahrer">${eigenesBild() ? `<img class="liga-fk-avatar" src="${esc(eigenesBild())}" alt="" width="48" height="48">` : ""}<div class="liga-fk-name"><strong>${esc(name)}</strong><small>Deine Fahrerkarte entsteht nach deinem ersten gewerteten Rennen.</small></div></div>
         ${wertZeilen({})}
       </div>`;
     }
