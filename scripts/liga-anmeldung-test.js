@@ -180,11 +180,11 @@ const tests = {
     const aufrufe = [];
     global.fetch = async (url, o) => { aufrufe.push([url, JSON.parse(o.body)]); return { ok: true }; };
     delete process.env.LIGA_DISCORD_WEBHOOK_TEAM;
-    await R.teamMelden("Test");
+    assert.strictEqual(await R.teamMelden("Test"), false);
     assert.strictEqual(aufrufe.length, 0);
     process.env.LIGA_DISCORD_WEBHOOK_TEAM = "https://discord.example/hook";
     process.env.LIGA_ADMIN_ROLE_IDS = "123,456";
-    await R.teamMelden("Neuer @everyone Report");
+    assert.strictEqual(await R.teamMelden("Neuer @everyone Report"), true);
     delete process.env.LIGA_DISCORD_WEBHOOK_TEAM;
     delete process.env.LIGA_ADMIN_ROLE_IDS;
     global.fetch = original;

@@ -140,12 +140,15 @@ async function derSerieLoeschen(serieId) {
 // Meldung in den internen Kanal der Rennleitung, mit Ping der Rolle. Ohne eingetragenen Webhook passiert nichts.
 async function teamMelden(text) {
   const url = process.env.LIGA_DISCORD_WEBHOOK_TEAM;
-  if (!url) return;
+  if (!url) return false;
   const rolle = (process.env.LIGA_ADMIN_ROLE_IDS || "").split(",").map((s) => s.trim()).find((s) => /^\d+$/.test(s));
   try {
-    await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(4000), body: JSON.stringify({ content: `${rolle ? `<@&${rolle}> ` : ""}${String(text).slice(0, 1800)}\nhttps://darklineperformance.de/liga-admin`, allowed_mentions: rolle ? { roles: [rolle] } : { parse: [] } }) });
+    const antwort = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(4000), body: JSON.stringify({ content: `${rolle ? `<@&${rolle}> ` : ""}${String(text).slice(0, 1800)}\nhttps://darklineperformance.de/liga-admin`, allowed_mentions: rolle ? { roles: [rolle] } : { parse: [] } }) });
+    if (!antwort.ok) console.error("Discord-Meldung an die Rennleitung abgelehnt:", antwort.status);
+    return antwort.ok;
   } catch (e) {
     console.error("Discord-Meldung an die Rennleitung fehlgeschlagen:", e.message);
+    return false;
   }
 }
 

@@ -214,6 +214,11 @@ const aktionen = {
     if (strecke.kartenVersion) await D.bildLoeschen(`strecke-${b.id}`);
     return {};
   },
+  async "discord-test"(b, kat, s) {
+    if (!process.env.LIGA_DISCORD_WEBHOOK_TEAM) throw new Hinweis("Der Discord-Webhook ist noch nicht eingerichtet.");
+    if (!(await R.teamMelden(`**Testnachricht** von ${s.name}: Die Benachrichtigungen der Rennleitung funktionieren.`))) throw new Hinweis("Discord hat die Nachricht nicht angenommen. Bitte prüfe den Webhook.");
+    return {};
+  },
   // Verschiebt ein Rennen, auf Wunsch auch alle folgenden derselben Serie.
   async "rennen-verschieben"(b, kat) {
     const ziel = rennenFinden(kat, b.id);

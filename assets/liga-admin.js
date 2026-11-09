@@ -462,7 +462,7 @@
   /* ---------- Protokoll ---------- */
   function protokollTab() {
     const zeilen = (d.protokoll || []).map((e) => `<tr><td>${esc(zeit(e.zeit))}</td><td>${esc(e.wer)}</td><td class="umbruch">${esc(e.text)}</td></tr>`).join("");
-    return `<section class="a-karte"><div class="a-kartenkopf"><h2>Änderungsprotokoll</h2><span class="a-chip">Letzte 300 Einträge</span></div>${zeilen ? `<div class="a-scroll"><table><thead><tr><th>Zeit</th><th>Wer</th><th>Was</th></tr></thead><tbody>${zeilen}</tbody></table></div>` : '<p class="a-leer">Noch keine Änderungen protokolliert.</p>'}</section>`;
+    return `<section class="a-karte"><div class="a-kartenkopf"><h2>Änderungsprotokoll</h2><div class="a-leiste"><span class="a-chip">Letzte 300 Einträge</span><button type="button" class="a-knopf zweit klein" data-discord-test="1">Discord testen</button></div></div>${zeilen ? `<div class="a-scroll"><table><thead><tr><th>Zeit</th><th>Wer</th><th>Was</th></tr></thead><tbody>${zeilen}</tbody></table></div>` : '<p class="a-leer">Noch keine Änderungen protokolliert.</p>'}</section>`;
   }
 
   /* ---------- Fahrer-Akte ---------- */
@@ -716,6 +716,7 @@
     const b = e.target.closest("button");
     if (!b) return;
     if (b.id === "a-logout") { await sende({ aktion: "logout" }); d = { angemeldet: false }; return zeichne(); }
+    if (b.dataset.discordTest) return aktion({ aktion: "discord-test" }, "Testnachricht gesendet, bitte im Discord-Kanal nachsehen.");
     if (b.dataset.akte) return akteOeffnen(b);
     if (b.dataset.akteZu) { akte = null; return zeichne(); }
     if (b.dataset.ergebnisImport) {
