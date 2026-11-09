@@ -126,6 +126,18 @@ const tests = {
     assert.deepStrictEqual(A.eigeneKarten(serien, kartenTabelle(), "Tom Muster"), []);
     assert.deepStrictEqual(A.eigeneKarten(serien, kartenTabelle(), "Niemand"), []);
   },
+  "Anmeldung: in einer beendeten Serie ist kein Rennen mehr offen": () => {
+    const r = A.baueRennen([SERIENRENNEN], [], { ...OPT, serien: { gt3: { name: "GT3", status: "beendet" } } })[0];
+    assert.strictEqual(r.offen, false);
+  },
+  "Anmeldung: läuft die Serie, bleibt das Rennen offen": () => {
+    for (const status of ["anmeldung", "laeuft"]) assert.strictEqual(A.baueRennen([SERIENRENNEN], [], { ...OPT, serien: { gt3: { name: "GT3", status } } })[0].offen, true);
+  },
+  "Anmeldung: ist nur die Anmeldung der Serie zu, bleibt die Abmeldung möglich": () => {
+    const r = A.baueRennen([SERIENRENNEN], [], { ...OPT, serien: { gt3: { name: "GT3", status: "laeuft", anmeldungOffen: false } } })[0];
+    assert.deepStrictEqual([r.offen, r.anmeldungZu], [true, true]);
+    assert.strictEqual(A.baueRennen([SERIENRENNEN], [], { ...OPT, serien: { gt3: { name: "GT3", status: "laeuft" } } })[0].anmeldungZu, false);
+  },
   "Teilen: Vorschau enthält Rating, Platz, Werte und Abzeichen": () => {
     const html = teilen.baueSeite(TEILEN_SERIE, TEILEN_GRUPPE, teilenFahrer());
     assert.ok(html.includes('og:title" content="Lena Beispiel · Darkline Rating 88"'));

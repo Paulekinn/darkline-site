@@ -63,7 +63,8 @@ async function antwort(res, s, profil, alle, kat, frisch) {
     fahrer: { name: s.name, profil, pid, oeffentlich: pid ? await P.angabenVon(pid).catch(() => null) : null },
     meineKarten: profil ? A.eigeneKarten(kat.serien, await laufendeTabellen(kat), profil.iracingName, pid) : [],
     serien: A.baueSerien(kat.serien, alle, { discordId: s.id, profil, klasseFuer }),
-    rennen: A.baueRennen(kat.rennen, alle, optionen(s, kat)),
+    // Termine beendeter Serien gehören nicht mehr in den Fahrerbereich.
+    rennen: A.baueRennen(kat.rennen, alle, optionen(s, kat)).filter((r) => (serienMap(kat.serien)[r.serie] || {}).status !== "beendet"),
     reports: await reportDaten(s, kat, alle, frisch),
   });
 }
@@ -126,6 +127,7 @@ async function anmelden(s, profil, body, alle, kat) {
   const { rennen, stand } = rennenPruefen(s, kat, alle, body.rennen);
   if (!stand) throw new Hinweis("Die Anmeldung für dieses Rennen ist geschlossen.");
   if (stand.ich) return alle;
+  if (stand.anmeldungZu) throw new Hinweis("Die Anmeldung für diese Serie ist geschlossen.");
   const parallel = A.kollisionen(kat.rennen, rennen.id, alle, optionen(s, kat));
   if (parallel.length) throw new Hinweis(`Dieses Rennen überschneidet sich mit: ${parallel.join(", ")}. Melde dich dort zuerst ab.`);
   // Serienfahrer, die sich für dieses Rennen abgemeldet hatten, kommen zurück.

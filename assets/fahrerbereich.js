@@ -43,7 +43,7 @@
     if (r.status === "abgesagt") return '<span class="fb-status abgesagt">Abgesagt</span>';
     if (r.ich && r.ich.status === "starter") return '<span class="fb-status starter">Dabei</span>';
     if (r.ich) return `<span class="fb-status warteliste">Warteliste · Platz ${r.ich.platz}</span>`;
-    if (!r.offen) return '<span class="fb-status geschlossen">Anmeldung geschlossen</span>';
+    if (!r.offen || r.anmeldungZu) return '<span class="fb-status geschlossen">Anmeldung geschlossen</span>';
     return '<span class="fb-status">Nicht angemeldet</span>';
   }
 
@@ -64,6 +64,7 @@
   function aktionHtml(r) {
     if (!r.offen) return "";
     if (r.ich) return `<button type="button" class="fb-knopf zweit" data-aktion="abmelden" data-rennen="${esc(r.id)}" data-quelle="${esc(r.ich.quelle)}">Abmelden</button>`;
+    if (r.anmeldungZu) return "";
     if (!stand.fahrer.profil) return '<button type="button" class="fb-knopf zweit" data-profil="1">Erst Profil ausfüllen</button>';
     const voll = r.plaetze && r.starter.length >= r.plaetze;
     return `${klassenAuswahl(r.id, r.fahrzeugklassen)}<button type="button" class="fb-knopf" data-aktion="anmelden" data-rennen="${esc(r.id)}">${voll ? "Auf die Warteliste" : "Anmelden"}</button>`;
@@ -85,7 +86,7 @@
   }
 
   function hauptRennen(r) {
-    const schluss = r.offen ? `Anmeldung und Abmeldung bis ${datum(r.schluss)}, ${uhr(r.schluss)}` : r.status === "abgesagt" ? "" : "Änderungen jetzt bitte im Discord an die Rennleitung.";
+    const schluss = r.offen && r.anmeldungZu && !r.ich ? "Die Anmeldung für diese Serie ist geschlossen." : r.offen ? `${r.anmeldungZu ? "Abmeldung" : "Anmeldung und Abmeldung"} bis ${datum(r.schluss)}, ${uhr(r.schluss)}` : r.status === "abgesagt" ? "" : "Änderungen jetzt bitte im Discord an die Rennleitung.";
     const passwort = r.ich && r.ich.status === "starter" ? r.passwort || "Kommt im Discord" : "";
     const konflikt = r.konflikt && r.konflikt.length ? `<p class="fb-konflikt">Überschneidung mit: ${esc(r.konflikt.join(", "))}. Melde dich bei einem der Rennen ab.</p>` : "";
     return `<article class="fb-haupt ${farbe(r.serieFarbe)}${r.serieTyp === "event" ? " ist-event" : ""}">

@@ -95,7 +95,9 @@ function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, ser
         serie: r.serie || "", serieName: serie.name || "", serieFarbe: serie.farbe || "rot", serieTyp: serie.typ || "liga",
         start: new Date(r.startMs).toISOString(), ende: new Date(r.startMs + dauerMinuten(r.renndauer) * 60e3).toISOString(), schluss: new Date(schlussMs).toISOString(),
         startMs: r.startMs, endeMs: r.startMs + dauerMinuten(r.renndauer) * 60e3,
-        offen: !abgesagt && jetzt < schlussMs,
+        // In einer beendeten Serie ändert sich nichts mehr. Ist nur die Anmeldung der Serie zu, kann man sich noch abmelden.
+        offen: !abgesagt && serie.status !== "beendet" && jetzt < schlussMs,
+        anmeldungZu: serie.anmeldungOffen === false,
         strecke: r.strecke || "", fahrzeuge: r.fahrzeuge || "", fahrzeugklassen: serie.fahrzeugklassen || [], plaetze: r.plaetze || 0,
         training: r.training || "", qualifying: r.qualifying || "", renndauer: r.renndauer || "", wetter: r.wetter || "", server: r.server || "", briefing: r.briefing || "",
         starter: starter.map(oeffentlich), warteliste: warteliste.map(oeffentlich),

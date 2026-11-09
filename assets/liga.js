@@ -581,7 +581,7 @@
     const aktiv = serien.filter((s) => s.status !== "beendet");
     const archiv = serien.filter((s) => s.status === "beendet");
     // Rennen von heute bleiben drei Stunden nach dem Start stehen, danach rückt das nächste nach.
-    const termine = offeneRennen(rennen).filter((r) => { const t = startMs(r); return t === null || t + 3 * 3600e3 > Date.now(); }).map((r) => ({ r, s: serien.find((x) => x.id === r.serie) })).filter((x) => x.s);
+    const termine = offeneRennen(rennen).filter((r) => { const t = startMs(r); return t === null || t + 3 * 3600e3 > Date.now(); }).map((r) => ({ r, s: serien.find((x) => x.id === r.serie) })).filter((x) => x.s && x.s.status !== "beendet");
 
     // Kopfbereich: nächstes Rennen und Zahlen
     const kopfBereich = document.querySelector(".liga-kopf");
