@@ -11,7 +11,7 @@
 
   const eintrag = (href, text, aktiv, klasse) => `<a href="${esc(href)}" class="${klasse || ""}"${aktiv ? ' aria-current="page"' : ""}>${esc(text)}</a>`;
 
-  function zeichne(serien, rennleitung) {
+  function zeichne(serien, rennleitung, angemeldet) {
     // Laufende Serien immer, eine beendete nur, solange man sie gerade ansieht
     const sichtbar = serien.filter((s) => s.status !== "beendet" || s.id === aktuelleSerie);
     nav.innerHTML = `<div class="wrap">
@@ -19,11 +19,19 @@
       ${sichtbar.map((s) => eintrag(`/liga?serie=${encodeURIComponent(s.id)}`, s.name, s.id === aktuelleSerie, `liga-nav-serie s-${FARBEN.includes(s.farbe) ? s.farbe : "rot"}${s.typ === "event" ? " liga-nav-event" : ""}`)).join("")}
       ${eintrag("/fahrerbereich", "Fahrerbereich", pfad === "/fahrerbereich", "liga-nav-rechts")}
       ${rennleitung ? eintrag("/liga-admin", "Rennleitung", false) : ""}
+      ${angemeldet ? '<button type="button" class="liga-nav-logout" id="liga-logout">Ausloggen</button>' : ""}
     </div>`;
   }
 
-  zeichne([], false);
-  Promise.all([lade("api/liga?r=oeffentlich"), lade("api/liga?r=admin&nur=status")]).then(([daten, admin]) => {
-    zeichne((daten && daten.serien) || [], !!(admin && admin.angemeldet));
+  nav.addEventListener("click", async (e) => {
+    if (!e.target.closest("#liga-logout")) return;
+    e.target.disabled = true;
+    await fetch("api/liga?r=fahrer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ aktion: "logout" }) }).catch(() => null);
+    location.reload();
+  });
+
+  zeichne([], false, false);
+  Promise.all([lade("api/liga?r=oeffentlich"), lade("api/liga?r=admin&nur=status"), lade("api/liga?r=fahrer&nur=status")]).then(([daten, admin, fahrer]) => {
+    zeichne((daten && daten.serien) || [], !!(admin && admin.angemeldet), !!(fahrer && fahrer.angemeldet));
   });
 })();

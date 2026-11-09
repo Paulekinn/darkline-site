@@ -231,6 +231,7 @@
         const platz = klassenPlatz.get(`${fz.id}:${f.cust}`);
         return {
           name: f.name,
+          ...(platz.pid ? { pid: platz.pid } : {}),
           klasse: platz.id,
           klassenPos: platz.pos,
           start: z.startRang,
@@ -434,6 +435,8 @@
       return {
         zeile: {
           name: namen.get(cust),
+          // Anonyme Kennung für die öffentliche Profilseite, die der Server mitgibt. Die iRacing-ID selbst bleibt privat.
+          ...(privat && privat.pid ? { pid: privat.pid(cust) } : {}),
           irating,
           rennen: rennen.map((r) => r && { platz: r.platz, status: r.status, punkte: r.punkte, pole: r.pole, schnellsteRunde: r.schnellsteRunde, strafe: r.strafe, gestrichen: r.gestrichen, zeitstrafe: r.zeitstrafe }),
           siege: rennen.filter((r) => r && r.platz === 1).length,
@@ -457,7 +460,7 @@
         return { cust, zeile };
       });
       reihen.sort((a, b) => vergleiche(a.zeile, b.zeile, rennenListe.length));
-      reihen.forEach((x, i) => { x.zeile.pos = i + 1; klassenPlatz.set(`${fz.id}:${x.cust}`, { id, name, pos: i + 1 }); });
+      reihen.forEach((x, i) => { x.zeile.pos = i + 1; klassenPlatz.set(`${fz.id}:${x.cust}`, { id, name, pos: i + 1, pid: x.zeile.pid }); });
       const fahrer = reihen.map((x) => x.zeile);
       titelStand(fahrer, regeln, Math.max(0, regeln.rennenGesamt - rennenListe.length));
       return { id, name, fahrzeugId: fz.id, fahrzeugklasse: fz.name, min: k.min, max: k.max, fahrer };

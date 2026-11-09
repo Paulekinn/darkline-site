@@ -119,6 +119,14 @@ const tests = {
     const [e] = tabelle([datei(1, 1, [{ c: 1, n: "A", out: "Disqualified", ab: 0 }, { c: 2, n: "B", ab: 10000 }])], EINE_KLASSE).rennen[0].ergebnisse;
     assert.deepStrictEqual(e.zeilen.map((z) => [z.name, z.ziel, z.abstand, z.gesamt.status]), [["B", 1, 0, "OK"], ["A", 2, null, "DSQ"]]);
   },
+  "Kennung: steht in Klasse, Gesamtwertung und Rennergebnis, die iRacing-ID nicht": () => {
+    const t = tabelle([datei(1, 1, [{ c: 777123, n: "A", ir: 3000 }, { c: 888456, n: "B", ir: 1000 }])], OHNE_KATEGORIE, { pid: (c) => `kennung${c.length}x${c.slice(0, 1)}` });
+    assert.strictEqual(fahrer(klasse(t, "pro"), "A").pid, "kennung6x7");
+    assert.strictEqual(fahrer(t.gesamt[0], "B").pid, "kennung6x8");
+    assert.deepStrictEqual(t.rennen[0].ergebnisse[0].zeilen.map((z) => z.pid), ["kennung6x7", "kennung6x8"]);
+    assert.ok(!JSON.stringify(t).includes("777123"));
+    assert.strictEqual(fahrer(klasse(tabelle([datei(1, 1, [{ c: 1, n: "A", ir: 3000 }])], OHNE_KATEGORIE), "pro"), "A").pid, undefined);
+  },
   "Gesamtwertung und Rennergebnis enthalten keine iRacing-IDs": () => {
     const text = JSON.stringify(tabelle([datei(1, 1, [{ c: 777123, n: "A", ir: 3000 }, { c: 888456, n: "B", ir: 1000 }])], OHNE_KATEGORIE));
     assert.ok(!text.includes("777123") && !text.includes("888456") && !text.includes('"cust"'));

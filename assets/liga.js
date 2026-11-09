@@ -97,34 +97,20 @@
   }
 
   /* ---------- Fahrerkarten ---------- */
-  const WERTE = [["Speed", "speed", "s"], ["Sauberkeit", "sauberkeit", "c"], ["Racecraft", "racecraft", "r"], ["Konstanz", "konstanz", "k"]];
-  const rang = (w) => (w === null ? "r-offen" : w >= 85 ? "r-gold" : w >= 70 ? "r-silber" : "r-bronze");
-  const formKasten = (r) => {
-    if (!r) return '<i class="leer" title="Nicht gefahren">–</i>';
-    if (r.status !== "OK") return `<i class="aus" title="${esc(r.status)}">${esc(r.status)}</i>`;
-    return `<i class="${podium(r.platz)}" title="Platz ${r.platz}">${r.platz}</i>`;
-  };
-
-  function fahrerkarte(k, f, s, d) {
-    const c = f.karte;
-    const ohneRating = d.rennenGesamt < 3 ? "Einzelwertung" : "Noch in Wertung";
-    return `<div class="liga-fk-bild" style="background-image:url('${esc(kartenBild(s))}')" aria-hidden="true"></div>
-      <div class="liga-fk-kopf">
-        <div class="liga-fk-rating"><b>${c.rating === null ? "–" : c.rating}</b><span>${c.rating === null ? esc(ohneRating) : "Darkline Rating"}</span></div>
-        <span class="liga-fk-klasse">${esc(k.name)}</span>
-      </div>
-      <div class="liga-fk-name"><strong>${esc(f.name)}</strong><small>${esc(s.name)} · P${f.pos} · ${f.punkte} Punkte</small></div>
-      <div class="liga-fk-werte">${WERTE.map(([label, feld, art]) => `<div class="w-${art}"><span>${label}</span><span class="liga-fk-balken"><i style="width:${c[feld] === null ? 0 : c[feld]}%"></i></span><b>${c[feld] === null ? "–" : c[feld]}</b></div>`).join("")}</div>
-      <div class="liga-fk-form" aria-label="Ergebnisse der letzten Rennen">${f.rennen.slice(-6).map(formKasten).join("")}</div>
-      ${c.abzeichen.length ? `<div class="liga-fk-abzeichen">${c.abzeichen.map((a) => `<span class="a-${esc(a.art)}">${esc(a.text)}</span>`).join("")}</div>` : ""}`;
-  }
+  const { WERTE, rang } = window.LigaKarte;
+  const fahrerkarte = (k, f, s, d) => window.LigaKarte.inhalt({ name: f.name, serie: s.id, serieName: s.name, bildVersion: s.bildVersion, klasse: k.name, pos: f.pos, punkte: f.punkte, rennenGesamt: d.rennenGesamt, rennen: f.rennen, karte: f.karte, pid: f.pid, profil: f.pid ? fahrerProfile[f.pid] : null });
 
   function fahrerkartenAbschnitt(gruppen, s, d) {
     const alle = gruppen.flatMap((k) => k.fahrer.filter((f) => f.karte).map((f) => ({ k, f })));
     const gezeigt = [...alle].sort((a, b) => (b.f.karte.rating ?? -1) - (a.f.karte.rating ?? -1) || b.f.punkte - a.f.punkte).slice(0, 4);
     if (!gezeigt.length || d.rennenGesamt < 3) return "";
-    const karten = gezeigt.map(({ k, f }) => `<button type="button" class="liga-fk ${farbe(k)} ${rang(f.karte.rating)}" data-karte-k="${esc(k.id)}" data-karte-f="${f.pos}" aria-label="Fahrerkarte von ${esc(f.name)} öffnen">${fahrerkarte(k, f, s, d)}</button>`).join("");
-    return abschnitt("Fahrerkarten", `Top ${gezeigt.length} von ${alle.length}`, "Nach jedem Rennen automatisch neu berechnet. Ein Klick auf einen Namen in der Tabelle öffnet die Karte jedes Fahrers.", `<div class="liga-fk-raster">${karten}</div>`);
+    const karten = gezeigt.map(({ k, f }) => {
+      const klasse = `liga-fk ${farbe(k)} ${rang(f.karte.rating)}`;
+      return f.pid
+        ? `<a class="${klasse}" href="/fahrer?id=${encodeURIComponent(f.pid)}" aria-label="Fahrerprofil von ${esc(f.name)} öffnen">${fahrerkarte(k, f, s, d)}</a>`
+        : `<button type="button" class="${klasse}" data-karte-k="${esc(k.id)}" data-karte-f="${f.pos}" aria-label="Fahrerkarte von ${esc(f.name)} öffnen">${fahrerkarte(k, f, s, d)}</button>`;
+    }).join("");
+    return abschnitt("Fahrerkarten", `Top ${gezeigt.length} von ${alle.length}`, "Nach jedem Rennen automatisch neu berechnet. Ein Klick auf einen Namen in der Tabelle öffnet das Profil jedes Fahrers.", `<div class="liga-fk-raster">${karten}</div>`);
   }
 
   /* ---------- Fahrerkarte als Bild zum Posten in Discord und sozialen Medien ---------- */
@@ -140,7 +126,9 @@
     const R = 60;
     const c = f.karte;
     await Promise.all(["900 80px Archivo", "800 40px Archivo", "500 30px 'IBM Plex Mono'", "600 30px 'IBM Plex Mono'"].map((x) => document.fonts.load(x, "Darkline 0123456789")));
-    const [motiv, logo] = await Promise.all([ladeBild(kartenBild(s)), ladeBild("img/brand/dsrs-logo.png")]);
+    const profil = (f.pid && fahrerProfile[f.pid]) || {};
+    const flaggenQuelle = window.LigaFlaggen.quelle(profil.land);
+    const [motiv, logo, avatar, flaggenBild] = await Promise.all([ladeBild(kartenBild(s)), ladeBild("img/brand/dsrs-logo.png"), profil.bild ? ladeBild(window.LigaKarte.avatarVon(f.pid, profil.bild)) : null, flaggenQuelle ? ladeBild(flaggenQuelle) : null]);
     const leinwand = document.createElement("canvas");
     leinwand.width = B;
     leinwand.height = H;
@@ -203,14 +191,21 @@
     x.restore();
 
     // Name: wird kleiner, bis er in die Zeile passt
-    const name = f.name.toUpperCase();
+    const name = `${profil.nummer ? `#${profil.nummer} ` : ""}${f.name}`.toUpperCase();
+    const avatarBreite = avatar ? 150 : 0;
     let groesse = 76;
-    do { schrift(900, groesse); groesse -= 2; } while (x.measureText(name).width > B - 2 * R && groesse > 30);
+    do { schrift(900, groesse); groesse -= 2; } while (x.measureText(name).width > B - 2 * R - avatarBreite && groesse > 30);
     x.fillStyle = cssFarbe("--ink");
     x.fillText(name, R, 370);
+    if (avatar) {
+      const seite = Math.min(avatar.width, avatar.height);
+      x.drawImage(avatar, (avatar.width - seite) / 2, (avatar.height - seite) / 2, seite, seite, B - R - 130, 305, 130, 130);
+    }
+    let textX = R;
+    if (flaggenBild) { x.drawImage(flaggenBild, R, 396, 45, 30); textX += 57; }
     x.fillStyle = cssFarbe("--muted");
     schrift(500, 30, "mono");
-    x.fillText(`${s.name} · P${f.pos} · ${f.punkte} Punkte`, R, 420);
+    x.fillText(`${s.name} · P${f.pos} · ${f.punkte} Punkte`, textX, 420);
 
     // Vier Werte
     const FARBEN_WERTE = { speed: "--liga-rot", sauberkeit: "--liga-gruen", racecraft: "--liga-gelb", konstanz: "--liga-blau" };
@@ -287,7 +282,7 @@
           <div><dt>Ausfälle</dt><dd>${c.ausfaelle}</dd></div><div><dt>Inc/Runde</dt><dd>${inc}</dd></div><div><dt>Strafpunkte</dt><dd>${f.strafpunkte}</dd></div>
         </dl>
         ${c.rating === null && d.rennenGesamt >= 3 ? '<p class="liga-fk-hinweis">Das Gesamtrating erscheint nach drei gefahrenen Rennen.</p>' : ""}
-        <div class="liga-serie-aktion"><button type="button" class="liga-mini" data-fk-bild>Bild kopieren</button><button type="button" class="liga-mini zweit" data-fk-speichern>Bild speichern</button><button type="button" class="liga-mini zweit" data-fk-link>Link kopieren</button><button type="button" class="liga-mini zweit" data-fk-zu>Schließen</button></div>
+        <div class="liga-serie-aktion"><button type="button" class="liga-mini" data-fk-bild>Bild kopieren</button><button type="button" class="liga-mini zweit" data-fk-speichern>Bild speichern</button><button type="button" class="liga-mini zweit" data-fk-link>Link kopieren</button>${f.pid ? `<a class="liga-mini zweit" href="/fahrer?id=${encodeURIComponent(f.pid)}">Zum Profil</a>` : ""}<button type="button" class="liga-mini zweit" data-fk-zu>Schließen</button></div>
         <p class="liga-fk-hinweis">Das Bild kannst du in Discord mit Strg+V einfügen. Der Link zeigt dort eine Vorschau mit Rating und Werten.</p>`;
       // Voller Pfad, weil die Seite ein base-Element hat und ein reiner #-Link sonst auf die Startseite zeigen würde
       history.replaceState(null, "", location.pathname + location.search + anker(k, f));
@@ -361,7 +356,14 @@
     return `<td class="zahl liga-rennen ${podium(r.platz)}${gestrichen}"><b>${r.punkte}</b><small>P${r.platz}${tags}${strafe}</small></td>`;
   }
 
-  const fahrerLink = (klasseId, pos, name) => `<button type="button" class="liga-fahrerlink" data-karte-k="${esc(klasseId)}" data-karte-f="${pos}">${esc(name)}</button>`;
+  // Öffentliche Zusatzangaben je anonymer Kennung
+  let fahrerProfile = {};
+  // Mit Kennung führt der Name zum Profil, bei älteren Tabellen ohne Kennung öffnet er die Karte.
+  function fahrerLink(klasseId, pos, name, pid) {
+    const p = (pid && fahrerProfile[pid]) || {};
+    const vor = window.LigaKarte.flagge(p.land) + (p.nummer ? `<span class="liga-tab-nr">#${esc(p.nummer)}</span>` : "");
+    return `${vor}${pid ? `<a class="liga-fahrerlink" href="/fahrer?id=${encodeURIComponent(pid)}">${esc(name)}</a>` : `<button type="button" class="liga-fahrerlink" data-karte-k="${esc(klasseId)}" data-karte-f="${pos}">${esc(name)}</button>`}`;
+  }
   // Fahrerklasse als Farbchip, ohne die Fahrzeugklasse doppelt zu nennen
   function klassenChip(id, k, d) {
     const gruppe = d.klassen.find((x) => x.id === id);
@@ -402,7 +404,7 @@
     const reihen = zeilen.map((z) => {
       const w = wert(z);
       return `<tr>
-        <td><span class="liga-fahrer"><span class="liga-pos ${w.status === "OK" ? podium(w.platz) : ""}"><b>${w.status === "OK" ? w.platz : "–"}</b></span>${fahrerLink(z.klasse, z.klassenPos, z.name)}</span></td>
+        <td><span class="liga-fahrer"><span class="liga-pos ${w.status === "OK" ? podium(w.platz) : ""}"><b>${w.status === "OK" ? w.platz : "–"}</b></span>${fahrerLink(z.klasse, z.klassenPos, z.name, z.pid)}</span></td>
         ${k.gesamt ? `<td>${klassenChip(z.klasse, k, d)}</td>` : ""}
         <td class="zahl">${startRang.has(z) ? startRang.get(z) : "–"}</td>
         <td class="zahl">${gewinn(z)}</td>
@@ -424,7 +426,7 @@
     const maximal = Math.max(1, ...k.fahrer.map((f) => f.punkte));
     const kopfzeile = d.rennen.map((r) => `<th class="zahl" title="${esc([r.strecke, r.variante].filter(Boolean).join(" · "))}">R${r.nr}<small>${esc(datum(r.start))}</small></th>`).join("");
     const zeilen = k.fahrer.map((f) => `<tr>
-      <td><span class="liga-fahrer"><span class="liga-pos ${podium(f.pos)}"><b>${f.pos}</b></span>${k.gesamt ? fahrerLink(f.klasse.id, f.klassenPos, f.name) : f.karte ? fahrerLink(k.id, f.pos, f.name) : esc(f.name)}</span></td>
+      <td><span class="liga-fahrer"><span class="liga-pos ${podium(f.pos)}"><b>${f.pos}</b></span>${k.gesamt ? fahrerLink(f.klasse.id, f.klassenPos, f.name, f.pid) : f.karte ? fahrerLink(k.id, f.pos, f.name, f.pid) : esc(f.name)}</span></td>
       ${k.gesamt ? `<td>${klassenChip(f.klasse.id, k, d)}</td>` : ""}      ${f.rennen.map(zelle).join("")}
       <td class="zahl">${f.siege}</td>
       <td class="zahl">${f.incidentsProRunde === null ? "–" : f.incidentsProRunde.toLocaleString("de-DE", { minimumFractionDigits: 2 })}</td>
@@ -690,6 +692,7 @@
   const kennung = new URLSearchParams(location.search).get("serie");
   Promise.all([lade(`api/liga?r=oeffentlich${kennung ? `&serie=${encodeURIComponent(kennung)}` : ""}`), lade("api/liga?r=fahrer")]).then(([daten, fahrer]) => {
     fahrerStand = fahrer;
+    fahrerProfile = (daten && daten.fahrerprofile) || {};
     const serien = (daten && daten.serien) || [];
     const rennen = (daten && daten.rennen) || [];
     const s = kennung && serien.find((x) => x.id === kennung);

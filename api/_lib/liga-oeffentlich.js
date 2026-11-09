@@ -1,5 +1,6 @@
 // Öffentliche Ligadaten für /liga: Serien, Termine und auf Wunsch die Tabelle einer Serie. Kein Passwort, kein Briefing, keine iRacing-IDs.
 const D = require("./liga-daten");
+const P = require("./liga-profil");
 
 module.exports = async (req, res) => {
   if (req.method !== "GET") return res.status(405).json({ error: "Nicht erlaubt" });
@@ -8,6 +9,7 @@ module.exports = async (req, res) => {
   const kennung = (req.query || {}).serie;
   if (D.istId(kennung) && serien.some((s) => s.id === kennung)) antwort.tabelle = await D.tabelleLesen(kennung);
   // Das iRating dient nur der Einstufung und bleibt bei der Rennleitung.
+  if (antwort.tabelle) antwort.fahrerprofile = await P.oeffentlicheProfile();
   if (antwort.tabelle) [...(antwort.tabelle.klassen || []), ...(antwort.tabelle.gesamt || [])].forEach((k) => k.fahrer.forEach((f) => { delete f.irating; }));
   // Die CDN-Kopie schont den Speicher, Änderungen sind nach spätestens rund einer Minute sichtbar.
   res.setHeader("Cache-Control", "public, s-maxage=20, stale-while-revalidate=40");

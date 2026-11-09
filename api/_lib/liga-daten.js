@@ -7,6 +7,7 @@
 const crypto = require("crypto");
 const { blobPut, blobGet, blobGetBinaer, blobDelete, blobList } = require("./blob");
 const { pruefeRegeln, berechneTabelle } = require("../../assets/liga-wertung.js");
+const { fahrerKennung } = require("./session");
 
 const WURZEL = "liga/daten/";
 const ID = /^[a-z0-9][a-z0-9-]{0,79}$/;
@@ -167,7 +168,7 @@ const ergebnisLoeschen = (serie, id) => {
 async function tabelleNeu(serie, regeln, ergebnisse) {
   const pfad = `${WURZEL}tabellen/${brauchtId(serie)}.json`;
   if (!ergebnisse.length) return blobDelete([pfad]);
-  const { warnungen, ...oeffentlich } = berechneTabelle(ergebnisse, regeln, await privatLesen(serie));
+  const { warnungen, ...oeffentlich } = berechneTabelle(ergebnisse, regeln, { ...(await privatLesen(serie)), pid: fahrerKennung });
   await schreibe(pfad, oeffentlich);
   return warnungen;
 }

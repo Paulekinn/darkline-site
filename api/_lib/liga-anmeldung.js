@@ -8,6 +8,8 @@
 // Fahrzeugklasse und Name sind base64url-kodiert. Serienfahrer gehen vor Einzelmeldungen, sonst zählt die Upload-Zeit.
 // Wer über die Platzzahl hinaus liegt, steht auf der Warteliste und rückt von selbst nach,
 // weil die Listen bei jedem Abruf neu gebildet werden.
+const { gueltig } = require("../../assets/liga-flaggen.js");
+
 const PREFIX = "liga/";
 
 const kodiere = (s) => Buffer.from(String(s || ""), "utf8").toString("base64url");
@@ -128,19 +130,35 @@ function baueSerien(serienListe, eintraege, { discordId, profil, klasseFuer }) {
   });
 }
 
-// Die eigenen Fahrerkarten über den iRacing-Namen. Die Tabellen sind öffentlich und enthalten keine IDs, ein Tippfehler im Profil bedeutet nur: keine Karte.
-function eigeneKarten(serienListe, tabellen, iracingName) {
+// Die eigenen Fahrerkarten über die anonyme Kennung. Ältere Tabellen ohne Kennung werden über den iRacing-Namen zugeordnet.
+function eigeneKarten(serienListe, tabellen, iracingName, pid) {
   const name = String(iracingName || "").trim().toLowerCase();
-  if (!name) return [];
+  if (!name && !pid) return [];
   return serienListe.flatMap((s) => {
     const t = tabellen.get(s.id);
     if (!t || !Array.isArray(t.klassen)) return [];
     return t.klassen.flatMap((k) => {
-      const f = k.fahrer.find((x) => x.karte && x.name.trim().toLowerCase() === name);
+      const f = k.fahrer.find((x) => x.karte && (x.pid ? x.pid === pid : x.name.trim().toLowerCase() === name));
       if (!f) return [];
-      return [{ serie: s.id, serieName: s.name, bildVersion: s.bildVersion || 0, rennenGesamt: t.rennenGesamt, klasseId: k.id, klasse: k.name, min: k.min, max: k.max, name: f.name, pos: f.pos, punkte: f.punkte, rennen: f.rennen, karte: f.karte }];
+      return [{ pid: f.pid, serie: s.id, serieName: s.name, bildVersion: s.bildVersion || 0, rennenGesamt: t.rennenGesamt, klasseId: k.id, klasse: k.name, min: k.min, max: k.max, name: f.name, pos: f.pos, punkte: f.punkte, rennen: f.rennen, karte: f.karte }];
     });
   });
+}
+
+// Prüft die freiwilligen, öffentlichen Angaben. Leere Felder sind erlaubt.
+function pruefeExtras(p) {
+  const nummerText = String((p && p.nummer) ?? "").trim();
+  if (nummerText && !/^[1-9]\d{0,2}$/.test(nummerText)) throw new Error("Bitte gib als Startnummer eine Zahl von 1 bis 999 an.");
+  const land = String((p && p.land) || "");
+  if (land && !gueltig(land)) throw new Error("Bitte wähle ein Land aus der Liste.");
+  const team = String((p && p.team) || "").trim().slice(0, 40);
+  const kanal = String((p && p.kanal) || "").trim();
+  if (kanal) {
+    let url = null;
+    try { url = new URL(kanal); } catch (e) { /* unten als Fehler gemeldet */ }
+    if (!url || url.protocol !== "https:" || !/^(www\.|m\.)?(twitch\.tv|youtube\.com|youtu\.be)$/.test(url.hostname) || kanal.length > 150) throw new Error("Bitte gib einen Twitch- oder YouTube-Link an, der mit https:// beginnt.");
+  }
+  return { nummer: nummerText ? +nummerText : null, land, team, kanal, zeigeBild: !!(p && p.zeigeBild) };
 }
 
 // Prüft die Eingaben aus dem Profilformular. Wirft einen Fehlertext für den Fahrer.
@@ -154,4 +172,4 @@ function pruefeProfil(p) {
   return { iracingName: name, custId, irating: +irating };
 }
 
-module.exports = { PREFIX, anmeldungPfad, mitgliedPfad, abmeldungPfad, profilPfad, leseEintrag, berlinNachUtc, dauerMinuten, ordne, baueRennen, baueSerien, kollisionen, eigeneKarten, pruefeProfil };
+module.exports = { PREFIX, anmeldungPfad, mitgliedPfad, abmeldungPfad, profilPfad, leseEintrag, berlinNachUtc, dauerMinuten, ordne, baueRennen, baueSerien, kollisionen, eigeneKarten, pruefeProfil, pruefeExtras };

@@ -1,6 +1,7 @@
 // Fahrerbereich der Liga. GET: Dashboard · POST { aktion }: profil, anmelden, abmelden, serie-anmelden, serie-abmelden, logout
 // Ligafahrer haben ein eigenes Cookie (dpm_liga) und damit keinen Zugang zum Teambereich.
-const { getLigaSession, clearLigaSession } = require("./session");
+const { getLigaSession, clearLigaSession, fahrerKennung } = require("./session");
+const P = require("./liga-profil");
 const { blobPut, blobGet, blobDelete, blobList } = require("./blob");
 const A = require("./liga-anmeldung");
 const D = require("./liga-daten");
@@ -56,10 +57,11 @@ async function laufendeTabellen(kat) {
 }
 
 async function antwort(res, s, profil, alle, kat, frisch) {
+  const pid = profil ? fahrerKennung(profil.custId) : "";
   return res.status(200).json({
     angemeldet: true,
-    fahrer: { name: s.name, profil },
-    meineKarten: profil ? A.eigeneKarten(kat.serien, await laufendeTabellen(kat), profil.iracingName) : [],
+    fahrer: { name: s.name, profil, pid, oeffentlich: pid ? await P.angabenVon(pid).catch(() => null) : null },
+    meineKarten: profil ? A.eigeneKarten(kat.serien, await laufendeTabellen(kat), profil.iracingName, pid) : [],
     serien: A.baueSerien(kat.serien, alle, { discordId: s.id, profil, klasseFuer }),
     rennen: A.baueRennen(kat.rennen, alle, optionen(s, kat)),
     reports: await reportDaten(s, kat, alle, frisch),
@@ -181,6 +183,7 @@ module.exports = async (req, res) => {
   const s = getLigaSession(req);
   if (req.method === "GET") {
     if (!s) return res.status(200).json({ angemeldet: false });
+    if ((req.query || {}).nur === "status") return res.status(200).json({ angemeldet: true });
     return await antwort(res, s, await profilLesen(s.id), await eintraege(false), await D.katalog(false), false);
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
@@ -196,7 +199,9 @@ module.exports = async (req, res) => {
   let alle = await eintraege(true);
   const kat = await D.katalog(false);
   if (body.aktion === "profil") {
-    profil = A.pruefeProfil(body.profil);
+    const extras = A.pruefeExtras(body.profil);
+    profil = { ...A.pruefeProfil(body.profil), ...extras };
+    await P.speichern(s, profil, extras);
     await blobPut(A.profilPfad(s.id), JSON.stringify({ ...profil, discordId: s.id, gespeichert: new Date().toISOString() }), "application/json");
   } else if (body.aktion === "anmelden") {
     alle = await anmelden(s, profil, body, alle, kat);

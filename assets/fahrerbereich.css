@@ -20,9 +20,6 @@
 .fb-karten-wahl button:hover{color:var(--ink)}
 .fb-karten-wahl button[aria-pressed="true"]{background:var(--ink);color:var(--black)}
 .fb-karten-wahl button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-a.liga-fk{cursor:pointer;color:var(--ink)}
-a.liga-fk:hover{transform:translateY(-4px)}
-a.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--paper))}
 .fb-platzhalter{outline:1px dashed #3a4144;outline-offset:-1px;background:color-mix(in srgb,var(--paper) 88%,transparent)}
 .fb-platzhalter .liga-fk-name small{line-height:1.4}
 
@@ -219,8 +216,17 @@ a.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--paper
 .fb-lizenz dt{font:500 .56rem/1.2 var(--f-mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 .fb-lizenz dd{margin:3px 0 0;font:600 .9rem/1.1 var(--f-mono);font-variant-numeric:tabular-nums}
 
+.fb-lizenz-nr{color:var(--liga-gold)}
+.fb-lizenz-info{font:500 .72rem/1.3 var(--f-mono);color:#c4cbc8}
+.fb-profil-link{display:flex;flex-wrap:wrap;gap:6px 16px}
+a.fb-link{text-decoration:none}
+
 /* Profilformular */
 .fb-profil{display:grid;gap:9px}
+.fb-oeffentlich{margin:6px 0 0;padding-top:9px;border-top:1px solid var(--scan);font:700 .64rem/1.3 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--liga-gelb)}
+.fb-feld-paar{display:grid;grid-template-columns:minmax(0,.7fr) minmax(0,1fr);gap:8px}
+.fb-haken{display:flex;align-items:flex-start;gap:8px;font-size:.8rem;line-height:1.35;color:#c4cbc8;cursor:pointer}
+.fb-haken input{flex:none;width:16px;height:16px;margin:2px 0 0;accent-color:var(--red)}
 .fb-feld{display:grid;gap:4px;min-width:0}
 .fb-feld label{font:500 .6rem/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .fb-feld input{box-sizing:border-box;width:100%;padding:8px 10px;background:var(--black);color:var(--ink);border:1.5px solid var(--rule);font:600 .86rem var(--f-mono)}
@@ -244,4 +250,3 @@ a.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--paper
   .fb-ablauf{grid-template-columns:repeat(2,minmax(0,1fr))}
   .fb-leiste{align-items:flex-start}
 }
-@media (prefers-reduced-motion:reduce){a.liga-fk:hover{transform:none}}

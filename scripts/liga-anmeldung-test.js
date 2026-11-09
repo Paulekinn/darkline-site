@@ -28,9 +28,77 @@ const TEILEN_SERIE = { id: "gt3", name: "GT3 Sprint", bildVersion: 0 };
 const TEILEN_GRUPPE = { id: "pro", name: "Pro" };
 const teilenFahrer = (karte) => ({ name: "Lena Beispiel", pos: 2, punkte: 77, karte: { rating: 88, speed: 90, sauberkeit: 80, racecraft: 85, konstanz: null, abzeichen: [{ art: "hattrick", text: "Hattrick" }], ...karte } });
 
+const P = require("../api/_lib/liga-profil");
+const zeile = (rennen, zusatz) => ({ name: "Lena", pid: "aaaaaaaaaaaaaaaa", pos: 1, punkte: 50, rennen, karte: { rating: 90 }, ...zusatz });
+const akteDaten = () => {
+  const r = (platz, extra) => ({ platz, status: "OK", punkte: 30, pole: false, schnellsteRunde: false, strafe: 0, gestrichen: false, zeitstrafe: 0, ...extra });
+  return new Map([
+    ["a", { rennenGesamt: 8, rennen: [{ nr: 1, strecke: "Spa", start: "2026-10-01T18:00:00Z" }, { nr: 2, strecke: "Monza", start: "2026-10-08T18:00:00Z" }, { nr: 3, strecke: "Imola", start: "2026-10-15T18:00:00Z" }], klassen: [{ id: "pro", name: "Pro", min: 2500, max: null, fahrer: [zeile([r(1, { pole: true, schnellsteRunde: true }), null, r(3)]), { name: "Tom", pid: "bbbbbbbbbbbbbbbb", pos: 2, punkte: 10, rennen: [r(2)], karte: { rating: null } }] }] }],
+    ["b", { rennenGesamt: 1, rennen: [{ nr: 1, strecke: "Nordschleife", start: "2026-11-01T12:00:00Z" }], klassen: [{ id: "am", name: "Am", min: 0, max: 1499, fahrer: [zeile([{ platz: null, status: "DNF", punkte: 0, pole: false, schnellsteRunde: false, strafe: 0, gestrichen: false, zeitstrafe: 0 }])] }] }],
+    ["c", null],
+  ]);
+};
+const akteSerien = [{ id: "a", name: "Serie A" }, { id: "b", name: "Serie B", typ: "event" }, { id: "c", name: "Leer" }];
+
 const kartenTabelle = () => new Map([["gt3", { rennenGesamt: 8, klassen: [{ id: "pro", name: "Pro", min: 2500, max: null, fahrer: [{ name: "Lena Beispiel", pos: 1, punkte: 50, rennen: [], irating: 3000, karte: { rating: 90 } }, { name: "Tom Muster", pos: 2, punkte: 40, rennen: [], karte: null }] }] }], ["leer", null]]);
 
 const tests = {
+  "Kennung: stabil, je iRacing-ID verschieden und ohne die ID selbst": () => {
+    const a = S.fahrerKennung("123456");
+    assert.ok(/^[0-9a-f]{16}$/.test(a));
+    assert.strictEqual(a, S.fahrerKennung("123456"));
+    assert.notStrictEqual(a, S.fahrerKennung("123457"));
+    assert.ok(!a.includes("123456"));
+  },
+  "Eigene Karten: Kennung schlägt den Namen": () => {
+    const t = new Map([["gt3", { klassen: [{ id: "pro", name: "Pro", fahrer: [{ name: "Lena", pid: "aaaa", pos: 1, punkte: 5, rennen: [], karte: { rating: 90 } }] }] }]]);
+    const serien = [{ id: "gt3", name: "GT3" }];
+    assert.strictEqual(A.eigeneKarten(serien, t, "Lena", "bbbb").length, 0);
+    assert.strictEqual(A.eigeneKarten(serien, t, "Falscher Name", "aaaa").length, 1);
+  },
+  "Extras: leere Felder sind erlaubt": () => {
+    assert.deepStrictEqual(A.pruefeExtras({}), { nummer: null, land: "", team: "", kanal: "", zeigeBild: false });
+  },
+  "Extras: gültige Angaben werden übernommen": () => {
+    assert.deepStrictEqual(A.pruefeExtras({ nummer: " 46 ", land: "DE", team: " Team X ", kanal: "https://www.twitch.tv/test", zeigeBild: true }), { nummer: 46, land: "DE", team: "Team X", kanal: "https://www.twitch.tv/test", zeigeBild: true });
+    assert.strictEqual(A.pruefeExtras({ kanal: "https://youtu.be/abc" }).kanal, "https://youtu.be/abc");
+  },
+  "Extras: ungültige Angaben werden abgelehnt": () => {
+    for (const n of ["0", "1000", "4a", "-1"]) assert.throws(() => A.pruefeExtras({ nummer: n }), /Startnummer/);
+    assert.throws(() => A.pruefeExtras({ land: "XX" }), /Land/);
+    assert.throws(() => A.pruefeExtras({ land: "__proto__" }), /Land/);
+    for (const k of ["http://twitch.tv/a", "https://boese.de/twitch.tv", "javascript:alert(1)", "https://twitch.tv.boese.de/a", "nur text"]) assert.throws(() => A.pruefeExtras({ kanal: k }), /Twitch/);
+  },
+  "Profil: Angaben kommen unversehrt aus dem Dateinamen zurück, der Besitzer bleibt intern": () => {
+    const pfad = P.profilPfad("0123456789abcdef", { o: "geheim", n: 46, l: "DE", t: "Äöü Team", k: "", b: "abc" });
+    const p = P.leseProfil({ pathname: pfad });
+    assert.deepStrictEqual([p.pid, p.n, p.l, p.t], ["0123456789abcdef", 46, "DE", "Äöü Team"]);
+    assert.ok(!JSON.stringify(P.oeffentlich(p)).includes("geheim"));
+    assert.strictEqual(P.leseProfil({ pathname: "liga/fahrerprofile/kaputt" }), null);
+  },
+  "Profil: fremde iRacing-ID und vergebene Startnummer werden abgelehnt": () => {
+    const alle = [{ pid: "p1", o: "x", n: 46 }];
+    assert.throws(() => P.pruefeKonflikte(alle, "p1", "y", null), /iRacing-ID/);
+    assert.throws(() => P.pruefeKonflikte(alle, "p2", "y", 46), /Startnummer 46/);
+    assert.doesNotThrow(() => P.pruefeKonflikte(alle, "p1", "x", 46));
+    assert.doesNotThrow(() => P.pruefeKonflikte(alle, "p2", "y", 7));
+  },
+  "Profil: Discord-Bild nur mit gültigen Werten": () => {
+    assert.strictEqual(P.avatarUrl("123456789012", "0123456789abcdef0123456789abcdef"), "https://cdn.discordapp.com/avatars/123456789012/0123456789abcdef0123456789abcdef.webp?size=256");
+    assert.strictEqual(P.avatarUrl("1/../x", "0123456789abcdef0123456789abcdef"), null);
+    assert.strictEqual(P.avatarUrl("123456789012", "../boese"), null);
+  },
+  "Akte: Bilanz und Verlauf über alle Serien, neuestes Rennen zuerst": () => {
+    const a = P.fahrerAkte(akteSerien, akteDaten(), "aaaaaaaaaaaaaaaa");
+    assert.deepStrictEqual(a.bilanz, { starts: 3, siege: 1, podien: 2, poles: 1, schnellste: 1, ausfaelle: 1 });
+    assert.deepStrictEqual(a.verlauf.map((r) => r.strecke), ["Nordschleife", "Imola", "Spa"]);
+    assert.strictEqual(a.karten.length, 2);
+    assert.strictEqual(a.verlauf[0].platz, null);
+  },
+  "Akte: unbekannte Kennung ergibt nichts, fremde Fahrer zählen nicht": () => {
+    assert.strictEqual(P.fahrerAkte(akteSerien, akteDaten(), "cccccccccccccccc"), null);
+    assert.strictEqual(P.fahrerAkte(akteSerien, akteDaten(), "bbbbbbbbbbbbbbbb").bilanz.starts, 1);
+  },
   "Eigene Karten: Treffer unabhängig von Groß- und Kleinschreibung, ohne iRating": () => {
     const [k, ...rest] = A.eigeneKarten([{ id: "gt3", name: "GT3" }, { id: "leer", name: "Leer" }], kartenTabelle(), " lena beispiel ");
     assert.strictEqual(rest.length, 0);

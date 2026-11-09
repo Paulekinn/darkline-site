@@ -33,10 +33,8 @@
 
   $("year").textContent = new Date().getFullYear();
 
-  // Gleiche Motive wie auf der Ligaseite: eigenes Serienbild, sonst je Serie immer dieselbe Livery
-  const LIVERYS = ["porsche", "ferrari", "bmw", "amg", "ford"];
-  const livery = (id) => LIVERYS[[...String(id)].reduce((t, c) => t + c.charCodeAt(0), 0) % LIVERYS.length];
-  const bildVon = (id, version) => (version ? `api/liga?r=bild&k=${encodeURIComponent(`serie-${id}`)}&v=${encodeURIComponent(version)}` : `img/cars/${livery(id)}.webp`);
+  // Gleiche Motive wie auf der Ligaseite
+  const { bildVon } = window.LigaKarte;
   const serieVon = (id) => stand.serien.find((s) => s.id === id);
   const rennBild = (r) => { const s = serieVon(r.serie); return r.serie ? bildVon(r.serie, s && s.bildVersion) : "img/hero.webp"; };
   const motiv = (src) => `style="background-image:url('${esc(src)}')"`;
@@ -179,10 +177,18 @@
       <div class="fb-feld"><label for="p-name">iRacing-Name</label><input id="p-name" autocomplete="off" maxlength="40" value="${esc(p.iracingName || "")}" required></div>
       <div class="fb-feld"><label for="p-cust">iRacing-ID</label><input id="p-cust" inputmode="numeric" autocomplete="off" maxlength="9" value="${esc(p.custId || "")}" required></div>
       <div class="fb-feld"><label for="p-ir">Sports-Car-iRating</label><input id="p-ir" inputmode="numeric" autocomplete="off" maxlength="5" value="${esc(p.irating ?? "")}" required></div>
+      <h4 class="fb-oeffentlich">Öffentlich auf deinem Profil, alles freiwillig</h4>
+      <div class="fb-feld-paar">
+        <div class="fb-feld"><label for="p-nr">Startnummer</label><input id="p-nr" inputmode="numeric" autocomplete="off" maxlength="3" placeholder="1 bis 999" value="${esc(p.nummer ?? "")}"></div>
+        <div class="fb-feld"><label for="p-land">Land</label><select id="p-land"><option value="">Keine Angabe</option>${window.LigaFlaggen.LAENDER.map(([c, n]) => `<option value="${c}"${c === p.land ? " selected" : ""}>${esc(n)}</option>`).join("")}</select></div>
+      </div>
+      <div class="fb-feld"><label for="p-team">Team oder Club</label><input id="p-team" autocomplete="off" maxlength="40" value="${esc(p.team || "")}"></div>
+      <div class="fb-feld"><label for="p-kanal">Twitch- oder YouTube-Link</label><input id="p-kanal" autocomplete="off" maxlength="150" placeholder="https://www.twitch.tv/…" value="${esc(p.kanal || "")}"></div>
+      <label class="fb-haken"><input type="checkbox" id="p-bild"${p.zeigeBild === false ? "" : " checked"}><span>Mein Discord-Profilbild auf dem Profil und der Fahrerkarte zeigen</span></label>
       <div class="fb-profil-fuss">
         <button type="submit" class="fb-knopf">Profil speichern</button>
         ${stand.fahrer.profil ? '<button type="button" class="fb-knopf zweit" id="p-abbrechen">Abbrechen</button>' : ""}
-        <p>Dein iRacing-Name erscheint in der Starterliste. iRacing-ID und iRating sieht nur die Rennleitung. Das iRating prüfen wir vor dem Saisonstart. Mehr dazu in der <a href="/datenschutz">Datenschutzerklärung</a>.</p>
+        <p>Dein iRacing-Name erscheint in der Starterliste. Startnummer, Land, Team, Link und Profilbild sieht jeder auf deinem öffentlichen Profil. iRacing-ID und iRating sieht nur die Rennleitung. Das iRating prüfen wir vor dem Saisonstart. Mehr dazu in der <a href="/datenschutz">Datenschutzerklärung</a>.</p>
       </div>
     </form>`;
   }
@@ -191,31 +197,19 @@
     const p = stand.fahrer.profil;
     return `<div class="fb-lizenz">
         <div class="fb-lizenz-kopf"><img src="img/brand/dsrs-logo.png" alt="" width="654" height="165"><span>Fahrerlizenz</span></div>
-        <strong>${esc(p.iracingName)}</strong>
+        <strong>${p.nummer ? `<span class="fb-lizenz-nr">#${esc(p.nummer)}</span> ` : ""}${esc(p.iracingName)}</strong>
+        ${p.land || p.team ? `<small class="fb-lizenz-info">${window.LigaKarte.flagge(p.land)}${esc([window.LigaFlaggen.name(p.land), p.team].filter(Boolean).join(" · "))}</small>` : ""}
         <dl><div><dt>iRacing-ID</dt><dd>${esc(p.custId)}</dd></div><div><dt>Sports-Car-iRating</dt><dd>${esc(Number(p.irating).toLocaleString("de-DE"))}</dd></div></dl>
       </div>
-      <p class="fb-profil-link"><button type="button" class="fb-link" data-profil="1">Profil ändern</button></p>`;
+      <p class="fb-profil-link"><button type="button" class="fb-link" data-profil="1">Profil ändern</button>${(stand.meineKarten || []).some((k) => k.pid) ? ` <a class="fb-link" href="/fahrer?id=${encodeURIComponent(stand.fahrer.pid)}">Öffentliches Profil</a>` : ""}</p>`;
   }
 
   /* ---------- Kopfbereich mit persönlicher Fahrerkarte ---------- */
-  const rang = (w) => (w === null ? "r-offen" : w >= 85 ? "r-gold" : w >= 70 ? "r-silber" : "r-bronze");
-  const klassenFarbe = (k) => (k.max == null ? "k-pro" : k.min === 0 ? "k-am" : "k-mid");
-  const WERTE = [["Speed", "speed", "s"], ["Sauberkeit", "sauberkeit", "c"], ["Racecraft", "racecraft", "r"], ["Konstanz", "konstanz", "k"]];
-  const wertZeilen = (c) => `<div class="liga-fk-werte">${WERTE.map(([label, feld, art]) => `<div class="w-${art}"><span>${label}</span><span class="liga-fk-balken"><i style="width:${c[feld] === null || c[feld] === undefined ? 0 : c[feld]}%"></i></span><b>${c[feld] === null || c[feld] === undefined ? "–" : c[feld]}</b></div>`).join("")}</div>`;
-  const podium = (p) => (p >= 1 && p <= 3 ? `p${p}` : "");
-  const formKasten = (r) => (!r ? '<i class="leer" title="Nicht gefahren">–</i>' : r.status !== "OK" ? `<i class="aus" title="${esc(r.status)}">${esc(r.status)}</i>` : `<i class="${podium(r.platz)}" title="Platz ${r.platz}">${r.platz}</i>`);
+  const { rang, klassenFarbe, werte: wertZeilen } = window.LigaKarte;
 
   function meineKarte(k) {
-    const c = k.karte;
-    const hinweis = c.rating !== null ? "Darkline Rating" : k.rennenGesamt < 3 ? "Einzelwertung" : "Noch in Wertung";
-    return `<a class="liga-fk ${klassenFarbe(k)} ${rang(c.rating)}" href="/liga?serie=${encodeURIComponent(k.serie)}#fahrer/${encodeURIComponent(k.klasseId)}/${encodeURIComponent(k.name)}" aria-label="Deine Fahrerkarte in ${esc(k.serieName)} öffnen">
-      <div class="liga-fk-bild" ${motiv(bildVon(k.serie, k.bildVersion))} aria-hidden="true"></div>
-      <div class="liga-fk-kopf"><div class="liga-fk-rating"><b>${c.rating === null ? "–" : c.rating}</b><span>${esc(hinweis)}</span></div><span class="liga-fk-klasse">${esc(k.klasse)}</span></div>
-      <div class="liga-fk-name"><strong>${esc(k.name)}</strong><small>${esc(k.serieName)} · P${k.pos} · ${k.punkte} Punkte</small></div>
-      ${wertZeilen(c)}
-      <div class="liga-fk-form" aria-label="Ergebnisse der letzten Rennen">${k.rennen.slice(-6).map(formKasten).join("")}</div>
-      ${c.abzeichen.length ? `<div class="liga-fk-abzeichen">${c.abzeichen.map((a) => `<span class="a-${esc(a.art)}">${esc(a.text)}</span>`).join("")}</div>` : ""}
-    </a>`;
+    const ziel = k.pid ? `/fahrer?id=${encodeURIComponent(k.pid)}` : `/liga?serie=${encodeURIComponent(k.serie)}#fahrer/${encodeURIComponent(k.klasseId)}/${encodeURIComponent(k.name)}`;
+    return `<a class="liga-fk ${klassenFarbe(k)} ${rang(k.karte.rating)}" href="${esc(ziel)}" aria-label="Dein Fahrerprofil in ${esc(k.serieName)} öffnen">${window.LigaKarte.inhalt({ ...k, profil: stand.fahrer.oeffentlich })}</a>`;
   }
 
   function kartenBereich(name) {
@@ -256,7 +250,7 @@
           <h1>Hallo, <em>${esc(name)}</em></h1>
           <p class="fb-held-satz">${esc(naechsterSchritt(f))}</p>
           <div class="liga-fakten">${zahlen.map(([w, t]) => `<div><b>${esc(w)}</b><span>${esc(t)}</span></div>`).join("")}</div>
-          <div class="fb-held-fuss">${f.profil ? "" : '<button type="button" class="fb-knopf" data-profil="1">Profil ausfüllen</button>'}<span>Angemeldet als ${esc(f.name)}</span><button type="button" class="fb-link" id="fb-logout">Ausloggen</button></div>
+          <div class="fb-held-fuss">${f.profil ? "" : '<button type="button" class="fb-knopf" data-profil="1">Profil ausfüllen</button>'}<span>Angemeldet als ${esc(f.name)}</span><button type="button" class="fb-knopf zweit" id="fb-logout">Ausloggen</button></div>
         </div>
         <div class="fb-held-karte">${kartenBereich(name)}</div>
       </div>
@@ -400,10 +394,13 @@
       fehler = "Keine Verbindung. Bitte versuche es noch einmal.";
     }
     beschaeftigt = false;
-    const offen = fehler && daten.aktion === "profil";
-    const eingaben = offen ? { n: $("p-name").value, c: $("p-cust").value, i: $("p-ir").value } : null;
+    // Bei einem Fehler bleibt alles Eingetippte stehen.
+    const felder = fehler && daten.aktion === "profil" ? ["p-name", "p-cust", "p-ir", "p-nr", "p-land", "p-team", "p-kanal"] : [];
+    const eingaben = felder.map((id) => $(id).value);
+    const bildHaken = felder.length ? $("p-bild").checked : false;
     zeichne();
-    if (eingaben) { $("p-name").value = eingaben.n; $("p-cust").value = eingaben.c; $("p-ir").value = eingaben.i; }
+    felder.forEach((id, i) => { $(id).value = eingaben[i]; });
+    if (felder.length) $("p-bild").checked = bildHaken;
     if (fehler) meldung(fehler);
     return !fehler;
   }
@@ -411,7 +408,7 @@
   main.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b || beschaeftigt) return;
-    if (b.id === "fb-logout") return sende({ aktion: "logout" });
+    if (b.id === "fb-logout") return sende({ aktion: "logout" }).then(() => location.reload());
     if (b.id === "p-abbrechen") { profilOffen = false; return zeichne(); }
     if (b.dataset.ansicht) { ansicht = b.dataset.ansicht; return zeichne(); }
     if (b.dataset.starterOeffnen) {
@@ -475,7 +472,7 @@
     }
     if (e.target.id !== "fb-profil") return;
     e.preventDefault();
-    sende({ aktion: "profil", profil: { iracingName: $("p-name").value, custId: $("p-cust").value, irating: $("p-ir").value } });
+    sende({ aktion: "profil", profil: { iracingName: $("p-name").value, custId: $("p-cust").value, irating: $("p-ir").value, nummer: $("p-nr").value, land: $("p-land").value, team: $("p-team").value, kanal: $("p-kanal").value, zeigeBild: $("p-bild").checked } });
   });
 
   // Countdown zum gewählten Rennen

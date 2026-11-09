@@ -1,10 +1,10 @@
 // Einstieg für alle Liga-Anfragen: ?r=oeffentlich, ?r=bild, ?r=fahrer oder ?r=admin. Eine Funktion statt drei hält die Zahl der Vercel-Funktionen klein.
 const { useRequest } = require("./_lib/blob");
 const { Hinweis } = require("./_lib/liga-daten");
-const bereiche = { bild: require("./_lib/liga-bild"), oeffentlich: require("./_lib/liga-oeffentlich"), teilen: require("./_lib/liga-teilen"), fahrer: require("./_lib/liga-fahrer"), admin: require("./_lib/liga-admin") };
+const bereiche = { bild: require("./_lib/liga-bild"), oeffentlich: require("./_lib/liga-oeffentlich"), teilen: require("./_lib/liga-teilen"), profil: require("./_lib/liga-profil"), fahrer: require("./_lib/liga-fahrer"), admin: require("./_lib/liga-admin") };
 
 // Texte aus Eingabe- und Dateiprüfung sind für den Nutzer gedacht, technische Fehler nicht.
-const FUER_NUTZER = /^(Bitte|Die iRacing|Regeln:|Einstufung:|Das ist keine|In der Datei|Die Rennsession|Teamrennen|Unerwartete|Ein Rennen)/;
+const FUER_NUTZER = /^(Bitte|Die iRacing|Diese iRacing|Die Startnummer|Regeln:|Einstufung:|Das ist keine|In der Datei|Die Rennsession|Teamrennen|Unerwartete|Ein Rennen)/;
 
 module.exports = async (req, res) => {
   const bereich = Object.prototype.hasOwnProperty.call(bereiche, (req.query || {}).r) ? bereiche[req.query.r] : null;

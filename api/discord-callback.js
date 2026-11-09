@@ -54,7 +54,7 @@ module.exports = async (req, res) => {
 
     if (liga) {
       const fahrer = member.user || {};
-      createLigaSession(res, { id: fahrer.id, name: member.nick || fahrer.global_name || fahrer.username || "Fahrer" });
+      createLigaSession(res, { id: fahrer.id, name: member.nick || fahrer.global_name || fahrer.username || "Fahrer", avatar: fahrer.avatar || "" });
       return res.redirect(302, ziel);
     }
 
