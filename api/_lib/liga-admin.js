@@ -323,11 +323,12 @@ const aktionen = {
     await Dc.nachricht(discordId, entscheid.text);
     return {};
   },
+  // Testet alle drei Webhooks: Reports, Renntag und Urteile.
   async "discord-test"(b, kat, s) {
-    if (!process.env.LIGA_DISCORD_WEBHOOK_TEAM) throw new Hinweis("Der Discord-Webhook ist noch nicht eingerichtet.");
     const beispiel = R.reportKarte({ serie: "GT3 Sprint", rennen: "Runde 3 · Spa", stelle: "Runde 5, Kurve 3", von: "Max Beispiel", gegen: "Tom Muster", beschreibung: `Beim Anbremsen auf Kurve 3 wurde ich von hinten getroffen und habe mich gedreht. Ausgelöst von ${s.name} über den Knopf „Discord testen“.`, clip: "https://www.twitch.tv/videos/beispiel" }, true);
-    if (!(await R.teamMelden(beispiel))) throw new Hinweis("Discord hat die Nachricht nicht angenommen. Bitte prüfe den Webhook.");
-    return {};
+    const ergebnis = await R.webhooksTesten(s.name, beispiel);
+    if (ergebnis.every((x) => x.stand === "fehlt")) throw new Hinweis("Es ist noch kein Discord-Webhook eingerichtet.");
+    return { discord: ergebnis };
   },
   // Verschiebt ein Rennen, auf Wunsch auch alle folgenden derselben Serie.
   async "rennen-verschieben"(b, kat) {

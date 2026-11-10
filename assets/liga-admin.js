@@ -1107,7 +1107,15 @@
     const b = e.target.closest("button");
     if (!b) return;
     if (b.id === "a-logout") { await sende({ aktion: "logout" }); d = { angemeldet: false }; return zeichne(); }
-    if (b.dataset.discordTest) return aktion({ aktion: "discord-test" }, "Beispiel-Report gesendet, bitte im Discord-Kanal nachsehen.");
+    if (b.dataset.discordTest) {
+      const a = await aktion({ aktion: "discord-test" }, "");
+      if (a && a.discord) {
+        const text = { ok: "gesendet", fehlt: "nicht eingerichtet", fehler: "abgelehnt, Webhook prüfen" };
+        setzeMeldung(`Discord-Test: ${a.discord.map((x) => `${x.kanal} ${text[x.stand]}`).join(" · ")}`, a.discord.some((x) => x.stand !== "ok"));
+        zeichne();
+      }
+      return;
+    }
     if (b.dataset.akte) return akteOeffnen(b);
     if (b.dataset.fahrerFilter) { fahrerFilter = b.dataset.fahrerFilter; return zeichne(); }
     if (b.dataset.akteZu) { akte = null; return zeichne(); }
