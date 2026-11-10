@@ -118,13 +118,23 @@ function berichtDaten(serie, ergebnis, tabelle, kalenderRennen) {
   };
 }
 
+const MEDAILLEN = ["🥇", "🥈", "🥉"];
+
+// Je Fahrzeugklasse Podium, schnellste Runde und Fahrer des Tages. erwaehnungen ordnet Fahrernamen einer Discord-ID zu,
+// dann erscheint der Name als Erwähnung mit Servernamen. In Karten pingt Discord dabei niemanden an.
 function berichtKarte(b, mitBild) {
+  const wer = (name) => (b.erwaehnungen && /^\d{5,25}$/.test(String(b.erwaehnungen[name] || "")) ? `<@${b.erwaehnungen[name]}>` : name);
   const mehrere = b.klassen.length > 1;
-  const zeilen = b.klassen.map((k) => `${mehrere ? `**${k.fahrzeugklasse}**\n` : ""}${k.podium.map((n, i) => `${i + 1}. ${n}`).join("\n")}`).join("\n\n");
-  const k = b.klassen[0];
+  const block = (k) => [
+    ...(mehrere ? [`**${k.fahrzeugklasse}**`] : []),
+    ...k.podium.map((n, i) => `${MEDAILLEN[i] || `${i + 1}.`} ${wer(n)}`),
+    ...(k.schnellste ? [`⏱️ Schnellste Runde: ${wer(k.schnellste.name)}, ${k.schnellste.zeit}`] : []),
+    ...(k.aufholer ? [`📈 Fahrer des Tages: ${wer(k.aufholer.name)}, ${k.aufholer.plaetze} Plätze gutgemacht`] : []),
+  ].join("\n");
   return {
-    title: `${b.vorlaeufig ? "Vorläufiges Ergebnis" : "Ergebnis"}: ${b.titel}`.slice(0, 256), ...(b.vorlaeufig ? { footer: { text: "Strafen der Rennleitung können das Ergebnis noch ändern." } } : {}), url: `${LINK}/liga?serie=${encodeURIComponent(b.serie)}`, color: FARBE, description: zeilen.slice(0, 1500),
-    fields: [feld("Serie", b.serieName), feld("Strecke", b.strecke), ...(k.schnellste ? [feld("Schnellste Runde", `${k.schnellste.name}, ${k.schnellste.zeit}`)] : []), ...(k.aufholer ? [feld("Fahrer des Tages", `${k.aufholer.name}, ${k.aufholer.plaetze} Plätze gutgemacht`)] : [])],
+    title: `${b.vorlaeufig ? "Vorläufiges Ergebnis" : "Ergebnis"}: ${b.titel}`.slice(0, 256), ...(b.vorlaeufig ? { footer: { text: "Strafen der Rennleitung können das Ergebnis noch ändern." } } : {}), url: `${LINK}/liga?serie=${encodeURIComponent(b.serie)}`, color: FARBE,
+    description: b.klassen.map(block).join("\n\n").slice(0, 4000),
+    fields: [feld("Serie", b.serieName), feld("Strecke", b.strecke)],
     ...(mitBild ? { image: { url: "attachment://rennbericht.jpg" } } : {}),
   };
 }

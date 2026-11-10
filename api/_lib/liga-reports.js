@@ -251,7 +251,7 @@ async function teamMelden(karte) {
 
 // Knopf „Discord testen“: eine Probe an jeden eingerichteten Webhook, Ergebnis je Kanal "ok", "fehlt" oder "fehler".
 const TEST_ZIELE = [["Reports", "LIGA_DISCORD_WEBHOOK_TEAM"], ["Renntag", "LIGA_DISCORD_WEBHOOK"], ["Urteile", "LIGA_DISCORD_WEBHOOK_URTEILE"]];
-// beispiele: { Reports, Renntag, Urteile } mit je einer Karte, wie sie im Ernstfall gepostet würde.
+// beispiele: { Reports, Renntag, Urteile } mit je einer Karte oder einer Liste von Karten, wie sie im Ernstfall gepostet würden.
 function webhooksTesten(wer, beispiele = {}) {
   return Promise.all(TEST_ZIELE.map(async ([kanal, schluessel]) => {
     const url = process.env[schluessel];
@@ -259,9 +259,10 @@ function webhooksTesten(wer, beispiele = {}) {
     if (schluessel === "LIGA_DISCORD_WEBHOOK_TEAM") return { kanal, stand: (await teamMelden(beispiele.Reports)) ? "ok" : "fehler" };
     try {
       const hinweis = `Beispiel, ausgelöst von ${wer} über „Discord testen“. Kann gelöscht werden.`;
-      const vorlage = beispiele[kanal];
-      const karte = vorlage ? { ...vorlage, title: `Test · ${vorlage.title}`.slice(0, 256), footer: { text: hinweis } } : { title: `Test: ${kanal}`, description: hinweis, color: 0xd3121b };
-      const antwort = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(4000), body: JSON.stringify({ embeds: [karte], allowed_mentions: { parse: [] } }) });
+      const vorlagen = [].concat(beispiele[kanal] || []);
+      const markiert = (v) => ({ ...v, title: `Test · ${v.title}`.slice(0, 256), footer: { text: v.footer && v.footer.text ? `${v.footer.text}\n${hinweis}` : hinweis } });
+      const karten = vorlagen.length ? vorlagen.map(markiert) : [{ title: `Test: ${kanal}`, description: hinweis, color: 0xd3121b }];
+      const antwort = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(4000), body: JSON.stringify({ embeds: karten, allowed_mentions: { parse: [] } }) });
       if (!antwort.ok) console.error(`Discord-Test ${kanal} abgelehnt:`, antwort.status);
       return { kanal, stand: antwort.ok ? "ok" : "fehler" };
     } catch (e) {
