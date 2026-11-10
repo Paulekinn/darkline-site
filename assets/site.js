@@ -487,7 +487,35 @@
   window.addEventListener("popstate", route);
   window.addEventListener("hashchange", () => { if (/^#(rennen|news)-/.test(location.hash)) route(); });
 
+  /* ---------- Liga: fester Banner mit dem Stand der Darkline Simracing Series, Daten von der Liga-Seite ---------- */
+  // Höchstens drei Zeilen, damit der Banner bei vielen Ligen und Events nicht wächst.
+  async function renderLiga() {
+    const liste = $("dsrs-stand");
+    if (!liste) return;
+    const d = await fetch("api/liga?r=oeffentlich").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    if (d && d.kopfbildVersion) $("dsrs-bild").src = `api/liga?r=bild&k=uebersicht&v=${encodeURIComponent(d.kopfbildVersion)}`;
+    const serien = (d && d.serien) || [];
+    const link = (s) => `<a href="/liga?serie=${encodeURIComponent(s.id)}">${esc(s.name)}</a>`;
+    const gruppe = (status, text) => {
+      const treffer = serien.filter((s) => s.status === status);
+      return treffer.length ? `<li class="${status}"><span>${text}: ${link(treffer[0])}${treffer.length > 1 ? ` und ${treffer.length - 1} weitere` : ""}</span></li>` : "";
+    };
+    const jetzt = Date.now();
+    const offen = new Set(serien.filter((s) => s.status !== "beendet").map((s) => s.id));
+    const naechstes = ((d && d.rennen) || []).filter((r) => offen.has(r.serie) && r.status !== "abgesagt" && r.datum && r.startzeit)
+      .map((r) => ({ r, t: Date.parse(`${r.datum}T${String(r.startzeit).padStart(5, "0")}:00`) })).filter((x) => x.t > jetzt).sort((a, b) => a.t - b.t)[0];
+    const termin = naechstes ? (() => {
+      const r = naechstes.r;
+      const tag = new Date(`${r.datum}T12:00:00`).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+      const s = serien.find((x) => x.id === r.serie);
+      return `<li class="termin"><span>Nächstes Rennen: ${esc(tag)}, ${esc(r.startzeit)} Uhr${r.strecke ? ` · ${esc(r.strecke)}` : ""}${s ? ` <small>${esc(s.name)}</small>` : ""}</span></li>`;
+    })() : "";
+    const zeilen = [gruppe("laeuft", "Läuft"), gruppe("anmeldung", "Anmeldung offen"), termin, gruppe("geplant", "Demnächst")].filter(Boolean).slice(0, 3);
+    liste.innerHTML = zeilen.length ? zeilen.join("") : "<li><span>Neue Ligen und Events kündigen wir zuerst im Discord an.</span></li>";
+  }
+
   /* ---------- Start ---------- */
+  renderLiga();
   (async function init() {
     const [drivers, races, news, cars, settings, partners, shop] = await Promise.all(["drivers", "races", "news", "cars", "settings", "partners", "shop"].map(load));
     D = {
