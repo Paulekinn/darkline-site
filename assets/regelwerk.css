@@ -1,5 +1,7 @@
 /* Regelwerk der Liga */
-.rw-kopf{padding-block:clamp(28px,4vw,48px) clamp(20px,3vw,32px);background:linear-gradient(120deg,color-mix(in srgb,var(--red) 22%,var(--monitor)),var(--monitor) 62%)}
+/* Roter Schein oben links, der nach unten und rechts in den durchgehenden Seitenhintergrund ausläuft */
+.rw-kopf{position:relative;padding-block:clamp(28px,4vw,48px) clamp(20px,3vw,32px)}
+.rw-kopf::before{content:"";position:absolute;inset:0 0 -320px;z-index:-1;pointer-events:none;background:radial-gradient(1100px 460px at 8% 0%,rgba(211,18,27,.24),transparent 70%)}
 .rw-kopf h1{margin:6px 0 10px;font-size:clamp(2.2rem,5vw,3.6rem);text-transform:uppercase}
 .rw-kopf p{margin:0;max-width:72ch;color:#c4cbc8}
 .rw-reiter{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px}
