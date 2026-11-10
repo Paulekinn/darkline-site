@@ -375,6 +375,11 @@
     const grenze = plusTage(heute(), 14);
     const baldFaellig = d.serien.map((s) => ({ s, r: s.status === "geplant" ? kommend.find((x) => x.serie === s.id) : null })).filter((x) => x.r && String(x.r.datum) <= grenze);
     const anmeldungFaellig = baldFaellig.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Anmeldung noch nicht geöffnet</h2><span class="a-chip gelb">${baldFaellig.length}</span></div><div class="a-liste">${baldFaellig.map(({ s, r }) => `<div class="a-abschluss s-${esc(s.farbe || "rot")}"><span><b>${esc(s.name)}</b><small>Erstes Rennen am ${esc(datumKurz(r.datum))}, die Season steht noch auf „Geplant“.</small></span><button type="button" class="a-knopf klein" data-serie-oeffnen="${esc(s.id)}">Anmeldung öffnen</button></div>`).join("")}</div></section>` : "";
+    const nummern = d.nummernWuensche || [];
+    const nummernHtml = nummern.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Startnummer ändern</h2><span class="a-chip gelb">${nummern.length}</span></div><div class="a-liste">${nummern.map((w) => {
+      const daten = `data-discord="${esc(w.discordId)}" data-name="${esc(w.name)}" data-nummer="${esc(w.nach)}"`;
+      return `<div class="a-abschluss s-rot"><span><b>${esc(w.name)}</b><small>Von #${esc(w.von)} auf #${esc(w.nach)}, beantragt ${esc(zeit(w.seit))}</small></span><div class="a-leiste"><button type="button" class="a-knopf klein" data-nummer-aktion="nummer-bestaetigen" ${daten}>Bestätigen</button><button type="button" class="a-knopf zweit klein" data-nummer-aktion="nummer-ablehnen" ${daten}>Ablehnen</button></div></div>`;
+    }).join("")}</div></section>` : "";
     const kachel = (wert, text, art, ziel) => `<button type="button" class="a-kennzahl ${art}" data-tab="${ziel}"><b>${wert}</b><span>${esc(text)}</span></button>`;
     const reportsHtml = offene.slice(0, 5).map(reportZeile).join("");
     const termine = kommend.slice(0, 5).map(terminZeile).join("");
@@ -387,6 +392,7 @@
         ${kachel(unfertig.length, "Rennen unvollständig", unfertig.length ? "warnung" : "", "rennen")}
       </div>
       ${(d.fehlendeErgebnisse || []).length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Ergebnis fehlt</h2><span class="a-chip gelb">${d.fehlendeErgebnisse.length}</span></div><div class="a-liste">${d.fehlendeErgebnisse.slice(0, 6).map((r) => `<div class="a-abschluss ${serienFarbe(r.serie)}"><span><b>${esc(r.titel)}</b><small>${esc([(serieVon(r.serie) || {}).name, datumKurz(r.datum)].filter(Boolean).join(" · "))}</small></span><button type="button" class="a-knopf zweit klein" data-ergebnis-import="${esc(r.serie)}">Importieren</button></div>`).join("")}</div></section>` : ""}
+      ${nummernHtml}
       ${anmeldungFaellig}
       ${cockpitPruefungen()}
       ${cockpitStrafkonten()}
@@ -1124,6 +1130,7 @@
       if (passwort === null) return;
       return aktion({ aktion: "passwort-setzen", serie: b.dataset.passwortAlle, passwort }, "Passwort für alle kommenden Rennen gesetzt.");
     }
+    if (b.dataset.nummerAktion) return aktion({ aktion: b.dataset.nummerAktion, discordId: b.dataset.discord, name: b.dataset.name, nummer: b.dataset.nummer }, b.dataset.nummerAktion === "nummer-bestaetigen" ? `Startnummer #${b.dataset.nummer} bestätigt.` : "Antrag abgelehnt.");
     if (b.dataset.tab) { tab = b.dataset.tab; protokoll = null; form = null; planer = null; reportId = null; akte = null; setzeMeldung(""); if (tab === "reports") reportsAlsGesehen(); zeichne(); return window.scrollTo(0, 0); }
     if (b.dataset.report) {
       const r = d.reports.find((x) => x.id === b.dataset.report);

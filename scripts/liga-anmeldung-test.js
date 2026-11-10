@@ -497,6 +497,79 @@ const tests = {
     assert.doesNotThrow(() => P.pruefeKonflikte(alle, "p1", "x", 46));
     assert.doesNotThrow(() => P.pruefeKonflikte(alle, "p2", "y", 7));
   },
+  "Profil: Startnummer ist Pflicht": () => {
+    assert.throws(() => A.nummerPflicht(A.pruefeExtras({})), /Startnummer/);
+    assert.doesNotThrow(() => A.nummerPflicht(A.pruefeExtras({ nummer: "31" })));
+  },
+  "Profil: beantragte Startnummer ist für andere reserviert": () => {
+    const wuensche = [{ discordId: "1", nach: 42 }];
+    assert.strictEqual(P.istBeantragt(wuensche, 42, "2"), true);
+    assert.strictEqual(P.istBeantragt(wuensche, 42, "1"), false);
+    assert.strictEqual(P.istBeantragt(wuensche, 7, "2"), false);
+  },
+  "Discord: Rollen und Name folgen Profil und Liga-Anmeldung": () => {
+    const Dc = require("../api/_lib/liga-discord");
+    const profil = { iracingName: "Max Mustermann", custId: "1", nummer: 31 };
+    const serien = [{ id: "l", typ: "liga", status: "laeuft" }, { id: "e", typ: "event", status: "laeuft" }, { id: "alt", typ: "liga", status: "beendet" }];
+    const inSerie = (serieId) => [{ typ: "serie", discordId: "9", serieId }];
+    assert.deepStrictEqual(Dc.soll("9", { iracingName: "A", custId: "1", nummer: null }, [], serien), { i: false, f: false, n: "" });
+    assert.deepStrictEqual(Dc.soll("9", profil, [], serien), { i: true, f: false, n: "" });
+    assert.deepStrictEqual(Dc.soll("9", profil, inSerie("l"), serien), { i: true, f: true, n: "#31 Max Mustermann" });
+    for (const id of ["e", "alt"]) assert.strictEqual(Dc.soll("9", profil, inSerie(id), serien).f, false);
+    assert.strictEqual(Dc.soll("9", profil, [{ typ: "serie", discordId: "8", serieId: "l" }], serien).f, false);
+    assert.ok(Dc.servername(999, "X".repeat(40)).length <= 32);
+  },
+  "Discord: nur nötige Schritte, ohne Liga verschwindet die Nummer": () => {
+    const Dc = require("../api/_lib/liga-discord");
+    const arten = (l) => l.map((s) => s.art);
+    assert.deepStrictEqual(arten(Dc.schritte({}, { i: true, f: false, n: "" }, "Max")), ["interessent"]);
+    assert.deepStrictEqual(arten(Dc.schritte({ i: true }, { i: true, f: true, n: "#31 Max" }, "Max")), ["fahrer", "name"]);
+    assert.deepStrictEqual(Dc.schritte({ i: true, f: true, n: "#31 Max" }, { i: true, f: true, n: "#31 Max" }, "Max"), []);
+    assert.deepStrictEqual(arten(Dc.schritte({ i: true, f: true, n: "#31 Max" }, { i: true, f: true, n: "#7 Max" }, "Max")), ["name"]);
+    const raus = Dc.schritte({ i: true, f: true, n: "#31 Max" }, { i: true, f: false, n: "" }, "Max");
+    assert.deepStrictEqual(raus.map((s) => [s.art, s.weg, s.wert]), [["fahrer", true, undefined], ["name", undefined, "Max"]]);
+    assert.deepStrictEqual(Dc.schritte({ i: true, f: false, n: "" }, { i: false, f: false, n: "" }, "Max"), []);
+  },
+  "Discord: Abgleich ruft die richtigen Adressen und speichert nur Erfolge": async () => {
+    const Dc = require("../api/_lib/liga-discord");
+    const alt = { fetch: global.fetch, env: { ...process.env } };
+    Object.assign(process.env, { DISCORD_BOT_TOKEN: "t", DISCORD_GUILD_ID: "100", LIGA_ROLLE_INTERESSENT: "1", LIGA_ROLLE_FAHRER: "2", SUPABASE_URL: "https://speicher.example", SUPABASE_SECRET_KEY: "k" });
+    const aufrufe = [];
+    const gespeichert = [];
+    let lehneNameAb = true;
+    global.fetch = async (url, init) => {
+      if (String(url).startsWith("https://speicher.example")) { gespeichert.push(JSON.parse(JSON.parse(init.body)[0].inhalt)); return { ok: true, text: async () => "" }; }
+      aufrufe.push(`${init.method} ${url}${init.body ? ` ${init.body}` : ""}`);
+      return { ok: !(lehneNameAb && init.method === "PATCH"), status: 403 };
+    };
+    const warn = console.warn;
+    console.warn = () => {};
+    try {
+      const profil = { iracingName: "Max Mustermann", custId: "1", nummer: 31 };
+      const alle = [{ typ: "serie", discordId: "9", serieId: "l" }];
+      const serien = [{ id: "l", typ: "liga", status: "laeuft" }];
+      const erst = await Dc.abgleichen("9", profil, alle, serien);
+      assert.deepStrictEqual(aufrufe, [
+        "PUT https://discord.com/api/v10/guilds/100/members/9/roles/1",
+        "PUT https://discord.com/api/v10/guilds/100/members/9/roles/2",
+        'PATCH https://discord.com/api/v10/guilds/100/members/9 {"nick":"#31 Max Mustermann"}',
+      ]);
+      assert.deepStrictEqual(erst.discord, { i: true, f: true });
+      assert.deepStrictEqual(gespeichert[0].discord, { i: true, f: true });
+      aufrufe.length = 0;
+      lehneNameAb = false;
+      const zweit = await Dc.abgleichen("9", erst, alle, serien);
+      assert.deepStrictEqual(aufrufe.map((a) => a.split(" ")[0]), ["PATCH"]);
+      assert.strictEqual(zweit.discord.n, "#31 Max Mustermann");
+      aufrufe.length = 0;
+      await Dc.abgleichen("9", zweit, alle, serien);
+      assert.deepStrictEqual(aufrufe, []);
+    } finally {
+      console.warn = warn;
+      global.fetch = alt.fetch;
+      for (const k of ["DISCORD_BOT_TOKEN", "DISCORD_GUILD_ID", "LIGA_ROLLE_INTERESSENT", "LIGA_ROLLE_FAHRER", "SUPABASE_URL", "SUPABASE_SECRET_KEY"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
+    }
+  },
   "Profil: Bild wird nur bei eigenem Eintrag und neuer Version nachgezogen": () => {
     assert.strictEqual(P.bildVeraltet({ o: "ich", b: "" }, "ich", "abcd1234"), true);
     assert.strictEqual(P.bildVeraltet({ o: "ich", b: "alt" }, "ich", "abcd1234"), true);

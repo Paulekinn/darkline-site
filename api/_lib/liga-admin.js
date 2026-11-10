@@ -10,6 +10,7 @@ const { Hinweis } = D;
 const G = require("./liga-strecken");
 const Renntag = require("./liga-renntag");
 const Regeln = require("./liga-regeln");
+const Dc = require("./liga-discord");
 const { leseErgebnis, berechneTabelle, klasseFuer } = require("../../assets/liga-wertung.js");
 
 const eintraege = async () => (await blobList(A.PREFIX)).map(A.leseEintrag).filter(Boolean);
@@ -129,6 +130,8 @@ async function protokollText(b, kat) {
     "fahrer-aus-serie": () => `Fahrer aus Serie entfernt: ${serie(b.serie)}`,
     "fahrer-aus-rennen": () => `Fahrer aus Rennen genommen: ${rennen(b.rennen)}`,
     "profil-bearbeiten": () => `Fahrerprofil geändert: ${(b.profil || {}).iracingName}${b.bildEntfernen ? ", Profilbild entfernt" : ""}`,
+    "nummer-bestaetigen": () => `Startnummer bestätigt: ${b.name}, neu #${b.nummer}`,
+    "nummer-ablehnen": () => `Startnummer abgelehnt: ${b.name}, gewünscht #${b.nummer}`,
     "report-status": async () => `Report-Status geändert: ${await report()}`,
     "report-urteil": async () => `Urteil gesprochen (${(b.urteil || {}).art}): ${await report()}`,
   };
@@ -274,16 +277,39 @@ const aktionen = {
     return G.kartendaten(strecke);
   },
   // Korrigiert das Profil eines Fahrers. Es gelten dieselben Prüfungen wie im Fahrerbereich.
-  async "profil-bearbeiten"(b) {
+  async "profil-bearbeiten"(b, kat) {
     const discordId = D.brauchtId(b.discordId);
     const gespeichert = await blobGet(A.profilPfad(discordId));
     if (!gespeichert) throw new Hinweis("Dieser Fahrer hat noch kein Profil.");
     const bisher = JSON.parse(gespeichert);
     const extras = { ...A.pruefeExtras(b.profil), zeigeBild: !b.bildEntfernen && bisher.zeigeBild !== false };
-    const profil = { ...bisher, ...A.pruefeProfil(b.profil), ...extras };
+    A.nummerPflicht(extras);
+    const profil = { ...bisher, ...A.pruefeProfil(b.profil), ...extras, gespeichert: new Date().toISOString() };
     await P.speichern({ id: discordId, avatar: "" }, profil, extras);
-    await blobPut(A.profilPfad(discordId), JSON.stringify({ ...profil, gespeichert: new Date().toISOString() }), "application/json");
+    await blobPut(A.profilPfad(discordId), JSON.stringify(profil), "application/json");
+    // Hat die Rennleitung die Nummer selbst geändert, ist ein offener Antrag erledigt.
+    if (extras.nummer !== bisher.nummer) await P.wunschLoeschen(discordId);
+    await Dc.abgleichen(discordId, profil, await eintraege(), kat.serien);
     return { custId: profil.custId };
+  },
+  async "nummer-bestaetigen"(b, kat) {
+    const discordId = D.brauchtId(b.discordId);
+    const wunsch = await P.wunschLesen(discordId);
+    if (!wunsch) throw new Hinweis("Dieser Antrag liegt nicht mehr vor.");
+    const gespeichert = await blobGet(A.profilPfad(discordId));
+    if (!gespeichert) throw new Hinweis("Dieser Fahrer hat noch kein Profil.");
+    const bisher = JSON.parse(gespeichert);
+    const extras = { nummer: wunsch.nach, land: bisher.land || "", team: bisher.team || "", kanal: bisher.kanal || "", zeigeBild: bisher.zeigeBild !== false };
+    const profil = { ...bisher, nummer: wunsch.nach, gespeichert: new Date().toISOString() };
+    await P.speichern({ id: discordId, avatar: "" }, profil, extras);
+    await blobPut(A.profilPfad(discordId), JSON.stringify(profil), "application/json");
+    await P.wunschLoeschen(discordId);
+    await Dc.abgleichen(discordId, profil, await eintraege(), kat.serien);
+    return {};
+  },
+  async "nummer-ablehnen"(b) {
+    await P.wunschLoeschen(D.brauchtId(b.discordId));
+    return {};
   },
   async "discord-test"(b, kat, s) {
     if (!process.env.LIGA_DISCORD_WEBHOOK_TEAM) throw new Hinweis("Der Discord-Webhook ist noch nicht eingerichtet.");
@@ -585,7 +611,7 @@ module.exports = async (req, res) => {
     const alleReports = await R.alleReports(true);
     const ergebnisseJe = new Map(await Promise.all([...new Set(alleReports.map((r) => r.serie))].filter((x) => D.istId(x)).map(async (id) => [id, await D.ergebnisseLesen(id).catch(() => [])])));
     const reports = alleReports.map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id), stimmen: R.stimmenSicht(r, s.id), kontext: R.rennKontext(r, ergebnisseJe.get(r.serie) || []) }));
-    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), nummernWuensche: await P.wuenscheLesen().catch(() => []), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });

@@ -7,6 +7,7 @@ const A = require("./liga-anmeldung");
 const D = require("./liga-daten");
 const { Hinweis } = D;
 const R = require("./liga-reports");
+const Dc = require("./liga-discord");
 const { klasseFuer } = require("../../assets/liga-wertung.js");
 
 const SCHLUSS_MINUTEN = 60;
@@ -62,7 +63,7 @@ async function antwort(res, s, profil, alle, kat, frisch) {
   return res.status(200).json({
     angemeldet: true,
     kalender: `/liga-kalender/${kalenderSchluessel(s.id)}`,
-    fahrer: { name: s.name, profil, pid, oeffentlich: pid ? await P.angabenVon(pid).catch(() => null) : null },
+    fahrer: { name: s.name, profil, pid, oeffentlich: pid ? await P.angabenVon(pid).catch(() => null) : null, nummerWunsch: ((await P.wunschLesen(s.id).catch(() => null)) || {}).nach || null },
     meineKarten: profil ? A.eigeneKarten(kat.serien, await laufendeTabellen(kat), profil.iracingName, pid) : [],
     serien: A.baueSerien(kat.serien, alle, { discordId: s.id, profil, klasseFuer }),
     // Termine beendeter Serien gehören nicht mehr in den Fahrerbereich.
@@ -126,8 +127,14 @@ function rennenPruefen(s, kat, alle, id) {
   return { rennen, stand };
 }
 
-async function anmelden(s, profil, body, alle, kat) {
+// Ältere Profile haben eventuell noch keine Startnummer.
+function profilVollstaendig(profil) {
   if (!profil) throw new Hinweis("Bitte fülle zuerst dein Fahrerprofil aus.");
+  if (!profil.nummer) throw new Hinweis("Bitte trage zuerst eine Startnummer in deinem Profil ein.");
+}
+
+async function anmelden(s, profil, body, alle, kat) {
+  profilVollstaendig(profil);
   const { rennen, stand } = rennenPruefen(s, kat, alle, body.rennen);
   if (!stand) throw new Hinweis("Die Anmeldung für dieses Rennen ist geschlossen.");
   if (stand.ich) return alle;
@@ -157,7 +164,7 @@ async function abmelden(s, body, alle, kat) {
 }
 
 async function serieAnmelden(s, profil, body, alle, kat) {
-  if (!profil) throw new Hinweis("Bitte fülle zuerst dein Fahrerprofil aus.");
+  profilVollstaendig(profil);
   const serie = kat.serien.find((x) => x.id === body.serie);
   if (!serie) throw new Hinweis("Diese Serie gibt es nicht.");
   if (serie.status === "geplant") throw new Hinweis("Die Anmeldung für diese Serie ist noch nicht geöffnet.");
@@ -181,6 +188,25 @@ async function serieAbmelden(s, body, alle, kat) {
   return merke(alle.filter((e) => !weg.includes(e)));
 }
 
+// Eine geänderte Startnummer wird nicht übernommen, sondern geht als Antrag an die Rennleitung. Die erste Nummer darf der Fahrer selbst wählen.
+async function profilSpeichern(s, bisher, eingaben) {
+  const grunddaten = A.pruefeProfil(eingaben);
+  const eingabe = A.pruefeExtras(eingaben);
+  A.nummerPflicht(eingabe);
+  const wunsch = bisher && bisher.nummer && eingabe.nummer !== bisher.nummer ? eingabe.nummer : null;
+  const extras = wunsch ? { ...eingabe, nummer: bisher.nummer } : eingabe;
+  const neu = wunsch ? await P.wunschSetzen(s, grunddaten.iracingName, bisher.nummer, wunsch) : false;
+  const profil = { ...grunddaten, ...extras, ...(bisher && bisher.discord ? { discord: bisher.discord } : {}), discordId: s.id, gespeichert: new Date().toISOString() };
+  await P.speichern(s, profil, extras).catch(async (e) => {
+    if (neu) await P.wunschLoeschen(s.id).catch(() => {});
+    throw e;
+  });
+  await blobPut(A.profilPfad(s.id), JSON.stringify(profil), "application/json");
+  if (bisher && !wunsch) await P.wunschLoeschen(s.id);
+  if (neu) await R.teamMelden({ title: "Startnummer: Änderung beantragt", url: "https://darklineperformance.de/liga-admin", color: 0xd3121b, fields: [{ name: "Fahrer", value: grunddaten.iracingName, inline: true }, { name: "Bisher", value: `#${bisher.nummer}`, inline: true }, { name: "Neu", value: `#${wunsch}`, inline: true }] });
+  return profil;
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   const s = getLigaSession(req);
@@ -189,7 +215,9 @@ module.exports = async (req, res) => {
     if ((req.query || {}).nur === "status") return res.status(200).json({ angemeldet: true });
     const gespeichert = await profilLesen(s.id);
     await P.bildNachziehen(s, gespeichert).catch((e) => console.warn("Liga: Profilbild:", e.message));
-    return await antwort(res, s, gespeichert, await eintraege(false), await D.katalog(false), false);
+    // Mit Discord-Abgleich wird frisch gelesen: Eine veraltete Liste würde einem gerade gemeldeten Fahrer die Rolle wieder nehmen.
+    const [gelesen, katalog] = [await eintraege(Dc.aktiv()), await D.katalog(false)];
+    return await antwort(res, s, await Dc.abgleichen(s.id, gespeichert, gelesen, katalog.serien), gelesen, katalog, false);
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });
@@ -204,10 +232,7 @@ module.exports = async (req, res) => {
   let alle = await eintraege(true);
   const kat = await D.katalog(false);
   if (body.aktion === "profil") {
-    const extras = A.pruefeExtras(body.profil);
-    profil = { ...A.pruefeProfil(body.profil), ...extras };
-    await P.speichern(s, profil, extras);
-    await blobPut(A.profilPfad(s.id), JSON.stringify({ ...profil, discordId: s.id, gespeichert: new Date().toISOString() }), "application/json");
+    profil = await profilSpeichern(s, profil, body.profil);
   } else if (body.aktion === "anmelden") {
     alle = await anmelden(s, profil, body, alle, kat);
   } else if (body.aktion === "abmelden") {
@@ -223,5 +248,6 @@ module.exports = async (req, res) => {
   } else {
     return res.status(400).json({ error: "Unbekannte Aktion." });
   }
+  profil = await Dc.abgleichen(s.id, profil, alle, kat.serien);
   return await antwort(res, s, profil, alle, kat, true);
 };
