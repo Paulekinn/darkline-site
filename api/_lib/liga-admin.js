@@ -344,7 +344,7 @@ const aktionen = {
         { fahrzeugklasse: "GT4", podium: ["Jonas Test", "Mia Muster", "Paul Probe"], schnellste: { name: "Mia Muster", zeit: "2:31.907" }, aufholer: { name: "Paul Probe", plaetze: 4 } },
       ],
     }, false);
-    const urteil = R.urteilKarte({ serieName: "GT3 Sprint", rennenTitel: "Runde 3 · Spa", gegen: { name: "Max Beispiel" } }, { art: "strafpunkte", punkte: 3 });
+    const urteil = R.urteilKarte({ serieName: "GT3 Sprint", rennenTitel: "Runde 3 · Spa", gegen: { name: "Max Beispiel", discordId: s.id } }, { art: "strafpunkte", punkte: 3 });
     const ergebnis = await R.webhooksTesten(s.name, { Reports: beispiel, Renntag: [renntag, bericht], Urteile: urteil });
     if (ergebnis.every((x) => x.stand === "fehlt")) throw new Hinweis("Es ist noch kein Discord-Webhook eingerichtet.");
     return { discord: ergebnis };

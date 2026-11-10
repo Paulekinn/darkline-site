@@ -296,7 +296,9 @@ function urteilKarte(report, urteil, vorher) {
   const war = !!vorher && istStrafend(vorher);
   if (!jetzt && !war) return null;
   const titel = [report.serieName, report.rennenTitel].filter(Boolean).join(" · ");
-  const felder = [{ name: "Fahrer", value: String((report.gegen && report.gegen.name) || "–"), inline: true }];
+  // Mit Discord-ID erscheint der Fahrer als Erwähnung mit Servernamen. In Karten löst Discord dabei keinen Ping aus.
+  const gegen = report.gegen || {};
+  const felder = [{ name: "Fahrer", value: /^\d{5,25}$/.test(String(gegen.discordId || "")) ? `<@${gegen.discordId}>` : String(gegen.name || "–"), inline: true }];
   if (jetzt) felder.push({ name: "Strafe", value: strafeText(urteil), inline: true });
   if (war) felder.push({ name: "Bisher", value: strafeText(vorher), inline: true });
   return {
