@@ -544,12 +544,12 @@
   function serienKarte(s, rennen) {
     const naechstes = offeneRennen(rennen.filter((r) => r.serie === s.id))[0];
     // Ohne iRating-Klassen zeigen die Chips die Fahrzeugklassen, sofern welche eingetragen sind.
-    const klassen = s.ohneKlassen ? (s.fahrzeugklassen || []).map((k) => `<span class="liga-klassenchip k-ges">${esc(k)}</span>`).join("") : (s.klassen || []).map((k) => `<span class="liga-klassenchip ${farbe(k)}">${esc(k.name)}</span>`).join("");
+    const klassen = s.ohneKlassen ? (s.fahrzeugklassen || []).map((k) => `<span class="liga-klassenchip" style="--k:${window.LigaKarte.fahrzeugFarbe(k)}">${esc(k)}</span>`).join("") : (s.klassen || []).map((k) => `<span class="liga-klassenchip ${farbe(k)}">${esc(k.name)}</span>`).join("");
     const umfang = s.typ === "event" ? "Einzelrennen" : `${s.rennenGesamt} Rennen`;
     return `<article class="liga-poster ${farbeSerie(s)}${s.typ === "event" ? " ist-event" : ""}${s.status === "beendet" ? " beendet" : ""}">
       <div class="liga-poster-bild" style="background-image:url('${esc(kartenBild(s))}')" aria-hidden="true"></div>
       <div class="liga-poster-inhalt">
-        <div class="liga-poster-kopf">${artBadge(s.typ)}${s.saison ? `<span class="liga-pill">${esc(s.saison)}</span>` : ""}<span class="liga-pill farbig">${esc(STATUS[s.status] || "")}</span></div>
+        <div class="liga-poster-kopf">${artBadge(s.typ)}${s.saison ? `<span class="liga-pill">${esc(s.saison)}</span>` : ""}<span class="liga-pill farbig">${esc(s.status === "anmeldung" && s.anmeldungOffen === false ? "Anmeldung geschlossen" : STATUS[s.status] || "")}</span></div>
         <h3><a href="${serienLink(s)}">${esc(s.name)}</a></h3>
         ${s.beschreibung ? `<p>${esc(s.beschreibung)}</p>` : ""}
         <div class="liga-poster-klassen">${klassen}</div>

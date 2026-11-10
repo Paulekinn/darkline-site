@@ -29,5 +29,14 @@
       ${c.abzeichen.length ? `<div class="liga-fk-abzeichen">${c.abzeichen.map((a) => `<span class="a-${esc(a.art)}">${esc(a.text)}</span>`).join("")}</div>` : ""}`;
   }
 
-  window.LigaKarte = { WERTE, rang, klassenFarbe, bildVon, avatarVon, flagge, werte, inhalt };
+  // Farben der Fahrzeugklassen an einer Stelle, unbekannte Klassen bekommen immer dieselbe Farbe aus der Reihe.
+  const FAHRZEUG_FARBEN = { GTP: "#ff4a54", LMP2: "#62bdff", LMP3: "#2fd6c3", GT3: "#ffb020", GTD: "#ffb020", GT4: "#3fd277", TCR: "#c58bff" };
+  const FAHRZEUG_REIHE = ["#62bdff", "#c58bff", "#2fd6c3", "#ffb020", "#3fd277", "#ff8a4c"];
+  function fahrzeugFarbe(name) {
+    const schluessel = String(name || "").toUpperCase().replace(/\s+/g, "");
+    const treffer = Object.keys(FAHRZEUG_FARBEN).find((k) => schluessel.startsWith(k));
+    return treffer ? FAHRZEUG_FARBEN[treffer] : FAHRZEUG_REIHE[[...schluessel].reduce((t, c) => t + c.charCodeAt(0), 0) % FAHRZEUG_REIHE.length];
+  }
+
+  window.LigaKarte = { WERTE, rang, klassenFarbe, fahrzeugFarbe, bildVon, avatarVon, flagge, werte, inhalt };
 })();

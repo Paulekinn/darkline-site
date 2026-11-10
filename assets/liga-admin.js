@@ -641,16 +641,7 @@
   }
 
   /* ---------- Fahrer ---------- */
-  // Farben der Fahrzeugklassen an einer Stelle, unbekannte Klassen bekommen immer dieselbe Farbe aus der Reihe.
-  const FAHRZEUG_FARBEN = { GTP: "#ff4a54", LMP2: "#62bdff", LMP3: "#2fd6c3", GT3: "#ffb020", GTD: "#ffb020", GT4: "#3fd277", TCR: "#c58bff" };
-  const FAHRZEUG_REIHE = ["#62bdff", "#c58bff", "#2fd6c3", "#ffb020", "#3fd277", "#ff8a4c"];
-  function fahrzeugChip(name) {
-    if (!name) return "";
-    const schluessel = String(name).toUpperCase().replace(/\s+/g, "");
-    const treffer = Object.keys(FAHRZEUG_FARBEN).find((k) => schluessel.startsWith(k));
-    const farbe = treffer ? FAHRZEUG_FARBEN[treffer] : FAHRZEUG_REIHE[[...schluessel].reduce((t, c) => t + c.charCodeAt(0), 0) % FAHRZEUG_REIHE.length];
-    return `<span class="a-fz" style="--fz:${farbe}">${esc(name)}</span>`;
-  }
+  const fahrzeugChip = (name) => (name ? `<span class="a-fz" style="--fz:${window.LigaKarte.fahrzeugFarbe(name)}">${esc(name)}</span>` : "");
   const abweichung = (f) => f.iratingAngabe !== null && f.iratingErgebnis !== null && Math.abs(f.iratingAngabe - f.iratingErgebnis) > 150;
 
   function fahrerZeile(f, serie) {
