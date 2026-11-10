@@ -360,7 +360,8 @@
   function reportForm() {
     const liste = stand.reports.meldbar;
     if (!stand.fahrer.profil) return '<p class="fb-klein">Bitte fülle zuerst dein Profil aus.</p>';
-    if (!liste.length) return '<p class="fb-klein">Melden kannst du Vorfälle aus Rennen, in denen du gestartet bist, bis 24 Stunden nach Rennende. Gerade ist kein Rennen offen.</p>';
+    if (!liste.length && stand.reports.cooldownBis) return `<p class="fb-klein">Nach dem Rennen gilt eine Cooldownphase von 30 Minuten. Proteste sind ab ${esc(uhr(stand.reports.cooldownBis))} möglich.</p>`;
+    if (!liste.length) return '<p class="fb-klein">Melden kannst du Vorfälle aus Rennen, in denen du gestartet bist, ab 30 Minuten und bis 24 Stunden nach Rennende. Gerade ist kein Rennen offen.</p>';
     const w = reportEntwurf;
     const rennen = liste.find((r) => r.id === w.rennen) || liste[0];
     return `<form class="fb-profil" id="fb-report" novalidate>

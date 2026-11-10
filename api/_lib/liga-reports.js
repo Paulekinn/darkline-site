@@ -82,7 +82,8 @@ function ergebnisStand(start, ctx) {
   if (((ctx.privat || {}).endgueltig || []).includes(start)) return "endgueltig";
   const kalender = ctx.rennen.filter((r) => r.serie === ctx.serie.id).map((r) => ({ r, ms: A.berlinNachUtc(r.datum, r.startzeit) })).filter((x) => x.ms !== null && naehe(x.ms) <= 12 * 3600e3).sort((a, b) => naehe(a.ms) - naehe(b.ms))[0];
   const ende = kalender ? kalender.ms + A.dauerMinuten(kalender.r.renndauer) * 60e3 : t + 120 * 60e3;
-  const fristen = [ende + reportStunden(ctx.serie) * 3600e3, ...faelle.filter((r) => einspruchAktiv() && !r.endgueltig).map((r) => new Date(r.urteil.zeit).getTime() + einspruchStunden(ctx.serie) * 3600e3)];
+  // Reglement 8.3: Das Protestverfahren ist 72 Stunden nach Veranstaltungsende abgeschlossen.
+  const fristen = [ende + Math.max(72, reportStunden(ctx.serie)) * 3600e3, ...faelle.filter((r) => einspruchAktiv() && !r.endgueltig).map((r) => new Date(r.urteil.zeit).getTime() + einspruchStunden(ctx.serie) * 3600e3)];
   return ctx.jetzt > Math.max(...fristen) ? "endgueltig" : "vorlaeufig";
 }
 
@@ -134,9 +135,19 @@ function rennKontext(report, ergebnisse) {
 }
 
 // Rennen, für die ein Fahrer gerade einen Vorfall melden darf: selbst gestartet und innerhalb der Frist.
+// Reglement 8.3: Nach dem Rennende gilt eine Cooldownphase von 30 Minuten, bis dahin ist kein Protest möglich.
+const COOLDOWN_MS = 30 * 60e3;
+const cooldownEnde = (r) => new Date(r.ende).getTime() + COOLDOWN_MS;
+
+// Bis wann eigene gefahrene Rennen noch in der Cooldownphase sind, sonst null.
+function cooldownBis(rennen, jetzt) {
+  const laufend = rennen.filter((r) => r.status !== "abgesagt" && r.ich && r.ich.status === "starter" && new Date(r.start).getTime() <= jetzt && jetzt < cooldownEnde(r));
+  return laufend.length ? new Date(Math.max(...laufend.map(cooldownEnde))).toISOString() : null;
+}
+
 function meldbareRennen(rennen, jetzt, serien) {
   return rennen
-    .filter((r) => r.status !== "abgesagt" && r.ich && r.ich.status === "starter" && new Date(r.start).getTime() <= jetzt)
+    .filter((r) => r.status !== "abgesagt" && r.ich && r.ich.status === "starter" && jetzt >= cooldownEnde(r))
     .map((r) => ({ r, frist: new Date(r.ende).getTime() + reportStunden(serien[r.serie]) * 3600e3 }))
     .filter((x) => jetzt <= x.frist)
     .map(({ r, frist }) => ({ id: r.id, titel: r.titel, serie: r.serie, serieName: r.serieName, start: r.start, frist: new Date(frist).toISOString(), fahrer: r.starter.filter((f) => f.discordId !== r.ich.discordId).map((f) => f.name) }));
@@ -267,4 +278,4 @@ async function discordMelden(report, urteil) {
   }
 }
 
-module.exports = { ergebnisStand, staendeSetzen, pruefeStimme, stimmeSetzen, mehrheit, stimmenSicht, rennKontext, reportKarte, einspruchKarte, teamMelden, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden };
+module.exports = { cooldownBis, ergebnisStand, staendeSetzen, pruefeStimme, stimmeSetzen, mehrheit, stimmenSicht, rennKontext, reportKarte, einspruchKarte, teamMelden, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden };

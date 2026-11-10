@@ -20,7 +20,7 @@
   const URTEILE = [["kein-vergehen", "Kein Vergehen"], ["verwarnung", "Verwarnung"], ["strafpunkte", "Strafpunkte"], ["zeitstrafe", "Zeitstrafe"], ["dsq", "Disqualifikation"]];
   const NEUE_SERIE = { name: "", typ: "liga", saison: "", status: "geplant", anmeldungOffen: true, farbe: "rot", beschreibung: "", kategorie: "Sports_Car", fahrzeugklassen: [], rennenGesamt: 8, gewerteteRennen: 7, anmeldeschlussMinuten: 60,
     klassen: [{ name: "Pro", min: 2500, max: null }, { name: "Pro-Am", min: 1500, max: 2499 }, { name: "Am", min: 0, max: 1499 }],
-    punkte: [30, 26, 23, 21, 19, 17, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2], punkteDanach: 1, bonusPole: 1, bonusSchnellsteRunde: 1, mindestRundenProzent: 75 };
+    punkte: [25, 21, 18, 15, 13, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1], punkteDanach: 1, bonusPole: 1, bonusSchnellsteRunde: 1, mindestRundenProzent: 60 };
   const NEUES_RENNEN = { titel: "", serie: "", status: "geplant", datum: "", startzeit: "20:00", strecke: "", fahrzeuge: "", plaetze: 40, training: "", qualifying: "", renndauer: "", wetter: "", server: "", passwort: "", briefing: "" };
 
   let d = null;
@@ -259,7 +259,7 @@
 
   /* ---------- Hilfen für Serien, Rennen und Strecken ---------- */
   const FARBEN = [["rot", "Rot"], ["blau", "Blau"], ["lila", "Lila"], ["gruen", "Grün"], ["gelb", "Gelb"], ["tuerkis", "Türkis"]];
-  const PUNKTE_VORLAGEN = [["Darkline, 20 Plätze", NEUE_SERIE.punkte], ["F1, Top 10", [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]], ["Linear, 20 bis 1", Array.from({ length: 20 }, (_, i) => 20 - i)]];
+  const PUNKTE_VORLAGEN = [["DSRS-Reglement, 16 Plätze", NEUE_SERIE.punkte], ["F1, Top 10", [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]], ["Linear, 20 bis 1", Array.from({ length: 20 }, (_, i) => 20 - i)]];
   const MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
   const heute = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
   const plusTage = (iso, tage) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ""); return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + tage)).toISOString().slice(0, 10) : ""; };
@@ -1190,7 +1190,7 @@
       return zeichne();
     }
     if (b.dataset.ergebnisEndgueltig) {
-      if (!window.confirm("Ergebnis jetzt endgültig freigeben? Sonst geschieht das automatisch nach Ablauf der Report-Frist.")) return;
+      if (!window.confirm("Ergebnis jetzt endgültig freigeben? Sonst geschieht das automatisch 72 Stunden nach Rennende.")) return;
       return aktion({ aktion: "ergebnis-endgueltig", serie: serieId, id: b.dataset.ergebnisEndgueltig }, "Ergebnis ist endgültig.");
     }
     if (b.dataset.pruefungErledigt) return aktion({ aktion: "pruefung-erledigt", serie: b.dataset.serie, id: b.dataset.pruefungErledigt }, "Als erledigt markiert.");

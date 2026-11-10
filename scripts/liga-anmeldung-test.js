@@ -112,8 +112,8 @@ const tests = {
     const ctx = (o) => ({ serie: { id: "gt3", reportStunden: 24, einspruchStunden: 48 }, rennen: [{ serie: "gt3", datum: "2026-11-10", startzeit: "20:00", renndauer: "60 min" }], reports: [], privat: {}, jetzt: start + 36e5, ...o });
     const s = iso(start);
     assert.strictEqual(R.ergebnisStand(s, ctx()), "vorlaeufig");
-    assert.strictEqual(R.ergebnisStand(s, ctx({ jetzt: start + 24 * 36e5 })), "vorlaeufig");
-    assert.strictEqual(R.ergebnisStand(s, ctx({ jetzt: start + 26 * 36e5 })), "endgueltig");
+    assert.strictEqual(R.ergebnisStand(s, ctx({ jetzt: start + 73 * 36e5 })), "vorlaeufig");
+    assert.strictEqual(R.ergebnisStand(s, ctx({ jetzt: start + 73 * 36e5 + 1 })), "endgueltig");
   },
   "Ergebnis: offene Reports und Einsprüche halten es vorläufig, auch nach einer Freigabe": () => {
     const start = Date.UTC(2026, 10, 10, 19);
@@ -130,7 +130,7 @@ const tests = {
     assert.strictEqual(R.sichtFahrer(ENTSCHIEDEN, [], "2", 2000, {}).kannEinspruch, false);
     const start = Date.UTC(2026, 10, 10, 19);
     const s = iso(start);
-    const stand = R.ergebnisStand(s, { serie: { id: "gt3", reportStunden: 24, einspruchStunden: 48 }, rennen: [], reports: [{ serie: "gt3", start: s, einsprueche: [], urteil: { zeit: iso(start + 20 * 36e5) } }], privat: {}, jetzt: start + 40 * 36e5 });
+    const stand = R.ergebnisStand(s, { serie: { id: "gt3", reportStunden: 24, einspruchStunden: 48 }, rennen: [], reports: [{ serie: "gt3", start: s, einsprueche: [], urteil: { zeit: iso(start + 20 * 36e5) } }], privat: {}, jetzt: start + 75 * 36e5 });
     assert.strictEqual(stand, "endgueltig");
   },
   "Ergebnis: Freigabe von Hand und Einspruchsfrist nach einem Urteil": () => mitEinspruch(() => {
@@ -139,7 +139,7 @@ const tests = {
     const urteilZeit = start + 20 * 36e5;
     const basis = { serie: { id: "gt3", reportStunden: 24, einspruchStunden: 48 }, rennen: [], reports: [{ serie: "gt3", start: s, einsprueche: [], urteil: { zeit: iso(urteilZeit) } }], privat: {} };
     assert.strictEqual(R.ergebnisStand(s, { ...basis, jetzt: start + 40 * 36e5 }), "vorlaeufig");
-    assert.strictEqual(R.ergebnisStand(s, { ...basis, jetzt: urteilZeit + 49 * 36e5 }), "endgueltig");
+    assert.strictEqual(R.ergebnisStand(s, { ...basis, jetzt: start + 75 * 36e5 }), "endgueltig");
     assert.strictEqual(R.ergebnisStand(s, { ...basis, privat: { endgueltig: [s] }, jetzt: start + 36e5 }), "endgueltig");
     const t = { rennen: [{ start: s, strecke: "Spa" }] };
     R.staendeSetzen(t, { ...basis, jetzt: start + 36e5 });
@@ -911,12 +911,16 @@ const tests = {
     const start = 100 * 3600e3;
     const ende = start + 3600e3;
     const r = (o) => ({ id: "x", titel: "T", status: "geplant", serie: "s", start: iso(start), ende: iso(ende), ich: { status: "starter", discordId: "1" }, starter: [{ name: "Ich", discordId: "1" }, { name: "Du", discordId: "2" }], ...o });
-    assert.deepStrictEqual(R.meldbareRennen([r()], ende, {})[0].fahrer, ["Du"]);
+    assert.strictEqual(R.meldbareRennen([r()], ende + 30 * 6e4 - 1, {}).length, 0);
+    assert.deepStrictEqual(R.meldbareRennen([r()], ende + 30 * 6e4, {})[0].fahrer, ["Du"]);
+    assert.strictEqual(R.cooldownBis([r()], ende), iso(ende + 30 * 6e4));
+    assert.strictEqual(R.cooldownBis([r()], start - 1), null);
+    assert.strictEqual(R.cooldownBis([r()], ende + 30 * 6e4), null);
     assert.strictEqual(R.meldbareRennen([r()], ende + 24 * 3600e3, {}).length, 1);
     assert.strictEqual(R.meldbareRennen([r()], ende + 24 * 3600e3 + 1, {}).length, 0);
     assert.strictEqual(R.meldbareRennen([r()], start - 1, {}).length, 0);
-    assert.strictEqual(R.meldbareRennen([r({ ich: { status: "warteliste", discordId: "1" } })], ende, {}).length, 0);
-    assert.strictEqual(R.meldbareRennen([r({ status: "abgesagt" })], ende, {}).length, 0);
+    assert.strictEqual(R.meldbareRennen([r({ ich: { status: "warteliste", discordId: "1" } })], ende + 36e5, {}).length, 0);
+    assert.strictEqual(R.meldbareRennen([r({ status: "abgesagt" })], ende + 36e5, {}).length, 0);
   },
   "Manipuliertes Cookie wird abgelehnt": () => {
     const r = res();

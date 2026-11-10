@@ -42,6 +42,7 @@ async function reportDaten(s, kat, alle, frisch) {
   const sicht = reports.map((r) => R.sichtFahrer(r, r.einsprueche, s.id, jetzt, serien[r.serie]));
   return {
     meldbar: R.meldbareRennen(rennenFuerReports(s, kat, alle), jetzt, serien),
+    cooldownBis: R.cooldownBis(rennenFuerReports(s, kat, alle), jetzt),
     meine: sicht.filter((r) => r.beteiligt),
     urteile: sicht.filter((r) => r.urteil).slice(0, 50),
   };
