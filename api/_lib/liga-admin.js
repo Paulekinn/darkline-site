@@ -57,7 +57,7 @@ async function serienDetails(kat, id) {
   return {
     serie: id, fahrer,
     rennen: A.baueRennen(kat.rennen.filter((r) => r.serie === id), alle, opt).map(({ id: rid, titel, start, status, plaetze, starter, warteliste }) => ({ id: rid, titel, start, status, plaetze, starter, warteliste })),
-    ergebnisse: ergebnisse.map((e) => ({ id: e.id, start: e.start, strecke: e.strecke, variante: e.variante, stand: R.ergebnisStand(e.start, standCtx), fahrer: e.fahrer.map((f) => ({ cust: f.cust, name: f.name })) })).sort((a, b) => String(a.start).localeCompare(String(b.start))),
+    ergebnisse: ergebnisse.map((e) => ({ id: e.id, start: e.start, strecke: e.strecke, variante: e.variante, verkuerzt: !!e.verkuerzt, stand: R.ergebnisStand(e.start, standCtx), fahrer: e.fahrer.map((f) => ({ cust: f.cust, name: f.name })) })).sort((a, b) => String(a.start).localeCompare(String(b.start))),
     strafen: [
       ...privat.strafen.map((s) => ({ ...s, typ: "punkte" })),
       ...(privat.zeitstrafen || []).map((s) => ({ ...s, typ: "zeit" })),
@@ -113,6 +113,8 @@ async function protokollText(b, kat) {
     "bericht-posten": () => `Rennbericht im Discord gepostet: ${serie(b.serie)}`,
     "ergebnis-endgueltig": () => `Ergebnis endgültig freigegeben in ${serie(b.serie)}`,
     "katalog-speichern": () => "Strafenkatalog geändert",
+    "reglement-speichern": () => `Reglement geändert, Version ${(b.reglement || {}).version}`,
+    "ergebnis-distanz": () => `Renndistanz ${b.verkuerzt ? "als verkürzt markiert" : "wieder als voll gewertet"} in ${serie(b.serie)}`,
     "saison-planen": () => `${(b.rennen || []).length} Rennen geplant in ${serie(b.serie)}`,
     "rennen-speichern": () => `${b.id ? "Rennen geändert" : "Rennen angelegt"}: ${(b.rennen || {}).titel}`,
     "rennen-loeschen": () => `Rennen gelöscht: ${rennen(b.id)}`,
@@ -389,10 +391,25 @@ const aktionen = {
     if (!ergebnis.fahrer.length) throw new Hinweis("Keiner der Fahrer in dieser Datei ist für diese Serie gemeldet. Prüfe die Serie und die Datei oder lasse einzelne Fahrer als Gast zu.");
     // Ein Fehler bei der Zusatzprüfung darf das Veröffentlichen nicht verhindern.
     const pruefung = D.pruefungNachRennen(ergebnis, await erwarteteStarter(kat, serie, ergebnis).catch(() => []));
-    await D.ergebnisSpeichern(b.serie, { ...ergebnis, ...(pruefung ? { pruefung } : {}) });
+    // Wird eine korrigierte Datei erneut eingelesen, bleibt die Markierung für die verkürzte Distanz erhalten.
+    const bisher = (await D.ergebnisseLesen(b.serie)).find((e) => e.id === ergebnis.id);
+    await D.ergebnisSpeichern(b.serie, { ...ergebnis, ...(pruefung ? { pruefung } : {}), ...(bisher && bisher.verkuerzt ? { verkuerzt: true } : {}) });
     const warnungen = (await neuBerechnen(kat, b.serie)) || [];
     const berichtOffen = !!process.env.LIGA_DISCORD_WEBHOOK && !(await Renntag.berichtSchonGepostet(ergebnis.id));
     return { warnungen, ergebnisId: ergebnis.id, berichtOffen };
+  },
+  async "reglement-speichern"(b) {
+    await Regeln.reglementSpeichern(Regeln.pruefeReglement(b.reglement));
+    return {};
+  },
+  // Reglement 4.3: Unter 75 % der ausgeschriebenen Distanz gibt es nur anteilige Platzpunkte. Das entscheidet die Rennleitung.
+  async "ergebnis-distanz"(b, kat) {
+    serieFinden(kat, b.serie);
+    const ergebnis = (await D.ergebnisseLesen(b.serie)).find((e) => e.id === String(b.id));
+    if (!ergebnis) throw new Hinweis("Dieses Ergebnis gibt es nicht.");
+    await D.ergebnisSpeichern(b.serie, { ...ergebnis, verkuerzt: !!b.verkuerzt });
+    await neuBerechnen(kat, b.serie);
+    return {};
   },
   // Bereits gesprochene Urteile bleiben unverändert, sie speichern ihr Strafmaß selbst.
   async "katalog-speichern"(b) {
@@ -559,7 +576,7 @@ module.exports = async (req, res) => {
     const alleReports = await R.alleReports(true);
     const ergebnisseJe = new Map(await Promise.all([...new Set(alleReports.map((r) => r.serie))].filter((x) => D.istId(x)).map(async (id) => [id, await D.ergebnisseLesen(id).catch(() => [])])));
     const reports = alleReports.map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id), stimmen: R.stimmenSicht(r, s.id), kontext: R.rennKontext(r, ergebnisseJe.get(r.serie) || []) }));
-    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });

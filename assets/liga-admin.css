@@ -294,6 +294,11 @@ details.a-rennen summary:focus-visible{outline:2px solid var(--a-text);outline-o
 .a-stimmen li{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;padding:8px 11px;background:var(--a-flaeche2)}
 .a-stimmen b{font-weight:800}
 .a-stimmen small{flex:1 1 100%;font:.74rem/1.3 var(--a-mono);color:var(--a-leise)}
+details.a-rg{margin-bottom:6px}
+details.a-rg summary small{margin-left:8px;font:500 .72rem var(--a-mono);color:var(--a-leise)}
+.a-rg-inhalt{display:grid;gap:12px;padding:6px 12px 14px}
+.a-rg-punkt{display:grid;gap:6px;padding:10px;background:var(--a-seite)}
+.a-rg-kopf{display:grid;grid-template-columns:90px minmax(0,1fr) auto;gap:6px;align-items:center}
 .a-katalog input{width:100%;min-width:60px;padding:6px 7px;font-size:.84rem}
 .a-katalog td{padding:3px 4px}
 .a-katalog table{min-width:1040px}

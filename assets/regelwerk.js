@@ -4,7 +4,7 @@
   const inhalt = document.getElementById("rw-inhalt");
   const knoepfe = [...document.querySelectorAll("[data-teil]")];
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const PDF = { reglement: ["Reglement_DSRS_1.1.0.pdf", "Reglement als PDF"], strafen: ["Anhang_A_Strafenkatalog_1.1.0.pdf", "Anhang A als PDF"], flaggen: ["Anhang_B_Flaggensignale_1.0.2.pdf", "Anhang B als PDF"] };
+  const PDF = { reglement: ["Reglement_DSRS_1.1.0.pdf", "Reglement 1.1.0 als PDF"], strafen: ["Anhang_A_Strafenkatalog_1.1.0.pdf", "Anhang A als PDF"], flaggen: ["Anhang_B_Flaggensignale_1.0.2.pdf", "Anhang B als PDF"] };
   const pdfLink = (t) => `<a class="rw-pdf" href="dokumente/${PDF[t][0]}" target="_blank" rel="noopener">${PDF[t][1]} ↓</a>`;
   const deDatum = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ""); return m ? `${m[3]}.${m[2]}.${m[1]}` : ""; };
 
@@ -23,7 +23,7 @@
   }
 
   function reglement() {
-    const r = window.LigaReglement;
+    const r = window.LigaReglementFormat.zuAnzeige(reglementDaten || window.LigaReglement);
     // Im Dokument kommen 6.4 und 6.5 doppelt vor, die Anker werden deshalb durchgezählt.
     let lauf = 0;
     const teile = r.abschnitte.map((h) => ({ ...h, unter: h.unter.map((u) => ({ ...u, anker: `rw-${++lauf}` })) }));
@@ -66,6 +66,7 @@
   }
 
   let katalog = null;
+  let reglementDaten = null;
   let teil = new URLSearchParams(location.search).get("teil");
   if (!PDF[teil]) teil = "reglement";
 
@@ -88,5 +89,5 @@
   });
 
   zeige();
-  fetch("api/liga?r=regeln", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : Promise.reject())).then((d) => { katalog = d.katalog; if (teil === "strafen") zeige(); }).catch(() => { if (teil === "strafen") inhalt.innerHTML = '<p class="rw-hinweis">Der Strafenkatalog ist gerade nicht erreichbar.</p>'; });
+  fetch("api/liga?r=regeln", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : Promise.reject())).then((d) => { katalog = d.katalog; reglementDaten = d.reglement; if (teil === "strafen" || (teil === "reglement" && reglementDaten)) zeige(); }).catch(() => { if (teil === "strafen") inhalt.innerHTML = '<p class="rw-hinweis">Der Strafenkatalog ist gerade nicht erreichbar.</p>'; });
 })();

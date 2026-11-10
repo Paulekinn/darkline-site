@@ -73,6 +73,8 @@ function pruefeSerie(e) {
     bonusPole: ganzzahl(e.bonusPole, "Bonus Pole", 0, 100),
     bonusSchnellsteRunde: ganzzahl(e.bonusSchnellsteRunde, "Bonus schnellste Runde", 0, 100),
     mindestRundenProzent: ganzzahl(e.mindestRundenProzent, "Mindestrunden", 0, 100),
+    mindestStarter: ganzzahl(e.mindestStarter ?? 0, "Mindestzahl an Startern", 0, 200),
+    punkteVerkuerztProzent: ganzzahl(e.punkteVerkuerztProzent ?? 50, "Punkte bei verkürzter Distanz", 0, 100),
   };
   pruefeRegeln(serie);
   return serie;

@@ -56,6 +56,27 @@ const rennenMit = (anzahl, feld) => Array.from({ length: anzahl }, (_, i) => dat
 const OHNE_KATEGORIE = { ...OHNE_BONUS, kategorie: "" };
 
 const tests = {
+  "Regel 4.3: unter der Mindestzahl an Startern gibt es keine Punkte": () => {
+    const regeln = { ...EINE_KLASSE, punkte: [25, 21, 18, 15, 13], punkteDanach: 1, bonusPole: 1, bonusSchnellsteRunde: 1, mindestRundenProzent: 60, mindestStarter: 5, rennenGesamt: 2, gewerteteRennen: 2 };
+    const vier = [{ c: 1 }, { c: 2 }, { c: 3 }, { c: 4 }];
+    const f = fahrer(klasse(tabelle([datei(1, 1, vier)], regeln), "a"), "F1");
+    assert.strictEqual(f.punkte, 0);
+    const fuenf = fahrer(klasse(tabelle([datei(1, 1, [...vier, { c: 5 }])], regeln), "a"), "F1");
+    assert.strictEqual(fuenf.punkte, 27);
+  },
+  "Regel 4.3: bei verkürzter Distanz gibt es anteilige Platzpunkte, Bonus bleibt": () => {
+    const regeln = { ...EINE_KLASSE, punkte: [25, 21, 18], punkteDanach: 1, bonusPole: 1, bonusSchnellsteRunde: 1, mindestRundenProzent: 60, rennenGesamt: 2, gewerteteRennen: 2, punkteVerkuerztProzent: 50 };
+    const r = lies(datei(1, 1, [{ c: 1 }, { c: 2 }, { c: 3 }]));
+    r.verkuerzt = true;
+    const k = klasse(berechneTabelle([r], regeln), "a");
+    assert.strictEqual(fahrer(k, "F1").punkte, 15);
+    assert.strictEqual(fahrer(k, "F2").punkte, 11);
+    const ohne = klasse(berechneTabelle([r], { ...regeln, punkteVerkuerztProzent: undefined }), "a");
+    assert.strictEqual(fahrer(ohne, "F3").punkte, 9);
+  },
+  "Regel 4.3: Serien ohne Einstellung bleiben unverändert": () => {
+    assert.strictEqual(fahrer(klasse(tabelle([datei(1, 1, [{ c: 1 }, { c: 2 }])], { ...EINE_KLASSE, punkte: [25, 21], punkteDanach: 1 }), "a"), "F1").punkte, 25);
+  },
   "Gesamtwertung: Punkte nach Zieleinlauf statt Summe der Klassenpunkte": () => {
     const t = tabelle([datei(1, 1, [
       { c: 1, n: "Pro1", ir: 3000 }, { c: 2, n: "Pro2", ir: 2900 }, { c: 3, n: "Am1", ir: 1000 }, { c: 4, n: "Am2", ir: 900 },

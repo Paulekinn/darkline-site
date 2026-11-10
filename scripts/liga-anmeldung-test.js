@@ -79,6 +79,31 @@ const T = require("../api/_lib/liga-renntag");
 const K = require("../api/_lib/liga-regeln");
 
 const tests = {
+  "Sortierung: Nummern stehen an der richtigen Stelle": () => {
+    const F = require("../assets/liga-reglement-format.js");
+    assert.deepStrictEqual(["5.10", "4.3", "", "5.8", "04.0", "5"].sort(F.nummerVergleich), ["04.0", "4.3", "5", "5.8", "5.10", ""]);
+    const zeile = (nr) => ({ nr, vergehen: "A", erklaerung: "b", min: "5 Sek." });
+    assert.deepStrictEqual(K.pruefeKatalog({ eintraege: [zeile("5.8"), zeile("4.3"), zeile("01.0")], strafpunkte: [{ strafe: "DT", punkte: 3 }] }).eintraege.map((x) => x.nr), ["01.0", "4.3", "5.8"]);
+  },
+  "Reglement: Text und Blöcke lassen sich verlustfrei umwandeln": () => {
+    const F = require("../assets/liga-reglement-format.js");
+    const bloecke = [{ art: "p", text: "Ein **Satz**." }, { art: "ul", items: ["a", "b"] }, { art: "zeilen", items: ["x", "y"] }, { art: "tabelle", kopf: ["A", "B"], zeilen: [["1", "2"]] }, { art: "bild", src: "img/regeln/rennstart.png", text: "Titel", alt: "Beschreibung" }];
+    assert.deepStrictEqual(F.textZuBloecke(F.bloeckeZuText(bloecke)), bloecke);
+    assert.strictEqual(F.textZuBloecke("[bild https://boese.example/x.png | a | b]")[0].art, "p");
+  },
+  "Reglement: wird geprüft und nach Nummern sortiert": () => {
+    const u = (nr) => ({ nr, titel: "T", text: "x" });
+    const r = K.pruefeReglement({ titel: "R", version: "1.2", abschnitte: [{ nr: "5", titel: "B", unter: [u("5.10"), u("5.8")] }, { nr: "4", titel: "A", unter: [u("4.3")] }] }, new Date(Date.UTC(2026, 10, 10)));
+    assert.deepStrictEqual(r.abschnitte.map((h) => h.nr), ["4", "5"]);
+    assert.deepStrictEqual(r.abschnitte[1].unter.map((x) => x.nr), ["5.8", "5.10"]);
+    assert.strictEqual(r.stand, "10.11.2026");
+    const verschoben = K.pruefeReglement({ version: "1", abschnitte: [{ nr: "4", titel: "A", unter: [u("4.5")] }, { nr: "5", titel: "B", unter: [u("4.3"), u("5.1")] }] });
+    assert.deepStrictEqual(verschoben.abschnitte.map((h) => h.unter.map((x) => x.nr)), [["4.3", "4.5"], ["5.1"]]);
+    assert.strictEqual(verschoben.abschnitte[0].offen, undefined);
+    assert.throws(() => K.pruefeReglement({ version: "1", abschnitte: [{ nr: "5", titel: "B", unter: [u("5.8"), u("5.8")] }] }), /mehrfach/);
+    assert.throws(() => K.pruefeReglement({ version: "", abschnitte: [{ nr: "5", titel: "B", unter: [] }] }), /Version/);
+    assert.throws(() => K.pruefeReglement({ version: "1", abschnitte: [] }), /Abschnitt/);
+  },
   "Strafenkatalog: PDF-Stand ist vollständig und gültig": () => {
     const k = K.pruefeKatalog(K.STANDARD, new Date(Date.UTC(2026, 10, 10)));
     assert.strictEqual(k.eintraege.length, 42);

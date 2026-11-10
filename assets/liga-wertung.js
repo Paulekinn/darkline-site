@@ -105,6 +105,9 @@
   // Wertet ein Rennen getrennt je Fahrzeugklasse und iRating-Klasse aus. Ergebnis: Map iRacing-ID → Rennwertung.
   function werteRennen(rennen, einstufung, regeln) {
     const ergebnis = new Map();
+    // Reglement 4.3: Unter der Mindestzahl an Startern gibt es keine Punkte, bei verkürzter Distanz nur einen Teil der Platzpunkte.
+    const keinePunkte = regeln.mindestStarter > 0 && rennen.fahrer.length < regeln.mindestStarter;
+    const distanzFaktor = rennen.verkuerzt ? (regeln.punkteVerkuerztProzent ?? 50) / 100 : 1;
     const gruppen = [...new Set(rennen.fahrer.map((f) => f.fahrzeugklasseId))].flatMap((fz) => regeln.klassen.map((klasse) => ({ fz, klasse })));
     for (const { fz, klasse } of gruppen) {
       const starter = rennen.fahrer.filter((f) => f.fahrzeugklasseId === fz && einstufung.get(f.cust).klasse === klasse.id);
@@ -123,13 +126,13 @@
         // Bonuspunkte gibt es nur für gewertete Fahrer. Fällt der Halter aus, verfällt der Bonus.
         const hatPole = ok && f === pole;
         const hatRunde = ok && f === schnellste;
-        const basis = ok ? punkteFuer(platz, regeln) : 0;
+        const basis = ok ? Math.round(punkteFuer(platz, regeln) * distanzFaktor) : 0;
         ergebnis.set(f.cust, {
           klasse: klasse.id,
           fahrzeugklasse: fz,
           platz: ok ? platz : null,
           status: f.disqualifiziert ? "DSQ" : ok ? "OK" : "DNF",
-          punkte: basis + (hatPole ? regeln.bonusPole || 0 : 0) + (hatRunde ? regeln.bonusSchnellsteRunde || 0 : 0),
+          punkte: keinePunkte ? 0 : basis + (hatPole ? regeln.bonusPole || 0 : 0) + (hatRunde ? regeln.bonusSchnellsteRunde || 0 : 0),
           pole: hatPole,
           schnellsteRunde: hatRunde,
           runden: f.runden,

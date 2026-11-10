@@ -16,7 +16,7 @@
     "keine-rolle": "Dein Discord-Konto hat keine Rolle für die Rennleitung.",
     technik: "Technischer Fehler. Bitte versuche es gleich noch einmal.",
   };
-  const TABS = [["cockpit", "Cockpit"], ["reports", "Reports"], ["serien", "Seasons &amp; Events"], ["rennen", "Rennen"], ["strecken", "Strecken"], ["katalog", "Strafenkatalog"], ["fahrer", "Fahrer"], ["ergebnisse", "Ergebnisse"], ["protokoll", "Protokoll"]];
+  const TABS = [["cockpit", "Cockpit"], ["reports", "Reports"], ["serien", "Seasons &amp; Events"], ["rennen", "Rennen"], ["strecken", "Strecken"], ["katalog", "Strafenkatalog"], ["reglement", "Reglement"], ["fahrer", "Fahrer"], ["ergebnisse", "Ergebnisse"], ["protokoll", "Protokoll"]];
   const URTEILE = [["kein-vergehen", "Kein Vergehen"], ["verwarnung", "Verwarnung"], ["strafpunkte", "Strafpunkte"], ["zeitstrafe", "Zeitstrafe"], ["dsq", "Disqualifikation"]];
   const NEUE_SERIE = { name: "", typ: "liga", saison: "", status: "geplant", anmeldungOffen: true, farbe: "rot", beschreibung: "", kategorie: "Sports_Car", fahrzeugklassen: [], rennenGesamt: 8, gewerteteRennen: 7, anmeldeschlussMinuten: 60,
     klassen: [{ name: "Pro", min: 2500, max: null }, { name: "Pro-Am", min: 1500, max: 2499 }, { name: "Am", min: 0, max: 1499 }],
@@ -447,6 +447,8 @@
         ${feld("Bonus Pole", eingabe("bonusPole", w.bonusPole, 'type="number" min="0"'))}
         ${feld("Bonus schnellste Runde", eingabe("bonusSchnellsteRunde", w.bonusSchnellsteRunde, 'type="number" min="0"'))}
         ${feld("Mindestrunden in Prozent", eingabe("mindestRundenProzent", w.mindestRundenProzent, 'type="number" min="0" max="100"'))}
+        ${feld("Mindestzahl an Startern", eingabe("mindestStarter", w.mindestStarter ?? 5, 'type="number" min="0"'))}
+        ${feld("Punkte bei verkürzter Distanz (%)", eingabe("punkteVerkuerztProzent", w.punkteVerkuerztProzent ?? 50, 'type="number" min="0" max="100"'))}
       </div>`)}
       ${abschnittForm(5, "Briefing-Vorlage", `<textarea name="briefingVorlage" maxlength="10000" placeholder="Wird bei jedem neuen Rennen automatisch eingefügt">${esc(w.briefingVorlage || "")}</textarea>`, "Markdown ist möglich. Bereits angelegte Rennen bleiben unverändert.")}
       ${abschnittForm(6, "Bild der Serie", form.id ? bildFeld(form.id) : '<p class="a-hinweis">Ein eigenes Bild kannst du hinzufügen, sobald die Serie gespeichert ist.</p>')}
@@ -805,7 +807,7 @@
   function ergebnisTab() {
     if (!d.serien.length) return '<section class="a-karte"><p class="a-leer">Leg zuerst eine Serie an.</p></section>';
     const det = d.details;
-    const ergebnisse = det.ergebnisse.map((e) => `<tr><td>${esc(zeit(e.start))}</td><td class="umbruch">${esc([e.strecke, e.variante].filter(Boolean).join(" · "))}</td><td class="rechts">${e.fahrer.length}</td><td>${e.stand === "vorlaeufig" ? '<span class="a-chip gelb">Vorläufig</span>' : '<span class="a-chip gruen">Endgültig</span>'}</td><td class="rechts"><div class="a-leiste a-rechtsbuendig">${e.stand === "vorlaeufig" ? `<button type="button" class="a-knopf zweit klein" data-ergebnis-endgueltig="${esc(e.id)}">Endgültig freigeben</button>` : ""}<button type="button" class="a-knopf zweit klein" data-bericht-posten="${esc(e.id)}">In Discord posten</button><button type="button" class="a-knopf gefahr klein" data-ergebnis-loeschen="${esc(e.id)}">Löschen</button></div></td></tr>`).join("");
+    const ergebnisse = det.ergebnisse.map((e) => `<tr><td>${esc(zeit(e.start))}</td><td class="umbruch">${esc([e.strecke, e.variante].filter(Boolean).join(" · "))}</td><td class="rechts">${e.fahrer.length}</td><td>${e.stand === "vorlaeufig" ? '<span class="a-chip gelb">Vorläufig</span>' : '<span class="a-chip gruen">Endgültig</span>'}${e.verkuerzt ? ' <span class="a-chip rot">Verkürzt</span>' : ""}</td><td class="rechts"><div class="a-leiste a-rechtsbuendig"><button type="button" class="a-knopf zweit klein" data-ergebnis-distanz="${esc(e.id)}" data-wert="${e.verkuerzt ? "" : "1"}">${e.verkuerzt ? "Volle Distanz" : "Unter 75 % Distanz"}</button>${e.stand === "vorlaeufig" ? `<button type="button" class="a-knopf zweit klein" data-ergebnis-endgueltig="${esc(e.id)}">Endgültig freigeben</button>` : ""}<button type="button" class="a-knopf zweit klein" data-bericht-posten="${esc(e.id)}">In Discord posten</button><button type="button" class="a-knopf gefahr klein" data-ergebnis-loeschen="${esc(e.id)}">Löschen</button></div></td></tr>`).join("");
     const strafen = det.strafen.map((s) => {
       const e = det.ergebnisse.find((x) => x.id === s.rennen);
       const wert = s.typ === "zeit" ? `+${s.sekunden} s` : s.typ === "dsq" ? "DSQ" : `−${s.punkte}`;
@@ -888,6 +890,42 @@
   function katalogAusFormular(f) {
     const zeilen = (attr) => [...f.querySelectorAll(`tr[${attr}]`)].map((z) => Object.fromEntries([...z.querySelectorAll("input")].map((i) => [i.dataset.feld, i.value])));
     return { eintraege: zeilen("data-k-zeile"), strafpunkte: zeilen("data-p-zeile") };
+  }
+
+  /* ---------- Reglement bearbeiten ---------- */
+  const NR = window.LigaReglementFormat.nummerVergleich;
+  let reglementEntwurf = null;
+  const reglementAktuell = () => reglementEntwurf || window.LigaReglementFormat.zuBearbeitung(d.reglement || window.LigaReglement);
+  const nachNummer = (liste) => liste.sort((a, b) => NR(a.nr, b.nr));
+
+  function reglementAusFormular(f) {
+    return {
+      titel: f.elements.rg_titel.value, version: f.elements.rg_version.value,
+      abschnitte: [...f.querySelectorAll("details[data-rg-haupt]")].map((h) => ({
+        offen: h.open,
+        nr: h.querySelector("[data-rg='nr']").value, titel: h.querySelector("[data-rg='titel']").value,
+        unter: [...h.querySelectorAll("[data-rg-unter]")].map((u) => ({ nr: u.querySelector("[data-rgu='nr']").value, titel: u.querySelector("[data-rgu='titel']").value, text: u.querySelector("textarea").value })),
+      })),
+    };
+  }
+
+  function reglementTab() {
+    const r = reglementAktuell();
+    const abschnitte = r.abschnitte.map((h, i) => `<details class="a-rennen a-rg" data-rg-haupt="${i}"${h.offen ? " open" : ""}>
+      <summary>${esc(h.nr)}. ${esc(h.titel)} <small>${h.unter.length} Punkte</small></summary>
+      <div class="a-rg-inhalt">
+        <div class="a-rg-kopf"><input data-rg="nr" value="${esc(h.nr)}" aria-label="Nummer des Abschnitts"><input data-rg="titel" value="${esc(h.titel)}" aria-label="Titel des Abschnitts"><button type="button" class="a-knopf gefahr klein" data-rg-weg="${i}">Abschnitt löschen</button></div>
+        ${h.unter.map((u, j) => `<div class="a-rg-punkt" data-rg-unter="${j}"><div class="a-rg-kopf"><input data-rgu="nr" value="${esc(u.nr)}" aria-label="Nummer"><input data-rgu="titel" value="${esc(u.titel)}" aria-label="Titel"><button type="button" class="a-knopf gefahr klein" data-rgu-weg="${i}:${j}">Löschen</button></div><textarea rows="${Math.min(14, Math.max(4, u.text.split("\n").length + 1))}" maxlength="20000" aria-label="Text von ${esc(u.nr)}">${esc(u.text)}</textarea></div>`).join("")}
+        <div><button type="button" class="a-knopf zweit klein" data-rgu-neu="${i}">Punkt hinzufügen</button></div>
+      </div>
+    </details>`).join("");
+    return `<form id="f-reglement" novalidate><section class="a-karte">
+      <div class="a-kartenkopf"><h2>Reglement bearbeiten</h2><div class="a-leiste"><span class="a-chip">Stand ${esc(r.stand || "")}</span><a class="a-knopf zweit klein" href="/regelwerk" target="_blank" rel="noopener">Öffentliche Ansicht</a></div></div>
+      <div class="a-felder">${feld("Titel", `<input name="rg_titel" value="${esc(r.titel)}" maxlength="120">`, true)}${feld("Version", `<input name="rg_version" value="${esc(r.version)}" maxlength="20">`)}</div>
+      <p class="a-hinweis">Leerzeile = neuer Absatz. <b>**Text**</b> = fett. Zeilen mit „- “ am Anfang = Aufzählung. Zeilen wie „| A | B |“ = Tabelle. Änderst du eine Nummer, rutscht der Punkt automatisch an die richtige Stelle. Der Stand wird beim Speichern gesetzt.</p>
+      ${abschnitte}
+      <div class="a-leiste"><button type="button" class="a-knopf zweit klein" data-rg-neu="1">Abschnitt hinzufügen</button><button type="submit" class="a-knopf">Reglement speichern</button></div>
+    </section></form>`;
   }
 
   function katalogTab() {
@@ -1031,7 +1069,7 @@
   /* ---------- Rahmen ---------- */
   function zeichne() {
     if (!d || !d.angemeldet) return zeigeLogin();
-    const inhalte = { katalog: katalogTab, protokoll: protokollTab, cockpit: cockpitTab, serien: serienTab, rennen: rennenTab, strecken: streckenTab, fahrer: fahrerTab, reports: reportsTab, ergebnisse: ergebnisTab };
+    const inhalte = { reglement: reglementTab, katalog: katalogTab, protokoll: protokollTab, cockpit: cockpitTab, serien: serienTab, rennen: rennenTab, strecken: streckenTab, fahrer: fahrerTab, reports: reportsTab, ergebnisse: ergebnisTab };
     const inhalt = inhalte[tab]();
     const offene = d.reports.filter(braucht).length;
     app.innerHTML = `<div class="a-rahmen">
@@ -1120,6 +1158,16 @@
     if (b.dataset.planer) { planer = neuerPlaner(b.dataset.planer); tab = "rennen"; form = null; return zeigeFormular(); }
     if (b.dataset.rennenFilter) { rennenFilter = b.dataset.rennenFilter; return zeichne(); }
     if (b.dataset.punkteVorlage) { app.querySelector('#f-serie [name="punkte"]').value = PUNKTE_VORLAGEN[Number(b.dataset.punkteVorlage)][1].join(", "); return; }
+    if (b.dataset.rgNeu || b.dataset.rgWeg || b.dataset.rguNeu || b.dataset.rguWeg) {
+      const stand = reglementAktuell().stand;
+      reglementEntwurf = { ...reglementAusFormular(b.form), stand };
+      const liste = reglementEntwurf.abschnitte;
+      if (b.dataset.rgNeu) liste.push({ nr: String(Math.max(0, ...liste.map((h) => Number(h.nr) || 0)) + 1), titel: "Neuer Abschnitt", offen: true, unter: [] });
+      if (b.dataset.rgWeg) { if (!window.confirm("Diesen Abschnitt mit allen Punkten löschen?")) return; liste.splice(Number(b.dataset.rgWeg), 1); }
+      if (b.dataset.rguNeu) { const h = liste[Number(b.dataset.rguNeu)]; h.unter.push({ nr: `${h.nr}.${h.unter.length + 1}`, titel: "Neuer Punkt", text: "" }); }
+      if (b.dataset.rguWeg) { const [i, j] = b.dataset.rguWeg.split(":").map(Number); if (!window.confirm("Diesen Punkt löschen?")) return; liste[i].unter.splice(j, 1); }
+      return zeichne();
+    }
     if (b.dataset.kNeu || b.dataset.kWeg || b.dataset.pNeu || b.dataset.pWeg) {
       // Eingaben zuerst übernehmen, sonst gingen sie beim Neuzeichnen verloren.
       katalogEntwurf = { ...katalogAusFormular(b.form), stand: d.katalog.stand };
@@ -1189,6 +1237,11 @@
       if (gepostet) setzeMeldung("Rennbericht im Discord gepostet.");
       return zeichne();
     }
+    if (b.dataset.ergebnisDistanz) {
+      const verkuerzt = !!b.dataset.wert;
+      if (!window.confirm(verkuerzt ? "Dieses Rennen als verkürzt werten? Es gibt dann nur noch anteilige Platzpunkte, die Tabelle wird neu berechnet." : "Wieder volle Punkte für dieses Rennen vergeben?")) return;
+      return aktion({ aktion: "ergebnis-distanz", serie: serieId, id: b.dataset.ergebnisDistanz, verkuerzt }, "Renndistanz geändert, die Tabelle ist aktualisiert.");
+    }
     if (b.dataset.ergebnisEndgueltig) {
       if (!window.confirm("Ergebnis jetzt endgültig freigeben? Sonst geschieht das automatisch 72 Stunden nach Rennende.")) return;
       return aktion({ aktion: "ergebnis-endgueltig", serie: serieId, id: b.dataset.ergebnisEndgueltig }, "Ergebnis ist endgültig.");
@@ -1211,6 +1264,13 @@
       return;
     }
     if (f.id === "f-notiz") return aktion({ aktion: "report-notiz", id: reportId, notizen: w.notizen }, "Notizen gespeichert.");
+    if (f.id === "f-reglement") {
+      const reglement = reglementAusFormular(f);
+      reglementEntwurf = { ...reglement, stand: reglementAktuell().stand };
+      const a = await aktion({ aktion: "reglement-speichern", reglement }, "Reglement gespeichert.");
+      if (a) { reglementEntwurf = null; zeichne(); }
+      return;
+    }
     if (f.id === "f-katalog") {
       const katalog = katalogAusFormular(f);
       katalogEntwurf = { ...katalog, stand: d.katalog.stand };
@@ -1289,6 +1349,17 @@
       planer.zeilen = Array.from({ length: anzahl }, (_, i) => ({ datum: plusTage(planer.start, i * planer.abstand), strecke: (planer.zeilen[i] || {}).strecke || "" }));
       document.getElementById("a-plan-zeilen").innerHTML = planerZeilenHtml();
       return;
+    }
+    // Geänderte Nummern rutschen sofort an die richtige Stelle.
+    if (t.dataset.feld === "nr" && t.form && t.form.id === "f-katalog") {
+      katalogEntwurf = { ...katalogAusFormular(t.form), stand: d.katalog.stand };
+      nachNummer(katalogEntwurf.eintraege);
+      return zeichne();
+    }
+    if ((t.dataset.rg === "nr" || t.dataset.rgu === "nr") && t.form && t.form.id === "f-reglement") {
+      const stand = reglementAktuell().stand;
+      reglementEntwurf = window.LigaReglementFormat.ordneReglement({ ...reglementAusFormular(t.form), stand });
+      return zeichne();
     }
     if (t.id === "u-katalog") {
       const k = katalogVorlagen().find((x) => x.nr === t.value);

@@ -472,6 +472,8 @@
       <ul class="liga-regelliste">
         <li>Je ${r.bonusPole} Bonuspunkt für die Pole und ${r.bonusSchnellsteRunde} für die schnellste Runde der eigenen Klasse.</li>
         <li>Gewertet wird, wer mindestens ${r.mindestRundenProzent} % der Runden des Klassensiegers schafft.</li>
+        ${r.mindestStarter > 0 ? `<li>Punkte gibt es ab ${r.mindestStarter} gestarteten Teilnehmern.</li>` : ""}
+        ${r.punkteVerkuerztProzent !== undefined ? `<li>Wird weniger als 75 % der ausgeschriebenen Renndistanz gefahren, gibt es ${r.punkteVerkuerztProzent} % der Platzpunkte.</li>` : ""}
         ${r.gewerteteRennen < r.rennenGesamt ? `<li>Es zählen die besten ${r.gewerteteRennen} von ${r.rennenGesamt} Rennen. Strafpunkte werden immer abgezogen.</li>` : ""}
         ${r.ohneKlassen ? "" : "<li>Die Klasse richtet sich nach dem iRating zum Start und bleibt danach gleich.</li>"}
         ${r.typ !== "event" ? "<li>Gaststarter erscheinen im Rennergebnis, bekommen aber keine Punkte und nehmen auch niemandem welche weg.</li>" : ""}

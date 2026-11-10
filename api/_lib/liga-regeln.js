@@ -1,8 +1,10 @@
 // Strafenkatalog (Anhang A). Die Rennleitung kann ihn selbst bearbeiten, ohne Livegang. Ohne gespeicherte Fassung gilt der Stand des PDFs.
 const { blobGet, blobPut } = require("./blob");
 const { Hinweis } = require("./liga-daten");
+const { nummerVergleich, ordneReglement } = require("../../assets/liga-reglement-format.js");
 
 const PFAD = "liga/daten/strafenkatalog.json";
+const REGLEMENT_PFAD = "liga/daten/reglement.json";
 const VW = "Verwarnung";
 const z = (nr, vergehen, erklaerung, min, max = "", hinweis = "", kommentar = "") => ({ nr, vergehen, erklaerung, min, max, hinweis, kommentar });
 
@@ -66,19 +68,45 @@ function pruefeKatalog(e, jetzt = new Date()) {
   const doppelt = eintraege.map((x) => x.nr).find((n, i, l) => l.indexOf(n) !== i);
   if (doppelt) throw new Hinweis(`Die Nummer ${doppelt} steht mehrfach im Strafenkatalog.`);
   if (strafpunkte.some((x) => !x.strafe || !Number.isInteger(x.punkte) || x.punkte < 0 || x.punkte > 100)) throw new Hinweis("Bitte gib bei jeder Strafe einen Namen und die Punkte als ganze Zahl von 0 bis 100 an.");
-  return { stand: jetzt.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }), eintraege, strafpunkte };
+  return { stand: jetzt.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }), eintraege: sortiert(eintraege), strafpunkte };
+}
+
+const sortiert = (liste) => [...liste].sort((a, b) => nummerVergleich(a.nr, b.nr));
+
+// Das Reglement wird als Text mit einfachen Zeichen gespeichert, siehe liga-reglement-format.js.
+function pruefeReglement(e, jetzt = new Date()) {
+  const abschnitte = (Array.isArray(e && e.abschnitte) ? e.abschnitte : []).map((h) => ({ nr: text(h.nr, 10), titel: text(h.titel, 120), unter: sortiert((Array.isArray(h.unter) ? h.unter : []).map((u) => ({ nr: text(u.nr, 10), titel: text(u.titel, 120), text: text(u.text, 20000) }))) }));
+  if (!abschnitte.length) throw new Hinweis("Das Reglement braucht mindestens einen Abschnitt.");
+  ordneReglement({ abschnitte });
+  if (abschnitte.length > 40 || abschnitte.some((h) => h.unter.length > 60)) throw new Hinweis("Das Reglement hat zu viele Abschnitte.");
+  if (abschnitte.some((h) => !h.nr || !h.titel || h.unter.some((u) => !u.nr || !u.titel))) throw new Hinweis("Jeder Abschnitt braucht eine Nummer und einen Titel.");
+  const doppelt = (l) => l.find((n, i) => l.indexOf(n) !== i);
+  const gleich = doppelt(abschnitte.map((h) => h.nr)) || doppelt(abschnitte.flatMap((h) => h.unter.map((u) => u.nr)));
+  if (gleich) throw new Hinweis(`Die Nummer ${gleich} steht mehrfach im Reglement.`);
+  const version = text(e.version, 20);
+  if (!version) throw new Hinweis("Bitte gib eine Versionsnummer an.");
+  return { titel: text(e.titel, 120) || "Offizielles Serienreglement", version, stand: jetzt.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }), abschnitte: abschnitte.map(({ offen, ...h }) => h) };
 }
 
 async function katalogLesen() {
   const t = await blobGet(PFAD);
-  return t ? JSON.parse(t) : STANDARD;
+  const k = t ? JSON.parse(t) : STANDARD;
+  return { ...k, eintraege: sortiert(k.eintraege) };
 }
 const katalogSpeichern = (k) => blobPut(PFAD, JSON.stringify(k), "application/json");
+
+// null heißt: Es gilt die Fassung aus dem PDF, die mit der Seite ausgeliefert wird.
+async function reglementLesen() {
+  const t = await blobGet(REGLEMENT_PFAD);
+  return t ? JSON.parse(t) : null;
+}
+const reglementSpeichern = (r) => blobPut(REGLEMENT_PFAD, JSON.stringify(r), "application/json");
 
 async function regeln(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Nicht erlaubt" });
   res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=120");
-  return res.status(200).json({ katalog: await katalogLesen() });
+  const [katalog, reglement] = await Promise.all([katalogLesen(), reglementLesen()]);
+  return res.status(200).json({ katalog, reglement });
 }
 
-module.exports = { STANDARD, pruefeKatalog, katalogLesen, katalogSpeichern, regeln };
+module.exports = { STANDARD, pruefeKatalog, pruefeReglement, katalogLesen, katalogSpeichern, reglementLesen, reglementSpeichern, regeln };
