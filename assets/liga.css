@@ -125,25 +125,35 @@
 /* Die Selektoren sind bewusst genauer als ".bar nav" aus site.css, das Menüs am Handy einklappt. */
 .bar nav.liga-nav{display:block;position:static;width:auto;height:auto;margin:0;padding:0;overflow:visible;background:#15191c;border-top:1px solid var(--scan);border-bottom:1px solid var(--scan);box-shadow:none;transform:none}
 .bar nav.liga-nav .wrap{display:flex;flex-wrap:wrap;min-height:0;gap:2px 4px;align-items:center}
-.bar nav.liga-nav a{flex:none;display:flex;align-items:center;gap:8px;min-height:0;padding:17px 16px 14px;border:0;border-bottom:3px solid transparent;text-decoration:none;font:800 .9rem/1 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase;color:#dfe4e2;white-space:nowrap}
+.bar nav.liga-nav a{flex:none;display:flex;align-items:center;gap:8px;min-height:0;padding:13px 14px 10px;border:0;border-bottom:3px solid transparent;text-decoration:none;font:800 .8rem/1 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase;color:#dfe4e2;white-space:nowrap}
 .bar nav.liga-nav a:hover{background:none;color:var(--ink)}
 .bar nav.liga-nav a[aria-current="page"]{color:var(--ink);border-bottom-color:var(--red)}
 .bar nav.liga-nav a:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
 .bar nav.liga-nav .liga-nav-serie::before{content:"";width:7px;height:7px;background:var(--s);transform:skewX(-12deg)}
 .bar nav.liga-nav .liga-nav-serie[aria-current="page"]{border-bottom-color:var(--s)}
-.bar nav.liga-nav .liga-nav-rechts{margin-left:auto}
-.bar nav.liga-nav a.liga-nav-knopf{margin-block:8px;padding:12px 18px;border:2px solid var(--red);background:var(--red);color:#fff}
-.bar nav.liga-nav a.liga-nav-knopf:hover{border-color:#fff;background:var(--red);color:#fff}
-.bar nav.liga-nav a.liga-nav-knopf[aria-current="page"]{border-color:var(--ink);background:var(--ink);color:#08090a}
-.bar nav.liga-nav a.liga-nav-knopf.zweit{margin-left:6px;border-color:var(--liga-gold);background:none;color:var(--liga-gold)}
-.bar nav.liga-nav a.liga-nav-knopf.zweit:hover{background:var(--liga-gold);color:#17120a}
 @media (max-width:760px){
   /* Das umgebrochene Menü ist am Handy zu hoch, um beim Scrollen stehen zu bleiben. */
   .bar:has(nav.liga-nav){position:static}
-  .bar nav.liga-nav .liga-nav-rechts{margin-left:0}
-  .bar nav.liga-nav a{padding:14px 11px 11px;font-size:.82rem}
-  .bar nav.liga-nav a.liga-nav-knopf{padding:10px 13px}
-  .bar nav.liga-nav a.liga-nav-knopf.zweit{margin-left:0}
+  .bar nav.liga-nav a{padding:12px 10px 9px;font-size:.76rem}
+}
+
+/* Konto-Bereich oben im Seitenkopf, in derselben Form wie „Zur Startseite“ */
+.liga-konto{display:flex;align-items:stretch;margin-left:auto}
+.bar .liga-konto+.back{margin-left:0}
+.liga-konto a,.liga-konto button{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;padding:0 16px;border-left:1px solid var(--scan);font:700 .78rem/1 var(--f-wide);font-variation-settings:"wdth" 110;text-transform:uppercase;white-space:nowrap}
+.liga-konto a:hover,.liga-konto button:hover{background:var(--scan)}
+.liga-konto a:focus-visible,.liga-konto button:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
+.liga-konto a.haupt{background:var(--red);color:#fff}
+.liga-konto a.haupt:hover{background:#ee1a24}
+.liga-konto a.haupt[aria-current="page"]{background:none;color:var(--ink);box-shadow:inset 0 -3px 0 var(--red)}
+.liga-konto a.leitung{color:var(--liga-gold)}
+.liga-konto button{font-size:.68rem;color:var(--liga-rot)}
+@media (max-width:760px){
+  .bar>.wrap{flex-wrap:wrap}
+  .liga-konto{order:3;flex:1 1 100%;min-width:0;margin-left:0;border-top:1px solid var(--scan)}
+  .liga-konto a,.liga-konto button{flex:1 1 auto;justify-content:center;min-height:42px;padding:0 6px;border-left:0;font-size:.66rem}
+  .liga-konto a+a,.liga-konto a+button{border-left:1px solid var(--scan)}
+  .bar .liga-konto+.back{margin-left:auto}
 }
 
 /* Serienfarben */
@@ -459,7 +469,4 @@ a.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--paper
 .liga-flagge{display:inline-block;width:20px;height:15px;margin-right:6px;vertical-align:-2px;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
 .liga-tab-nr{font:700 .68rem/1 var(--f-mono);color:var(--muted)}
 .liga-fahrer .liga-flagge{margin-right:0}
-.bar nav.liga-nav button.liga-nav-logout{all:unset;flex:none;cursor:pointer;display:flex;align-items:center;padding:17px 12px 14px;border-bottom:3px solid transparent;font:800 .78rem/1 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase;color:var(--liga-rot);white-space:nowrap}
-.bar nav.liga-nav button.liga-nav-logout:hover{color:var(--ink)}
-.bar nav.liga-nav button.liga-nav-logout:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
 @media (prefers-reduced-motion:reduce){a.liga-fk:hover{transform:none}}

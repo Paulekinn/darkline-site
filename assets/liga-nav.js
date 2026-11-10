@@ -2,7 +2,8 @@
 (function () {
   "use strict";
   const nav = document.getElementById("liga-nav");
-  if (!nav) return;
+  const konto = document.getElementById("liga-konto");
+  if (!nav || !konto) return;
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const FARBEN = ["rot", "blau", "lila", "gruen", "gelb", "tuerkis"];
   const pfad = location.pathname.replace(/\/$/, "");
@@ -17,13 +18,13 @@
     nav.innerHTML = `<div class="wrap">
       ${eintrag("/liga", "Übersicht", pfad === "/liga" && !aktuelleSerie)}
       ${sichtbar.map((s) => eintrag(`/liga?serie=${encodeURIComponent(s.id)}`, s.name, s.id === aktuelleSerie, `liga-nav-serie s-${FARBEN.includes(s.farbe) ? s.farbe : "rot"}${s.typ === "event" ? " liga-nav-event" : ""}`)).join("")}
-      ${eintrag("/fahrerbereich", "Fahrerbereich", pfad === "/fahrerbereich", "liga-nav-rechts liga-nav-knopf")}
-      ${rennleitung ? eintrag("/liga-admin", "Rennleitung", false, "liga-nav-knopf zweit") : ""}
-      ${angemeldet ? '<button type="button" class="liga-nav-logout" id="liga-logout">Ausloggen</button>' : ""}
     </div>`;
+    konto.innerHTML = `${eintrag("/fahrerbereich", "Fahrerbereich", pfad === "/fahrerbereich", "haupt")}
+      ${rennleitung ? eintrag("/liga-admin", "Rennleitung", false, "leitung") : ""}
+      ${angemeldet ? '<button type="button" id="liga-logout">Ausloggen</button>' : ""}`;
   }
 
-  nav.addEventListener("click", async (e) => {
+  konto.addEventListener("click", async (e) => {
     if (!e.target.closest("#liga-logout")) return;
     e.target.disabled = true;
     await fetch("api/liga?r=fahrer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ aktion: "logout" }) }).catch(() => null);
