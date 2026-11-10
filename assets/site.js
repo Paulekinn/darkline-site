@@ -102,7 +102,6 @@
       $("nextrace").href = "/rennen/" + n.id;
       $("nr-title").textContent = n.titel;
       $("nr-meta").textContent = [parseDate(n.datum) ? fmt(n.datum) : "Datum folgt", n.startzeit ? n.startzeit + " Uhr" : "", durText(n), n.serie !== n.titel && n.serie, n.klasse].filter(Boolean).join(" · ");
-      $("sess-text").textContent = "Nächstes Rennen: " + n.titel + (parseDate(n.datum) ? " · " + fmt(n.datum) : "");
       const start = startOf(n);
       const tick = () => {
         const ms = start ? start - new Date() : -1;
@@ -119,13 +118,11 @@
       $("nr-title").textContent = `${last.titel} · P${last.ziel}`;
       $("nr-meta").textContent = [fmt(last.datum), g == null ? "" : `${g > 0 ? "+" : g < 0 ? "−" : "±"}${Math.abs(g)} Plätze`, "Zum Rennbericht →"].filter(Boolean).join(" · ");
       $("nr-cd").hidden = true;
-      $("sess-text").textContent = `Zuletzt: ${last.titel} · P${last.ziel}`;
     } else {
       $("nextrace").href = s.discord || "#klassement";
       $("nr-title").textContent = "In Planung";
       $("nr-meta").textContent = "Termine kündigen wir zuerst im Discord an →";
       $("nr-cd").hidden = true;
-      $("sess-text").textContent = "Nächstes Rennen: in Planung";
     }
     $("nr-title").classList.toggle("long", $("nr-title").textContent.length > 14); // lange Titel kleiner, damit der Block flach bleibt
     const fin = finished();
