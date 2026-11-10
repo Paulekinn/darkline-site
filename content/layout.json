@@ -1,11 +1,11 @@
 {
   "bereiche": [
     {
-      "bereich": "news",
+      "bereich": "liga",
       "sichtbar": true
     },
     {
-      "bereich": "liga",
+      "bereich": "news",
       "sichtbar": true
     },
     {
