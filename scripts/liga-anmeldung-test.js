@@ -546,7 +546,9 @@ const tests = {
     const serien = [{ id: "l", typ: "liga", status: "laeuft" }, { id: "e", typ: "event", status: "laeuft" }, { id: "alt", typ: "liga", status: "beendet" }];
     const inSerie = (serieId) => [{ typ: "serie", discordId: "9", serieId }];
     assert.deepStrictEqual(Dc.soll("9", { iracingName: "A", custId: "1", nummer: null }, [], serien), { i: false, f: false, n: "" });
-    assert.deepStrictEqual(Dc.soll("9", profil, [], serien), { i: true, f: false, n: "" });
+    assert.deepStrictEqual(Dc.soll("9", profil, [], serien), { i: true, f: false, n: "Max Mustermann" });
+    assert.strictEqual(Dc.soll("9", profil, inSerie("e"), serien).n, "Max Mustermann");
+    assert.ok(Dc.soll("9", { ...profil, iracingName: "Y".repeat(40) }, [], serien).n.length <= 32);
     assert.deepStrictEqual(Dc.soll("9", profil, inSerie("l"), serien), { i: true, f: true, n: "#31 Max Mustermann" });
     for (const id of ["e", "alt"]) assert.strictEqual(Dc.soll("9", profil, inSerie(id), serien).f, false);
     assert.strictEqual(Dc.soll("9", profil, [{ typ: "serie", discordId: "8", serieId: "l" }], serien).f, false);
@@ -555,13 +557,14 @@ const tests = {
   "Discord: nur nötige Schritte, ohne Liga verschwindet die Nummer": () => {
     const Dc = require("../api/_lib/liga-discord");
     const arten = (l) => l.map((s) => s.art);
-    assert.deepStrictEqual(arten(Dc.schritte({}, { i: true, f: false, n: "" }, "Max")), ["interessent"]);
-    assert.deepStrictEqual(arten(Dc.schritte({ i: true }, { i: true, f: true, n: "#31 Max" }, "Max")), ["fahrer", "name"]);
-    assert.deepStrictEqual(Dc.schritte({ i: true, f: true, n: "#31 Max" }, { i: true, f: true, n: "#31 Max" }, "Max"), []);
-    assert.deepStrictEqual(arten(Dc.schritte({ i: true, f: true, n: "#31 Max" }, { i: true, f: true, n: "#7 Max" }, "Max")), ["name"]);
-    const raus = Dc.schritte({ i: true, f: true, n: "#31 Max" }, { i: true, f: false, n: "" }, "Max");
+    assert.deepStrictEqual(arten(Dc.schritte({}, { i: true, f: false, n: "Max" })), ["interessent", "name"]);
+    assert.deepStrictEqual(Dc.schritte({ i: true, n: "Max" }, { i: true, f: false, n: "Max" }), []);
+    assert.deepStrictEqual(arten(Dc.schritte({ i: true, n: "Max" }, { i: true, f: true, n: "#31 Max" })), ["fahrer", "name"]);
+    assert.deepStrictEqual(Dc.schritte({ i: true, f: true, n: "#31 Max" }, { i: true, f: true, n: "#31 Max" }), []);
+    assert.deepStrictEqual(arten(Dc.schritte({ i: true, f: true, n: "#31 Max" }, { i: true, f: true, n: "#7 Max" })), ["name"]);
+    const raus = Dc.schritte({ i: true, f: true, n: "#31 Max" }, { i: true, f: false, n: "Max" });
     assert.deepStrictEqual(raus.map((s) => [s.art, s.weg, s.wert]), [["fahrer", true, undefined], ["name", undefined, "Max"]]);
-    assert.deepStrictEqual(Dc.schritte({ i: true, f: false, n: "" }, { i: false, f: false, n: "" }, "Max"), []);
+    assert.deepStrictEqual(Dc.schritte({ i: true, f: false, n: "Max" }, { i: false, f: false, n: "" }), []);
   },
   "Discord: Abgleich ruft die richtigen Adressen und speichert nur Erfolge": async () => {
     const Dc = require("../api/_lib/liga-discord");
