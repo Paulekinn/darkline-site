@@ -2,6 +2,7 @@
   "buildCommand": "node scripts/build-content.js",
   "outputDirectory": ".",
   "cleanUrls": true,
+  "regions": ["cdg1"],
   "redirects": [
     {
       "source": "/",

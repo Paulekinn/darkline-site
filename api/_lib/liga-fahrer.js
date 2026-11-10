@@ -60,15 +60,22 @@ async function laufendeTabellen(kat) {
 
 async function antwort(res, s, profil, alle, kat, frisch) {
   const pid = profil ? fahrerKennung(profil.custId) : "";
+  // Die Abfragen hängen nicht voneinander ab und laufen deshalb gleichzeitig.
+  const [oeffentlich, wunsch, tabellen, reports] = await Promise.all([
+    pid ? P.angabenVon(pid).catch(() => null) : null,
+    P.wunschLesen(s.id).catch(() => null),
+    profil ? laufendeTabellen(kat) : null,
+    reportDaten(s, kat, alle, frisch),
+  ]);
   return res.status(200).json({
     angemeldet: true,
     kalender: `/liga-kalender/${kalenderSchluessel(s.id)}`,
-    fahrer: { name: s.name, profil, pid, oeffentlich: pid ? await P.angabenVon(pid).catch(() => null) : null, nummerWunsch: ((await P.wunschLesen(s.id).catch(() => null)) || {}).nach || null },
-    meineKarten: profil ? A.eigeneKarten(kat.serien, await laufendeTabellen(kat), profil.iracingName, pid) : [],
+    fahrer: { name: s.name, profil, pid, oeffentlich, nummerWunsch: (wunsch || {}).nach || null },
+    meineKarten: profil ? A.eigeneKarten(kat.serien, tabellen, profil.iracingName, pid) : [],
     serien: A.baueSerien(kat.serien, alle, { discordId: s.id, profil, klasseFuer }),
     // Termine beendeter Serien gehören nicht mehr in den Fahrerbereich.
     rennen: A.baueRennen(kat.rennen, alle, optionen(s, kat)).filter((r) => (serienMap(kat.serien)[r.serie] || {}).status !== "beendet"),
-    reports: await reportDaten(s, kat, alle, frisch),
+    reports,
   });
 }
 
@@ -213,11 +220,14 @@ module.exports = async (req, res) => {
   if (req.method === "GET") {
     if (!s) return res.status(200).json({ angemeldet: false });
     if ((req.query || {}).nur === "status") return res.status(200).json({ angemeldet: true });
-    const gespeichert = await profilLesen(s.id);
-    await P.bildNachziehen(s, gespeichert).catch((e) => console.warn("Liga: Profilbild:", e.message));
     // Mit Discord-Abgleich wird frisch gelesen: Eine veraltete Liste würde einem gerade gemeldeten Fahrer die Rolle wieder nehmen.
-    const [gelesen, katalog] = [await eintraege(Dc.aktiv()), await D.katalog(false)];
-    return await antwort(res, s, await Dc.abgleichen(s.id, gespeichert, gelesen, katalog.serien), gelesen, katalog, false);
+    const [gespeichert, gelesen, katalog] = await Promise.all([profilLesen(s.id), eintraege(Dc.aktiv()), D.katalog(false)]);
+    // Profilbild (öffentliches Profil) und Discord-Stand (privates Profil) schreiben in verschiedene Einträge und dürfen gleichzeitig laufen.
+    const [, abgeglichen] = await Promise.all([
+      P.bildNachziehen(s, gespeichert).catch((e) => console.warn("Liga: Profilbild:", e.message)),
+      Dc.abgleichen(s.id, gespeichert, gelesen, katalog.serien),
+    ]);
+    return await antwort(res, s, abgeglichen, gelesen, katalog, false);
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });
@@ -228,9 +238,9 @@ module.exports = async (req, res) => {
   }
   if (!s) return res.status(401).json({ error: "Bitte melde dich erneut an." });
 
-  let profil = await profilLesen(s.id);
-  let alle = await eintraege(true);
-  const kat = await D.katalog(false);
+  const [profilVorher, alleVorher, kat] = await Promise.all([profilLesen(s.id), eintraege(true), D.katalog(false)]);
+  let profil = profilVorher;
+  let alle = alleVorher;
   if (body.aktion === "profil") {
     profil = await profilSpeichern(s, profil, body.profil);
   } else if (body.aktion === "nummer-gelesen") {
