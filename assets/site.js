@@ -101,7 +101,7 @@
     if (n) {
       $("nextrace").href = "/rennen/" + n.id;
       $("nr-title").textContent = n.titel;
-      $("nr-meta").textContent = [parseDate(n.datum) ? fmt(n.datum) : "Datum folgt", n.startzeit ? n.startzeit + " Uhr" : "", durText(n), n.serie, n.klasse].filter(Boolean).join(" · ");
+      $("nr-meta").textContent = [parseDate(n.datum) ? fmt(n.datum) : "Datum folgt", n.startzeit ? n.startzeit + " Uhr" : "", durText(n), n.serie !== n.titel && n.serie, n.klasse].filter(Boolean).join(" · ");
       $("sess-text").textContent = "Nächstes Rennen: " + n.titel + (parseDate(n.datum) ? " · " + fmt(n.datum) : "");
       const start = startOf(n);
       const tick = () => {
@@ -127,6 +127,7 @@
       $("nr-cd").hidden = true;
       $("sess-text").textContent = "Nächstes Rennen: in Planung";
     }
+    $("nr-title").classList.toggle("long", $("nr-title").textContent.length > 14); // lange Titel kleiner, damit der Block flach bleibt
     const fin = finished();
     const thisYear = fin.filter((r) => { const d = parseDate(r.datum); return !d || d.getFullYear() === year; });
     const pool = thisYear.length ? thisYear : fin;

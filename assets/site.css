@@ -660,3 +660,11 @@ main > .sheet{background-image:radial-gradient(900px 420px at 92% 0%,rgba(211,18
 .season div:has(a.stretch):hover em{color:var(--red)}
 .season a.stretch:focus-visible{outline:none}
 .season div:has(a.stretch:focus-visible){outline:2px solid var(--red);outline-offset:-2px}
+/* Nächstes Rennen: lange Titel kleiner, Countdown am Desktop neben dem Text, damit der Block flach bleibt */
+.nr-t.long{font-size:clamp(1.25rem,2vw,1.6rem);line-height:1.02}
+@media (min-width:1100px){
+  .nextrace:has(.nr-cd:not([hidden])){grid-template-columns:minmax(0,1fr) auto;column-gap:20px}
+  .nextrace:has(.nr-cd:not([hidden])) > :not(.nr-cd){grid-column:1}
+  .nextrace .nr-cd{grid-column:2;grid-row:1 / span 3;align-self:center;margin-top:0}
+  .nextrace .nr-cd span{min-width:52px}
+}
