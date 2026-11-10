@@ -54,7 +54,10 @@ module.exports = async (req, res) => {
 
     if (liga) {
       const fahrer = member.user || {};
-      createLigaSession(res, { id: fahrer.id, name: member.nick || fahrer.global_name || fahrer.username || "Fahrer", avatar: fahrer.avatar || "" });
+      // Nur für die Navigation: Mitglieder der Rennleitung sehen den Weg zu /liga-admin. Zugang gibt das nicht, dort wird die Rolle erneut geprüft.
+      const leitungsRollen = (process.env.LIGA_ADMIN_ROLE_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const leitung = (member.roles || []).some((r) => leitungsRollen.includes(r));
+      createLigaSession(res, { id: fahrer.id, name: member.nick || fahrer.global_name || fahrer.username || "Fahrer", avatar: fahrer.avatar || "", ...(leitung ? { leitung: true } : {}) });
       return res.redirect(302, ziel);
     }
 

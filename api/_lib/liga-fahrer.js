@@ -219,7 +219,7 @@ module.exports = async (req, res) => {
   const s = getLigaSession(req);
   if (req.method === "GET") {
     if (!s) return res.status(200).json({ angemeldet: false });
-    if ((req.query || {}).nur === "status") return res.status(200).json({ angemeldet: true });
+    if ((req.query || {}).nur === "status") return res.status(200).json({ angemeldet: true, leitung: !!s.leitung });
     // Mit Discord-Abgleich wird frisch gelesen: Eine veraltete Liste würde einem gerade gemeldeten Fahrer die Rolle wieder nehmen.
     const [gespeichert, gelesen, katalog] = await Promise.all([profilLesen(s.id), eintraege(Dc.aktiv()), D.katalog(false)]);
     // Profilbild (öffentliches Profil) und Discord-Stand (privates Profil) schreiben in verschiedene Einträge und dürfen gleichzeitig laufen.

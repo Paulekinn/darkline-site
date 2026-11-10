@@ -34,6 +34,7 @@
 
   zeichne([], false, false);
   Promise.all([lade("api/liga?r=oeffentlich"), lade("api/liga?r=admin&nur=status"), lade("api/liga?r=fahrer&nur=status")]).then(([daten, admin, fahrer]) => {
-    zeichne((daten && daten.serien) || [], !!(admin && admin.angemeldet), !!(fahrer && fahrer.angemeldet));
+    // Rennleitung zeigen, wenn dort schon angemeldet oder die Discord-Rolle beim Fahrer-Login erkannt wurde.
+    zeichne((daten && daten.serien) || [], !!(admin && admin.angemeldet) || !!(fahrer && fahrer.leitung), !!(fahrer && fahrer.angemeldet));
   });
 })();
