@@ -257,10 +257,23 @@ const tests = {
     assert.strictEqual(T.rundenzeit(1234560), "2:03.456");
     assert.strictEqual(T.rundenzeit(null), "");
     const karte = T.berichtKarte({ serie: "gt3", serieName: "GT3 Sprint", titel: "Runde 2", strecke: "Spa", klassen: [{ fahrzeugklasse: "GT3", podium: ["A", "B", "C"], schnellste: { name: "A", zeit: "2:03.456" }, aufholer: { name: "C", plaetze: 5 } }] }, true);
-    assert.ok(karte.description.includes("1. A") && karte.description.includes("3. C"));
+    assert.strictEqual(karte.description, "🥇 A\n🥈 B\n🥉 C\n⏱️ Schnellste Runde: A, 2:03.456\n📈 Fahrer des Tages: C, 5 Plätze gutgemacht");
     assert.strictEqual(karte.image.url, "attachment://rennbericht.jpg");
-    assert.ok(karte.fields.some((f) => f.name === "Fahrer des Tages" && f.value.includes("C")));
     assert.ok(karte.fields.every((f) => f.value.length >= 1));
+  },
+  "Rennbericht: jede Klasse mit eigener schnellster Runde, Namen als Erwähnung": () => {
+    const karte = T.berichtKarte({
+      serie: "s", serieName: "Multi", titel: "Runde 1", strecke: "Spa", erwaehnungen: { A: "123456789012345678", D: "kaputt" },
+      klassen: [
+        { fahrzeugklasse: "GT3", podium: ["A", "B", "C"], schnellste: { name: "B", zeit: "2:03.456" }, aufholer: null },
+        { fahrzeugklasse: "GT4", podium: ["D", "E"], schnellste: { name: "E", zeit: "2:20.000" }, aufholer: { name: "D", plaetze: 3 } },
+      ],
+    }, false);
+    const [gt3, gt4] = karte.description.split("\n\n");
+    assert.strictEqual(gt3, "**GT3**\n🥇 <@123456789012345678>\n🥈 B\n🥉 C\n⏱️ Schnellste Runde: B, 2:03.456");
+    assert.strictEqual(gt4, "**GT4**\n🥇 D\n🥈 E\n⏱️ Schnellste Runde: E, 2:20.000\n📈 Fahrer des Tages: D, 3 Plätze gutgemacht");
+    assert.deepStrictEqual(karte.fields.map((f) => f.name), ["Serie", "Strecke"]);
+    assert.ok(!karte.image);
   },
   "Prüfung nach dem Rennen: No-Shows und auffällige Incidents": () => {
     const fahrer = (cust, incidents) => ({ cust, name: `F${cust}`, incidents });
@@ -527,11 +540,12 @@ const tests = {
     const fehler = console.error;
     console.error = () => {};
     try {
-      const ergebnis = await R.webhooksTesten("Leitung", { Reports: { title: "Beispiel" }, Renntag: { title: "Heute Renntag: Runde 3", fields: [] } });
+      const ergebnis = await R.webhooksTesten("Leitung", { Reports: { title: "Beispiel" }, Renntag: [{ title: "Heute Renntag: Runde 3", fields: [], footer: { text: "Session in iRacing" } }, { title: "Ergebnis: Runde 3" }] });
       assert.deepStrictEqual(ergebnis, [{ kanal: "Reports", stand: "ok" }, { kanal: "Renntag", stand: "fehler" }, { kanal: "Urteile", stand: "fehlt" }]);
       assert.strictEqual(gesendet.length, 2);
-      assert.strictEqual(gesendet[1][1].embeds[0].title, "Test · Heute Renntag: Runde 3");
-      assert.match(gesendet[1][1].embeds[0].footer.text, /Leitung/);
+      assert.deepStrictEqual(gesendet[1][1].embeds.map((k) => k.title), ["Test · Heute Renntag: Runde 3", "Test · Ergebnis: Runde 3"]);
+      assert.match(gesendet[1][1].embeds[0].footer.text, /^Session in iRacing\n.*Leitung/);
+      assert.match(gesendet[1][1].embeds[1].footer.text, /Leitung/);
       assert.deepStrictEqual(gesendet[1][1].allowed_mentions, { parse: [] });
     } finally {
       console.error = fehler;

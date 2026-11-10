@@ -30,7 +30,7 @@ async function gemeldeteFahrer(kat, serieId) {
   const mitglieder = new Set(alle.filter((e) => e.typ === "serie" && e.serieId === serieId).map((e) => e.discordId));
   // Nur Seasons kennen Gäste. Bei einem Event wird jeder Gemeldete normal gewertet.
   const stamm = serieFinden(kat, serieId).typ === "event" ? null : new Set(vorhanden.filter((p) => mitglieder.has(p.discordId)).map((p) => String(p.custId)));
-  return { gemeldet: new Map(vorhanden.map((p) => [String(p.custId), p.iracingName])), stamm };
+  return { gemeldet: new Map(vorhanden.map((p) => [String(p.custId), p.iracingName])), stamm, discord: new Map(vorhanden.map((p) => [String(p.custId), p.discordId])) };
 }
 
 // Details einer Serie: Fahrer mit Profil, Rennen mit Listen, Ergebnisse und Strafen
@@ -186,7 +186,10 @@ async function berichtZumErgebnis(kat, serieId, id) {
   const bericht = Renntag.berichtDaten(serie, ergebnis, await D.tabelleLesen(serieId), kat.rennen);
   if (!bericht) throw new Hinweis("Für dieses Rennen gibt es noch keinen Rennbericht.");
   const stand = R.ergebnisStand(ergebnis.start, { serie, rennen: kat.rennen, reports: await R.alleReports(true), privat: await D.privatLesen(serieId), jetzt: Date.now() });
-  return { ...bericht, vorlaeufig: stand === "vorlaeufig" };
+  // Namen aus dem Ergebnis über die iRacing-ID dem Discord-Konto zuordnen. Ohne Treffer bleibt es beim Namen.
+  const { discord } = await gemeldeteFahrer(kat, serieId).catch(() => ({ discord: new Map() }));
+  const erwaehnungen = Object.fromEntries((ergebnis.fahrer || []).filter((f) => discord.get(String(f.cust))).map((f) => [f.name, discord.get(String(f.cust))]));
+  return { ...bericht, erwaehnungen, vorlaeufig: stand === "vorlaeufig" };
 }
 
 // Bildziel „strecke:<id>“ führt zu einer Strecke der Bibliothek.
@@ -332,8 +335,17 @@ const aktionen = {
       titel: "Runde 3 · Spa", serieName: "GT3 Sprint", strecke: "Circuit de Spa-Francorchamps", start: new Date(start).toISOString(), schluss: new Date(start - 3600e3).toISOString(),
       plaetze: 24, starter: Array.from({ length: 18 }, () => ({})), warteliste: [{}, {}], training: "70 Min", qualifying: "40 Min", renndauer: "65 Min", fahrzeuge: "GT3 und GT4", zugangNoetig: false,
     });
+    // Der echte Rennbericht hängt zusätzlich die im Admin-Bereich gezeichnete Grafik an, der Test kommt ohne aus.
+    // Platz 1 in GT3 erwähnt den Auslöser selbst, damit man die Verlinkung im Test sieht.
+    const bericht = Renntag.berichtKarte({
+      serie: "", serieName: "GT3 Sprint", titel: "Runde 3 · Spa", strecke: "Circuit de Spa-Francorchamps · Grand Prix", vorlaeufig: true, erwaehnungen: { "Max Beispiel": s.id },
+      klassen: [
+        { fahrzeugklasse: "GT3", podium: ["Max Beispiel", "Tom Muster", "Lena Probe"], schnellste: { name: "Tom Muster", zeit: "2:18.452" }, aufholer: { name: "Lena Probe", plaetze: 6 } },
+        { fahrzeugklasse: "GT4", podium: ["Jonas Test", "Mia Muster", "Paul Probe"], schnellste: { name: "Mia Muster", zeit: "2:31.907" }, aufholer: { name: "Paul Probe", plaetze: 4 } },
+      ],
+    }, false);
     const urteil = R.urteilKarte({ serieName: "GT3 Sprint", rennenTitel: "Runde 3 · Spa", gegen: { name: "Max Beispiel" } }, { art: "strafpunkte", punkte: 3 });
-    const ergebnis = await R.webhooksTesten(s.name, { Reports: beispiel, Renntag: renntag, Urteile: urteil });
+    const ergebnis = await R.webhooksTesten(s.name, { Reports: beispiel, Renntag: [renntag, bericht], Urteile: urteil });
     if (ergebnis.every((x) => x.stand === "fehlt")) throw new Hinweis("Es ist noch kein Discord-Webhook eingerichtet.");
     return { discord: ergebnis };
   },
