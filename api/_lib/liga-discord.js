@@ -16,22 +16,21 @@ const aktiv = () => !!zugang();
 const servername = (nummer, name) => `#${nummer} ${name}`.slice(0, MAX_NAME).trim();
 const istLaufendeLiga = (s) => !!s && s.typ !== "event" && s.status !== "beendet";
 
-// Der gewünschte Stand: Rolle Interessent ab vollständigem Profil, Rolle Fahrer und Name mit Nummer nur in einer laufenden Liga.
+// Der gewünschte Stand: Vollständiges Profil gibt die Rolle Interessent und den Fahrernamen, die Nummer davor nur eine laufende Liga.
 function soll(discordId, profil, alle, serien) {
   const komplett = !!(profil.iracingName && profil.custId && profil.nummer);
   const nachId = new Map(serien.map((s) => [s.id, s]));
   const fahrer = komplett && alle.some((e) => e.typ === "serie" && e.discordId === discordId && istLaufendeLiga(nachId.get(e.serieId)));
-  return { i: komplett, f: fahrer, n: fahrer ? servername(profil.nummer, profil.iracingName) : "" };
+  const name = !komplett ? "" : fahrer ? servername(profil.nummer, profil.iracingName) : String(profil.iracingName).slice(0, MAX_NAME).trim();
+  return { i: komplett, f: fahrer, n: name };
 }
 
 // Nötige Schritte vom bisherigen zum gewünschten Stand. Die Rolle Interessent wird nur vergeben, nie entzogen.
-// Wer keine Liga mehr fährt, verliert die Nummer im Namen und behält den Fahrernamen.
-function schritte(vorher, ziel, name) {
+function schritte(vorher, ziel) {
   const liste = [];
   if (ziel.i && !vorher.i) liste.push({ art: "interessent", weg: false, neu: { i: true } });
   if (ziel.f !== !!vorher.f) liste.push({ art: "fahrer", weg: !ziel.f, neu: { f: ziel.f } });
-  if (ziel.f && vorher.n !== ziel.n) liste.push({ art: "name", wert: ziel.n, neu: { n: ziel.n } });
-  if (!ziel.f && vorher.f) liste.push({ art: "name", wert: String(name).slice(0, MAX_NAME), neu: { n: "" } });
+  if (ziel.n && vorher.n !== ziel.n) liste.push({ art: "name", wert: ziel.n, neu: { n: ziel.n } });
   return liste;
 }
 
@@ -55,7 +54,7 @@ async function abgleichen(discordId, profil, alle, serien) {
   if (!z || !profil) return profil;
   try {
     const vorher = profil.discord || {};
-    const offen = schritte(vorher, soll(discordId, profil, alle, serien), profil.iracingName);
+    const offen = schritte(vorher, soll(discordId, profil, alle, serien));
     if (!offen.length) return profil;
     let neu = { ...vorher };
     for (const s of offen) if (await ausfuehren(z, discordId, s).catch((e) => { console.warn("Liga: Discord nicht erreichbar:", e.message); return false; })) neu = { ...neu, ...s.neu };
