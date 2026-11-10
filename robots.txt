@@ -2,5 +2,7 @@ User-agent: *
 Disallow: /admin/
 Disallow: /api/
 Disallow: /team
+Disallow: /liga-admin
+Disallow: /fahrerbereich
 
 Sitemap: https://darklineperformance.de/sitemap.xml

@@ -39,7 +39,8 @@ function ogImage(img) {
 // Sortiert die Bereiche und die Menüpunkte in index.html nach content/layout.json, bevor daraus die Unterseiten entstehen.
 // Ausgeblendete Bereiche und Menüpunkte bekommen "hidden" (site.js füllt sie trotzdem, es fehlt also nichts).
 // Hero oben und "Box, Box" unten bleiben fest.
-const SECTIONS = ["news", "lineup", "klassement", "garage", "shop", "partner"];
+// Neue Bereiche hier und in admin/config.yml eintragen, sonst findet die Sortierung sie nicht und lässt alles unverändert.
+const SECTIONS = ["news", "lineup", "klassement", "liga", "garage", "shop", "partner"];
 function arrangeSections() {
   const file = path.join(ROOT, "content", "layout.json");
   if (!fs.existsSync(file)) return;
@@ -151,6 +152,8 @@ const sitemapUrls = [
   ...races.map((r) => ({ loc: `${SITE}/rennen/${r.id}`, lastmod: r.datum })),
   ...posts.map((p) => ({ loc: `${SITE}/news/${p.id}`, lastmod: p.datum })),
   ...drivers.map((d) => ({ loc: `${SITE}/fahrer/${slugify(d.name)}` })),
+  { loc: `${SITE}/liga` },
+  { loc: `${SITE}/regelwerk` },
   { loc: `${SITE}/impressum` },
   { loc: `${SITE}/datenschutz` },
 ];

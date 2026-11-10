@@ -220,6 +220,7 @@ collections:
                   - { label: News, value: news }
                   - { label: Lineup, value: lineup }
                   - { label: Saison, value: klassement }
+                  - { label: Liga, value: liga }
                   - { label: Garage, value: garage }
                   - { label: Shop, value: shop }
                   - { label: Partner, value: partner }
