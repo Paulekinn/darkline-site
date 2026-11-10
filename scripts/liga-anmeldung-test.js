@@ -73,6 +73,30 @@ const B = require("../api/_lib/blob");
 const T = require("../api/_lib/liga-renntag");
 
 const tests = {
+  "Urteile: gehen nur in den eigenen Kanal und nur bei einer Strafe": async () => {
+    const alt = { fetch: global.fetch, liga: process.env.LIGA_DISCORD_WEBHOOK, urteile: process.env.LIGA_DISCORD_WEBHOOK_URTEILE };
+    const aufrufe = [];
+    global.fetch = async (url, o) => { aufrufe.push([url, JSON.parse(o.body)]); return { ok: true }; };
+    const report = { rennenTitel: "Runde 3", gegen: { name: "Tom Muster" } };
+    try {
+      process.env.LIGA_DISCORD_WEBHOOK = "https://discord.example/liga";
+      delete process.env.LIGA_DISCORD_WEBHOOK_URTEILE;
+      await R.discordMelden(report, { art: "strafpunkte", punkte: 6 });
+      assert.strictEqual(aufrufe.length, 0);
+      process.env.LIGA_DISCORD_WEBHOOK_URTEILE = "https://discord.example/urteile";
+      await R.discordMelden(report, { art: "verwarnung" });
+      await R.discordMelden(report, { art: "kein-vergehen" });
+      assert.strictEqual(aufrufe.length, 0);
+      await R.discordMelden(report, { art: "strafpunkte", punkte: 6 });
+      assert.strictEqual(aufrufe.length, 1);
+      assert.strictEqual(aufrufe[0][0], "https://discord.example/urteile");
+      assert.ok(aufrufe[0][1].content.includes("6 Strafpunkte"));
+      assert.deepStrictEqual(aufrufe[0][1].allowed_mentions, { parse: [] });
+    } finally {
+      global.fetch = alt.fetch;
+      for (const [k, v] of [["LIGA_DISCORD_WEBHOOK", alt.liga], ["LIGA_DISCORD_WEBHOOK_URTEILE", alt.urteile]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    }
+  },
   "Kalender: Link ist signiert, fremde oder veränderte Links gelten nicht": () => {
     const k = S.kalenderSchluessel("123456789");
     assert.strictEqual(S.kalenderPruefen(k), "123456789");

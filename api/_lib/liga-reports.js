@@ -229,9 +229,10 @@ function fahrerAkte(reports, privatJeSerie, { cust, discordId }) {
   };
 }
 
-// Optionale kurze Meldung im Discord-Kanal. Details stehen nur im Fahrerbereich, niemand wird angepingt.
+// Optionale kurze Meldung im eigenen Urteils-Kanal. Details stehen nur im Fahrerbereich, niemand wird angepingt.
+// Bewusst ohne Rückgriff auf LIGA_DISCORD_WEBHOOK: Urteile sollen nie im allgemeinen Liga-Kanal landen.
 async function discordMelden(report, urteil) {
-  const url = process.env.LIGA_DISCORD_WEBHOOK;
+  const url = process.env.LIGA_DISCORD_WEBHOOK_URTEILE;
   if (!url || !istStrafend(urteil)) return;
   const was = urteil.art === "strafpunkte" ? `${urteil.punkte} Strafpunkte` : urteil.art === "zeitstrafe" ? `${urteil.sekunden} Sekunden Zeitstrafe` : "Disqualifikation";
   try {
