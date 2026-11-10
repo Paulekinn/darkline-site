@@ -196,7 +196,7 @@ const tests = {
     const alt = { fetch: global.fetch, liga: process.env.LIGA_DISCORD_WEBHOOK, urteile: process.env.LIGA_DISCORD_WEBHOOK_URTEILE };
     const aufrufe = [];
     global.fetch = async (url, o) => { aufrufe.push([url, JSON.parse(o.body)]); return { ok: true }; };
-    const report = { rennenTitel: "Runde 3", gegen: { name: "Tom Muster" } };
+    const report = { serieName: "DSRS", rennenTitel: "Runde 3", gegen: { name: "Tom Muster" } };
     try {
       process.env.LIGA_DISCORD_WEBHOOK = "https://discord.example/liga";
       delete process.env.LIGA_DISCORD_WEBHOOK_URTEILE;
@@ -209,7 +209,9 @@ const tests = {
       await R.discordMelden(report, { art: "strafpunkte", punkte: 6 });
       assert.strictEqual(aufrufe.length, 1);
       assert.strictEqual(aufrufe[0][0], "https://discord.example/urteile");
-      assert.ok(aufrufe[0][1].content.includes("6 Strafpunkte"));
+      const karte = aufrufe[0][1].embeds[0];
+      assert.strictEqual(karte.title, "Urteil · DSRS · Runde 3");
+      assert.deepStrictEqual(karte.fields.map((f) => f.value), ["Tom Muster", "6 Strafpunkte"]);
       assert.deepStrictEqual(aufrufe[0][1].allowed_mentions, { parse: [] });
     } finally {
       global.fetch = alt.fetch;
@@ -241,6 +243,11 @@ const tests = {
     const k = T.erinnerungKarte({ titel: "Runde 1", serieName: "GT3", strecke: "Spa", start: iso(heute), plaetze: 40, starter: [{}, {}], passwort: "geheim123" });
     assert.ok(!JSON.stringify(k).includes("geheim123"));
     assert.ok(JSON.stringify(k).includes("2 von 40"));
+    assert.ok(!JSON.stringify(k).includes("Warteliste") && !k.fields.some((f) => f.name === "Ablauf"));
+    const voll = T.erinnerungKarte({ titel: "Runde 1", serieName: "GT3", strecke: "Spa", start: iso(heute), schluss: iso(heute - 36e5), plaetze: 2, starter: [{}, {}], warteliste: [{}], training: "70 Min", renndauer: "65 Min" });
+    assert.match(voll.description, /bis \*\*\d\d:\d\d Uhr\*\*.*fahrerbereich/);
+    assert.strictEqual(voll.fields.find((f) => f.name === "Gemeldet").value, "2 von 2, 1 auf der Warteliste");
+    assert.strictEqual(voll.fields.find((f) => f.name === "Ablauf").value, "Training 70 Min · Rennen 65 Min");
     const alt = process.env.LIGA_DISCORD_WEBHOOK;
     delete process.env.LIGA_DISCORD_WEBHOOK;
     assert.strictEqual(await T.erinnern(heute), false);
@@ -497,6 +504,20 @@ const tests = {
     assert.doesNotThrow(() => P.pruefeKonflikte(alle, "p1", "x", 46));
     assert.doesNotThrow(() => P.pruefeKonflikte(alle, "p2", "y", 7));
   },
+  "Urteile: Korrektur und Aufhebung werden als solche gemeldet": () => {
+    const report = { serieName: "DSRS", rennenTitel: "Runde 3", gegen: { name: "Tom Muster" } };
+    const punkte = { art: "strafpunkte", punkte: 6 };
+    const zeit = { art: "zeitstrafe", sekunden: 5 };
+    const korrigiert = R.urteilKarte(report, zeit, punkte);
+    assert.strictEqual(korrigiert.title, "Korrigiert: Urteil · DSRS · Runde 3");
+    assert.deepStrictEqual(korrigiert.fields.map((f) => [f.name, f.value]), [["Fahrer", "Tom Muster"], ["Strafe", "5 Sekunden Zeitstrafe"], ["Bisher", "6 Strafpunkte"]]);
+    const aufgehoben = R.urteilKarte(report, { art: "kein-vergehen" }, punkte);
+    assert.strictEqual(aufgehoben.title, "Strafe aufgehoben · DSRS · Runde 3");
+    assert.deepStrictEqual(aufgehoben.fields.map((f) => f.name), ["Fahrer", "Bisher"]);
+    assert.strictEqual(R.urteilKarte(report, { art: "strafpunkte", punkte: 2 }, { art: "verwarnung" }).title, "Urteil · DSRS · Runde 3");
+    assert.strictEqual(R.urteilKarte(report, { art: "kein-vergehen" }, { art: "verwarnung" }), null);
+    assert.strictEqual(R.urteilKarte({ rennenTitel: "Runde 3", gegen: { name: "X" } }, { art: "dsq" }).title, "Urteil · Runde 3");
+  },
   "Discord testen: jeder Webhook meldet ok, fehlt oder fehler": async () => {
     const alt = { fetch: global.fetch, env: { ...process.env } };
     Object.assign(process.env, { LIGA_DISCORD_WEBHOOK_TEAM: "https://hook.example/team", LIGA_DISCORD_WEBHOOK: "https://hook.example/renntag" });
@@ -506,10 +527,11 @@ const tests = {
     const fehler = console.error;
     console.error = () => {};
     try {
-      const ergebnis = await R.webhooksTesten("Leitung", { title: "Beispiel" });
+      const ergebnis = await R.webhooksTesten("Leitung", { Reports: { title: "Beispiel" }, Renntag: { title: "Heute Renntag: Runde 3", fields: [] } });
       assert.deepStrictEqual(ergebnis, [{ kanal: "Reports", stand: "ok" }, { kanal: "Renntag", stand: "fehler" }, { kanal: "Urteile", stand: "fehlt" }]);
       assert.strictEqual(gesendet.length, 2);
-      assert.match(gesendet[1][1].embeds[0].description, /Leitung/);
+      assert.strictEqual(gesendet[1][1].embeds[0].title, "Test · Heute Renntag: Runde 3");
+      assert.match(gesendet[1][1].embeds[0].footer.text, /Leitung/);
       assert.deepStrictEqual(gesendet[1][1].allowed_mentions, { parse: [] });
     } finally {
       console.error = fehler;

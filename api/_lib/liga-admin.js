@@ -326,7 +326,14 @@ const aktionen = {
   // Testet alle drei Webhooks: Reports, Renntag und Urteile.
   async "discord-test"(b, kat, s) {
     const beispiel = R.reportKarte({ serie: "GT3 Sprint", rennen: "Runde 3 · Spa", stelle: "Runde 5, Kurve 3", von: "Max Beispiel", gegen: "Tom Muster", beschreibung: `Beim Anbremsen auf Kurve 3 wurde ich von hinten getroffen und habe mich gedreht. Ausgelöst von ${s.name} über den Knopf „Discord testen“.`, clip: "https://www.twitch.tv/videos/beispiel" }, true);
-    const ergebnis = await R.webhooksTesten(s.name, beispiel);
+    // Beispiel wie ein normaler Renntag: Serverstart heute 18:00 Uhr nach Berliner Zeit.
+    const start = A.berlinNachUtc(new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" }).format(new Date()), "18:00");
+    const renntag = Renntag.erinnerungKarte({
+      titel: "Runde 3 · Spa", serieName: "GT3 Sprint", strecke: "Circuit de Spa-Francorchamps", start: new Date(start).toISOString(), schluss: new Date(start - 3600e3).toISOString(),
+      plaetze: 24, starter: Array.from({ length: 18 }, () => ({})), warteliste: [{}, {}], training: "70 Min", qualifying: "40 Min", renndauer: "65 Min", fahrzeuge: "GT3 und GT4", zugangNoetig: false,
+    });
+    const urteil = R.urteilKarte({ serieName: "GT3 Sprint", rennenTitel: "Runde 3 · Spa", gegen: { name: "Max Beispiel" } }, { art: "strafpunkte", punkte: 3 });
+    const ergebnis = await R.webhooksTesten(s.name, { Reports: beispiel, Renntag: renntag, Urteile: urteil });
     if (ergebnis.every((x) => x.stand === "fehlt")) throw new Hinweis("Es ist noch kein Discord-Webhook eingerichtet.");
     return { discord: ergebnis };
   },
@@ -567,13 +574,14 @@ const aktionen = {
     const privat = R.urteilAnwenden(await D.privatLesen(report.serie), report.id, urteil, ziel);
     await D.privatSchreiben(report.serie, privat);
     const einsprueche = ((await R.alleReports(true)).find((r) => r.id === report.id) || {}).einsprueche || [];
+    const vorher = report.urteil;
     report.urteil = { ...urteil, ...(ziel || {}), von: s.name, zeit: new Date().toISOString() };
     report.status = "entschieden";
     // Nach geprüftem Einspruch ist das Urteil endgültig.
     report.endgueltig = einsprueche.length > 0;
     await R.speichern(report);
     const warnungen = (await neuBerechnen(kat, report.serie)) || [];
-    await R.discordMelden(report, urteil);
+    await R.discordMelden(report, urteil, vorher);
     return { warnungen: warnungen.filter((w) => w.startsWith("Zeitstrafe")) };
   },
   async "fahrer-aus-serie"(b, kat) {
