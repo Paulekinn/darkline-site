@@ -18,6 +18,7 @@
     nav.innerHTML = `<div class="wrap">
       ${eintrag("/liga", "Übersicht", pfad === "/liga" && !aktuelleSerie)}
       ${sichtbar.map((s) => eintrag(`/liga?serie=${encodeURIComponent(s.id)}`, s.name, s.id === aktuelleSerie, `liga-nav-serie s-${FARBEN.includes(s.farbe) ? s.farbe : "rot"}${s.typ === "event" ? " liga-nav-event" : ""}`)).join("")}
+      ${eintrag("/regelwerk", "Regelwerk", pfad === "/regelwerk", "liga-nav-regeln")}
     </div>`;
     konto.innerHTML = `${eintrag("/fahrerbereich", "Fahrerbereich", pfad === "/fahrerbereich", "haupt")}
       ${rennleitung ? eintrag("/liga-admin", "Rennleitung", false, "leitung") : ""}

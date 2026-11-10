@@ -16,7 +16,7 @@
     "keine-rolle": "Dein Discord-Konto hat keine Rolle für die Rennleitung.",
     technik: "Technischer Fehler. Bitte versuche es gleich noch einmal.",
   };
-  const TABS = [["cockpit", "Cockpit"], ["reports", "Reports"], ["serien", "Seasons &amp; Events"], ["rennen", "Rennen"], ["strecken", "Strecken"], ["fahrer", "Fahrer"], ["ergebnisse", "Ergebnisse"], ["protokoll", "Protokoll"]];
+  const TABS = [["cockpit", "Cockpit"], ["reports", "Reports"], ["serien", "Seasons &amp; Events"], ["rennen", "Rennen"], ["strecken", "Strecken"], ["katalog", "Strafenkatalog"], ["fahrer", "Fahrer"], ["ergebnisse", "Ergebnisse"], ["protokoll", "Protokoll"]];
   const URTEILE = [["kein-vergehen", "Kein Vergehen"], ["verwarnung", "Verwarnung"], ["strafpunkte", "Strafpunkte"], ["zeitstrafe", "Zeitstrafe"], ["dsq", "Disqualifikation"]];
   const NEUE_SERIE = { name: "", typ: "liga", saison: "", status: "geplant", anmeldungOffen: true, farbe: "rot", beschreibung: "", kategorie: "Sports_Car", fahrzeugklassen: [], rennenGesamt: 8, gewerteteRennen: 7, anmeldeschlussMinuten: 60,
     klassen: [{ name: "Pro", min: 2500, max: null }, { name: "Pro-Am", min: 1500, max: 2499 }, { name: "Am", min: 0, max: 1499 }],
@@ -859,21 +859,53 @@
       ${erledigt.length ? `<section class="a-karte"><h2>Entschieden</h2><div class="a-scroll"><table><thead><tr><th>Eingang</th><th>Serie</th><th>Rennen</th><th>Melder → Gemeldet</th><th>Status</th><th></th></tr></thead><tbody>${zeilen}</tbody></table></div></section>` : ""}`;
   }
 
-  // Vorlagen für einheitliche Urteile. Strafmaß und Text lassen sich im Formular immer anpassen.
-  const STRAFKATALOG = [
-    { id: "rennunfall", t: "Rennunfall", art: "kein-vergehen", b: "Rennunfall ohne klare Schuld, keine Strafe." },
-    { id: "kontakt-leicht", t: "Leichter Kontakt ohne Folgen", art: "verwarnung", b: "Leichter Kontakt ohne Folgen für den Rennverlauf. Verwarnung." },
-    { id: "kontakt-position", t: "Kontakt mit Positionsverlust", art: "strafpunkte", punkte: 3, b: "Vermeidbarer Kontakt, der zu einem Positionsverlust geführt hat." },
-    { id: "kontakt-dreher", t: "Kontakt mit Dreher oder Ausfall", art: "strafpunkte", punkte: 6, b: "Vermeidbarer Kontakt, der den anderen Fahrer gedreht oder zum Ausfall gebracht hat." },
-    { id: "divebomb", t: "Unkontrolliertes Überholmanöver", art: "zeitstrafe", sekunden: 10, b: "Überholversuch ohne realistische Chance, die Kurve sauber zu fahren." },
-    { id: "abdraengen", t: "Abdrängen oder unfaires Verteidigen", art: "strafpunkte", punkte: 3, b: "Unfaires Verteidigen der Position, dem anderen Fahrer wurde kein Platz gelassen." },
-    { id: "blaue-flagge", t: "Blaue Flaggen missachtet", art: "zeitstrafe", sekunden: 5, b: "Blaue Flaggen wurden missachtet und das Überrunden behindert." },
-    { id: "absicht", t: "Absichtlicher Kontakt oder grob unsportlich", art: "dsq", b: "Grob unsportliches Verhalten." },
-  ];
+  // Vorlagen aus dem Strafenkatalog. Folgezeilen übernehmen den Namen des Vergehens von der Zeile darüber.
+  function katalogVorlagen() {
+    let gruppe = "";
+    return d.katalog.eintraege.map((k) => { gruppe = k.vergehen || gruppe; return { ...k, gruppe }; }).filter((k) => k.min || k.max);
+  }
+  // Nur Verwarnung, Sekunden und DQ lassen sich als Urteil abbilden. Alles andere zeigt der Strafrahmen, die Rennleitung wählt selbst.
+  function vorlageAus(k) {
+    const t = String(k.min || "").toLowerCase();
+    const sekunden = /^(\d+)\s*sek/.exec(t);
+    if (t.startsWith("verwarn")) return { art: "verwarnung" };
+    if (sekunden) return { art: "zeitstrafe", sekunden: Number(sekunden[1]) };
+    if (t.startsWith("dq")) return { art: "dsq" };
+    return null;
+  }
+  const strafrahmen = (k) => `Strafrahmen ${k.nr}: ${k.min || "–"}${k.max ? ` bis ${k.max}` : ""}${k.hinweis ? ` · ${k.hinweis}` : ""}${k.kommentar ? ` · ${k.kommentar}` : ""}`;
 
   function aehnlicheFaelle(vergehen, reportId) {
     const faelle = vergehen ? d.reports.filter((x) => x.id !== reportId && x.urteil && x.urteil.vergehen === vergehen).slice(0, 3) : [];
-    return faelle.length ? `<b>Frühere Fälle dieser Art</b>${faelle.map((x) => `<span>${esc(urteilKurz(x.urteil))} · ${esc(x.gegen.name)} · ${esc(x.rennenTitel)}</span>`).join("")}` : "";
+    const vorlage = vergehen ? katalogVorlagen().find((k) => k.nr === vergehen) : null;
+    return `${vorlage ? `<b>${esc(strafrahmen(vorlage))}</b>` : ""}${faelle.length ? `<b>Frühere Fälle dieser Art</b>${faelle.map((x) => `<span>${esc(urteilKurz(x.urteil))} · ${esc(x.gegen.name)} · ${esc(x.rennenTitel)}</span>`).join("")}` : ""}`;
+  }
+
+  /* ---------- Strafenkatalog bearbeiten ---------- */
+  let katalogEntwurf = null;
+  const KATALOG_FELDER = [["nr", "Nr", 7], ["vergehen", "Vergehen", 22], ["erklaerung", "Erklärung", 36], ["min", "Mindeststrafe", 16], ["max", "Höchststrafe", 13], ["hinweis", "Hinweis", 14], ["kommentar", "Kommentar", 20]];
+
+  function katalogAusFormular(f) {
+    const zeilen = (attr) => [...f.querySelectorAll(`tr[${attr}]`)].map((z) => Object.fromEntries([...z.querySelectorAll("input")].map((i) => [i.dataset.feld, i.value])));
+    return { eintraege: zeilen("data-k-zeile"), strafpunkte: zeilen("data-p-zeile") };
+  }
+
+  function katalogTab() {
+    const k = katalogEntwurf || d.katalog;
+    const zelle = (feld, wert, breite, art) => `<td><input data-feld="${feld}" value="${esc(wert ?? "")}" size="${breite}"${art ? ` type="${art}" min="0"` : ""} aria-label="${esc(feld)}"></td>`;
+    const zeilen = k.eintraege.map((x, i) => `<tr data-k-zeile="${i}">${KATALOG_FELDER.map(([f, , b]) => zelle(f, x[f], b)).join("")}<td><button type="button" class="a-weg" data-k-weg="${i}" aria-label="Eintrag ${esc(x.nr)} entfernen">×</button></td></tr>`).join("");
+    const punkte = k.strafpunkte.map((x, i) => `<tr data-p-zeile="${i}">${zelle("strafe", x.strafe, 20)}${zelle("punkte", x.punkte, 5, "number")}<td><button type="button" class="a-weg" data-p-weg="${i}" aria-label="Strafe entfernen">×</button></td></tr>`).join("");
+    return `<form id="f-katalog" novalidate>
+      <section class="a-karte"><div class="a-kartenkopf"><h2>Vergehen und Strafrahmen</h2><div class="a-leiste"><span class="a-chip">Stand ${esc(datumKurz(k.stand || d.katalog.stand))}</span><a class="a-knopf zweit klein" href="/regelwerk?teil=strafen" target="_blank" rel="noopener">Öffentliche Ansicht</a></div></div>
+        <p class="a-hinweis">Änderungen erscheinen sofort im Regelwerk und in den Vorlagen bei Urteilen. Bereits gesprochene Urteile bleiben unverändert. Bleibt „Vergehen“ leer, gehört die Zeile zum Vergehen darüber.</p>
+        <div class="a-scroll a-katalog"><table><thead><tr>${KATALOG_FELDER.map(([, t]) => `<th>${t}</th>`).join("")}<th></th></tr></thead><tbody>${zeilen}</tbody></table></div>
+        <div class="a-leiste"><button type="button" class="a-knopf zweit klein" data-k-neu="1">Zeile hinzufügen</button></div>
+      </section>
+      <section class="a-karte"><h2>Strafpunkte je Strafe</h2>
+        <div class="a-scroll a-katalog a-katalog-klein"><table><thead><tr><th>Strafe</th><th>Punkte</th><th></th></tr></thead><tbody>${punkte}</tbody></table></div>
+        <div class="a-leiste"><button type="button" class="a-knopf zweit klein" data-p-neu="1">Strafe hinzufügen</button><button type="submit" class="a-knopf">Strafenkatalog speichern</button></div>
+      </section>
+    </form>`;
   }
 
   // Stimmen der Stewards. Solange man nicht selbst abgestimmt hat, bleiben die anderen verborgen.
@@ -912,7 +944,7 @@
       <h2>${einspruchOffen(r) ? "Einspruch entscheiden" : r.urteil ? "Urteil ändern" : "Entscheidung"}</h2>
       ${einspruchOffen(r) ? '<p class="a-hinweis">Nach dieser Entscheidung ist der Fall endgültig. Soll das Urteil bestehen bleiben, speichere es unverändert.</p>' : ""}
       <div class="a-felder">
-        ${feld("Vorlage aus dem Strafkatalog", `<select name="vergehen" id="u-katalog"><option value="">Keine Vorlage</option>${STRAFKATALOG.map((k) => `<option value="${k.id}"${k.id === u.vergehen ? " selected" : ""}>${esc(k.t)}</option>`).join("")}</select>`, true)}
+        ${feld("Vorlage aus dem Strafkatalog", `<select name="vergehen" id="u-katalog"><option value="">Keine Vorlage</option>${katalogVorlagen().map((k) => `<option value="${esc(k.nr)}"${k.nr === u.vergehen ? " selected" : ""}>${esc(`${k.nr} ${k.gruppe}: ${k.erklaerung}`)}</option>`).join("")}</select>`, true)}
         <div class="a-aehnlich breit" id="u-aehnlich">${aehnlicheFaelle(u.vergehen, r.id)}</div>
         ${feld("Entscheidung", `<select name="art" id="u-art">${URTEILE.map(([v, t]) => `<option value="${v}"${v === art ? " selected" : ""}>${t}</option>`).join("")}</select>`)}
         <div class="a-feld" data-nur="strafpunkte"${art === "strafpunkte" ? "" : " hidden"}><label>Strafpunkte</label><input name="punkte" type="number" min="1" value="${esc(u.punkte ?? "")}"></div>
@@ -999,7 +1031,7 @@
   /* ---------- Rahmen ---------- */
   function zeichne() {
     if (!d || !d.angemeldet) return zeigeLogin();
-    const inhalte = { protokoll: protokollTab, cockpit: cockpitTab, serien: serienTab, rennen: rennenTab, strecken: streckenTab, fahrer: fahrerTab, reports: reportsTab, ergebnisse: ergebnisTab };
+    const inhalte = { katalog: katalogTab, protokoll: protokollTab, cockpit: cockpitTab, serien: serienTab, rennen: rennenTab, strecken: streckenTab, fahrer: fahrerTab, reports: reportsTab, ergebnisse: ergebnisTab };
     const inhalt = inhalte[tab]();
     const offene = d.reports.filter(braucht).length;
     app.innerHTML = `<div class="a-rahmen">
@@ -1088,6 +1120,15 @@
     if (b.dataset.planer) { planer = neuerPlaner(b.dataset.planer); tab = "rennen"; form = null; return zeigeFormular(); }
     if (b.dataset.rennenFilter) { rennenFilter = b.dataset.rennenFilter; return zeichne(); }
     if (b.dataset.punkteVorlage) { app.querySelector('#f-serie [name="punkte"]').value = PUNKTE_VORLAGEN[Number(b.dataset.punkteVorlage)][1].join(", "); return; }
+    if (b.dataset.kNeu || b.dataset.kWeg || b.dataset.pNeu || b.dataset.pWeg) {
+      // Eingaben zuerst übernehmen, sonst gingen sie beim Neuzeichnen verloren.
+      katalogEntwurf = { ...katalogAusFormular(b.form), stand: d.katalog.stand };
+      if (b.dataset.kNeu) katalogEntwurf.eintraege.push({ nr: "", vergehen: "", erklaerung: "", min: "", max: "", hinweis: "", kommentar: "" });
+      if (b.dataset.kWeg) katalogEntwurf.eintraege.splice(Number(b.dataset.kWeg), 1);
+      if (b.dataset.pNeu) katalogEntwurf.strafpunkte.push({ strafe: "", punkte: 0 });
+      if (b.dataset.pWeg) katalogEntwurf.strafpunkte.splice(Number(b.dataset.pWeg), 1);
+      return zeichne();
+    }
     if (b.dataset.karteErzeugen) return karteErzeugen(b.dataset.karteErzeugen);
     if (b.dataset.streckenFilter) {
       streckenFilter = b.dataset.streckenFilter;
@@ -1170,6 +1211,13 @@
       return;
     }
     if (f.id === "f-notiz") return aktion({ aktion: "report-notiz", id: reportId, notizen: w.notizen }, "Notizen gespeichert.");
+    if (f.id === "f-katalog") {
+      const katalog = katalogAusFormular(f);
+      katalogEntwurf = { ...katalog, stand: d.katalog.stand };
+      const a = await aktion({ aktion: "katalog-speichern", katalog }, "Strafenkatalog gespeichert.");
+      if (a) { katalogEntwurf = null; zeichne(); }
+      return;
+    }
     if (f.id === "f-stimme") {
       const wert = Number(w.wert) || undefined;
       return aktion({ aktion: "report-stimme", id: reportId, stimme: { art: w.art, notiz: w.notiz, punkte: w.art === "strafpunkte" ? wert : undefined, sekunden: w.art === "zeitstrafe" ? wert : undefined } }, "Stimme gespeichert.");
@@ -1243,15 +1291,17 @@
       return;
     }
     if (t.id === "u-katalog") {
-      const k = STRAFKATALOG.find((x) => x.id === t.value);
+      const k = katalogVorlagen().find((x) => x.nr === t.value);
       document.getElementById("u-aehnlich").innerHTML = aehnlicheFaelle(t.value, reportId);
       if (!k) return;
       const f = t.form;
-      f.elements.art.value = k.art;
-      f.elements.punkte.value = k.punkte || "";
-      f.elements.sekunden.value = k.sekunden || "";
-      f.elements.begruendung.value = k.b;
+      // Bei Strafen, die sich nicht abbilden lassen, darf keine Entscheidung der vorherigen Vorlage stehen bleiben.
+      const v = vorlageAus(k) || { art: "kein-vergehen" };
+      f.elements.art.value = v.art;
+      f.elements.punkte.value = "";
+      f.elements.sekunden.value = v.sekunden || "";
       f.elements.art.dispatchEvent(new Event("change", { bubbles: true }));
+      f.elements.begruendung.value = `${k.nr} ${k.gruppe}: ${k.erklaerung}.`;
       return;
     }
     if (t.id === "u-art") {

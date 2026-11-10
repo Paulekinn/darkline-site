@@ -71,8 +71,27 @@ function supabaseAttrappe(seite = 1000) {
 }
 const B = require("../api/_lib/blob");
 const T = require("../api/_lib/liga-renntag");
+const K = require("../api/_lib/liga-regeln");
 
 const tests = {
+  "Strafenkatalog: PDF-Stand ist vollständig und gültig": () => {
+    const k = K.pruefeKatalog(K.STANDARD, new Date(Date.UTC(2026, 10, 10)));
+    assert.strictEqual(k.eintraege.length, 42);
+    assert.strictEqual(new Set(k.eintraege.map((x) => x.nr)).size, 42);
+    assert.strictEqual(k.strafpunkte.length, 13);
+    assert.deepStrictEqual(k.strafpunkte.find((p) => p.strafe === "DQ"), { strafe: "DQ", punkte: 5 });
+    assert.strictEqual(k.stand, "2026-11-10");
+  },
+  "Strafenkatalog: Eingaben werden geprüft": () => {
+    const zeile = { nr: "1", vergehen: "A", erklaerung: "b", min: "5 Sek.", max: "", hinweis: "", kommentar: "" };
+    const p = [{ strafe: "DT", punkte: "3" }];
+    assert.strictEqual(K.pruefeKatalog({ eintraege: [zeile], strafpunkte: p }).strafpunkte[0].punkte, 3);
+    assert.throws(() => K.pruefeKatalog({ eintraege: [], strafpunkte: p }), /mindestens einen/);
+    assert.throws(() => K.pruefeKatalog({ eintraege: [zeile, zeile], strafpunkte: p }), /mehrfach/);
+    assert.throws(() => K.pruefeKatalog({ eintraege: [{ ...zeile, nr: "" }], strafpunkte: p }), /Nummer/);
+    assert.throws(() => K.pruefeKatalog({ eintraege: [zeile], strafpunkte: [{ strafe: "DT", punkte: "" }] }), /ganze Zahl/);
+    assert.throws(() => K.pruefeKatalog({ eintraege: [zeile], strafpunkte: [{ strafe: "", punkte: 1 }] }), /Namen/);
+  },
   "Zugang: nur Events und Serien mit ein oder zwei Rennen brauchen Zugangsdaten": () => {
     const stand = (serie) => A.baueRennen([SERIENRENNEN], [], { ...OPT, serien: { gt3: { name: "GT3", ...serie } } })[0].zugangNoetig;
     assert.strictEqual(stand({ typ: "liga", rennenGesamt: 8 }), false);

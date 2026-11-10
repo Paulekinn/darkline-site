@@ -156,6 +156,8 @@
   .bar .liga-konto+.back{margin-left:auto}
 }
 
+.bar nav.liga-nav a.liga-nav-regeln{margin-left:auto}
+
 /* Serienfarben */
 .s-rot{--s:var(--liga-rot)} .s-blau{--s:var(--liga-blau)} .s-lila{--s:var(--liga-lila)} .s-gruen{--s:var(--liga-gruen)} .s-gelb{--s:var(--liga-gelb)} .s-tuerkis{--s:#45d0c8}
 

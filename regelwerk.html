@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<base href="/">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Regelwerk · Darkline Simracing Series</title>
+<meta name="description" content="Serienreglement, Strafenkatalog und Flaggensignale der Darkline Simracing Series.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#08090a">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/site.css">
+<link rel="stylesheet" href="assets/liga.css">
+<link rel="stylesheet" href="assets/regelwerk.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <a class="logo liga-logo" href="/liga" aria-label="Darkline Simracing Series – zur Liga-Übersicht"><img src="img/brand/dsrs-logo.png" alt="Darkline Simracing Series" width="654" height="165"></a>
+    <div class="liga-konto" id="liga-konto"></div>
+    <a class="back" href="/">Zur Startseite</a>
+  </div>
+  <nav class="liga-nav" id="liga-nav" aria-label="Liga"></nav>
+</header>
+
+<main id="rw-main">
+  <section class="rw-kopf">
+    <div class="wrap">
+      <div class="lbl">Darkline Simracing Series</div>
+      <h1 class="wide">Regelwerk</h1>
+      <p>Serienreglement, Strafenkatalog und Flaggensignale. Änderungen vorbehalten: Der Veranstalter kann das Reglement und die Strafmaße anpassen, Änderungen werden über die offiziellen Kommunikationswege bekanntgegeben.</p>
+    </div>
+  </section>
+  <section class="sheet">
+    <div class="wrap">
+      <div class="rw-reiter" role="tablist" aria-label="Teil des Regelwerks">
+        <button type="button" role="tab" id="tab-reglement" data-teil="reglement" aria-controls="rw-inhalt">Reglement</button>
+        <button type="button" role="tab" id="tab-strafen" data-teil="strafen" aria-controls="rw-inhalt">Strafenkatalog</button>
+        <button type="button" role="tab" id="tab-flaggen" data-teil="flaggen" aria-controls="rw-inhalt">Flaggensignale</button>
+      </div>
+      <div id="rw-inhalt" role="tabpanel"></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="chequer" aria-hidden="true"></div>
+  <div class="wrap">
+    <div style="display:grid;gap:18px">
+      <img src="img/brand/logo.webp" alt="Darkline Performance" width="900" height="216">
+      <nav>
+        <a href="https://www.twitch.tv/darklineperformance">Twitch</a>
+        <a href="https://www.instagram.com/darkline.performancemotorsport">Instagram</a>
+        <a href="https://www.tiktok.com/@darklineperformance">TikTok</a>
+        <a href="https://discord.gg/QP2rKy6n8U">Discord</a>
+      </nav>
+    </div>
+    <nav>
+      <a href="/impressum">Impressum</a>
+      <a href="/datenschutz">Datenschutz</a>
+      <a href="/team">Teambereich</a>
+      <span>© <span id="year">2026</span> Darkline Performance Motorsport</span>
+    </nav>
+  </div>
+</footer>
+
+<script src="assets/liga-nav.js"></script>
+<script src="assets/liga-reglement.js"></script>
+<script src="assets/regelwerk.js"></script>
+</body>
+</html>

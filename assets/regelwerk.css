@@ -1,0 +1,57 @@
+/* Regelwerk der Liga */
+.rw-kopf{padding-block:clamp(28px,4vw,48px) clamp(20px,3vw,32px);background:linear-gradient(120deg,color-mix(in srgb,var(--red) 22%,var(--monitor)),var(--monitor) 62%)}
+.rw-kopf h1{margin:6px 0 10px;font-size:clamp(2.2rem,5vw,3.6rem);text-transform:uppercase}
+.rw-kopf p{margin:0;max-width:72ch;color:#c4cbc8}
+.rw-reiter{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px}
+.rw-reiter button{flex:1 1 150px;padding:13px 10px;border:0;border-bottom:3px solid color-mix(in srgb,var(--red) 45%,transparent);background:var(--paper);color:var(--muted);font:800 .95rem/1.15 var(--f-wide);font-variation-settings:"wdth" 110;text-transform:uppercase;cursor:pointer}
+.rw-reiter button:hover{color:var(--ink)}
+.rw-reiter button[aria-selected="true"]{background:var(--ink);color:#08090a;border-bottom-color:var(--red)}
+.rw-reiter button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.rw-kopfzeile{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 16px;margin-bottom:14px}
+.rw-pdf{font:700 .78rem/1 var(--f-mono);color:var(--ink);text-underline-offset:3px}
+.rw-hinweis{margin:0 0 16px;padding:11px 14px;background:var(--paper);border-left:4px solid var(--red);font-size:.94rem;color:#d8ddda}
+.rw-raster{display:grid;grid-template-columns:minmax(200px,250px) minmax(0,1fr);gap:28px;align-items:start}
+.rw-toc{position:sticky;top:130px}
+.rw-toc ol{display:grid;gap:2px;margin:0;padding:0;list-style:none}
+.rw-toc button{all:unset;box-sizing:border-box;display:block;width:100%;padding:9px 11px;cursor:pointer;font-size:.9rem;font-weight:700;color:var(--muted);border-left:3px solid transparent}
+.rw-toc button:hover{color:var(--ink);background:var(--paper);border-left-color:var(--red)}
+.rw-toc button:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
+.rw-text{display:grid;gap:26px;max-width:80ch}
+.rw-haupt{display:grid;gap:18px;scroll-margin-top:130px}
+.rw-haupt h2{margin:0;padding-bottom:7px;border-bottom:2px solid var(--red);font-size:clamp(1.25rem,2.4vw,1.7rem);text-transform:uppercase}
+.rw-haupt h3,.rw-flaggen h3{margin:0 0 7px;font:800 1.02rem/1.25 var(--f-wide);font-variation-settings:"wdth" 108}
+.rw-haupt p{margin:0 0 9px;line-height:1.6;color:#d8ddda}
+.rw-haupt ul{margin:0 0 9px;padding-left:20px;line-height:1.6;color:#d8ddda}
+.rw-haupt a{color:var(--ink)}
+.rw-haupt figure{margin:8px 0 12px;max-width:560px}
+.rw-haupt figure img{display:block;width:100%;height:auto;background:#fff}
+.rw-haupt figcaption{margin-top:6px;font:.78rem/1.4 var(--f-mono);color:var(--muted)}
+.rw-unter{margin:20px 0 10px;font-size:1.2rem;text-transform:uppercase}
+.rw-scroll{overflow-x:auto}
+#rw-inhalt table{width:100%;border-collapse:collapse;font-size:.88rem}
+#rw-inhalt th{padding:9px 10px;background:#15191c;text-align:left;font:700 .68rem/1.2 var(--f-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+#rw-inhalt td{padding:8px 10px;border-bottom:1px solid var(--scan);vertical-align:top;color:#d8ddda}
+.rw-katalog{min-width:880px}
+.rw-katalog tr.start td{border-top:2px solid var(--scan)}
+.rw-katalog b{color:var(--ink)}
+#rw-inhalt .rw-nr{font-family:var(--f-mono);color:var(--muted);white-space:nowrap}
+#rw-inhalt .rw-strafe{font-weight:700;color:var(--ink);white-space:nowrap}
+#rw-inhalt .rw-zahl{text-align:right}
+.rw-zwei{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+.rw-flaggen{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.rw-flaggen article{display:grid;grid-template-columns:78px minmax(0,1fr);gap:15px;padding:14px;background:var(--paper)}
+.rw-flaggen p{margin:0;font-size:.92rem;line-height:1.5;color:#d8ddda}
+.rw-flagge{width:78px;height:54px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
+.rw-flagge.gruen{background:#1fa64a}
+.rw-flagge.gelb{background:#f5c518}
+.rw-flagge.blau{background:#1d62d6}
+.rw-flagge.schwarz{background:#050606}
+.rw-flagge.weiss{background:#f4f5f6}
+.rw-flagge.schwarzweiss{background:linear-gradient(135deg,#f4f5f6 50%,#050606 50%)}
+.rw-flagge.orange{background:radial-gradient(circle at center,#ff7a12 0 14px,#050606 15px)}
+.rw-flagge.ziel{background-color:#f4f5f6;background-image:conic-gradient(#050606 25%,transparent 0 50%,#050606 0 75%,transparent 0);background-size:26px 26px}
+@media (max-width:900px){
+  .rw-raster,.rw-zwei,.rw-flaggen{grid-template-columns:minmax(0,1fr)}
+  .rw-toc{position:static}
+  .rw-toc ol{grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr))}
+}

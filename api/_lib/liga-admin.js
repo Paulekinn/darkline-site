@@ -9,6 +9,7 @@ const R = require("./liga-reports");
 const { Hinweis } = D;
 const G = require("./liga-strecken");
 const Renntag = require("./liga-renntag");
+const Regeln = require("./liga-regeln");
 const { leseErgebnis, berechneTabelle, klasseFuer } = require("../../assets/liga-wertung.js");
 
 const eintraege = async () => (await blobList(A.PREFIX)).map(A.leseEintrag).filter(Boolean);
@@ -111,6 +112,7 @@ async function protokollText(b, kat) {
     "pruefung-erledigt": () => `Prüfung nach dem Rennen erledigt in ${serie(b.serie)}`,
     "bericht-posten": () => `Rennbericht im Discord gepostet: ${serie(b.serie)}`,
     "ergebnis-endgueltig": () => `Ergebnis endgültig freigegeben in ${serie(b.serie)}`,
+    "katalog-speichern": () => "Strafenkatalog geändert",
     "saison-planen": () => `${(b.rennen || []).length} Rennen geplant in ${serie(b.serie)}`,
     "rennen-speichern": () => `${b.id ? "Rennen geändert" : "Rennen angelegt"}: ${(b.rennen || {}).titel}`,
     "rennen-loeschen": () => `Rennen gelöscht: ${rennen(b.id)}`,
@@ -392,6 +394,11 @@ const aktionen = {
     const berichtOffen = !!process.env.LIGA_DISCORD_WEBHOOK && !(await Renntag.berichtSchonGepostet(ergebnis.id));
     return { warnungen, ergebnisId: ergebnis.id, berichtOffen };
   },
+  // Bereits gesprochene Urteile bleiben unverändert, sie speichern ihr Strafmaß selbst.
+  async "katalog-speichern"(b) {
+    await Regeln.katalogSpeichern(Regeln.pruefeKatalog(b.katalog));
+    return {};
+  },
   // Vor Ablauf der Fristen von Hand freigeben. Offene Reports und Einsprüche gehen vor.
   async "ergebnis-endgueltig"(b, kat) {
     const serie = serieFinden(kat, b.serie);
@@ -552,7 +559,7 @@ module.exports = async (req, res) => {
     const alleReports = await R.alleReports(true);
     const ergebnisseJe = new Map(await Promise.all([...new Set(alleReports.map((r) => r.serie))].filter((x) => D.istId(x)).map(async (id) => [id, await D.ergebnisseLesen(id).catch(() => [])])));
     const reports = alleReports.map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id), stimmen: R.stimmenSicht(r, s.id), kontext: R.rennKontext(r, ergebnisseJe.get(r.serie) || []) }));
-    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });
