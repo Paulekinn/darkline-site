@@ -24,6 +24,16 @@
     {
       "source": "/karte",
       "destination": "/api/liga?r=teilen"
+    },
+    {
+      "source": "/api/wach",
+      "destination": "/api/liga?r=wach"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/wach",
+      "schedule": "0 5 * * *"
     }
   ],
   "headers": [

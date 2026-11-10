@@ -1136,7 +1136,7 @@
     zeichne();
     // Neue Reports erscheinen ohne Neuladen. Im Hintergrund wird nicht abgefragt.
     reportsPruefen();
-    setInterval(reportsPruefen, 300000);
+    setInterval(reportsPruefen, 60000);
     document.addEventListener("visibilitychange", reportsPruefen);
   });
 })();

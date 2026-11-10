@@ -76,7 +76,7 @@ Beim Domain-Umzug `base_url` in `admin/config.yml` sowie Homepage- und Callback-
 | `/admin/rennbericht` | Teamrennen aus Garage 61 auswerten und als News-Entwurf öffnen. |
 | `/admin/streckenkarte` | Anpassung der Streckenkarte im Telemetrie-Vergleich, pro Strecke. **Linie korrigieren:** Liegen die iRacing-Koordinaten gedreht oder verschoben neben der echten Strecke (Le Mans ca. 2°), mit zwei bis drei Passpunkten (Punkt auf der Linie → richtige Stelle auf dem Luftbild) Verschiebung, Drehung und Maßstab korrigieren; gilt für alle Runden der Strecke. **Kurvennamen:** Stelle auf der Linie anklicken und Namen eingeben (gespeichert als Position auf der Runde); im Vergleich heißt die nächstgelegene erkannte Kurve dann z. B. „Mulsanne (K4)“. **Hintergrund** (wenn das heutige Luftbild nicht passt): **Luftbild-Archiv:** einen früheren Stand des Esri-Luftbilds (Wayback) wählen, passt ohne Ausrichten; angeboten werden nur Stände, in denen sich entlang der Strecke etwas geändert hat. **Eigenes Bild:** Bild (Streckenplan, älteres Luftbild, Screenshot; PNG, JPG, WebP oder SVG, bei iRacing-Karten alle SVG-Ebenen zusammen auswählen) hochladen und über die schnellste Team-Runde legen (rotes Quadrat = verschieben, weißer Punkt = drehen/vergrößern). Speichern legt das Bild unter `img/trackmaps/<Strecken-ID>.webp` und die Lage in `content/trackmaps.json` ab, als ein Commit. Im Teambereich ersetzt die Karte dann das Luftbild für diese Strecke ganz; der Button ▦ wechselt nur noch zum Schema. Nach jedem Speichern startet jeder wieder mit der Streckenkarte. Zur Auswahl stehen die Strecken, die das Team in den letzten 4 Wochen gefahren ist. |
 
-**Referenzrunden** (unten auf `/admin/streckenkarte`): Unser Garage-61-Zugang darf die Telemetrie fremder Fahrer nicht abrufen. Schnelle, öffentlich geteilte Runden lassen sich aber in Garage 61 als CSV exportieren und hier mit Auto, Fahrername und Rundenzeit hochladen. Sie liegen im privaten Vercel-Blob-Speicher (nicht im öffentlichen Repository) und erscheinen im Telemetrie-Vergleich als „★ Referenz“ bei Runde A und B. Hochladen kann auch jedes Teammitglied direkt im Teambereich (Button „★ Referenz importieren“ neben Runde B); entfernen nur Admins hier.
+**Referenzrunden** (unten auf `/admin/streckenkarte`): Unser Garage-61-Zugang darf die Telemetrie fremder Fahrer nicht abrufen. Schnelle, öffentlich geteilte Runden lassen sich aber in Garage 61 als CSV exportieren und hier mit Auto, Fahrername und Rundenzeit hochladen. Sie liegen im privaten Supabase-Speicher (nicht im öffentlichen Repository) und erscheinen im Telemetrie-Vergleich als „★ Referenz“ bei Runde A und B. Hochladen kann auch jedes Teammitglied direkt im Teambereich (Button „★ Referenz importieren“ neben Runde B); entfernen nur Admins hier.
 
 Der **Dateiname** eines Rennens oder Beitrags wird zur eigenen Adresse (`/rennen/spa-24h-2026`, `/news/…`). Neue Einträge bekommen ihn automatisch (Jahr-Monat-Titel). Beim Deploy entsteht für jede Seite eine Vorschaukarte für Discord, WhatsApp & Co. (Bild = Banner bzw. News-Bild).
 
@@ -92,7 +92,7 @@ api/team/leaderboard.js   Rangliste: Strecken der letzten 4 Wochen, Bestzeiten p
 api/team/weekly.js        Wochenbericht: 8 Wochen aus der Team-Statistik
 api/team/telemetry.js     Telemetrie einer Runde, verdichtet auf 4000 Punkte (GPS für die Karte etwa alle 2 m);
                           dazu Referenzrunden fremder Fahrer (CSV-Upload im Admin, privater Speicher)
-api/_lib/blob.js          privater Vercel-Blob-Speicher „darkline-referenzrunden“ (BLOB_STORE_ID + OIDC, alternativ BLOB_READ_WRITE_TOKEN)
+api/_lib/blob.js          privater Speicher in Supabase, Tabelle siehe scripts/supabase-tabelle.sql (SUPABASE_URL + SUPABASE_SECRET_KEY)
 assets/map-image.js       gedrehtes Kartenbild (eigene Streckenkarten), auch im Admin genutzt
 api/team/race.js          Rennbericht (Admin) und Rennanalyse (Teambereich): Sessions am Renntag, Auswertung
                           (Stints, Fahrer, Boxenstopps, Zeitverluste, alle Runden fürs Pace-Diagramm, Wetter)
@@ -159,7 +159,7 @@ scripts/liga-test.js, scripts/liga-anmeldung-test.js   Tests (mit node ausführe
 
 **Einmalige Einrichtung:** In Discord eine Rolle für die Rennleitung anlegen und ihre ID in Vercel als `LIGA_ADMIN_ROLE_IDS` eintragen (mehrere Komma-getrennt). Ohne diesen Eintrag kommt niemand in `/liga-admin`. Wer die Rolle verliert, bleibt bis zum Ablauf des Cookies (12 Stunden) angemeldet. Die Discord-Redirect-Adresse bleibt dieselbe wie beim Teambereich.
 
-**Speicher:** Alles liegt im vorhandenen privaten Blob-Speicher unter `liga/`, nicht im Repository. Änderungen sind ohne Commit und Deploy nach spätestens rund einer Minute öffentlich sichtbar.
+**Speicher:** Alles liegt im privaten Supabase-Speicher unter `liga/`, nicht im Repository. Änderungen sind ohne Commit und Deploy nach spätestens rund einer Minute öffentlich sichtbar.
 
 **Bilder:** Unter `/liga-admin` → Serien lassen sich ein Titelbild für die Übersicht und je Serie ein eigenes Bild hochladen (JPG, PNG oder WebP, wird im Browser auf höchstens 1920 Pixel Breite verkleinert). Ohne Upload erscheinen das Teamfoto und die Livery-Bilder aus `img/cars`.
 

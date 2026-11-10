@@ -45,87 +45,100 @@ const kartenTabelle = () => new Map([["gt3", { rennenGesamt: 8, klassen: [{ id: 
 const G = require("../api/_lib/liga-strecken");
 const gpsRunde = (n, r = 0.01) => Array.from({ length: n }, (_, i) => { const w = (i / n) * 2 * Math.PI; return { d: i / (n - 1) * 0.999, lat: 50 + r * Math.sin(w), lon: 6 + r * Math.cos(w) }; });
 
-// Speicher-Attrappe, die zählt, was bei Vercel als Upload oder Auflistung berechnet würde
-function blobAttrappe() {
-  const dateien = new Map();
-  const zaehler = { list: 0, put: 0 };
-  const alt = { fetch: global.fetch, token: process.env.BLOB_READ_WRITE_TOKEN, jetzt: Date.now };
-  process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_STORE_geheim";
+// Supabase-Attrappe: versteht die Filter, die der Speicher verwendet
+function supabaseAttrappe(seite = 1000) {
+  const zeilen = new Map();
+  const anfragen = [];
+  const alt = { fetch: global.fetch, url: process.env.SUPABASE_URL, key: process.env.SUPABASE_SECRET_KEY };
+  process.env.SUPABASE_URL = "https://projekt.supabase.co/";
+  process.env.SUPABASE_SECRET_KEY = "sb_secret_test";
   global.fetch = async (url, o = {}) => {
     const u = new URL(url);
-    if (u.host.endsWith("blob.vercel-storage.com")) {
-      const p = u.pathname.slice(1);
-      return dateien.has(p) ? { ok: true, status: 200, text: async () => dateien.get(p) } : { ok: false, status: 404, text: async () => "" };
-    }
-    if (o.method === "PUT") { zaehler.put++; dateien.set(u.searchParams.get("pathname"), String(o.body)); return { ok: true, json: async () => ({}) }; }
-    if (o.method === "POST") { JSON.parse(o.body).urls.forEach((x) => dateien.delete(new URL(x).pathname.slice(1))); return { ok: true }; }
-    zaehler.list++;
-    const blobs = [...dateien.keys()].filter((p) => p.startsWith(u.searchParams.get("prefix"))).map((pathname) => ({ pathname, uploadedAt: "2026-11-01T00:00:00.000Z", url: "x" }));
-    return { ok: true, json: async () => ({ blobs, hasMore: false }) };
+    anfragen.push({ url: u, o });
+    const m = o.method || "GET";
+    const pfad = u.searchParams.get("pfad") || "";
+    if (m === "POST") { for (const z of JSON.parse(o.body)) zeilen.set(z.pfad, z); return { ok: true }; }
+    if (m === "DELETE") { [...pfad.slice(4, -1).matchAll(/"((?:[^"\\]|\\.)*)"/g)].forEach((x) => zeilen.delete(x[1].replace(/\\(.)/g, "$1"))); return { ok: true }; }
+    let treffer = [...zeilen.values()].sort((a, b) => a.pfad.localeCompare(b.pfad));
+    if (pfad.startsWith("eq.")) treffer = treffer.filter((z) => z.pfad === pfad.slice(3));
+    if (pfad.startsWith("like.")) { const vorn = pfad.slice(5, -1).replace(/\\(.)/g, "$1"); treffer = treffer.filter((z) => z.pfad.startsWith(vorn)); }
+    const start = Number(u.searchParams.get("offset") || 0);
+    const stueck = treffer.slice(start, start + Math.min(seite, Number(u.searchParams.get("limit") || seite)));
+    const spalten = u.searchParams.get("select").split(",");
+    return { ok: true, status: 200, json: async () => stueck.map((z) => Object.fromEntries(spalten.map((s) => [s, z[s]]))) };
   };
-  return { dateien, zaehler, ende: () => { global.fetch = alt.fetch; Date.now = alt.jetzt; if (alt.token === undefined) delete process.env.BLOB_READ_WRITE_TOKEN; else process.env.BLOB_READ_WRITE_TOKEN = alt.token; } };
+  return { zeilen, anfragen, ende: () => { global.fetch = alt.fetch; for (const [k, v] of [["SUPABASE_URL", alt.url], ["SUPABASE_SECRET_KEY", alt.key]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } } };
 }
 const B = require("../api/_lib/blob");
 
 const tests = {
-  "Speicher: Wiederholtes Lesen kostet keine Auflistung, eine Änderung baut neu": async () => {
-    const a = blobAttrappe();
+  "Speicher: Text und Bilder kommen unverändert zurück, fehlende Dateien sind null": async () => {
+    const a = supabaseAttrappe();
     try {
-      await B.blobPut("liga/daten/serien/a.json", '{"n":1}', "application/json");
-      assert.deepStrictEqual(await B.blobInhalte("liga/daten/serien/"), [["liga/daten/serien/a.json", '{"n":1}']]);
-      assert.strictEqual(a.zaehler.list, 1);
-      await B.blobInhalte("liga/daten/serien/");
-      await B.blobInhalte("liga/daten/serien/");
-      assert.strictEqual(a.zaehler.list, 1);
-      await B.blobPut("liga/daten/serien/b.json", '{"n":2}', "application/json");
-      assert.strictEqual((await B.blobInhalte("liga/daten/serien/")).length, 2);
-      assert.strictEqual(a.zaehler.list, 2);
-      await B.blobDelete(["liga/daten/serien/a.json"]);
-      assert.strictEqual((await B.blobInhalte("liga/daten/serien/")).length, 1);
-      assert.strictEqual(a.zaehler.list, 3);
+      await B.blobPut("liga/daten/a.json", '{"ä":1}', "application/json");
+      const bild = Buffer.from([0xff, 0xd8, 0xff, 0, 1, 2, 255]);
+      await B.blobPut("liga/daten/bilder/x", bild, "image/jpeg");
+      assert.strictEqual(await B.blobGet("liga/daten/a.json"), '{"ä":1}');
+      assert.ok((await B.blobGetBinaer("liga/daten/bilder/x")).equals(bild));
+      assert.strictEqual(await B.blobGet("liga/fehlt"), null);
+      assert.strictEqual(await B.blobGetBinaer("liga/fehlt"), null);
+      const schreiben = a.anfragen.find((x) => x.o.method === "POST");
+      assert.strictEqual(schreiben.o.headers.apikey, "sb_secret_test");
+      assert.strictEqual(schreiben.o.headers.authorization, undefined);
+      assert.strictEqual(schreiben.url.searchParams.get("on_conflict"), "pfad");
+      assert.ok(schreiben.o.headers.prefer.includes("merge-duplicates"));
+      assert.ok(schreiben.url.href.startsWith("https://projekt.supabase.co/rest/v1/dateien?"));
     } finally { a.ende(); }
   },
-  "Speicher: Der erste Stand gilt kurz, der zweite einen Tag": async () => {
-    const a = blobAttrappe();
-    const start = Date.now();
+  "Speicher: Überschreiben ersetzt die Datei, die Auflistung liefert Pfad und Datum": async () => {
+    const a = supabaseAttrappe();
     try {
-      await B.blobPut("liga/fahrerprofile/x", "1", "text/plain");
-      await B.blobList("liga/fahrerprofile/");
-      Date.now = () => start + 60e3;
-      await B.blobList("liga/fahrerprofile/");
-      assert.strictEqual(a.zaehler.list, 1);
-      Date.now = () => start + 120e3;
-      await B.blobList("liga/fahrerprofile/");
-      assert.strictEqual(a.zaehler.list, 2);
-      Date.now = () => start + 20 * 3600e3;
-      await B.blobList("liga/fahrerprofile/");
-      assert.strictEqual(a.zaehler.list, 2);
-      Date.now = () => start + 25 * 3600e3;
-      await B.blobList("liga/fahrerprofile/");
-      assert.strictEqual(a.zaehler.list, 3);
+      await B.blobPut("liga/reports/a.json", "1", "text/plain");
+      await B.blobPut("liga/reports/a.json", "2", "text/plain");
+      await B.blobPut("liga/reportsx/b.json", "3", "text/plain");
+      const liste = await B.blobList("liga/reports/");
+      assert.strictEqual(liste.length, 1);
+      assert.deepStrictEqual(Object.keys(liste[0]), ["pathname", "uploadedAt"]);
+      assert.ok(!Number.isNaN(Date.parse(liste[0].uploadedAt)));
+      assert.deepStrictEqual(await B.blobInhalte("liga/reports/"), [["liga/reports/a.json", "2"]]);
     } finally { a.ende(); }
   },
-  "Speicher: Anmeldungen unter liga/ werden nur durch Anmeldungen ungültig": async () => {
-    const a = blobAttrappe();
+  "Speicher: Auflistung holt alle Seiten über 1.000 Zeilen hinaus": async () => {
+    const a = supabaseAttrappe();
     try {
-      const anmeldung = A.anmeldungPfad("r1", "7", "", "Lena");
-      await B.blobPut(anmeldung, "1", "text/plain");
-      assert.ok((await B.blobList("liga/")).some((b) => b.pathname === anmeldung));
-      await B.blobPut("liga/daten/serien/a.json", "{}", "application/json");
-      await B.blobList("liga/");
-      assert.strictEqual(a.zaehler.list, 1);
-      await B.blobDelete([anmeldung]);
-      assert.ok(!(await B.blobList("liga/")).some((b) => b.pathname === anmeldung));
-      assert.strictEqual(a.zaehler.list, 2);
-      assert.ok(![...a.dateien.keys()].some((p) => p.startsWith("liga/listen")));
+      for (let i = 0; i < 2300; i++) a.zeilen.set("liga/x/" + String(i).padStart(5, "0"), { pfad: "liga/x/" + String(i).padStart(5, "0"), inhalt: "1", binaer: false, geaendert: "2026-11-10T08:00:00+00:00" });
+      const liste = await B.blobList("liga/x/");
+      assert.strictEqual(liste.length, 2300);
+      assert.strictEqual(new Set(liste.map((b) => b.pathname)).size, 2300);
+      assert.strictEqual(a.anfragen.length, 3);
+      assert.strictEqual(liste[0].uploadedAt, "2026-11-10T08:00:00.000Z");
     } finally { a.ende(); }
   },
-  "Speicher: Liste enthält nur Pfad und Datum": async () => {
-    const a = blobAttrappe();
+  "Speicher: Löschen trifft genau die Pfade, auch viele und mit Sonderzeichen": async () => {
+    const a = supabaseAttrappe();
     try {
-      await B.blobPut("liga/reports/a.json", "{}", "application/json");
-      assert.deepStrictEqual(await B.blobList("liga/reports/"), [{ pathname: "liga/reports/a.json", uploadedAt: "2026-11-01T00:00:00.000Z" }]);
+      const pfade = Array.from({ length: 60 }, (_, i) => "liga/anmeldungen/r1/" + i + "~a_b~c-d");
+      for (const p of pfade) await B.blobPut(p, "1", "text/plain");
+      await B.blobPut("liga/bleibt", "1", "text/plain");
+      await B.blobDelete(pfade);
+      await B.blobDelete([]);
+      assert.deepStrictEqual([...a.zeilen.keys()], ["liga/bleibt"]);
+      assert.strictEqual(a.anfragen.filter((x) => x.o.method === "DELETE").length, 3);
     } finally { a.ende(); }
+  },
+  "Speicher: Unterstriche im Pfad wirken nicht als Platzhalter": async () => {
+    const a = supabaseAttrappe();
+    try {
+      await B.blobList("liga/a_b/");
+      assert.strictEqual(a.anfragen[0].url.searchParams.get("pfad"), "like.liga/a\\_b/*");
+    } finally { a.ende(); }
+  },
+  "Speicher: ohne Zugangsdaten gibt es eine klare Fehlermeldung": async () => {
+    const a = supabaseAttrappe();
+    a.ende();
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SECRET_KEY;
+    await assert.rejects(() => B.blobGet("x"), /SUPABASE_URL/);
   },
   "Streckenimport: Kennungen sind eindeutig, ungültige Einträge fehlen": () => {
     const liste = G.importListe(new Map([[1, { name: "Spa", variant: "Grand Prix" }], [2, { name: "Spa", variant: "Grand-Prix" }], [3, { name: "x", variant: "" }], [4, { name: "Nürburgring", variant: "" }]]));

@@ -1,159 +1,80 @@
-// Privater Vercel-Blob-Speicher (Store "darkline-referenzrunden") für Referenzrunden fremder Fahrer.
-// Die gehören nicht ins öffentliche Repository; lesen dürfen sie nur die Daten-Funktionen (Teambereich mit Login).
-// Direkt per HTTP wie das offizielle SDK @vercel/blob (API-Version 13), damit das Projekt ohne npm-Abhängigkeiten bleibt.
-const crypto = require("crypto");
-const API = "https://vercel.com/api/blob";
+// Privater Speicher der Website in einer Supabase-Tabelle. Jeder Eintrag verhält sich wie eine Datei mit Pfad, deshalb kennen die übrigen Module nur Pfade.
+// Vercel Blob wurde abgelöst, weil dort schon 2.000 Uploads und Auflistungen im Monat den Speicher sperren. Direkt per HTTP, ohne npm-Abhängigkeiten.
+// Benötigt SUPABASE_URL und SUPABASE_SECRET_KEY. Der Schlüssel darf nie in den Browser gelangen.
+const TABELLE = "dateien";
+const SEITE = 1000;
+const LOESCHEN_JE_ANFRAGE = 25;
 
-// Vercel erlaubt im kostenlosen Tarif nur 2.000 Uploads und Auflistungen im Monat, wird das überschritten, ist der Speicher bis zu 30 Tage gesperrt.
-// Deshalb werden Auflistungen als eigene Datei gemerkt und jeder Schreibzugriff löscht die betroffenen Merker, Löschen ist kostenlos.
-const MERKER = "listen-merker/";
-const KURZ_MS = 90e3;
-const LANG_MS = 24 * 3600e3;
-const merkerPfad = (art, prefix) => `${MERKER}${art}-${crypto.createHash("sha256").update(prefix).digest("hex").slice(0, 32)}.json`;
-const ANMELDUNG = /^liga\/(serien|anmeldungen|abmeldungen)\//;
+function zugang() {
+  const url = (process.env.SUPABASE_URL || "").replace(/\/+$/, "");
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) throw new Error("Kein Zugang zum Speicher: SUPABASE_URL oder SUPABASE_SECRET_KEY fehlt.");
+  return { url, key };
+}
 
-// Merker, die eine Änderung an dieser Datei ungültig macht. „liga/“ umfasst fast alles, wird aber nur für Anmeldungen ausgewertet.
-function merkerVon(pathname) {
-  if (!pathname.startsWith("liga")) return [];
-  const teile = pathname.split("/");
-  const pfade = [];
-  for (let i = 1; i < teile.length; i++) {
-    const prefix = `${teile.slice(0, i).join("/")}/`;
-    if (prefix !== "liga/" || ANMELDUNG.test(pathname)) pfade.push(merkerPfad("liste", prefix), merkerPfad("inhalt", prefix));
+// Wird nur noch aufgerufen, weil früher jede Anfrage ihr Zugangstoken mitbrachte.
+function useRequest() {}
+
+async function anfrage(was, parameter, init = {}) {
+  const { url, key } = zugang();
+  // Neue Schlüssel (sb_secret_) gehören nur in den apikey-Header, ältere service_role-Schlüssel zusätzlich in Authorization.
+  const headers = { apikey: key, ...(key.startsWith("eyJ") ? { authorization: `Bearer ${key}` } : {}), ...init.headers };
+  const r = await fetch(`${url}/rest/v1/${TABELLE}?${new URLSearchParams(parameter)}`, { ...init, headers, cache: "no-store" });
+  if (!r.ok) throw new Error(`${was} im Speicher fehlgeschlagen (Code ${r.status}${await r.text().then((t) => (t ? ": " + t.slice(0, 160) : ""), () => "")}).`);
+  return r;
+}
+
+// Holt alle Zeilen unter einem Pfad, seitenweise. Supabase liefert höchstens 1.000 Zeilen je Anfrage.
+async function zeilen(prefix, spalten) {
+  const like = `${prefix.replace(/[\\%_*]/g, "\\$&")}*`;
+  const alle = [];
+  for (let offset = 0; ; offset += SEITE) {
+    const r = await anfrage("Auflisten", { select: spalten, pfad: `like.${like}`, order: "pfad", limit: String(SEITE), offset: String(offset) });
+    const seite = await r.json();
+    alle.push(...seite);
+    if (seite.length < SEITE) return alle;
   }
-  return pfade;
 }
 
-// Zugang: fester Token (BLOB_READ_WRITE_TOKEN) oder, wie bei neu verbundenen Stores, das kurzlebige OIDC-Token,
-// das Vercel jeder Anfrage mitgibt (Header x-vercel-oidc-token), zusammen mit BLOB_STORE_ID.
-// Das OIDC-Token gehört zum Projekt, nicht zur Person; useRequest(req) merkt sich das der aktuellen Anfrage.
-let requestOidc = "";
-function useRequest(req) {
-  requestOidc = (req && req.headers && req.headers["x-vercel-oidc-token"]) || "";
-}
-
-function auth() {
-  const rw = process.env.BLOB_READ_WRITE_TOKEN;
-  // Store-ID in Original-Schreibweise: der Header x-vercel-blob-store-id unterscheidet Groß- und Kleinschreibung
-  if (rw) return { token: rw, store: rw.split("_")[3] || "" }; // vercel_blob_rw_<store>_<geheim>
-  const oidc = requestOidc || process.env.VERCEL_OIDC_TOKEN;
-  const store = (process.env.BLOB_STORE_ID || "").replace(/^store_/, "");
-  if (!oidc || !store) throw new Error("Kein Zugang zum privaten Speicher: BLOB_STORE_ID oder OIDC-Token fehlt.");
-  return { token: oidc, store };
-}
-
-const fileUrl = (store, pathname) => `https://${store.toLowerCase()}.private.blob.vercel-storage.com/${pathname}`;
-const failure = async (what, r) => new Error(`${what} im privaten Speicher fehlgeschlagen (Code ${r.status}${await r.text().then((t) => (t ? ": " + t.slice(0, 160) : ""), () => "")}).`);
+const einZeile = async (pathname, spalten) => (await (await anfrage("Lesen", { select: spalten, pfad: `eq.${pathname}`, limit: "1" })).json())[0] || null;
+const alsText = (z) => (z.binaer ? Buffer.from(z.inhalt, "base64").toString("utf8") : z.inhalt);
 
 // Datei anlegen oder überschreiben
 async function blobPut(pathname, body, contentType) {
-  const { token, store } = auth();
-  const r = await fetch(`${API}/?${new URLSearchParams({ pathname })}`, {
-    method: "PUT",
-    headers: {
-      authorization: `Bearer ${token}`,
-      "x-api-version": "13",
-      "x-vercel-blob-store-id": store,
-      "x-vercel-blob-access": "private",
-      "x-add-random-suffix": "0",
-      "x-allow-overwrite": "1",
-      "x-content-type": contentType,
-    },
-    body,
-  });
-  if (!r.ok) throw await failure("Speichern", r);
-  const antwort = await r.json();
-  await merkerLoeschen(merkerVon(pathname));
-  return antwort;
-}
-
-async function loeschenRoh(pathnames) {
-  const { token, store } = auth();
-  const r = await fetch(`${API}/delete`, {
+  const binaer = body instanceof Uint8Array;
+  const zeile = { pfad: pathname, inhalt: binaer ? Buffer.from(body).toString("base64") : String(body), binaer, typ: contentType || "", geaendert: new Date().toISOString() };
+  await anfrage("Speichern", { on_conflict: "pfad" }, {
     method: "POST",
-    headers: { authorization: `Bearer ${token}`, "x-api-version": "13", "x-vercel-blob-store-id": store, "content-type": "application/json" },
-    body: JSON.stringify({ urls: pathnames.map((p) => fileUrl(store, p)) }),
+    headers: { "content-type": "application/json", prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify([zeile]),
   });
-  if (!r.ok) throw await failure("Löschen", r);
-}
-
-// Ein Fehler hier darf die eigentliche Änderung nicht zurückdrehen, der Merker läuft spätestens nach einem Tag ab.
-async function merkerLoeschen(pfade) {
-  if (!pfade.length) return;
-  try {
-    await loeschenRoh(pfade);
-  } catch (e) {
-    console.error("Blob-Merker:", e.message);
-  }
+  return { pathname };
 }
 
 // Inhalt als Text, null wenn es die Datei nicht gibt
 async function blobGet(pathname) {
-  const { token, store } = auth();
-  const r = await fetch(fileUrl(store, pathname), { headers: { authorization: `Bearer ${token}` }, cache: "no-store" });
-  if (r.status === 404) return null;
-  if (!r.ok) throw await failure("Lesen", r);
-  return r.text();
-}
-
-async function blobDelete(pathnames) {
-  await loeschenRoh(pathnames);
-  await merkerLoeschen([...new Set(pathnames.flatMap(merkerVon))]);
+  const z = await einZeile(pathname, "inhalt,binaer");
+  return z ? alsText(z) : null;
 }
 
 // Inhalt als Buffer (Bilder), null wenn es die Datei nicht gibt
 async function blobGetBinaer(pathname) {
-  const { token, store } = auth();
-  const r = await fetch(fileUrl(store, pathname), { headers: { authorization: `Bearer ${token}` }, cache: "no-store" });
-  if (r.status === 404) return null;
-  if (!r.ok) throw await failure("Lesen", r);
-  return Buffer.from(await r.arrayBuffer());
+  const z = await einZeile(pathname, "inhalt,binaer");
+  if (!z) return null;
+  return z.binaer ? Buffer.from(z.inhalt, "base64") : Buffer.from(z.inhalt, "utf8");
 }
 
-// Alle Dateien unter einem Pfad, mit pathname und uploadedAt. Jede Seite zählt als Auflistung, deshalb nur über die Merker aufrufen.
-async function blobListeDirekt(prefix) {
-  const { token, store } = auth();
-  const blobs = [];
-  let cursor = "";
-  do {
-    const query = new URLSearchParams({ prefix, limit: "1000" });
-    if (cursor) query.set("cursor", cursor);
-    const r = await fetch(`${API}/?${query}`, { headers: { authorization: `Bearer ${token}`, "x-api-version": "13", "x-vercel-blob-store-id": store }, cache: "no-store" });
-    if (!r.ok) throw await failure("Auflisten", r);
-    const d = await r.json();
-    blobs.push(...d.blobs);
-    cursor = d.hasMore ? d.cursor : "";
-  } while (cursor);
-  return blobs.map(({ pathname, uploadedAt }) => ({ pathname, uploadedAt }));
-}
-
-// Liefert den gemerkten Stand oder baut ihn neu. Direkt nach einer Änderung kann die Auflistung noch hinterherhinken:
-// Der erste neue Stand gilt deshalb nur kurz, erst der zweite einen Tag.
-async function gemerkt(art, prefix, erzeugen) {
-  const pfad = merkerPfad(art, prefix);
-  let alt = null;
-  try {
-    alt = JSON.parse((await blobGet(pfad)) || "null");
-  } catch (e) {
-    alt = null;
+async function blobDelete(pathnames) {
+  const zitiere = (p) => `"${p.replace(/[\\"]/g, "\\$&")}"`;
+  for (let i = 0; i < pathnames.length; i += LOESCHEN_JE_ANFRAGE) {
+    await anfrage("Löschen", { pfad: `in.(${pathnames.slice(i, i + LOESCHEN_JE_ANFRAGE).map(zitiere).join(",")})` }, { method: "DELETE", headers: { prefer: "return=minimal" } });
   }
-  if (alt && alt.bis > Date.now()) return alt.wert;
-  const wert = await erzeugen();
-  try {
-    await blobPut(pfad, JSON.stringify({ bis: Date.now() + (alt ? LANG_MS : KURZ_MS), wert }), "application/json");
-  } catch (e) {
-    console.error("Blob-Merker:", e.message);
-  }
-  return wert;
 }
 
-const blobList = (prefix) => gemerkt("liste", prefix, () => blobListeDirekt(prefix));
+// Alle Dateien unter einem Pfad, mit pathname und uploadedAt
+const blobList = async (prefix) => (await zeilen(prefix, "pfad,geaendert")).map((z) => ({ pathname: z.pfad, uploadedAt: new Date(z.geaendert).toISOString() }));
 
-// Alle Textdateien unter einem Pfad als [pathname, Inhalt], eine einzige Abfrage statt einer je Datei.
-const blobInhalte = (prefix) => gemerkt("inhalt", prefix, async () => {
-  const blobs = await blobListeDirekt(prefix);
-  const dateien = await Promise.all(blobs.map(async (b) => [b.pathname, await blobGet(b.pathname)]));
-  return dateien.filter(([, t]) => t !== null);
-});
+// Alle Textdateien unter einem Pfad als [pathname, Inhalt], mit einer Abfrage statt einer je Datei
+const blobInhalte = async (prefix) => (await zeilen(prefix, "pfad,inhalt,binaer")).map((z) => [z.pfad, alsText(z)]);
 
-module.exports = { useRequest, blobPut, blobGet, blobGetBinaer, blobDelete, blobList, blobListeDirekt, blobInhalte };
+module.exports = { useRequest, blobPut, blobGet, blobGetBinaer, blobDelete, blobList, blobInhalte };

@@ -4,7 +4,7 @@
 //
 // Referenzrunden: schnelle Runden fremder Fahrer, die ein Admin als CSV aus Garage 61 exportiert und im Admin
 // (/admin/streckenkarte) hochlädt. Unser Garage-61-Zugang darf deren Telemetrie nicht selbst abrufen. Sie liegen im
-// privaten Vercel-Blob-Speicher (nicht im öffentlichen Repository) und werden genauso aufbereitet wie Team-Runden.
+// privaten Speicher (Supabase, nicht im öffentlichen Repository) und werden genauso aufbereitet wie Team-Runden.
 // GET ?refs=<Strecke>          → Referenzrunden dieser Strecke (nur Angaben, ohne Telemetrie)
 // GET ?ref=<ID>                → Telemetrie einer Referenzrunde, Aufbau wie bei ?lap
 // POST (Teammitglied oder Admin) → { track, trackName, car, carName, driver, lapTime, link, csv } aufbereiten und speichern
