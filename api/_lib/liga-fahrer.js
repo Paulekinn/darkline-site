@@ -196,7 +196,7 @@ async function profilSpeichern(s, bisher, eingaben) {
   const wunsch = bisher && bisher.nummer && eingabe.nummer !== bisher.nummer ? eingabe.nummer : null;
   const extras = wunsch ? { ...eingabe, nummer: bisher.nummer } : eingabe;
   const neu = wunsch ? await P.wunschSetzen(s, grunddaten.iracingName, bisher.nummer, wunsch) : false;
-  const profil = { ...grunddaten, ...extras, ...(bisher && bisher.discord ? { discord: bisher.discord } : {}), discordId: s.id, gespeichert: new Date().toISOString() };
+  const profil = { ...grunddaten, ...extras, ...(bisher && bisher.discord ? { discord: bisher.discord } : {}), ...(bisher && bisher.nummerEntscheid ? { nummerEntscheid: bisher.nummerEntscheid } : {}), discordId: s.id, gespeichert: new Date().toISOString() };
   await P.speichern(s, profil, extras).catch(async (e) => {
     if (neu) await P.wunschLoeschen(s.id).catch(() => {});
     throw e;
@@ -233,6 +233,12 @@ module.exports = async (req, res) => {
   const kat = await D.katalog(false);
   if (body.aktion === "profil") {
     profil = await profilSpeichern(s, profil, body.profil);
+  } else if (body.aktion === "nummer-gelesen") {
+    if (profil && profil.nummerEntscheid) {
+      const { nummerEntscheid, ...rest } = profil;
+      await blobPut(A.profilPfad(s.id), JSON.stringify(rest), "application/json");
+      profil = rest;
+    }
   } else if (body.aktion === "anmelden") {
     alle = await anmelden(s, profil, body, alle, kat);
   } else if (body.aktion === "abmelden") {

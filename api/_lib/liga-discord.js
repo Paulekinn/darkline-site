@@ -69,4 +69,21 @@ async function abgleichen(discordId, profil, alle, serien) {
   }
 }
 
-module.exports = { aktiv, abgleichen, soll, schritte, servername };
+// Direktnachricht an einen Fahrer. Sie kann scheitern, wenn er Nachrichten vom Server gesperrt hat. Der Hinweis im Fahrerbereich bleibt davon unberührt.
+async function nachricht(discordId, text) {
+  const z = zugang();
+  if (!z) return false;
+  const senden = (url, daten) => fetch(url, { method: "POST", headers: { Authorization: `Bot ${z.token}`, "Content-Type": "application/json" }, body: JSON.stringify(daten), signal: AbortSignal.timeout(4000) });
+  try {
+    const kanal = await senden(`${API}/users/@me/channels`, { recipient_id: discordId });
+    if (!kanal.ok) { console.warn(`Liga: Discord öffnet keine Direktnachricht (Code ${kanal.status}).`); return false; }
+    const r = await senden(`${API}/channels/${(await kanal.json()).id}/messages`, { content: String(text).slice(0, 1900), allowed_mentions: { parse: [] } });
+    if (!r.ok) console.warn(`Liga: Discord lehnt die Direktnachricht ab (Code ${r.status}).`);
+    return r.ok;
+  } catch (e) {
+    console.warn("Liga: Direktnachricht fehlgeschlagen:", e.message);
+    return false;
+  }
+}
+
+module.exports = { aktiv, abgleichen, nachricht, soll, schritte, servername };

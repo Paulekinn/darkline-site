@@ -434,6 +434,7 @@
       <div class="fb-leiste">${ansichtWahl()}${filterChips()}</div>
       <p class="fb-meldung" id="fb-meldung" role="alert" hidden></p>
       ${renntagPanel()}
+      ${nummerEntscheidPanel()}
       <div class="fb-raster">
         <div class="fb-haupt-spalte">
           ${haupt ? hauptRennen(haupt) : `<p class="fb-leer">${esc(leerText)}</p>`}
@@ -443,6 +444,13 @@
       </div>
     </div></section>`;
     uhrwerk();
+  }
+
+  // Bleibt stehen, bis der Fahrer die Entscheidung der Rennleitung wegklickt.
+  function nummerEntscheidPanel() {
+    const e = (stand.fahrer.profil || {}).nummerEntscheid;
+    if (!e) return "";
+    return `<section class="fb-panel fb-panel-wichtig"><h3>Startnummer</h3><p>${esc(e.text)}</p><p class="fb-profil-link"><button type="button" class="fb-link" id="fb-nummer-gelesen">Verstanden</button></p></section>`;
   }
 
   function meldung(text, gut) {
@@ -484,6 +492,7 @@
       navigator.clipboard.writeText(b.dataset.kopieren).then(() => melden("Kopiert"), () => melden("Nicht möglich"));
       return;
     }
+    if (b.id === "fb-nummer-gelesen") return sende({ aktion: "nummer-gelesen" });
     if (b.id === "p-abbrechen") { profilOffen = false; return zeichne(); }
     if (b.dataset.ansicht) { ansicht = b.dataset.ansicht; return zeichne(); }
     if (b.dataset.starterOeffnen) {

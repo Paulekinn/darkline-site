@@ -497,6 +497,39 @@ const tests = {
     assert.doesNotThrow(() => P.pruefeKonflikte(alle, "p1", "x", 46));
     assert.doesNotThrow(() => P.pruefeKonflikte(alle, "p2", "y", 7));
   },
+  "Profil: Entscheidung zur Startnummer nennt Nummer und Grund": () => {
+    assert.match(P.nummerEntscheid("bestaetigt", 42).text, /auf #42 geändert/);
+    const ab = P.nummerEntscheid("abgelehnt", 42, 31, "Nummer ist reserviert");
+    assert.strictEqual(ab.art, "abgelehnt");
+    assert.match(ab.text, /#42 abgelehnt\. Du fährst weiter mit #31\. Grund: Nummer ist reserviert/);
+    assert.ok(!P.nummerEntscheid("abgelehnt", 42, 31, "").text.includes("Grund"));
+  },
+  "Discord: Direktnachricht geht an den Fahrer, ohne Erwähnungen und ohne Absturz": async () => {
+    const Dc = require("../api/_lib/liga-discord");
+    const alt = { fetch: global.fetch, env: { ...process.env } };
+    Object.assign(process.env, { DISCORD_BOT_TOKEN: "t", DISCORD_GUILD_ID: "100", LIGA_ROLLE_INTERESSENT: "1", LIGA_ROLLE_FAHRER: "2" });
+    const aufrufe = [];
+    let gesperrt = false;
+    global.fetch = async (url, init) => {
+      aufrufe.push([String(url).replace("https://discord.com/api/v10", ""), JSON.parse(init.body)]);
+      if (String(url).endsWith("/users/@me/channels")) return { ok: true, status: 200, json: async () => ({ id: "555" }) };
+      return { ok: !gesperrt, status: gesperrt ? 403 : 200 };
+    };
+    const warn = console.warn;
+    console.warn = () => {};
+    try {
+      assert.strictEqual(await Dc.nachricht("9", "Hallo @everyone"), true);
+      assert.deepStrictEqual(aufrufe, [["/users/@me/channels", { recipient_id: "9" }], ["/channels/555/messages", { content: "Hallo @everyone", allowed_mentions: { parse: [] } }]]);
+      gesperrt = true;
+      assert.strictEqual(await Dc.nachricht("9", "x"), false);
+      global.fetch = async () => { throw new Error("weg"); };
+      assert.strictEqual(await Dc.nachricht("9", "x"), false);
+    } finally {
+      console.warn = warn;
+      global.fetch = alt.fetch;
+      for (const k of ["DISCORD_BOT_TOKEN", "DISCORD_GUILD_ID", "LIGA_ROLLE_INTERESSENT", "LIGA_ROLLE_FAHRER"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
+    }
+  },
   "Profil: Startnummer ist Pflicht": () => {
     assert.throws(() => A.nummerPflicht(A.pruefeExtras({})), /Startnummer/);
     assert.doesNotThrow(() => A.nummerPflicht(A.pruefeExtras({ nummer: "31" })));

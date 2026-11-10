@@ -1130,7 +1130,12 @@
       if (passwort === null) return;
       return aktion({ aktion: "passwort-setzen", serie: b.dataset.passwortAlle, passwort }, "Passwort für alle kommenden Rennen gesetzt.");
     }
-    if (b.dataset.nummerAktion) return aktion({ aktion: b.dataset.nummerAktion, discordId: b.dataset.discord, name: b.dataset.name, nummer: b.dataset.nummer }, b.dataset.nummerAktion === "nummer-bestaetigen" ? `Startnummer #${b.dataset.nummer} bestätigt.` : "Antrag abgelehnt.");
+    if (b.dataset.nummerAktion) {
+      const ablehnen = b.dataset.nummerAktion === "nummer-ablehnen";
+      const grund = ablehnen ? window.prompt("Grund für die Ablehnung (freiwillig). Der Fahrer bekommt ihn zu sehen.", "") : "";
+      if (grund === null) return;
+      return aktion({ aktion: b.dataset.nummerAktion, discordId: b.dataset.discord, name: b.dataset.name, nummer: b.dataset.nummer, grund }, ablehnen ? "Antrag abgelehnt, der Fahrer wird informiert." : `Startnummer #${b.dataset.nummer} bestätigt, der Fahrer wird informiert.`);
+    }
     if (b.dataset.tab) { tab = b.dataset.tab; protokoll = null; form = null; planer = null; reportId = null; akte = null; setzeMeldung(""); if (tab === "reports") reportsAlsGesehen(); zeichne(); return window.scrollTo(0, 0); }
     if (b.dataset.report) {
       const r = d.reports.find((x) => x.id === b.dataset.report);
