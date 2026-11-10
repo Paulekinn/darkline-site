@@ -18,7 +18,7 @@
   };
   const TABS = [["cockpit", "Cockpit"], ["reports", "Reports"], ["serien", "Seasons &amp; Events"], ["rennen", "Rennen"], ["strecken", "Strecken"], ["katalog", "Strafenkatalog"], ["reglement", "Reglement"], ["fahrer", "Fahrer"], ["ergebnisse", "Ergebnisse"], ["protokoll", "Protokoll"]];
   const URTEILE = [["kein-vergehen", "Kein Vergehen"], ["verwarnung", "Verwarnung"], ["strafpunkte", "Strafpunkte"], ["zeitstrafe", "Zeitstrafe"], ["dsq", "Disqualifikation"]];
-  const NEUE_SERIE = { name: "", typ: "liga", saison: "", status: "geplant", anmeldungOffen: true, farbe: "rot", beschreibung: "", kategorie: "Sports_Car", fahrzeugklassen: [], rennenGesamt: 8, gewerteteRennen: 7, anmeldeschlussMinuten: 60,
+  const NEUE_SERIE = { name: "", typ: "liga", saison: "", status: "geplant", anmeldungOffen: true, farbe: "rot", beschreibung: "", uebertragung: "", kategorie: "Sports_Car", fahrzeugklassen: [], rennenGesamt: 8, gewerteteRennen: 7, anmeldeschlussMinuten: 60,
     klassen: [{ name: "Pro", min: 2500, max: null }, { name: "Pro-Am", min: 1500, max: 2499 }, { name: "Am", min: 0, max: 1499 }],
     punkte: [25, 21, 18, 15, 13, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1], punkteDanach: 1, bonusPole: 1, bonusSchnellsteRunde: 1, mindestRundenProzent: 60 };
   const NEUES_RENNEN = { titel: "", serie: "", status: "geplant", datum: "", startzeit: "20:00", strecke: "", fahrzeuge: "", plaetze: 40, training: "", qualifying: "", renndauer: "", wetter: "", server: "", passwort: "", briefing: "" };
@@ -436,6 +436,7 @@
         ${farben}
         ${feld("iRacing-Kategorie", auswahl("kategorie", w.kategorie, [["Sports_Car", "Sports Car"], ["Formula", "Formula"], ["Oval", "Oval"], ["Dirt_Road", "Dirt Road"], ["Dirt_Oval", "Dirt Oval"]]))}
         ${feld("Beschreibung", `<textarea name="beschreibung" maxlength="400" style="min-height:60px">${esc(w.beschreibung)}</textarea>`, true)}
+        ${feld("Übertragung (Twitch- oder YouTube-Link, leer lassen ohne Stream)", eingabe("uebertragung", w.uebertragung || "", 'maxlength="150" placeholder="https://www.twitch.tv/…" autocomplete="off"'), true)}
       </div>`)}
       ${abschnittForm(2, "Umfang und Fristen", `<div class="a-felder">
         <div class="a-feld" data-nur-liga${w.typ === "event" ? " hidden" : ""}><label>Rennen gesamt</label>${eingabe("rennenGesamt", w.rennenGesamt, 'type="number" min="1"')}</div>
