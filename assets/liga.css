@@ -123,15 +123,26 @@
 
 /* Feste Navigation der Liga, zweite Zeile im Seitenkopf */
 /* Die Selektoren sind bewusst genauer als ".bar nav" aus site.css, das Menüs am Handy einklappt. */
-.bar nav.liga-nav{display:block;position:static;width:auto;height:auto;margin:0;padding:0;overflow:visible;background:#0c0f11;border-top:1px solid var(--scan);box-shadow:none;transform:none}
-.bar nav.liga-nav .wrap{display:flex;min-height:0;gap:2px;align-items:stretch;overflow-x:auto;scrollbar-width:none}
-.bar nav.liga-nav a{flex:none;display:flex;align-items:center;gap:7px;min-height:0;padding:10px 13px 8px;border:0;border-bottom:3px solid transparent;text-decoration:none;font:800 .72rem/1 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase;color:#aeb6b3;white-space:nowrap}
+.bar nav.liga-nav{display:block;position:static;width:auto;height:auto;margin:0;padding:0;overflow:visible;background:#15191c;border-top:1px solid var(--scan);border-bottom:1px solid var(--scan);box-shadow:none;transform:none}
+.bar nav.liga-nav .wrap{display:flex;flex-wrap:wrap;min-height:0;gap:2px 4px;align-items:center}
+.bar nav.liga-nav a{flex:none;display:flex;align-items:center;gap:8px;min-height:0;padding:17px 16px 14px;border:0;border-bottom:3px solid transparent;text-decoration:none;font:800 .9rem/1 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase;color:#dfe4e2;white-space:nowrap}
 .bar nav.liga-nav a:hover{background:none;color:var(--ink)}
 .bar nav.liga-nav a[aria-current="page"]{color:var(--ink);border-bottom-color:var(--red)}
 .bar nav.liga-nav a:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
 .bar nav.liga-nav .liga-nav-serie::before{content:"";width:7px;height:7px;background:var(--s);transform:skewX(-12deg)}
 .bar nav.liga-nav .liga-nav-serie[aria-current="page"]{border-bottom-color:var(--s)}
 .bar nav.liga-nav .liga-nav-rechts{margin-left:auto}
+.bar nav.liga-nav a.liga-nav-knopf{margin-block:8px;padding:12px 18px;border:2px solid var(--red);background:var(--red);color:#fff}
+.bar nav.liga-nav a.liga-nav-knopf:hover{border-color:#fff;background:var(--red);color:#fff}
+.bar nav.liga-nav a.liga-nav-knopf[aria-current="page"]{border-color:var(--ink);background:var(--ink);color:#08090a}
+.bar nav.liga-nav a.liga-nav-knopf.zweit{margin-left:6px;border-color:var(--liga-gold);background:none;color:var(--liga-gold)}
+.bar nav.liga-nav a.liga-nav-knopf.zweit:hover{background:var(--liga-gold);color:#17120a}
+@media (max-width:760px){
+  .bar nav.liga-nav .liga-nav-rechts{margin-left:0}
+  .bar nav.liga-nav a{padding:14px 11px 11px;font-size:.82rem}
+  .bar nav.liga-nav a.liga-nav-knopf{padding:10px 13px}
+  .bar nav.liga-nav a.liga-nav-knopf.zweit{margin-left:0}
+}
 
 /* Serienfarben */
 .s-rot{--s:var(--liga-rot)} .s-blau{--s:var(--liga-blau)} .s-lila{--s:var(--liga-lila)} .s-gruen{--s:var(--liga-gruen)} .s-gelb{--s:var(--liga-gelb)} .s-tuerkis{--s:#45d0c8}
@@ -161,7 +172,8 @@
 .liga-kopf.gross .lead{font-size:1.05rem}
 .liga-feature{display:grid;gap:11px;padding:18px 20px 20px;background:color-mix(in srgb,#07090a 84%,transparent);border-top:4px solid var(--s);backdrop-filter:blur(5px);min-width:0}
 .liga-feature-kopf{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 10px}
-.liga-feature h2{margin:0;font:900 clamp(1.4rem,2.5vw,1.95rem)/1.05 var(--f-wide);font-variation-settings:"wdth" 116;text-transform:uppercase;overflow-wrap:anywhere}
+.liga-feature p.liga-feature-serie{margin:0;font:900 clamp(1.3rem,2.1vw,1.7rem)/1.05 var(--f-wide);font-variation-settings:"wdth" 116;text-transform:uppercase;color:var(--s);overflow-wrap:anywhere}
+.liga-feature h2{margin:0;font:800 clamp(1rem,1.4vw,1.15rem)/1.2 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase;overflow-wrap:anywhere}
 .liga-feature p{margin:0;font-size:.9rem;color:#c4cbc8}
 .liga-countdown{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
 .liga-countdown span{display:grid;justify-items:center;gap:4px;padding:11px 4px;background:#020303}
@@ -420,7 +432,7 @@ button.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--
 /* Logo der Darkline Simracing Series */
 .bar .liga-logo img{height:50px}
 @media (max-width:640px){.bar .liga-logo img{height:38px}}
-.liga-feature-karte{display:block;width:100%;max-height:150px;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(0,0,0,.7))}
+.liga-feature-karte{display:block;width:100%;max-height:105px;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(0,0,0,.7))}
 /* Fahrerkarte: Bild, Nummer, Flagge */
 a.liga-fk{cursor:pointer;color:var(--ink)}
 a.liga-fk:hover{transform:translateY(-4px)}
@@ -431,7 +443,7 @@ a.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--paper
 .liga-flagge{display:inline-block;width:20px;height:15px;margin-right:6px;vertical-align:-2px;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
 .liga-tab-nr{font:700 .68rem/1 var(--f-mono);color:var(--muted)}
 .liga-fahrer .liga-flagge{margin-right:0}
-.bar nav.liga-nav button.liga-nav-logout{all:unset;flex:none;cursor:pointer;display:flex;align-items:center;padding:10px 13px 8px;border-bottom:3px solid transparent;font:800 .72rem/1 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase;color:var(--liga-rot);white-space:nowrap}
+.bar nav.liga-nav button.liga-nav-logout{all:unset;flex:none;cursor:pointer;display:flex;align-items:center;padding:17px 12px 14px;border-bottom:3px solid transparent;font:800 .78rem/1 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase;color:var(--liga-rot);white-space:nowrap}
 .bar nav.liga-nav button.liga-nav-logout:hover{color:var(--ink)}
 .bar nav.liga-nav button.liga-nav-logout:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
 @media (prefers-reduced-motion:reduce){a.liga-fk:hover{transform:none}}

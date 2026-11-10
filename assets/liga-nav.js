@@ -17,8 +17,8 @@
     nav.innerHTML = `<div class="wrap">
       ${eintrag("/liga", "Übersicht", pfad === "/liga" && !aktuelleSerie)}
       ${sichtbar.map((s) => eintrag(`/liga?serie=${encodeURIComponent(s.id)}`, s.name, s.id === aktuelleSerie, `liga-nav-serie s-${FARBEN.includes(s.farbe) ? s.farbe : "rot"}${s.typ === "event" ? " liga-nav-event" : ""}`)).join("")}
-      ${eintrag("/fahrerbereich", "Fahrerbereich", pfad === "/fahrerbereich", "liga-nav-rechts")}
-      ${rennleitung ? eintrag("/liga-admin", "Rennleitung", false) : ""}
+      ${eintrag("/fahrerbereich", "Fahrerbereich", pfad === "/fahrerbereich", "liga-nav-rechts liga-nav-knopf")}
+      ${rennleitung ? eintrag("/liga-admin", "Rennleitung", false, "liga-nav-knopf zweit") : ""}
       ${angemeldet ? '<button type="button" class="liga-nav-logout" id="liga-logout">Ausloggen</button>' : ""}
     </div>`;
   }

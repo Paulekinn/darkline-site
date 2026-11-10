@@ -570,7 +570,8 @@
   function feature(r, s) {
     const start = startMs(r);
     return `<aside class="liga-feature ${farbeSerie(s)}">
-      <div class="liga-feature-kopf"><span class="lbl">Nächstes Rennen</span><span class="liga-poster-kopf">${artBadge(s.typ)}<span class="liga-pill farbig">${esc(s.name)}</span></span></div>
+      <div class="liga-feature-kopf"><span class="lbl">Nächstes Rennen</span>${artBadge(s.typ)}</div>
+      <p class="liga-feature-serie">${esc(s.name)}</p>
       <h2>${esc(r.strecke || r.titel)}</h2>
       ${r.streckenBild ? `<img class="liga-feature-karte" src="api/liga?r=bild&k=${encodeURIComponent(r.streckenBild.k)}&v=${encodeURIComponent(r.streckenBild.v)}" alt="Streckenkarte ${esc(r.strecke)}" loading="lazy">` : ""}
       <p>${esc(terminText(r))} Uhr${r.strecke && r.titel !== r.strecke ? ` · ${esc(r.titel)}` : ""}</p>
