@@ -276,6 +276,92 @@
   const formLeiste = (speichern, loeschen) => `<div class="a-leiste a-klebeleiste"><button type="submit" class="a-knopf">${esc(speichern)}</button><button type="button" class="a-knopf zweit" data-abbrechen="1">Abbrechen</button>${loeschen || ""}</div>`;
 
   /* ---------- Cockpit ---------- */
+  // Automatische Prüfung nach dem Rennen: wer gemeldet war und fehlte, wer auffällig viele Incidents hatte.
+  function cockpitPruefungen() {
+    const liste = d.pruefungen || [];
+    if (!liste.length) return "";
+    const zeilen = liste.map((p) => {
+      const teile = [p.noShows.length ? `Nicht erschienen: ${p.noShows.map((f) => f.name).join(", ")}` : "", p.incidents.length ? `Viele Incidents: ${p.incidents.map((f) => `${f.name} (${f.incidents})`).join(", ")}` : ""].filter(Boolean);
+      return `<div class="a-abschluss ${serienFarbe(p.serie)}"><span><b>${esc(p.strecke)}</b><small>${esc([p.serieName, zeit(p.start)].join(" · "))}</small>${teile.map((t) => `<small class="a-pruefung">${esc(t)}</small>`).join("")}</span><button type="button" class="a-knopf zweit klein" data-pruefung-erledigt="${esc(p.id)}" data-serie="${esc(p.serie)}">Erledigt</button></div>`;
+    }).join("");
+    return `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Prüfen nach dem Rennen</h2><span class="a-chip gelb">${liste.length}</span></div><div class="a-liste">${zeilen}</div></section>`;
+  }
+
+  function cockpitStrafkonten() {
+    const liste = d.strafkonten || [];
+    if (!liste.length) return "";
+    const zeilen = liste.map((k) => `<div class="a-abschluss ${serienFarbe(k.serie)}"><span><b>${esc(k.name)}</b><small>${esc(k.serieName)} · ${k.punkte} Strafpunkte, Grenze ${k.grenze}. Rennsperre prüfen.</small></span></div>`).join("");
+    return `<section class="a-karte a-karte-alarm"><div class="a-kartenkopf"><h2>Strafpunkte-Grenze erreicht</h2><span class="a-chip rot">${liste.length}</span></div><div class="a-liste">${zeilen}</div></section>`;
+  }
+
+  /* ---------- Rennbericht ---------- */
+  function bildLaden(src) {
+    return new Promise((fertig) => { const i = new Image(); i.onload = () => fertig(i); i.onerror = () => fertig(null); i.src = src; });
+  }
+
+  // Grafik für den Discord-Kanal, gezeichnet im Browser. Scheitert sie, geht die Nachricht ohne Bild raus.
+  async function berichtBild(b) {
+    const c = document.createElement("canvas");
+    c.width = 1200;
+    c.height = 630;
+    const g = c.getContext("2d");
+    const schrift = getComputedStyle(document.documentElement).getPropertyValue("--a-breit").trim() || "sans-serif";
+    g.fillStyle = "#0a0c0e";
+    g.fillRect(0, 0, 1200, 630);
+    const motiv = await bildLaden(window.LigaKarte.bildVon(b.serie, b.bildVersion));
+    if (motiv) {
+      const f = Math.max(1200 / motiv.width, 630 / motiv.height);
+      g.drawImage(motiv, (1200 - motiv.width * f) / 2, (630 - motiv.height * f) / 2, motiv.width * f, motiv.height * f);
+    }
+    const verlauf = g.createLinearGradient(0, 0, 1200, 0);
+    verlauf.addColorStop(0, "rgba(10,12,14,.96)");
+    verlauf.addColorStop(1, "rgba(10,12,14,.72)");
+    g.fillStyle = verlauf;
+    g.fillRect(0, 0, 1200, 630);
+    g.fillStyle = "#d3121b";
+    g.fillRect(0, 0, 1200, 8);
+    const text = (t, x, y, font, farbe, breite) => {
+      g.font = font;
+      g.fillStyle = farbe;
+      let s = String(t || "");
+      while (breite && s.length > 1 && g.measureText(s).width > breite) s = s.slice(0, -1);
+      g.fillText(s === String(t || "") ? s : `${s.trimEnd()}…`, x, y);
+    };
+    text("DARKLINE SIMRACING SERIES", 56, 66, `800 20px ${schrift}`, "#ff4a54");
+    text(`ERGEBNIS · ${b.serieName}`.toUpperCase(), 56, 124, `900 44px ${schrift}`, "#ffffff", 1088);
+    // Viele Rennen tragen die Strecke schon im Titel.
+    text(b.titel.includes(b.strecke.split(" · ")[0]) ? b.titel : `${b.titel} · ${b.strecke}`, 56, 166, `600 24px ${schrift}`, "#c4cbc8", 1088);
+    const klassen = b.klassen.slice(0, 3);
+    const spalte = 1088 / klassen.length;
+    const PLATZ = ["#ffd966", "#d6dcd9", "#e0a06a"];
+    klassen.forEach((k, s) => {
+      const x = 56 + s * spalte;
+      const breite = spalte - 28;
+      if (b.klassen.length > 1) text(k.fahrzeugklasse, x, 228, `800 22px ${schrift}`, "#ff4a54", breite);
+      k.podium.forEach((name, i) => {
+        const y = 288 + i * 62;
+        text(`${i + 1}`, x, y, `900 38px ${schrift}`, PLATZ[i]);
+        text(name, x + 50, y, `800 ${klassen.length > 2 ? 22 : 28}px ${schrift}`, "#ffffff", breite - 50);
+      });
+    });
+    const k = b.klassen[0];
+    const unten = [k.schnellste ? ["Schnellste Runde", `${k.schnellste.name} · ${k.schnellste.zeit}`] : null, k.aufholer ? ["Fahrer des Tages", `${k.aufholer.name} · +${k.aufholer.plaetze} Plätze`] : null].filter(Boolean);
+    unten.forEach(([titel, wert], i) => {
+      const x = 56 + i * 544;
+      text(titel.toUpperCase(), x, 540, `700 17px ${schrift}`, "#aeb6b3", 500);
+      text(wert, x, 574, `800 25px ${schrift}`, "#ffffff", 500);
+    });
+    return c.toDataURL("image/jpeg", 0.86);
+  }
+
+  // Holt die Daten, zeichnet die Grafik und postet beides. Gibt zurück, ob es geklappt hat.
+  async function rennberichtPosten(serie, id) {
+    const a = await sende({ aktion: "bericht-daten", serie, id });
+    if (!a) return false;
+    const bild = await berichtBild(a.bericht).catch(() => "");
+    return !!(await sende({ aktion: "bericht-posten", serie, id, bild }));
+  }
+
   function cockpitTab() {
     const offene = d.reports.filter(braucht);
     const einsprueche = d.reports.filter(einspruchOffen);
@@ -302,6 +388,8 @@
       </div>
       ${(d.fehlendeErgebnisse || []).length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Ergebnis fehlt</h2><span class="a-chip gelb">${d.fehlendeErgebnisse.length}</span></div><div class="a-liste">${d.fehlendeErgebnisse.slice(0, 6).map((r) => `<div class="a-abschluss ${serienFarbe(r.serie)}"><span><b>${esc(r.titel)}</b><small>${esc([(serieVon(r.serie) || {}).name, datumKurz(r.datum)].filter(Boolean).join(" · "))}</small></span><button type="button" class="a-knopf zweit klein" data-ergebnis-import="${esc(r.serie)}">Importieren</button></div>`).join("")}</div></section>` : ""}
       ${anmeldungFaellig}
+      ${cockpitPruefungen()}
+      ${cockpitStrafkonten()}
       ${abschluss}
       <div class="a-zwei">
         <section class="a-karte"><div class="a-kartenkopf"><h2>Zu entscheiden</h2><button type="button" class="a-knopf zweit klein" data-tab="reports">Alle Reports</button></div>${reportsHtml ? `<div class="a-liste">${reportsHtml}</div>` : '<p class="a-leer">Aktuell liegt nichts an.</p>'}</section>
@@ -349,6 +437,7 @@
         ${feld("Anmeldeschluss (Minuten vor Start)", eingabe("anmeldeschlussMinuten", w.anmeldeschlussMinuten, 'type="number" min="0"'))}
         ${feld("Report-Frist (Stunden)", eingabe("reportStunden", w.reportStunden ?? 24, 'type="number" min="1"'))}
         ${feld("Einspruchsfrist (Stunden)", eingabe("einspruchStunden", w.einspruchStunden ?? 48, 'type="number" min="1"'))}
+        ${feld("Strafpunkte-Grenze (0 = aus)", eingabe("strafpunkteGrenze", w.strafpunkteGrenze ?? 0, 'type="number" min="0"'))}
       </div><label class="a-check"><input type="checkbox" name="anmeldungOffen"${w.anmeldungOffen !== false ? " checked" : ""}> Fahrer können sich anmelden</label><p class="a-hinweis">Solange der Status „Geplant“ ist, bleibt die Anmeldung immer geschlossen.</p>`)}
       ${abschnittForm(3, "Klassen", `<label class="a-check"><input type="checkbox" name="ohneKlassen" id="s-ohne-klassen"${w.ohneKlassen ? " checked" : ""}> Keine Klassen nach iRating: alle fahren in einer gemeinsamen Wertung, bei Multiclass je Fahrzeugklasse</label>
         <div class="a-spalte" id="a-klassen-bereich"${w.ohneKlassen ? " hidden" : ""}><div class="a-klassen-kopf"><span>Name</span><span>Von</span><span>Bis</span><span></span></div><div class="a-klassen" id="a-klassen">${w.klassen.map(klasseZeile).join("")}</div><div><button type="button" class="a-knopf zweit klein" data-klasse-neu="1">Klasse hinzufügen</button></div><div id="a-klassen-check"></div></div>`)}
@@ -714,7 +803,7 @@
   function ergebnisTab() {
     if (!d.serien.length) return '<section class="a-karte"><p class="a-leer">Leg zuerst eine Serie an.</p></section>';
     const det = d.details;
-    const ergebnisse = det.ergebnisse.map((e) => `<tr><td>${esc(zeit(e.start))}</td><td class="umbruch">${esc([e.strecke, e.variante].filter(Boolean).join(" · "))}</td><td class="rechts">${e.fahrer.length}</td><td class="rechts"><button type="button" class="a-knopf gefahr klein" data-ergebnis-loeschen="${esc(e.id)}">Löschen</button></td></tr>`).join("");
+    const ergebnisse = det.ergebnisse.map((e) => `<tr><td>${esc(zeit(e.start))}</td><td class="umbruch">${esc([e.strecke, e.variante].filter(Boolean).join(" · "))}</td><td class="rechts">${e.fahrer.length}</td><td class="rechts"><div class="a-leiste a-rechtsbuendig"><button type="button" class="a-knopf zweit klein" data-bericht-posten="${esc(e.id)}">In Discord posten</button><button type="button" class="a-knopf gefahr klein" data-ergebnis-loeschen="${esc(e.id)}">Löschen</button></div></td></tr>`).join("");
     const strafen = det.strafen.map((s) => {
       const e = det.ergebnisse.find((x) => x.id === s.rennen);
       const wert = s.typ === "zeit" ? `+${s.sekunden} s` : s.typ === "dsq" ? "DSQ" : `−${s.punkte}`;
@@ -768,9 +857,51 @@
       ${erledigt.length ? `<section class="a-karte"><h2>Entschieden</h2><div class="a-scroll"><table><thead><tr><th>Eingang</th><th>Serie</th><th>Rennen</th><th>Melder → Gemeldet</th><th>Status</th><th></th></tr></thead><tbody>${zeilen}</tbody></table></div></section>` : ""}`;
   }
 
+  // Vorlagen für einheitliche Urteile. Strafmaß und Text lassen sich im Formular immer anpassen.
+  const STRAFKATALOG = [
+    { id: "rennunfall", t: "Rennunfall", art: "kein-vergehen", b: "Rennunfall ohne klare Schuld, keine Strafe." },
+    { id: "kontakt-leicht", t: "Leichter Kontakt ohne Folgen", art: "verwarnung", b: "Leichter Kontakt ohne Folgen für den Rennverlauf. Verwarnung." },
+    { id: "kontakt-position", t: "Kontakt mit Positionsverlust", art: "strafpunkte", punkte: 3, b: "Vermeidbarer Kontakt, der zu einem Positionsverlust geführt hat." },
+    { id: "kontakt-dreher", t: "Kontakt mit Dreher oder Ausfall", art: "strafpunkte", punkte: 6, b: "Vermeidbarer Kontakt, der den anderen Fahrer gedreht oder zum Ausfall gebracht hat." },
+    { id: "divebomb", t: "Unkontrolliertes Überholmanöver", art: "zeitstrafe", sekunden: 10, b: "Überholversuch ohne realistische Chance, die Kurve sauber zu fahren." },
+    { id: "abdraengen", t: "Abdrängen oder unfaires Verteidigen", art: "strafpunkte", punkte: 3, b: "Unfaires Verteidigen der Position, dem anderen Fahrer wurde kein Platz gelassen." },
+    { id: "blaue-flagge", t: "Blaue Flaggen missachtet", art: "zeitstrafe", sekunden: 5, b: "Blaue Flaggen wurden missachtet und das Überrunden behindert." },
+    { id: "absicht", t: "Absichtlicher Kontakt oder grob unsportlich", art: "dsq", b: "Grob unsportliches Verhalten." },
+  ];
+
+  function aehnlicheFaelle(vergehen, reportId) {
+    const faelle = vergehen ? d.reports.filter((x) => x.id !== reportId && x.urteil && x.urteil.vergehen === vergehen).slice(0, 3) : [];
+    return faelle.length ? `<b>Frühere Fälle dieser Art</b>${faelle.map((x) => `<span>${esc(urteilKurz(x.urteil))} · ${esc(x.gegen.name)} · ${esc(x.rennenTitel)}</span>`).join("")}` : "";
+  }
+
+  // Stimmen der Stewards. Solange man nicht selbst abgestimmt hat, bleiben die anderen verborgen.
+  function abstimmung(r) {
+    if (r.ichBeteiligt) return "";
+    const s = r.stimmen;
+    const stimmeText = (x) => [(URTEILE.find(([a]) => a === x.art) || [])[1], x.punkte ? `${x.punkte} Punkte` : "", x.sekunden ? `${x.sekunden} s` : ""].filter(Boolean).join(", ");
+    const liste = s.liste ? `<ul class="a-stimmen">${s.liste.map((x) => `<li><b>${esc(x.name)}</b><span>${esc(stimmeText(x))}</span>${x.notiz ? `<small>${esc(x.notiz)}</small>` : ""}</li>`).join("")}</ul>` : `<p class="a-hinweis">${s.anzahl ? "Die anderen Stimmen siehst du, sobald du selbst abgestimmt hast." : "Noch keine Stimme abgegeben."}</p>`;
+    const ergebnis = s.mehrheit ? `<p class="a-meldung">Mehrheit: ${esc(stimmeText(s.mehrheit))} (${s.mehrheit.anzahl} Stimmen). Die Entscheidung unten ist damit vorbelegt.</p>` : "";
+    const e = s.eigene || {};
+    const form = r.urteil ? "" : `<form id="f-stimme" class="a-felder" novalidate>
+        ${feld("Deine Stimme", `<select name="art">${URTEILE.map(([v, t]) => `<option value="${v}"${v === (e.art || "kein-vergehen") ? " selected" : ""}>${t}</option>`).join("")}</select>`)}
+        ${feld("Punkte oder Sekunden", `<input name="wert" type="number" min="1" value="${esc(e.punkte ?? e.sekunden ?? "")}">`)}
+        ${feld("Kurze Notiz", `<input name="notiz" maxlength="300" value="${esc(e.notiz || "")}">`, true)}
+        <div><button type="submit" class="a-knopf zweit klein">${s.eigene ? "Stimme ändern" : "Stimme abgeben"}</button></div>
+      </form>`;
+    return `<section class="a-karte"><div class="a-kartenkopf"><h2>Abstimmung</h2><span class="a-chip${s.anzahl >= s.noetig ? " gruen" : ""}">${s.anzahl} von ${s.noetig} Stimmen</span></div>${liste}${ergebnis}${form}</section>`;
+  }
+
+  function rennKontextHtml(r) {
+    const k = r.kontext;
+    if (!k || (!k.von && !k.gegen)) return "";
+    const zeile = (rolle, f) => (f ? `<tr><td>${esc(rolle)}</td><td class="umbruch">${esc(f.name)}</td><td class="rechts">${f.start ?? "–"}</td><td class="rechts">${f.ziel}</td><td class="rechts">${f.runden}</td><td class="rechts">${f.incidents}</td></tr>` : "");
+    return `<div class="a-scroll"><table><thead><tr><th></th><th>Fahrer</th><th class="rechts">Start</th><th class="rechts">Ziel</th><th class="rechts">Runden</th><th class="rechts">Incidents</th></tr></thead><tbody>${zeile("Melder", k.von)}${zeile("Gemeldet", k.gegen)}</tbody></table></div>`;
+  }
+
   function urteilForm(r) {
     if (r.ichBeteiligt) return '<p class="a-meldung fehler">Du bist an diesem Vorfall beteiligt. Die Entscheidung muss jemand anderes aus dem League Team treffen.</p>';
-    const u = r.urteil || {};
+    const m = r.urteil ? null : r.stimmen.mehrheit;
+    const u = r.urteil || (m ? { art: m.art, punkte: m.punkte, sekunden: m.sekunden } : {});
     const art = u.art || "kein-vergehen";
     const det = d.details && d.details.serie === r.serie ? d.details : { ergebnisse: [] };
     const naechstes = u.rennen ? det.ergebnisse.find((e) => e.id === u.rennen) : [...det.ergebnisse].sort((a, b) => Math.abs(new Date(a.start) - new Date(r.start)) - Math.abs(new Date(b.start) - new Date(r.start)))[0];
@@ -779,6 +910,8 @@
       <h2>${einspruchOffen(r) ? "Einspruch entscheiden" : r.urteil ? "Urteil ändern" : "Entscheidung"}</h2>
       ${einspruchOffen(r) ? '<p class="a-hinweis">Nach dieser Entscheidung ist der Fall endgültig. Soll das Urteil bestehen bleiben, speichere es unverändert.</p>' : ""}
       <div class="a-felder">
+        ${feld("Vorlage aus dem Strafkatalog", `<select name="vergehen" id="u-katalog"><option value="">Keine Vorlage</option>${STRAFKATALOG.map((k) => `<option value="${k.id}"${k.id === u.vergehen ? " selected" : ""}>${esc(k.t)}</option>`).join("")}</select>`, true)}
+        <div class="a-aehnlich breit" id="u-aehnlich">${aehnlicheFaelle(u.vergehen, r.id)}</div>
         ${feld("Entscheidung", `<select name="art" id="u-art">${URTEILE.map(([v, t]) => `<option value="${v}"${v === art ? " selected" : ""}>${t}</option>`).join("")}</select>`)}
         <div class="a-feld" data-nur="strafpunkte"${art === "strafpunkte" ? "" : " hidden"}><label>Strafpunkte</label><input name="punkte" type="number" min="1" value="${esc(u.punkte ?? "")}"></div>
         <div class="a-feld" data-nur="zeitstrafe"${art === "zeitstrafe" ? "" : " hidden"}><label>Sekunden</label><input name="sekunden" type="number" min="1" value="${esc(u.sekunden ?? "")}"></div>
@@ -801,8 +934,8 @@
       <p class="a-hinweis">${esc(r.serieName)} · Eingang ${esc(zeit(r.erstellt))}</p>
       <p><b>${esc(r.von.name)}</b> meldet <b>${esc(r.gegen.name)}</b> · ${esc(r.stelle)}</p>
       <div class="a-leiste"><span class="a-beschriftung">Akte</span>${akteKnopf(r.von.name, r.von.cust, r.von.discordId).replace(">Akte<", `>${esc(r.von.name)}<`)}${akteKnopf(r.gegen.name, r.gegen.cust, r.gegen.discordId).replace(">Akte<", `>${esc(r.gegen.name)}<`)}</div>
-      <p class="a-text">${esc(r.beschreibung)}</p>${clip}${urteil}${einsprueche}</section>
-      ${urteilForm(r)}${notizen}`;
+      <p class="a-text">${esc(r.beschreibung)}</p>${clip}${rennKontextHtml(r)}${urteil}${einsprueche}</section>
+      ${abstimmung(r)}${urteilForm(r)}${notizen}`;
   }
 
   function reportsTab() {
@@ -999,9 +1132,21 @@
     if (b.dataset.verwerfen) { vorschau = null; datei = null; zugelassen = []; return zeichne(); }
     if (b.dataset.veroeffentlichen) {
       const a = await aktion({ aktion: "ergebnis-veroeffentlichen", serie: serieId, datei, zugelassen }, "Ergebnis veröffentlicht, die Tabelle ist aktualisiert.");
-      if (a) { vorschau = null; datei = null; zugelassen = []; zeichne(); }
-      return;
+      if (!a) return;
+      vorschau = null; datei = null; zugelassen = [];
+      if (a.berichtOffen) {
+        const gepostet = await rennberichtPosten(serieId, a.ergebnisId);
+        setzeMeldung(gepostet ? "Ergebnis veröffentlicht, Rennbericht im Discord gepostet." : `Ergebnis veröffentlicht. Der Rennbericht konnte nicht gepostet werden: ${(meldung && meldung.text) || "Discord hat nicht geantwortet."}`, !gepostet);
+      }
+      return zeichne();
     }
+    if (b.dataset.berichtPosten) {
+      if (!window.confirm("Rennbericht in den Discord-Kanal der Liga posten?")) return;
+      const gepostet = await rennberichtPosten(serieId, b.dataset.berichtPosten);
+      if (gepostet) setzeMeldung("Rennbericht im Discord gepostet.");
+      return zeichne();
+    }
+    if (b.dataset.pruefungErledigt) return aktion({ aktion: "pruefung-erledigt", serie: b.dataset.serie, id: b.dataset.pruefungErledigt }, "Als erledigt markiert.");
     if (b.dataset.ergebnisLoeschen && window.confirm("Dieses Ergebnis wirklich löschen? Die Tabelle wird neu berechnet.")) return aktion({ aktion: "ergebnis-loeschen", serie: serieId, id: b.dataset.ergebnisLoeschen }, "Ergebnis gelöscht.");
     if (b.dataset.strafeLoeschen && window.confirm("Diese Strafe wirklich löschen?")) return aktion({ aktion: "strafe-loeschen", serie: serieId, id: b.dataset.strafeLoeschen }, "Strafe gelöscht.");
   });
@@ -1019,7 +1164,13 @@
       return;
     }
     if (f.id === "f-notiz") return aktion({ aktion: "report-notiz", id: reportId, notizen: w.notizen }, "Notizen gespeichert.");
+    if (f.id === "f-stimme") {
+      const wert = Number(w.wert) || undefined;
+      return aktion({ aktion: "report-stimme", id: reportId, stimme: { art: w.art, notiz: w.notiz, punkte: w.art === "strafpunkte" ? wert : undefined, sekunden: w.art === "zeitstrafe" ? wert : undefined } }, "Stimme gespeichert.");
+    }
     if (f.id === "f-urteil") {
+      const offen = d.reports.find((x) => x.id === reportId);
+      if (offen && !offen.urteil && !offen.stimmen.mehrheit && !window.confirm("Es gibt noch keine Mehrheit der Stewards. Trotzdem entscheiden?")) return;
       const { ergebnis, cust, ...urteil } = w;
       const a = await aktion({ aktion: "report-urteil", id: reportId, urteil, ergebnis, cust }, "Urteil gespeichert, die Tabelle ist aktualisiert.");
       if (a && a.warnungen && a.warnungen.length) { setzeMeldung(a.warnungen.join(" "), true); zeichne(); }
@@ -1083,6 +1234,18 @@
       const anzahl = Math.max(1, Math.min(60, Number(document.getElementById("p-anzahl").value) || 1));
       planer.zeilen = Array.from({ length: anzahl }, (_, i) => ({ datum: plusTage(planer.start, i * planer.abstand), strecke: (planer.zeilen[i] || {}).strecke || "" }));
       document.getElementById("a-plan-zeilen").innerHTML = planerZeilenHtml();
+      return;
+    }
+    if (t.id === "u-katalog") {
+      const k = STRAFKATALOG.find((x) => x.id === t.value);
+      document.getElementById("u-aehnlich").innerHTML = aehnlicheFaelle(t.value, reportId);
+      if (!k) return;
+      const f = t.form;
+      f.elements.art.value = k.art;
+      f.elements.punkte.value = k.punkte || "";
+      f.elements.sekunden.value = k.sekunden || "";
+      f.elements.begruendung.value = k.b;
+      f.elements.art.dispatchEvent(new Event("change", { bubbles: true }));
       return;
     }
     if (t.id === "u-art") {

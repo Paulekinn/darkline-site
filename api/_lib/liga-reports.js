@@ -36,6 +36,8 @@ function pruefeUrteil(e) {
   const begruendung = text(e.begruendung, 2000);
   if (begruendung.length < 5) throw new Hinweis("Bitte begründe die Entscheidung.");
   const urteil = { art, begruendung };
+  const vergehen = text(e.vergehen, 60);
+  if (vergehen) urteil.vergehen = vergehen;
   if (art === "strafpunkte") {
     urteil.punkte = Number(e.punkte);
     if (!Number.isInteger(urteil.punkte) || urteil.punkte < 1 || urteil.punkte > 1000) throw new Hinweis("Bitte gib die Strafpunkte als ganze Zahl an.");
@@ -64,6 +66,47 @@ function urteilAnwenden(privat, reportId, urteil, ziel) {
 }
 
 const beteiligt = (report, discordId) => report.von.discordId === discordId || report.gegen.discordId === discordId;
+
+/* ---------- Abstimmung der Stewards ---------- */
+const STIMMEN_NOETIG = 2;
+
+function pruefeStimme(e) {
+  const { art, punkte, sekunden } = pruefeUrteil({ ...e, begruendung: "Stimme" });
+  return { art, ...(punkte ? { punkte } : {}), ...(sekunden ? { sekunden } : {}), notiz: text(e.notiz, 300) };
+}
+
+// Eine Stimme je Steward, eine neue ersetzt die alte. Reine Änderung am übergebenen Objekt.
+function stimmeSetzen(report, wer, stimme) {
+  report.stimmen = [...(report.stimmen || []).filter((x) => x.von !== wer.id), { ...stimme, von: wer.id, name: wer.name, zeit: new Date().toISOString() }];
+  return report;
+}
+
+const haeufigster = (werte) => { const je = new Map(); werte.forEach((w) => je.set(w, (je.get(w) || 0) + 1)); return [...je.entries()].sort((a, b) => b[1] - a[1]); };
+
+// Mehrheit: eine Entscheidung mit genügend Stimmen und ohne Gleichstand. Das Strafmaß ist der häufigste Vorschlag.
+function mehrheit(stimmen) {
+  const [erste, zweite] = haeufigster(stimmen.map((s) => s.art));
+  if (!erste || erste[1] < STIMMEN_NOETIG || (zweite && zweite[1] === erste[1])) return null;
+  const dafuer = stimmen.filter((s) => s.art === erste[0]);
+  const wert = (feld) => { const liste = dafuer.map((s) => s[feld]).filter(Boolean); return liste.length ? haeufigster(liste)[0][0] : undefined; };
+  return { art: erste[0], anzahl: erste[1], punkte: wert("punkte"), sekunden: wert("sekunden") };
+}
+
+// Solange jemand nicht selbst abgestimmt hat, sieht er nur die Anzahl. So beeinflussen sich die Stewards nicht.
+function stimmenSicht(report, discordId) {
+  const stimmen = report.stimmen || [];
+  const eigene = stimmen.find((s) => s.von === discordId) || null;
+  return { anzahl: stimmen.length, noetig: STIMMEN_NOETIG, eigene, liste: eigene ? stimmen.map(({ von, ...s }) => s) : null, mehrheit: eigene ? mehrheit(stimmen) : null };
+}
+
+// Position, Runden und Incidents beider Fahrer aus dem Ergebnis des Rennens.
+function rennKontext(report, ergebnisse) {
+  const start = new Date(report.start).getTime();
+  const passend = ergebnisse.map((e) => ({ e, ab: Math.abs(new Date(e.start).getTime() - start) })).filter((x) => x.ab <= 12 * 3600e3).sort((a, b) => a.ab - b.ab)[0];
+  if (!passend) return null;
+  const zeile = (p) => { const f = passend.e.fahrer.find((x) => x.cust === String(p.cust || "")); return f ? { name: f.name, start: f.start, ziel: f.gesamt, runden: f.runden, incidents: f.incidents, besteRunde: f.besteRunde } : null; };
+  return { ergebnis: passend.e.id, von: zeile(report.von), gegen: zeile(report.gegen) };
+}
 
 // Rennen, für die ein Fahrer gerade einen Vorfall melden darf: selbst gestartet und innerhalb der Frist.
 function meldbareRennen(rennen, jetzt, serien) {
@@ -198,4 +241,4 @@ async function discordMelden(report, urteil) {
   }
 }
 
-module.exports = { reportKarte, einspruchKarte, teamMelden, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden };
+module.exports = { pruefeStimme, stimmeSetzen, mehrheit, stimmenSicht, rennKontext, reportKarte, einspruchKarte, teamMelden, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden };

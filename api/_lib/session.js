@@ -102,6 +102,16 @@ function getLigaAdminSession(req) {
 // Anonyme Fahrerkennung für öffentliche Daten: gleiche iRacing-ID ergibt immer dieselbe Kennung, zurückrechnen lässt sie sich ohne das Geheimnis nicht.
 const fahrerKennung = (cust) => crypto.createHmac("sha256", secret()).update(`liga-fahrer:${cust}`).digest("hex").slice(0, 16);
 
+// Geheimer Kalender-Link eines Fahrers. Kalender-Apps können kein Cookie senden, deshalb steckt die Signatur im Link.
+const kalenderSignatur = (id) => crypto.createHmac("sha256", secret()).update(`liga-kalender:${id}`).digest("hex").slice(0, 32);
+const kalenderSchluessel = (id) => `${id}-${kalenderSignatur(id)}`;
+function kalenderPruefen(schluessel) {
+  const m = /^(\d{1,25})-([0-9a-f]{32})$/.exec(String(schluessel || ""));
+  if (!m) return null;
+  const soll = Buffer.from(kalenderSignatur(m[1]));
+  return crypto.timingSafeEqual(soll, Buffer.from(m[2])) ? m[1] : null;
+}
+
 // Für die Daten-Funktionen: antwortet ohne gültige Anmeldung mit 401 und gibt null zurück.
 function requireSession(req, res) {
   const s = getSession(req);
@@ -109,4 +119,4 @@ function requireSession(req, res) {
   return s;
 }
 
-module.exports = { fahrerKennung, appendCookie, readCookie, createSession, clearSession, getSession, requireSession, createLigaSession, clearLigaSession, getLigaSession, createLigaAdminSession, clearLigaAdminSession, getLigaAdminSession };
+module.exports = { kalenderSchluessel, kalenderPruefen, fahrerKennung, appendCookie, readCookie, createSession, clearSession, getSession, requireSession, createLigaSession, clearLigaSession, getLigaSession, createLigaAdminSession, clearLigaAdminSession, getLigaAdminSession };

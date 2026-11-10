@@ -64,6 +64,7 @@ function pruefeSerie(e) {
     anmeldeschlussMinuten: ganzzahl(e.anmeldeschlussMinuten, "Anmeldeschluss", 0, 10080),
     reportStunden: ganzzahl(e.reportStunden ?? 24, "Report-Frist", 1, 720),
     einspruchStunden: ganzzahl(e.einspruchStunden ?? 48, "Einspruchsfrist", 1, 720),
+    strafpunkteGrenze: ganzzahl(e.strafpunkteGrenze ?? 0, "Strafpunkte-Grenze", 0, 1000),
     klassen,
     ohneKlassen,
     fahrzeugklassenNamen: { "GT3 Class": "GT3", IMSA23: "GT3" },
@@ -115,6 +116,26 @@ function abgleichen(ergebnis, gemeldet, zugelassen, stammfahrer) {
     fremde: ergebnis.fahrer.filter((f) => !gemeldet.has(f.cust)).map((f) => ({ cust: f.cust, name: f.name, gesamt: f.gesamt, gast: gaeste.has(f.cust) })),
     fehlend: [...gemeldet].filter(([cust]) => !imRennen.has(cust)).map(([, name]) => name),
   };
+}
+
+// Was die Rennleitung nach einem Rennen prüfen sollte: gemeldete Starter ohne Teilnahme und auffällig viele Incidents.
+// starter: [{ name, cust, discordId }]. Ohne Auffälligkeit ergibt das null.
+const INCIDENTS_MIN = 8;
+function pruefungNachRennen(ergebnis, starter) {
+  const dabei = new Set(ergebnis.fahrer.map((f) => f.cust));
+  const noShows = starter.filter((f) => f.cust && !dabei.has(String(f.cust))).map(({ name, discordId }) => ({ name, discordId }));
+  const schnitt = ergebnis.fahrer.reduce((t, f) => t + f.incidents, 0) / Math.max(1, ergebnis.fahrer.length);
+  const grenze = Math.max(INCIDENTS_MIN, Math.ceil(schnitt * 2));
+  const incidents = ergebnis.fahrer.filter((f) => f.incidents >= grenze).map(({ name, cust, incidents: anzahl }) => ({ name, cust, incidents: anzahl }));
+  return noShows.length || incidents.length ? { noShows, incidents, erledigt: false } : null;
+}
+
+// Strafpunkte je Fahrer, die die Grenze der Serie erreicht haben.
+function strafkonten(serie, privat) {
+  if (!(serie.strafpunkteGrenze > 0)) return [];
+  const je = new Map();
+  (privat.strafen || []).forEach((s) => { const e = je.get(s.cust) || { name: s.name, cust: s.cust, punkte: 0 }; e.punkte += s.punkte; je.set(s.cust, e); });
+  return [...je.values()].filter((e) => e.punkte >= serie.strafpunkteGrenze).sort((a, b) => b.punkte - a.punkte).map((e) => ({ ...e, serie: serie.id, serieName: serie.name, grenze: serie.strafpunkteGrenze }));
 }
 
 const MAX_BILD_BYTES = 3 * 1024 * 1024;
@@ -248,4 +269,4 @@ async function tabelleNeu(serie, regeln, ergebnisse) {
   return warnungen;
 }
 
-module.exports = { streckenZusammen, streckenImportSpeichern, streckeAusImportEntfernen, datumPlus, rennenOhneErgebnis, wirksamerStatus, pruefeStrecke, streckeSpeichern, streckeLoeschen, serieDatenLoeschen, pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };
+module.exports = { pruefungNachRennen, strafkonten, streckenZusammen, streckenImportSpeichern, streckeAusImportEntfernen, datumPlus, rennenOhneErgebnis, wirksamerStatus, pruefeStrecke, streckeSpeichern, streckeLoeschen, serieDatenLoeschen, pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };

@@ -8,6 +8,7 @@ const D = require("./liga-daten");
 const R = require("./liga-reports");
 const { Hinweis } = D;
 const G = require("./liga-strecken");
+const Renntag = require("./liga-renntag");
 const { leseErgebnis, berechneTabelle, klasseFuer } = require("../../assets/liga-wertung.js");
 
 const eintraege = async () => (await blobList(A.PREFIX)).map(A.leseEintrag).filter(Boolean);
@@ -105,6 +106,9 @@ async function protokollText(b, kat) {
     "strecke-speichern": () => `${b.id ? "Strecke geändert" : "Strecke angelegt"}: ${(b.strecke || {}).name}`,
     "strecke-loeschen": () => `Strecke gelöscht: ${strecke(b.id)}`,
     "strecken-import": () => "Streckenliste aus Garage 61 importiert",
+    "report-stimme": async () => `Stimme abgegeben: ${await report()}`,
+    "pruefung-erledigt": () => `Prüfung nach dem Rennen erledigt in ${serie(b.serie)}`,
+    "bericht-posten": () => `Rennbericht im Discord gepostet: ${serie(b.serie)}`,
     "saison-planen": () => `${(b.rennen || []).length} Rennen geplant in ${serie(b.serie)}`,
     "rennen-speichern": () => `${b.id ? "Rennen geändert" : "Rennen angelegt"}: ${(b.rennen || {}).titel}`,
     "rennen-loeschen": () => `Rennen gelöscht: ${rennen(b.id)}`,
@@ -142,16 +146,37 @@ async function protokollLesen() {
   return alle.slice(0, MAX_PROTOKOLL).map(({ pfad, ...e }) => e);
 }
 
-// Gefahrene Rennen ohne Ergebnis, kurz zwischengespeichert. Nach jeder Änderung der Rennleitung wird neu gerechnet.
+// Hinweise für das Cockpit, kurz zwischengespeichert. Nach jeder Änderung der Rennleitung wird neu gerechnet.
 let fehlendCache = { bis: 0, wert: null };
-async function fehlendeErgebnisse(kat) {
+const COCKPIT_LEER = { fehlendeErgebnisse: [], pruefungen: [], strafkonten: [] };
+async function cockpitHinweise(kat) {
   if (fehlendCache.wert && fehlendCache.bis > Date.now()) return fehlendCache.wert;
-  const laufend = kat.serien.filter((s) => s.status !== "beendet").map((s) => s.id);
-  const rennen = kat.rennen.filter((r) => laufend.includes(r.serie));
-  const ergebnisse = new Map(await Promise.all([...new Set(rennen.map((r) => r.serie))].map(async (id) => [id, await D.ergebnisseLesen(id)])));
-  const wert = D.rennenOhneErgebnis(rennen, ergebnisse, Date.now());
+  const serien = kat.serien.filter((s) => s.status !== "beendet");
+  const rennen = kat.rennen.filter((r) => serien.some((s) => s.id === r.serie));
+  const ergebnisse = new Map(await Promise.all(serien.map(async (s) => [s.id, await D.ergebnisseLesen(s.id)])));
+  const pruefungen = serien.flatMap((s) => ergebnisse.get(s.id).filter((e) => e.pruefung && !e.pruefung.erledigt).map((e) => ({ serie: s.id, serieName: s.name, id: e.id, strecke: e.strecke, start: e.start, noShows: e.pruefung.noShows, incidents: e.pruefung.incidents })));
+  const strafkonten = (await Promise.all(serien.map(async (s) => D.strafkonten(s, await D.privatLesen(s.id))))).flat();
+  const wert = { fehlendeErgebnisse: D.rennenOhneErgebnis(rennen, ergebnisse, Date.now()), pruefungen, strafkonten };
   fehlendCache = { bis: Date.now() + 60000, wert };
   return wert;
+}
+
+// Die laut Anmeldung erwarteten Starter des Rennens, mit iRacing-ID für den Abgleich mit dem Ergebnis.
+async function erwarteteStarter(kat, serie, ergebnis) {
+  const rennen = Renntag.rennenZumErgebnis(kat.rennen, serie.id, ergebnis);
+  if (!rennen) return [];
+  const [stand] = A.baueRennen([rennen], await eintraege(), { jetzt: Date.now(), schlussMinuten: 60, discordId: "", serien: { [serie.id]: serie }, mitIds: true, auchVergangene: true });
+  return Promise.all(stand.starter.map(async (f) => { const t = await blobGet(A.profilPfad(f.discordId)); return { name: f.name, discordId: f.discordId, cust: t ? JSON.parse(t).custId : "" }; }));
+}
+
+// Daten für Grafik und Nachricht zu einem eingelesenen Ergebnis
+async function berichtZumErgebnis(kat, serieId, id) {
+  const serie = serieFinden(kat, serieId);
+  const ergebnis = (await D.ergebnisseLesen(serieId)).find((e) => e.id === String(id));
+  if (!ergebnis) throw new Hinweis("Dieses Ergebnis gibt es nicht.");
+  const bericht = Renntag.berichtDaten(serie, ergebnis, await D.tabelleLesen(serieId), kat.rennen);
+  if (!bericht) throw new Hinweis("Für dieses Rennen gibt es noch keinen Rennbericht.");
+  return bericht;
 }
 
 // Bildziel „strecke:<id>“ führt zu einer Strecke der Bibliothek.
@@ -352,13 +377,42 @@ const aktionen = {
     return { warnungen, tabelle, ersetzt: bisher.length !== vorhanden.length, fremde, fehlend, gaeste: neu.fahrer.filter((f) => f.gast).map((f) => f.name), rennen: { id: neu.id, strecke: neu.strecke, start: neu.start, gesamt: eingelesen.fahrer.length, gewertet: neu.fahrer.length } };
   },
   async "ergebnis-veroeffentlichen"(b, kat) {
-    serieFinden(kat, b.serie);
+    const serie = serieFinden(kat, b.serie);
     // Nicht gemeldete Fahrer werden nicht gewertet und auch nicht gespeichert.
     const { gemeldet, stamm } = await gemeldeteFahrer(kat, b.serie);
     const { ergebnis } = D.abgleichen(leseErgebnis(b.datei), gemeldet, b.zugelassen, stamm);
     if (!ergebnis.fahrer.length) throw new Hinweis("Keiner der Fahrer in dieser Datei ist für diese Serie gemeldet. Prüfe die Serie und die Datei oder lasse einzelne Fahrer als Gast zu.");
-    await D.ergebnisSpeichern(b.serie, ergebnis);
-    return { warnungen: (await neuBerechnen(kat, b.serie)) || [] };
+    // Ein Fehler bei der Zusatzprüfung darf das Veröffentlichen nicht verhindern.
+    const pruefung = D.pruefungNachRennen(ergebnis, await erwarteteStarter(kat, serie, ergebnis).catch(() => []));
+    await D.ergebnisSpeichern(b.serie, { ...ergebnis, ...(pruefung ? { pruefung } : {}) });
+    const warnungen = (await neuBerechnen(kat, b.serie)) || [];
+    const berichtOffen = !!process.env.LIGA_DISCORD_WEBHOOK && !(await Renntag.berichtSchonGepostet(ergebnis.id));
+    return { warnungen, ergebnisId: ergebnis.id, berichtOffen };
+  },
+  async "bericht-daten"(b, kat) {
+    return { bericht: await berichtZumErgebnis(kat, b.serie, b.id) };
+  },
+  // bild ist die im Browser gezeichnete Grafik. Ohne sie geht die Nachricht als reiner Text raus.
+  async "bericht-posten"(b, kat) {
+    if (!process.env.LIGA_DISCORD_WEBHOOK) throw new Hinweis("Der Discord-Webhook der Liga ist noch nicht eingerichtet.");
+    const bericht = await berichtZumErgebnis(kat, b.serie, b.id);
+    const bild = b.bild ? D.pruefeBild(b.bild) : null;
+    if (!(await Renntag.berichtPosten(bericht, String(b.id), bild))) throw new Hinweis("Discord hat die Nachricht nicht angenommen. Bitte prüfe den Webhook.");
+    return {};
+  },
+  async "pruefung-erledigt"(b, kat) {
+    serieFinden(kat, b.serie);
+    const ergebnis = (await D.ergebnisseLesen(b.serie)).find((e) => e.id === String(b.id));
+    if (!ergebnis || !ergebnis.pruefung) throw new Hinweis("Diese Prüfung gibt es nicht.");
+    await D.ergebnisSpeichern(b.serie, { ...ergebnis, pruefung: { ...ergebnis.pruefung, erledigt: true } });
+    return {};
+  },
+  async "report-stimme"(b, kat, s) {
+    const report = await R.lesen(b.id);
+    darfEntscheiden(report, s);
+    if (report.urteil) throw new Hinweis("Dieser Report ist bereits entschieden.");
+    await R.speichern(R.stimmeSetzen(report, s, R.pruefeStimme(b.stimme || {})));
+    return {};
   },
   async "ergebnis-loeschen"(b, kat) {
     serieFinden(kat, b.serie);
@@ -481,8 +535,10 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ...R.fahrerAkte(await R.alleReports(true), privatJeSerie, { cust: String(req.query.cust || (p && p.custId) || ""), discordId }), profil });
     }
     const details = D.istId((req.query || {}).serie) && kat.serien.some((x) => x.id === req.query.serie) ? await serienDetails(kat, req.query.serie) : null;
-    const reports = (await R.alleReports(true)).map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id) }));
-    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, fehlendeErgebnisse: await fehlendeErgebnisse(kat).catch(() => []), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    const alleReports = await R.alleReports(true);
+    const ergebnisseJe = new Map(await Promise.all([...new Set(alleReports.map((r) => r.serie))].filter((x) => D.istId(x)).map(async (id) => [id, await D.ergebnisseLesen(id).catch(() => [])])));
+    const reports = alleReports.map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id), stimmen: R.stimmenSicht(r, s.id), kontext: R.rennKontext(r, ergebnisseJe.get(r.serie) || []) }));
+    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });

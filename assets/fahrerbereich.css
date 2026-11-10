@@ -276,3 +276,19 @@ a.fb-link{text-decoration:none}
   .fb-termin-status{grid-column:2;justify-content:flex-start;flex-wrap:wrap}
 }
 @media (prefers-reduced-motion:reduce){.fb-termin{transition:none}}
+
+/* Renntag: alles fuer den Start an einer Stelle */
+.fb-renntag{display:grid;gap:14px;margin-top:14px;padding:16px 18px;background:linear-gradient(120deg,color-mix(in srgb,var(--s) 20%,var(--paper)),var(--paper) 62%);border-top:4px solid var(--s)}
+.fb-renntag-kopf{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 20px}
+.fb-renntag-kopf h2{margin:4px 0;font:900 clamp(1.3rem,2.6vw,1.9rem)/1.05 var(--f-wide);font-variation-settings:"wdth" 116;text-transform:uppercase}
+.fb-renntag-kopf p{margin:0;color:#c4cbc8;font-size:.92rem}
+.fb-renntag-reihe{display:grid;grid-template-columns:repeat(2,minmax(0,220px)) minmax(0,1fr);gap:8px;align-items:stretch}
+.fb-renntag-zugang{display:grid;align-content:start;gap:5px;min-width:0;padding:10px 12px;background:color-mix(in srgb,var(--black) 62%,transparent);border-top:2px solid var(--liga-gruen)}
+.fb-renntag-zugang span{font:500 .58rem/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fb-renntag-zugang b{font:700 .98rem/1.25 var(--f-mono);color:var(--liga-gruen);overflow-wrap:anywhere}
+.fb-renntag-zugang .fb-abmelden{justify-self:start;padding:3px 0}
+.fb-renntag-liste{display:flex;flex-wrap:wrap;gap:6px 22px;margin:0;padding:0;list-style:none}
+.fb-renntag-liste label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.9rem}
+.fb-renntag-liste input{width:18px;height:18px;accent-color:var(--liga-gruen)}
+.fb-kalender{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+@media (max-width:760px){.fb-renntag-reihe{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.fb-renntag-reihe .fb-fakten{grid-column:1/-1}}

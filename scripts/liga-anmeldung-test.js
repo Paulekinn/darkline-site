@@ -70,8 +70,100 @@ function supabaseAttrappe(seite = 1000) {
   return { zeilen, anfragen, ende: () => { global.fetch = alt.fetch; for (const [k, v] of [["SUPABASE_URL", alt.url], ["SUPABASE_SECRET_KEY", alt.key]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } } };
 }
 const B = require("../api/_lib/blob");
+const T = require("../api/_lib/liga-renntag");
 
 const tests = {
+  "Kalender: Link ist signiert, fremde oder veränderte Links gelten nicht": () => {
+    const k = S.kalenderSchluessel("123456789");
+    assert.strictEqual(S.kalenderPruefen(k), "123456789");
+    assert.strictEqual(S.kalenderPruefen(k.replace("123456789", "123456780")), null);
+    assert.strictEqual(S.kalenderPruefen("123456789-abc"), null);
+    assert.strictEqual(S.kalenderPruefen(""), null);
+  },
+  "Kalender: enthält nur eigene Rennen und kein Passwort, Absagen sind markiert": () => {
+    const basis = { id: "r1", titel: "Runde 1, Spa; Test", serieName: "GT3", strecke: "Spa", start: iso(START), ende: iso(START + 36e5), status: "geplant", passwort: "geheim123", ich: { status: "starter", platz: 1 } };
+    const ics = T.kalenderIcs([basis, { ...basis, id: "r2", status: "abgesagt" }, { ...basis, id: "r3", ich: null }], START - 1000);
+    assert.ok(ics.startsWith("BEGIN:VCALENDAR\r\n") && ics.endsWith("END:VCALENDAR\r\n"));
+    assert.ok(ics.includes("UID:r1@") && ics.includes("UID:r2@") && !ics.includes("UID:r3@"));
+    assert.ok(ics.includes("SUMMARY:GT3: Runde 1\\, Spa\\; Test"));
+    assert.ok(ics.includes("STATUS:CANCELLED"));
+    assert.ok(!ics.includes("geheim123"));
+    assert.ok(ics.split("\r\n").every((z) => z.length <= 61));
+  },
+  "Erinnerung: nur heutige Rennen laufender Serien, nie vor dem Morgen und nur einmal": async () => {
+    const heute = Date.UTC(2026, 11, 10, 12, 0);
+    const r = (id, serie, start, status = "geplant") => ({ id, serie, start: iso(start), status });
+    const serien = { a: { status: "laeuft" }, b: { status: "geplant" }, c: { status: "beendet" } };
+    assert.deepStrictEqual(T.rennenHeute([r("1", "a", heute + 36e5), r("2", "b", heute), r("3", "c", heute), r("4", "a", heute + 2 * 864e5), r("5", "a", heute, "abgesagt")], serien, heute).map((x) => x.id), ["1"]);
+    const k = T.erinnerungKarte({ titel: "Runde 1", serieName: "GT3", strecke: "Spa", start: iso(heute), plaetze: 40, starter: [{}, {}], passwort: "geheim123" });
+    assert.ok(!JSON.stringify(k).includes("geheim123"));
+    assert.ok(JSON.stringify(k).includes("2 von 40"));
+    const alt = process.env.LIGA_DISCORD_WEBHOOK;
+    delete process.env.LIGA_DISCORD_WEBHOOK;
+    assert.strictEqual(await T.erinnern(heute), false);
+    if (alt !== undefined) process.env.LIGA_DISCORD_WEBHOOK = alt;
+  },
+  "Rennbericht: Rundenzeit und Karte aus dem Bericht": () => {
+    assert.strictEqual(T.rundenzeit(1234560), "2:03.456");
+    assert.strictEqual(T.rundenzeit(null), "");
+    const karte = T.berichtKarte({ serie: "gt3", serieName: "GT3 Sprint", titel: "Runde 2", strecke: "Spa", klassen: [{ fahrzeugklasse: "GT3", podium: ["A", "B", "C"], schnellste: { name: "A", zeit: "2:03.456" }, aufholer: { name: "C", plaetze: 5 } }] }, true);
+    assert.ok(karte.description.includes("1. A") && karte.description.includes("3. C"));
+    assert.strictEqual(karte.image.url, "attachment://rennbericht.jpg");
+    assert.ok(karte.fields.some((f) => f.name === "Fahrer des Tages" && f.value.includes("C")));
+    assert.ok(karte.fields.every((f) => f.value.length >= 1));
+  },
+  "Prüfung nach dem Rennen: No-Shows und auffällige Incidents": () => {
+    const fahrer = (cust, incidents) => ({ cust, name: `F${cust}`, incidents });
+    const ruhig = Array.from({ length: 9 }, (_, i) => fahrer(String(i + 1), 1));
+    const p = D.pruefungNachRennen({ fahrer: [...ruhig, fahrer("99", 12)] }, [{ name: "F1", cust: "1", discordId: "a" }, { name: "Weg", cust: "50", discordId: "b" }, { name: "Ohne ID", cust: "", discordId: "c" }]);
+    assert.deepStrictEqual(p.noShows, [{ name: "Weg", discordId: "b" }]);
+    assert.deepStrictEqual(p.incidents.map((f) => f.cust), ["99"]);
+    assert.strictEqual(p.erledigt, false);
+    assert.strictEqual(D.pruefungNachRennen({ fahrer: ruhig }, [{ name: "F1", cust: "1" }]), null);
+  },
+  "Strafpunktekonto: meldet nur erreichte Grenzen": () => {
+    const privat = { strafen: [{ cust: "1", name: "A", punkte: 6 }, { cust: "1", name: "A", punkte: 6 }, { cust: "2", name: "B", punkte: 5 }] };
+    assert.deepStrictEqual(D.strafkonten({ id: "s", name: "S", strafpunkteGrenze: 10 }, privat).map((k) => [k.cust, k.punkte]), [["1", 12]]);
+    assert.deepStrictEqual(D.strafkonten({ id: "s", name: "S", strafpunkteGrenze: 0 }, privat), []);
+    assert.deepStrictEqual(D.strafkonten({ id: "s", name: "S" }, privat), []);
+  },
+  "Abstimmung: Stimmen bleiben verborgen, bis man selbst abgestimmt hat": () => {
+    const r = { von: { discordId: "1" }, gegen: { discordId: "2" } };
+    R.stimmeSetzen(r, { id: "10", name: "Anna" }, { art: "strafpunkte", punkte: 3, notiz: "" });
+    const fremd = R.stimmenSicht(r, "11");
+    assert.deepStrictEqual([fremd.anzahl, fremd.liste, fremd.mehrheit, fremd.eigene], [1, null, null, null]);
+    assert.ok(!JSON.stringify(fremd).includes("Anna"));
+    R.stimmeSetzen(r, { id: "10", name: "Anna" }, { art: "verwarnung", notiz: "" });
+    assert.strictEqual(r.stimmen.length, 1);
+    assert.strictEqual(r.stimmen[0].art, "verwarnung");
+    R.stimmeSetzen(r, { id: "11", name: "Ben" }, { art: "verwarnung", notiz: "" });
+    const eigen = R.stimmenSicht(r, "11");
+    assert.strictEqual(eigen.liste.length, 2);
+    assert.ok(eigen.liste.every((s) => s.von === undefined));
+    assert.strictEqual(eigen.mehrheit.art, "verwarnung");
+  },
+  "Abstimmung: Mehrheit braucht zwei gleiche Stimmen, bei Gleichstand gibt es keine": () => {
+    const s = (art, punkte) => ({ art, punkte });
+    assert.strictEqual(R.mehrheit([s("verwarnung")]), null);
+    assert.strictEqual(R.mehrheit([s("verwarnung"), s("dsq")]), null);
+    assert.strictEqual(R.mehrheit([s("verwarnung"), s("verwarnung"), s("dsq"), s("dsq")]), null);
+    const m = R.mehrheit([s("strafpunkte", 3), s("strafpunkte", 3), s("strafpunkte", 6), s("dsq")]);
+    assert.deepStrictEqual([m.art, m.anzahl, m.punkte], ["strafpunkte", 3, 3]);
+  },
+  "Abstimmung: Stimme wird wie ein Urteil geprüft": () => {
+    assert.throws(() => R.pruefeStimme({ art: "strafpunkte" }), /ganze Zahl/);
+    assert.throws(() => R.pruefeStimme({ art: "unsinn" }), /Entscheidung/);
+    assert.deepStrictEqual(R.pruefeStimme({ art: "zeitstrafe", sekunden: "5", notiz: " x " }), { art: "zeitstrafe", sekunden: 5, notiz: "x" });
+  },
+  "Fallakte: Rennkontext aus dem passenden Ergebnis, Vorlage bleibt am Urteil": () => {
+    const start = Date.UTC(2026, 10, 10, 19);
+    const ergebnis = (id, t) => ({ id, start: iso(t), fahrer: [{ cust: "1", name: "A", start: 3, gesamt: 1, runden: 30, incidents: 2, besteRunde: 1 }, { cust: "2", name: "B", start: 1, gesamt: 2, runden: 30, incidents: 6, besteRunde: 2 }] });
+    const k = R.rennKontext({ start: iso(start), von: { cust: "1" }, gegen: { cust: "2" } }, [ergebnis("alt", start - 7 * 864e5), ergebnis("neu", start + 6e5)]);
+    assert.strictEqual(k.ergebnis, "neu");
+    assert.deepStrictEqual([k.von.ziel, k.gegen.incidents], [1, 6]);
+    assert.strictEqual(R.rennKontext({ start: iso(start), von: { cust: "1" }, gegen: { cust: "2" } }, [ergebnis("alt", start - 7 * 864e5)]), null);
+    assert.strictEqual(R.pruefeUrteil({ art: "verwarnung", begruendung: "Leichter Kontakt", vergehen: "kontakt-leicht" }).vergehen, "kontakt-leicht");
+  },
   "Geplant: Anmeldung ist zu, ein Termin startet die Serie nicht von selbst": () => {
     assert.strictEqual(D.wirksamerStatus({ id: "gt3", status: "geplant" }, [SERIENRENNEN], START + 1), "geplant");
     const serien = { gt3: { status: "geplant", anmeldungOffen: true, name: "GT3" } };

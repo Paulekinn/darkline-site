@@ -28,12 +28,16 @@
     {
       "source": "/api/wach",
       "destination": "/api/liga?r=wach"
+    },
+    {
+      "source": "/liga-kalender/:k",
+      "destination": "/api/liga?r=kalender&k=:k"
     }
   ],
   "crons": [
     {
       "path": "/api/wach",
-      "schedule": "0 5 * * *"
+      "schedule": "0 8 * * *"
     }
   ],
   "headers": [

@@ -170,6 +170,39 @@
     </li>`;
   }
 
+  /* ---------- Renntag ---------- */
+  const berlinTag = (t) => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(t));
+  const RENNTAG_LISTE = [["sim", "Sim und Inhalte aktualisiert"], ["setup", "Setup geladen"], ["briefing", "Briefing gelesen"], ["discord", "Discord offen"]];
+  const hakenLesen = (id) => { try { return JSON.parse(localStorage.getItem(`dsrs-renntag-${id}`) || "{}"); } catch (e) { return {}; } };
+  const hakenSetzen = (id, w) => { try { localStorage.setItem(`dsrs-renntag-${id}`, JSON.stringify(w)); } catch (e) { /* ohne Speicher gilt der Haken nur bis zum Neuladen */ } };
+
+  // Erscheint nur am Tag eines eigenen Rennens, mit allem, was man vor dem Start braucht.
+  function renntagPanel() {
+    const heute = berlinTag(Date.now());
+    const r = stand.rennen.filter((x) => x.ich && x.ich.status === "starter" && x.status !== "abgesagt" && berlinTag(x.start) === heute)[0];
+    if (!r) return "";
+    const haken = hakenLesen(r.id);
+    const kopieren = (wert, name) => (wert ? `<button type="button" class="fb-abmelden" data-kopieren="${esc(wert)}" aria-label="${esc(name)} kopieren">Kopieren</button>` : "");
+    const zugang = (titel, wert, leer) => `<div class="fb-renntag-zugang"><span>${esc(titel)}</span><b>${esc(wert || leer)}</b>${kopieren(wert, titel)}</div>`;
+    return `<section class="fb-renntag ${farbe(r.serieFarbe)}">
+      <div class="fb-renntag-kopf">
+        <div><div class="lbl">Heute ist Renntag</div><h2>${esc(r.titel)}</h2><p>${esc([r.serieName, r.strecke, uhr(r.start)].filter(Boolean).join(" · "))}</p></div>
+        <div class="fb-countdown" data-start="${esc(r.start)}" aria-hidden="true"></div>
+      </div>
+      <div class="fb-renntag-reihe">
+        ${zugang("Server", r.server, "Folgt im Discord")}${zugang("Passwort", r.passwort, "Folgt im Discord")}
+        <dl class="fb-fakten">${fakt("Training", r.training)}${fakt("Qualifying", r.qualifying)}${fakt("Rennen", r.renndauer)}${fakt("Wetter", r.wetter)}</dl>
+      </div>
+      <ul class="fb-renntag-liste">${RENNTAG_LISTE.map(([k, t]) => `<li><label><input type="checkbox" data-haken="${k}" data-rennen="${esc(r.id)}"${haken[k] ? " checked" : ""}> ${esc(t)}</label></li>`).join("")}</ul>
+    </section>`;
+  }
+
+  function kalenderPanel() {
+    if (!stand.kalender || !stand.fahrer.profil) return "";
+    const adresse = `${location.origin}${stand.kalender}`;
+    return `<section class="fb-panel"><h3>Kalender</h3><p class="fb-klein">Deine Rennen automatisch im Kalender, auch wenn sich Termine verschieben. Der Link ist persönlich, bitte nicht weitergeben.</p><div class="fb-kalender"><a class="fb-knopf zweit" href="${esc(adresse.replace(/^https?:/, "webcal:"))}">Kalender abonnieren</a><button type="button" class="fb-abmelden" data-kopieren="${esc(adresse)}">Link kopieren</button></div></section>`;
+  }
+
   function serienPanel() {
     const offene = stand.serien.filter((s) => s.status !== "beendet");
     if (!offene.length) return "";
@@ -389,12 +422,13 @@
     main.innerHTML = `${kopf}<section class="sheet"><div class="wrap">
       <div class="fb-leiste">${ansichtWahl()}${filterChips()}</div>
       <p class="fb-meldung" id="fb-meldung" role="alert" hidden></p>
+      ${renntagPanel()}
       <div class="fb-raster">
         <div class="fb-haupt-spalte">
           ${haupt ? hauptRennen(haupt) : `<p class="fb-leer">${esc(leerText)}</p>`}
           ${rest.length ? `<h3 class="fb-zwischen">Weitere Rennen</h3><ol class="fb-termine">${rest.map((r) => weiteresRennen(r, new Set(rest.map((x) => x.serie)).size > 1)).join("")}</ol>` : ""}
         </div>
-        <aside class="fb-seiten-spalte">${serienPanel()}${haupt ? feldPanel(haupt) : ""}${profilPanel}</aside>
+        <aside class="fb-seiten-spalte">${serienPanel()}${haupt ? feldPanel(haupt) : ""}${kalenderPanel()}${profilPanel}</aside>
       </div>
     </div></section>`;
     uhrwerk();
@@ -434,6 +468,11 @@
     const b = e.target.closest("button");
     if (!b || beschaeftigt) return;
     if (b.id === "fb-logout") return sende({ aktion: "logout" }).then(() => location.reload());
+    if (b.dataset.kopieren) {
+      const melden = (t) => { const alt = b.textContent; b.textContent = t; setTimeout(() => { b.textContent = alt; }, 1500); };
+      navigator.clipboard.writeText(b.dataset.kopieren).then(() => melden("Kopiert"), () => melden("Nicht möglich"));
+      return;
+    }
     if (b.id === "p-abbrechen") { profilOffen = false; return zeichne(); }
     if (b.dataset.ansicht) { ansicht = b.dataset.ansicht; return zeichne(); }
     if (b.dataset.starterOeffnen) {
@@ -478,6 +517,11 @@
 
   // Im Report-Formular gehören die Fahrer zum gewählten Rennen.
   main.addEventListener("change", (e) => {
+    if (e.target.dataset.haken) {
+      const id = e.target.dataset.rennen;
+      hakenSetzen(id, { ...hakenLesen(id), [e.target.dataset.haken]: e.target.checked });
+      return;
+    }
     if (e.target.id !== "r-rennen") return;
     reportEntwurf = { ...reportEntwurf, rennen: e.target.value, gegen: "" };
     $("r-gegen").innerHTML = gegnerOptionen(stand.reports.meldbar.find((r) => r.id === e.target.value), "");
@@ -502,12 +546,12 @@
 
   // Countdown zum gewählten Rennen
   function uhrwerk() {
-    const el = main.querySelector(".fb-countdown");
-    if (!el) return;
-    const ms = new Date(el.dataset.start) - Date.now();
-    if (ms <= 0) { el.innerHTML = '<span class="fb-live">Rennen läuft</span>'; return; }
-    const teile = [[Math.floor(ms / 864e5), "Tage"], [Math.floor(ms / 36e5) % 24, "Std"], [Math.floor(ms / 6e4) % 60, "Min"]];
-    el.innerHTML = teile.map(([v, l]) => `<span><b>${String(v).padStart(2, "0")}</b><small>${l}</small></span>`).join("");
+    main.querySelectorAll(".fb-countdown").forEach((el) => {
+      const ms = new Date(el.dataset.start) - Date.now();
+      if (ms <= 0) { el.innerHTML = '<span class="fb-live">Rennen läuft</span>'; return; }
+      const teile = [[Math.floor(ms / 864e5), "Tage"], [Math.floor(ms / 36e5) % 24, "Std"], [Math.floor(ms / 6e4) % 60, "Min"]];
+      el.innerHTML = teile.map(([v, l]) => `<span><b>${String(v).padStart(2, "0")}</b><small>${l}</small></span>`).join("");
+    });
   }
   setInterval(uhrwerk, 30000);
 

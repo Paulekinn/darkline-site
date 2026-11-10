@@ -1,6 +1,6 @@
 // Fahrerbereich der Liga. GET: Dashboard · POST { aktion }: profil, anmelden, abmelden, serie-anmelden, serie-abmelden, logout
 // Ligafahrer haben ein eigenes Cookie (dpm_liga) und damit keinen Zugang zum Teambereich.
-const { getLigaSession, clearLigaSession, fahrerKennung } = require("./session");
+const { getLigaSession, clearLigaSession, fahrerKennung, kalenderSchluessel } = require("./session");
 const P = require("./liga-profil");
 const { blobPut, blobGet, blobDelete, blobList } = require("./blob");
 const A = require("./liga-anmeldung");
@@ -60,6 +60,7 @@ async function antwort(res, s, profil, alle, kat, frisch) {
   const pid = profil ? fahrerKennung(profil.custId) : "";
   return res.status(200).json({
     angemeldet: true,
+    kalender: `/liga-kalender/${kalenderSchluessel(s.id)}`,
     fahrer: { name: s.name, profil, pid, oeffentlich: pid ? await P.angabenVon(pid).catch(() => null) : null },
     meineKarten: profil ? A.eigeneKarten(kat.serien, await laufendeTabellen(kat), profil.iracingName, pid) : [],
     serien: A.baueSerien(kat.serien, alle, { discordId: s.id, profil, klasseFuer }),
