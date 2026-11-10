@@ -1,0 +1,21 @@
+{
+  "titel": "IMSA Endurance Series",
+  "status": "geplant",
+  "datum": "2026-11-15",
+  "startzeit": "15:00",
+  "dauer": "2:40h",
+  "strecke": "Suzuka International Racing Course Grand Prix",
+  "serie": "IMSA Endurance Series",
+  "klasse": "GT3",
+  "fahrzeug": "noch nicht bekannt",
+  "crew": [
+    "Pascal Rodenberg",
+    "Vanessa Peltré (Gast)"
+  ],
+  "start": null,
+  "ziel": null,
+  "fazit": "",
+  "banner": "/img/races/seriesid_419.png",
+  "bericht_titel": "",
+  "bericht": ""
+}
