@@ -101,6 +101,14 @@ const wunschLoeschen = (discordId) => blobDelete([wunschPfad(discordId)]);
 // Eine beantragte Nummer ist für alle anderen reserviert.
 const istBeantragt = (wuensche, nummer, discordId) => wuensche.some((w) => w.nach === nummer && w.discordId !== discordId);
 
+// Die Entscheidung der Rennleitung, wie sie der Fahrer im Fahrerbereich und per Direktnachricht liest.
+function nummerEntscheid(art, nummer, bisher, grund) {
+  const text = art === "abgelehnt"
+    ? `Die Rennleitung hat deine Änderung der Startnummer auf #${nummer} abgelehnt. Du fährst weiter mit #${bisher}.${grund ? ` Grund: ${grund}` : ""}`
+    : `Die Rennleitung hat deine Startnummer auf #${nummer} geändert.`;
+  return { art, text, zeit: new Date().toISOString() };
+}
+
 // Gibt true zurück, wenn der Antrag neu ist. Wer denselben Antrag noch einmal speichert, löst keine weitere Meldung aus.
 async function wunschSetzen(s, name, von, nach) {
   const [alle, wuensche] = await Promise.all([alleProfile(true), wuenscheLesen()]);
@@ -183,4 +191,4 @@ async function handler(req, res) {
 }
 
 module.exports = handler;
-Object.assign(module.exports, { bildNachziehen, bildVeraltet, oeffentlicheProfile, speichern, angabenVon, fahrerAkte, leseProfil, profilPfad, oeffentlich, avatarUrl, pruefeKonflikte, wunschLesen, wuenscheLesen, wunschLoeschen, wunschSetzen, istBeantragt });
+Object.assign(module.exports, { bildNachziehen, bildVeraltet, oeffentlicheProfile, speichern, angabenVon, fahrerAkte, leseProfil, profilPfad, oeffentlich, avatarUrl, pruefeKonflikte, wunschLesen, wuenscheLesen, wunschLoeschen, wunschSetzen, istBeantragt, nummerEntscheid });

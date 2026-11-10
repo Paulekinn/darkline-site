@@ -284,12 +284,15 @@ const aktionen = {
     const bisher = JSON.parse(gespeichert);
     const extras = { ...A.pruefeExtras(b.profil), zeigeBild: !b.bildEntfernen && bisher.zeigeBild !== false };
     A.nummerPflicht(extras);
-    const profil = { ...bisher, ...A.pruefeProfil(b.profil), ...extras, gespeichert: new Date().toISOString() };
+    const geaendert = extras.nummer !== bisher.nummer;
+    const entscheid = geaendert ? P.nummerEntscheid("bestaetigt", extras.nummer) : null;
+    const profil = { ...bisher, ...A.pruefeProfil(b.profil), ...extras, ...(entscheid ? { nummerEntscheid: entscheid } : {}), gespeichert: new Date().toISOString() };
     await P.speichern({ id: discordId, avatar: "" }, profil, extras);
     await blobPut(A.profilPfad(discordId), JSON.stringify(profil), "application/json");
     // Hat die Rennleitung die Nummer selbst geändert, ist ein offener Antrag erledigt.
-    if (extras.nummer !== bisher.nummer) await P.wunschLoeschen(discordId);
+    if (geaendert) await P.wunschLoeschen(discordId);
     await Dc.abgleichen(discordId, profil, await eintraege(), kat.serien);
+    if (entscheid) await Dc.nachricht(discordId, entscheid.text);
     return { custId: profil.custId };
   },
   async "nummer-bestaetigen"(b, kat) {
@@ -300,15 +303,24 @@ const aktionen = {
     if (!gespeichert) throw new Hinweis("Dieser Fahrer hat noch kein Profil.");
     const bisher = JSON.parse(gespeichert);
     const extras = { nummer: wunsch.nach, land: bisher.land || "", team: bisher.team || "", kanal: bisher.kanal || "", zeigeBild: bisher.zeigeBild !== false };
-    const profil = { ...bisher, nummer: wunsch.nach, gespeichert: new Date().toISOString() };
+    const entscheid = P.nummerEntscheid("bestaetigt", wunsch.nach);
+    const profil = { ...bisher, nummer: wunsch.nach, nummerEntscheid: entscheid, gespeichert: new Date().toISOString() };
     await P.speichern({ id: discordId, avatar: "" }, profil, extras);
     await blobPut(A.profilPfad(discordId), JSON.stringify(profil), "application/json");
     await P.wunschLoeschen(discordId);
     await Dc.abgleichen(discordId, profil, await eintraege(), kat.serien);
+    await Dc.nachricht(discordId, entscheid.text);
     return {};
   },
   async "nummer-ablehnen"(b) {
-    await P.wunschLoeschen(D.brauchtId(b.discordId));
+    const discordId = D.brauchtId(b.discordId);
+    const wunsch = await P.wunschLesen(discordId);
+    if (!wunsch) throw new Hinweis("Dieser Antrag liegt nicht mehr vor.");
+    const gespeichert = await blobGet(A.profilPfad(discordId));
+    const entscheid = P.nummerEntscheid("abgelehnt", wunsch.nach, wunsch.von, String(b.grund || "").trim().slice(0, 300));
+    if (gespeichert) await blobPut(A.profilPfad(discordId), JSON.stringify({ ...JSON.parse(gespeichert), nummerEntscheid: entscheid }), "application/json");
+    await P.wunschLoeschen(discordId);
+    await Dc.nachricht(discordId, entscheid.text);
     return {};
   },
   async "discord-test"(b, kat, s) {
