@@ -49,13 +49,6 @@
     setTimeout(() => { b.textContent = "Link kopieren"; }, 2000);
   });
 
-  /* ---------- Bewerbungsvorlage kopieren ---------- */
-  document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
-    const text = $(b.dataset.copy).textContent;
-    try { await navigator.clipboard.writeText(text); b.textContent = "Kopiert ✓"; } catch (err) { window.prompt("Vorlage kopieren:", text); }
-    setTimeout(() => { b.textContent = "Vorlage kopieren"; }, 2000);
-  }));
-
   /* ---------- Einstellungen: Links ---------- */
   function applySettings() {
     const s = D.settings || {};
