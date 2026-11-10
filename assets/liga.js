@@ -502,14 +502,15 @@
   function serienAktion(s) {
     if (s.status === "beendet") return "";
     const offen = s.anmeldungOffen !== false;
-    if (!fahrerStand || !fahrerStand.angemeldet) return offen ? '<a class="liga-mini" href="/api/discord-login?ziel=liga">Anmelden</a>' : "";
+    const geschlossen = '<span class="liga-zu">Anmeldung geschlossen</span>';
+    if (!fahrerStand || !fahrerStand.angemeldet) return offen ? '<a class="liga-melden" href="/api/discord-login?ziel=liga">Jetzt anmelden</a>' : geschlossen;
     const eigen = (fahrerStand.serien || []).find((x) => x.id === s.id);
-    if (eigen && eigen.ich) return `<span class="liga-dabei">Du bist dabei</span><button type="button" class="liga-mini zweit" data-serie-aktion="serie-abmelden" data-serie="${esc(s.id)}">Abmelden</button>`;
-    if (!offen) return "";
-    if (!fahrerStand.fahrer.profil) return '<a class="liga-mini" href="/fahrerbereich">Anmelden</a>';
+    if (eigen && eigen.ich) return `<span class="liga-dabei"><i aria-hidden="true">✓</i>Du bist dabei</span><button type="button" class="liga-abmelden" data-serie-aktion="serie-abmelden" data-serie="${esc(s.id)}">Abmelden</button>`;
+    if (!offen) return geschlossen;
+    if (!fahrerStand.fahrer.profil) return '<a class="liga-melden" href="/fahrerbereich">Jetzt anmelden</a>';
     const klassen = s.fahrzeugklassen || [];
     const auswahl = klassen.length > 1 ? `<select id="fz-${esc(s.id)}" class="liga-auswahl" aria-label="Fahrzeugklasse wählen"><option value="">Klasse</option>${klassen.map((k) => `<option value="${esc(k)}">${esc(k)}</option>`).join("")}</select>` : "";
-    return `${auswahl}<button type="button" class="liga-mini" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Anmelden</button>`;
+    return `${auswahl}<button type="button" class="liga-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Jetzt anmelden</button>`;
   }
 
   // Eure Livery-Bilder als Motiv der Karten. Je Serie immer dasselbe Bild.
@@ -708,7 +709,7 @@
     $("liga-titel").innerHTML = esc(s.name);
     document.querySelector(".liga-kicker").innerHTML = artBadge(s.typ);
     $("liga-saison").textContent = [s.saison, s.beschreibung].filter(Boolean).join(" · ");
-    $("liga-cta").innerHTML = `<a class="liga-mini zweit" href="/liga">Alle Serien</a>${serienAktion(s)}`;
+    $("liga-cta").innerHTML = `${serienAktion(s)}<a class="liga-mini zweit" href="/liga">Alle Serien</a>`;
     const d = daten.tabelle;
     if (d && Array.isArray(d.rennen) && d.rennen.length && Array.isArray(d.klassen)) zeige(d, s);
     else leer(s);

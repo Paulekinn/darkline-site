@@ -232,7 +232,21 @@
 .liga-mini.zweit:hover{background:var(--scan)}
 .liga-mini:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .liga-mini[disabled]{opacity:.55;cursor:progress}
-.liga-dabei{font:700 .64rem/1.2 var(--f-mono);text-transform:uppercase;color:var(--liga-gruen)}
+/* Anmeldung: Hauptaktion groß, Status eindeutig, Abmelden bewusst zurückhaltend */
+.liga-dabei,.liga-zu{box-sizing:border-box;flex:1 1 100%;display:flex;align-items:center;justify-content:center;gap:9px;padding:14px 18px;font:900 .92rem/1 var(--f-wide);font-variation-settings:"wdth" 112;text-transform:uppercase;text-align:center}
+.liga-melden{all:unset;box-sizing:border-box;flex:1 1 100%;display:flex;align-items:center;justify-content:center;padding:14px 18px;font:900 .92rem/1 var(--f-wide);font-variation-settings:"wdth" 112;text-transform:uppercase;text-align:center;cursor:pointer;background:var(--red);color:#fff;transform:skewX(-8deg)}
+.liga-melden:hover{background:#ee1a24}
+.liga-melden:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.liga-melden[disabled]{opacity:.55;cursor:progress}
+.liga-dabei{background:color-mix(in srgb,var(--liga-gruen) 15%,#07090a);box-shadow:inset 0 0 0 1.5px var(--liga-gruen);color:var(--liga-gruen)}
+.liga-dabei i{font-style:normal;font-size:1.1em}
+.liga-zu{padding-block:12px;background:color-mix(in srgb,#07090a 70%,transparent);box-shadow:inset 0 0 0 1.5px #3a4144;font-size:.76rem;color:#aeb6b3}
+.liga-abmelden{all:unset;cursor:pointer;padding:6px 4px;font:600 .74rem/1 var(--f-mono);color:#aeb6b3;text-decoration:underline;text-underline-offset:3px}
+.liga-abmelden:hover{color:var(--ink)}
+.liga-abmelden:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.liga-abmelden[disabled]{opacity:.55;cursor:progress}
+.liga-serie-aktion .liga-auswahl{flex:1 1 100%}
+#liga-cta .liga-melden,#liga-cta .liga-dabei,#liga-cta .liga-zu{flex:0 1 auto;padding-inline:26px}
 .liga-auswahl{padding:6px;background:var(--black);color:var(--ink);border:1.5px solid var(--rule);font:600 .72rem var(--f-mono)}
 
 /* Kompakte Übersicht: kleinere Überschriften, weniger Abstand, Inhalte nebeneinander */

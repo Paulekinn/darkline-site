@@ -255,3 +255,20 @@ a.fb-link{text-decoration:none}
   .fb-ablauf{grid-template-columns:repeat(2,minmax(0,1fr))}
   .fb-leiste{align-items:flex-start}
 }
+
+/* Anmeldung: Hauptaktion groß, Status eindeutig, Abmelden bewusst zurückhaltend */
+.fb-knopf.fb-melden{padding:15px 28px;font-size:.92rem;font-weight:900}
+.fb-dabei,.fb-zu{display:inline-flex;align-items:center;gap:8px;padding:12px 18px;font:900 .84rem/1 var(--f-wide);font-variation-settings:"wdth" 112;text-transform:uppercase;white-space:nowrap}
+.fb-dabei{background:color-mix(in srgb,var(--liga-gruen) 15%,#07090a);box-shadow:inset 0 0 0 1.5px var(--liga-gruen);color:var(--liga-gruen)}
+.fb-dabei i{font-style:normal;font-size:1.1em}
+.fb-dabei.warte{background:color-mix(in srgb,var(--liga-gelb) 14%,#07090a);box-shadow:inset 0 0 0 1.5px var(--liga-gelb);color:var(--liga-gelb)}
+.fb-zu{box-shadow:inset 0 0 0 1.5px #3a4144;font-size:.72rem;color:#aeb6b3}
+.fb-abmelden{all:unset;cursor:pointer;padding:6px 4px;font:600 .74rem/1 var(--f-mono);color:#aeb6b3;text-decoration:underline;text-underline-offset:3px}
+.fb-abmelden:hover{color:var(--ink)}
+.fb-abmelden:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.fb-abmelden[disabled]{cursor:progress;opacity:.55}
+.fb-karte-aktion{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.fb-karte .fb-knopf.fb-melden{flex:1 1 100%;padding:12px 16px;font-size:.8rem}
+.fb-karte .fb-dabei,.fb-karte .fb-zu{padding:9px 12px;font-size:.7rem}
+.fb-serie-aktion .fb-knopf.fb-melden{padding:10px 14px;font-size:.72rem}
+.fb-serie-aktion .fb-dabei,.fb-serie-aktion .fb-zu{padding:8px 10px;font-size:.66rem}

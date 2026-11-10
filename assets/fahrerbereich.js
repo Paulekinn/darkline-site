@@ -61,13 +61,16 @@
     return `<select id="fz-${esc(id)}" aria-label="Fahrzeugklasse wählen"><option value="">Klasse wählen</option>${klassen.map((k) => `<option value="${esc(k)}">${esc(k)}</option>`).join("")}</select>`;
   }
 
+  const GESCHLOSSEN = '<span class="fb-zu">Anmeldung geschlossen</span>';
+  const dabeiStatus = (r) => (r.ich.status === "starter" ? '<span class="fb-dabei"><i aria-hidden="true">✓</i>Du bist dabei</span>' : `<span class="fb-dabei warte">Warteliste, Platz ${Number(r.ich.platz)}</span>`);
+
   function aktionHtml(r) {
-    if (!r.offen) return "";
-    if (r.ich) return `<button type="button" class="fb-knopf zweit" data-aktion="abmelden" data-rennen="${esc(r.id)}" data-quelle="${esc(r.ich.quelle)}">Abmelden</button>`;
-    if (r.anmeldungZu) return "";
-    if (!stand.fahrer.profil) return '<button type="button" class="fb-knopf zweit" data-profil="1">Erst Profil ausfüllen</button>';
+    if (!r.offen) return r.status === "abgesagt" ? "" : r.ich ? dabeiStatus(r) : GESCHLOSSEN;
+    if (r.ich) return `${dabeiStatus(r)}<button type="button" class="fb-abmelden" data-aktion="abmelden" data-rennen="${esc(r.id)}" data-quelle="${esc(r.ich.quelle)}">Abmelden</button>`;
+    if (r.anmeldungZu) return GESCHLOSSEN;
+    if (!stand.fahrer.profil) return '<button type="button" class="fb-knopf fb-melden" data-profil="1">Erst Profil ausfüllen</button>';
     const voll = r.plaetze && r.starter.length >= r.plaetze;
-    return `${klassenAuswahl(r.id, r.fahrzeugklassen)}<button type="button" class="fb-knopf" data-aktion="anmelden" data-rennen="${esc(r.id)}">${voll ? "Auf die Warteliste" : "Anmelden"}</button>`;
+    return `${klassenAuswahl(r.id, r.fahrzeugklassen)}<button type="button" class="fb-knopf fb-melden" data-aktion="anmelden" data-rennen="${esc(r.id)}">${voll ? "Auf die Warteliste" : "Jetzt anmelden"}</button>`;
   }
 
   const fakt = (titel, wert, klasse) => (wert ? `<div class="${klasse || ""}"><dt>${esc(titel)}</dt><dd>${esc(wert)}</dd></div>` : "");
@@ -86,7 +89,7 @@
   }
 
   function hauptRennen(r) {
-    const schluss = r.offen && r.anmeldungZu && !r.ich ? "Die Anmeldung für diese Serie ist geschlossen." : r.offen ? `${r.anmeldungZu ? "Abmeldung" : "Anmeldung und Abmeldung"} bis ${datum(r.schluss)}, ${uhr(r.schluss)}` : r.status === "abgesagt" ? "" : "Änderungen jetzt bitte im Discord an die Rennleitung.";
+    const schluss = r.offen && r.anmeldungZu && !r.ich ? "" : r.offen ? `${r.anmeldungZu ? "Abmeldung" : "Anmeldung und Abmeldung"} bis ${datum(r.schluss)}, ${uhr(r.schluss)}` : r.status === "abgesagt" ? "" : "Änderungen jetzt bitte im Discord an die Rennleitung.";
     const passwort = r.ich && r.ich.status === "starter" ? r.passwort || "Kommt im Discord" : "";
     const konflikt = r.konflikt && r.konflikt.length ? `<p class="fb-konflikt">Überschneidung mit: ${esc(r.konflikt.join(", "))}. Melde dich bei einem der Rennen ab.</p>` : "";
     return `<article class="fb-haupt ${farbe(r.serieFarbe)}${r.serieTyp === "event" ? " ist-event" : ""}">
@@ -159,8 +162,9 @@
     if (!offene.length) return "";
     const zeilen = offene.map((s) => {
       let aktion = "";
-      if (s.ich) aktion = `<button type="button" class="fb-knopf zweit" data-serie-aktion="serie-abmelden" data-serie="${esc(s.id)}">Abmelden</button>`;
-      else if (s.anmeldungOffen && stand.fahrer.profil) aktion = `${klassenAuswahl("s-" + s.id, s.fahrzeugklassen)}<button type="button" class="fb-knopf" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Anmelden</button>`;
+      if (s.ich) aktion = `<span class="fb-dabei"><i aria-hidden="true">✓</i>Dabei</span><button type="button" class="fb-abmelden" data-serie-aktion="serie-abmelden" data-serie="${esc(s.id)}">Abmelden</button>`;
+      else if (s.anmeldungOffen && stand.fahrer.profil) aktion = `${klassenAuswahl("s-" + s.id, s.fahrzeugklassen)}<button type="button" class="fb-knopf fb-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Jetzt anmelden</button>`;
+      else if (!s.anmeldungOffen) aktion = GESCHLOSSEN;
       const info = [s.ich ? `Dabei${s.fahrzeugklasse ? ` · ${s.fahrzeugklasse}` : ""}` : "", s.einstufungDurchRennleitung ? "Einstufung durch Rennleitung" : s.klasse].filter(Boolean).join(" · ");
       return `<li class="${farbe(s.farbe)}${s.ich ? " dabei" : ""}"><span class="fb-serie-bild" ${motiv(bildVon(s.id, s.bildVersion))} aria-hidden="true"></span><div>${artBadge(s.typ)} <a href="/liga?serie=${encodeURIComponent(s.id)}">${esc(s.name)}</a>${info ? `<small>${esc(info)}</small>` : ""}</div><div class="fb-serie-aktion">${aktion}</div></li>`;
     }).join("");
