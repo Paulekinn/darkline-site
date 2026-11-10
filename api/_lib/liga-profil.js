@@ -2,7 +2,7 @@
 //   liga/fahrerprofile/<kennung>~<angaben base64url>
 // Die Kennung ist anonym, Discord-ID und iRacing-ID stehen hier nicht. "o" ist nur ein Prüfwert, wem der Eintrag gehört, und wird nie ausgeliefert.
 const crypto = require("crypto");
-const { blobPut, blobDelete, blobList } = require("./blob");
+const { blobPut, blobGet, blobDelete, blobList, blobInhalte } = require("./blob");
 const D = require("./liga-daten");
 const { fahrerKennung } = require("./session");
 const { Hinweis } = D;
@@ -87,12 +87,36 @@ function pruefeKonflikte(alle, pid, besitzer, nummer) {
   if (nummer && alle.some((p) => p.n === nummer && p.o !== besitzer)) throw new Hinweis(`Die Startnummer ${nummer} ist schon vergeben. Bitte wähle eine andere.`);
 }
 
+/* ---------- Anträge auf eine andere Startnummer: Der Fahrer stellt sie, die Rennleitung bestätigt oder lehnt ab ---------- */
+const WUNSCH_PREFIX = "liga/nummernwuensche/";
+const wunschPfad = (discordId) => `${WUNSCH_PREFIX}${discordId}`;
+
+async function wunschLesen(discordId) {
+  const t = await blobGet(wunschPfad(discordId));
+  return t ? JSON.parse(t) : null;
+}
+const wuenscheLesen = async () => (await blobInhalte(WUNSCH_PREFIX)).map(([, t]) => JSON.parse(t)).sort((a, b) => String(a.seit).localeCompare(String(b.seit)));
+const wunschLoeschen = (discordId) => blobDelete([wunschPfad(discordId)]);
+
+// Eine beantragte Nummer ist für alle anderen reserviert.
+const istBeantragt = (wuensche, nummer, discordId) => wuensche.some((w) => w.nach === nummer && w.discordId !== discordId);
+
+// Gibt true zurück, wenn der Antrag neu ist. Wer denselben Antrag noch einmal speichert, löst keine weitere Meldung aus.
+async function wunschSetzen(s, name, von, nach) {
+  const [alle, wuensche] = await Promise.all([alleProfile(true), wuenscheLesen()]);
+  if (alle.some((p) => p.n === nach && p.o !== besitzerVon(s)) || istBeantragt(wuensche, nach, s.id)) throw new Hinweis(`Die Startnummer ${nach} ist schon vergeben. Bitte wähle eine andere.`);
+  if (wuensche.some((w) => w.discordId === s.id && w.nach === nach)) return false;
+  await blobPut(wunschPfad(s.id), JSON.stringify({ discordId: s.id, name, von, nach, seit: new Date().toISOString() }), "application/json");
+  return true;
+}
+
 // Speichert die öffentlichen Angaben eines Fahrers. Wirft einen Hinweis, wenn iRacing-ID oder Startnummer schon vergeben sind.
 async function speichern(s, profil, extras) {
-  const alle = await alleProfile(true);
+  const [alle, wuensche] = await Promise.all([alleProfile(true), wuenscheLesen()]);
   const pid = fahrerKennung(profil.custId);
   const besitzer = besitzerVon(s);
   pruefeKonflikte(alle, pid, besitzer, extras.nummer);
+  if (extras.nummer && istBeantragt(wuensche, extras.nummer, s.id)) throw new Hinweis(`Die Startnummer ${extras.nummer} ist schon vergeben. Bitte wähle eine andere.`);
   const eigene = alle.filter((p) => p.o === besitzer);
   const vorher = eigene.find((p) => p.pid === pid);
   let bild = (vorher && vorher.b) || "";
@@ -159,4 +183,4 @@ async function handler(req, res) {
 }
 
 module.exports = handler;
-Object.assign(module.exports, { bildNachziehen, bildVeraltet, oeffentlicheProfile, speichern, angabenVon, fahrerAkte, leseProfil, profilPfad, oeffentlich, avatarUrl, pruefeKonflikte });
+Object.assign(module.exports, { bildNachziehen, bildVeraltet, oeffentlicheProfile, speichern, angabenVon, fahrerAkte, leseProfil, profilPfad, oeffentlich, avatarUrl, pruefeKonflikte, wunschLesen, wuenscheLesen, wunschLoeschen, wunschSetzen, istBeantragt });

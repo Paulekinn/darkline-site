@@ -159,6 +159,10 @@ scripts/liga-test.js, scripts/liga-anmeldung-test.js   Tests (mit node ausführe
 
 **Einmalige Einrichtung:** In Discord eine Rolle für die Rennleitung anlegen und ihre ID in Vercel als `LIGA_ADMIN_ROLE_IDS` eintragen (mehrere Komma-getrennt). Ohne diesen Eintrag kommt niemand in `/liga-admin`. Wer die Rolle verliert, bleibt bis zum Ablauf des Cookies (12 Stunden) angemeldet. Die Discord-Redirect-Adresse bleibt dieselbe wie beim Teambereich.
 
+**Discord-Rollen:** Mit vollständigem Profil bekommt ein Fahrer die Rolle Liga-Interessent. Mit der Anmeldung für eine laufende Liga kommt Liga-Fahrer dazu und der Servername wird zu `#31 Max Mustermann`. Events ändern nichts. Wer keine laufende Liga mehr fährt, verliert Liga-Fahrer und die Nummer im Namen. Dafür in Vercel eintragen: `DISCORD_BOT_TOKEN`, `LIGA_ROLLE_INTERESSENT` und `LIGA_ROLLE_FAHRER` (Rollen-IDs), `DISCORD_GUILD_ID` ist schon gesetzt. Der Bot braucht „Rollen verwalten“ und „Spitznamen verwalten“, seine Rolle muss über beiden Rollen stehen. Schlägt ein Aufruf fehl, holt die Website ihn beim nächsten Öffnen des Fahrerbereichs nach. Der Bot kann Mitglieder mit höherer Rolle und den Serverinhaber nicht umbenennen.
+
+**Startnummern:** Pflichtfeld und nur einmal vergeben. Die erste Nummer wählt der Fahrer selbst, jede Änderung geht als Antrag ins Cockpit von `/liga-admin`. Die Rennleitung kann sie dort bestätigen oder ablehnen oder die Nummer in der Fahrerakte direkt ändern.
+
 **Speicher:** Alles liegt im privaten Supabase-Speicher unter `liga/`, nicht im Repository. Änderungen sind ohne Commit und Deploy nach spätestens rund einer Minute öffentlich sichtbar.
 
 **Bilder:** Unter `/liga-admin` → Serien lassen sich ein Titelbild für die Übersicht und je Serie ein eigenes Bild hochladen (JPG, PNG oder WebP, wird im Browser auf höchstens 1920 Pixel Breite verkleinert). Ohne Upload erscheinen das Teamfoto und die Livery-Bilder aus `img/cars`.

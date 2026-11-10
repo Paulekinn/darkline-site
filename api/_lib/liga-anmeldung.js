@@ -169,6 +169,11 @@ function pruefeExtras(p) {
   return { nummer: nummerText ? +nummerText : null, land, team, kanal, zeigeBild: !!(p && p.zeigeBild) };
 }
 
+// Die Startnummer ist Pflicht, auch wenn die übrigen öffentlichen Angaben freiwillig bleiben.
+function nummerPflicht(extras) {
+  if (!extras.nummer) throw new Error("Bitte gib eine Startnummer von 1 bis 999 an.");
+}
+
 // Prüft die Eingaben aus dem Profilformular. Wirft einen Fehlertext für den Fahrer.
 function pruefeProfil(p) {
   const name = String((p && p.iracingName) || "").trim();
@@ -180,4 +185,4 @@ function pruefeProfil(p) {
   return { iracingName: name, custId, irating: +irating };
 }
 
-module.exports = { PREFIX, anmeldungPfad, mitgliedPfad, abmeldungPfad, profilPfad, leseEintrag, berlinNachUtc, dauerMinuten, ordne, baueRennen, baueSerien, kollisionen, eigeneKarten, pruefeProfil, pruefeExtras };
+module.exports = { PREFIX, anmeldungPfad, mitgliedPfad, abmeldungPfad, profilPfad, leseEintrag, berlinNachUtc, dauerMinuten, ordne, baueRennen, baueSerien, kollisionen, eigeneKarten, pruefeProfil, pruefeExtras, nummerPflicht };

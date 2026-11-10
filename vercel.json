@@ -14,6 +14,12 @@
       "has": [{ "type": "host", "value": "darkline-site.vercel.app" }],
       "destination": "https://darklineperformance.de/:path*",
       "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "liga.darklineperformance.de" }],
+      "destination": "https://darklineperformance.de/liga",
+      "permanent": false
     }
   ],
   "rewrites": [
