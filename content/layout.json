@@ -5,6 +5,10 @@
       "sichtbar": true
     },
     {
+      "bereich": "liga",
+      "sichtbar": true
+    },
+    {
       "bereich": "partner",
       "sichtbar": true
     },
@@ -14,10 +18,6 @@
     },
     {
       "bereich": "klassement",
-      "sichtbar": true
-    },
-    {
-      "bereich": "liga",
       "sichtbar": true
     },
     {
