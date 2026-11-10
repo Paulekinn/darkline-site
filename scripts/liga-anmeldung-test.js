@@ -785,6 +785,13 @@ const tests = {
     assert.strictEqual(s.ohneKlassen, true);
     assert.strictEqual(D.pruefeSerie({ ...eingabe, ohneKlassen: false, klassen: [{ name: "Alle", min: 0, max: "" }] }).ohneKlassen, false);
   },
+  "Serie: Übertragung nur als Twitch- oder YouTube-Link": () => {
+    const eingabe = { name: "Offen", typ: "event", ohneKlassen: true, punkte: "30", rennenGesamt: 1, gewerteteRennen: 1, anmeldeschlussMinuten: 60, punkteDanach: 0, bonusPole: 0, bonusSchnellsteRunde: 0, mindestRundenProzent: 75 };
+    assert.strictEqual(D.pruefeSerie(eingabe).uebertragung, "");
+    assert.strictEqual(D.pruefeSerie({ ...eingabe, uebertragung: " https://www.twitch.tv/darkline " }).uebertragung, "https://www.twitch.tv/darkline");
+    assert.strictEqual(D.pruefeSerie({ ...eingabe, uebertragung: "https://youtu.be/abc" }).uebertragung, "https://youtu.be/abc");
+    for (const link of ["http://twitch.tv/a", "https://twitch.tv.boese.de/a", "javascript:alert(1)", "nur text"]) assert.throws(() => D.pruefeSerie({ ...eingabe, uebertragung: link }), /Übertragung/);
+  },
   "Ohne Klassen: Fahrerbereich nennt keine iRating-Klasse": () => {
     const { klasseFuer } = require("../assets/liga-wertung.js");
     const [s] = A.baueSerien([{ id: "e", name: "E", kategorie: "Formula", ohneKlassen: true, klassen: [{ id: "offen", name: "Offen", min: 0, max: null }] }], [], { discordId: "2", profil: { irating: 2000 }, klasseFuer });

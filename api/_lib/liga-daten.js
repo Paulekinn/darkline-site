@@ -31,6 +31,16 @@ function ganzzahl(v, name, min, max) {
   return n;
 }
 
+// Link zur Übertragung einer Serie. Leer erlaubt, sonst nur Twitch oder YouTube über https.
+function pruefeUebertragung(v) {
+  const link = text(v, 150);
+  if (!link) return "";
+  let url = null;
+  try { url = new URL(link); } catch (e) { /* unten gemeldet */ }
+  if (!url || url.protocol !== "https:" || !/^(www\.|m\.)?(twitch\.tv|youtube\.com|youtu\.be)$/.test(url.hostname)) throw new Hinweis("Bitte gib als Übertragung einen Twitch- oder YouTube-Link an, der mit https:// beginnt.");
+  return url.href;
+}
+
 const FARBEN = ["rot", "blau", "lila", "gruen", "gelb", "tuerkis"];
 const KATEGORIEN = ["Sports_Car", "Formula", "Oval", "Dirt_Road", "Dirt_Oval"];
 
@@ -57,6 +67,7 @@ function pruefeSerie(e) {
     anmeldungOffen: e.anmeldungOffen !== false && e.anmeldungOffen !== "false",
     farbe: FARBEN.includes(e.farbe) ? e.farbe : "rot",
     beschreibung: text(e.beschreibung, 400),
+    uebertragung: pruefeUebertragung(e.uebertragung),
     briefingVorlage: text(e.briefingVorlage, 10000),
     kategorie: KATEGORIEN.includes(e.kategorie) ? e.kategorie : "Sports_Car",
     fahrzeugklassen: (Array.isArray(e.fahrzeugklassen) ? e.fahrzeugklassen : String(e.fahrzeugklassen || "").split(",")).map((x) => text(x, 20)).filter(Boolean),
