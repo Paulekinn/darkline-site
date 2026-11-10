@@ -283,6 +283,7 @@ a.fb-link{text-decoration:none}
 .fb-renntag-kopf h2{margin:4px 0;font:900 clamp(1.3rem,2.6vw,1.9rem)/1.05 var(--f-wide);font-variation-settings:"wdth" 116;text-transform:uppercase}
 .fb-renntag-kopf p{margin:0;color:#c4cbc8;font-size:.92rem}
 .fb-renntag-reihe{display:grid;grid-template-columns:repeat(2,minmax(0,220px)) minmax(0,1fr);gap:8px;align-items:stretch}
+.fb-renntag-reihe.ohne-zugang{grid-template-columns:minmax(0,1fr)}
 .fb-renntag-zugang{display:grid;align-content:start;gap:5px;min-width:0;padding:10px 12px;background:color-mix(in srgb,var(--black) 62%,transparent);border-top:2px solid var(--liga-gruen)}
 .fb-renntag-zugang span{font:500 .58rem/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .fb-renntag-zugang b{font:700 .98rem/1.25 var(--f-mono);color:var(--liga-gruen);overflow-wrap:anywhere}

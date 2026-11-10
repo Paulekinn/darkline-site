@@ -73,6 +73,16 @@ const B = require("../api/_lib/blob");
 const T = require("../api/_lib/liga-renntag");
 
 const tests = {
+  "Zugang: nur Events und Serien mit ein oder zwei Rennen brauchen Zugangsdaten": () => {
+    const stand = (serie) => A.baueRennen([SERIENRENNEN], [], { ...OPT, serien: { gt3: { name: "GT3", ...serie } } })[0].zugangNoetig;
+    assert.strictEqual(stand({ typ: "liga", rennenGesamt: 8 }), false);
+    assert.strictEqual(stand({ typ: "liga", rennenGesamt: 3 }), false);
+    assert.strictEqual(stand({ typ: "liga", rennenGesamt: 2 }), true);
+    assert.strictEqual(stand({ typ: "event", rennenGesamt: 8 }), true);
+    const basis = { id: "r1", titel: "Runde 1", serieName: "GT3", start: iso(START), ende: iso(START + 36e5), status: "geplant", ich: { status: "starter", platz: 1 } };
+    assert.ok(T.kalenderIcs([{ ...basis, zugangNoetig: false }], START).includes("bei unserer Liga"));
+    assert.ok(T.kalenderIcs([{ ...basis, zugangNoetig: true }], START).replace(/\r\n /g, "").includes("Server und Passwort"));
+  },
   "Ergebnis: vorläufig bis die Fristen abgelaufen sind": () => {
     const start = Date.UTC(2026, 10, 10, 19);
     const ctx = (o) => ({ serie: { id: "gt3", reportStunden: 24, einspruchStunden: 48 }, rennen: [{ serie: "gt3", datum: "2026-11-10", startzeit: "20:00", renndauer: "60 min" }], reports: [], privat: {}, jetzt: start + 36e5, ...o });

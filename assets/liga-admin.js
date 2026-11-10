@@ -494,7 +494,9 @@
   }
 
   /* ---------- Rennen ---------- */
-  const rennenWarnungen = (r) => [!r.passwort && "Kein Passwort", !r.briefing && "Kein Briefing", !r.strecke && "Keine Strecke"].filter(Boolean);
+  // Ligen laufen über die iRacing-Liga, nur Events und Serien mit ein oder zwei Rennen brauchen eigene Zugangsdaten.
+  const brauchtZugang = (s) => !s || s.typ === "event" || !(s.rennenGesamt > 2);
+  const rennenWarnungen = (r) => [!r.passwort && brauchtZugang(serieVon(r.serie)) && "Kein Passwort", !r.briefing && "Kein Briefing", !r.strecke && "Keine Strecke"].filter(Boolean);
 
   function rennenForm() {
     const w = form.werte;
@@ -523,7 +525,7 @@
             ${feld("Session-Name in iRacing", eingabe("server", w.server))}
             ${feld("Session-Passwort", eingabe("passwort", w.passwort, 'autocomplete="off"'))}
             ${feld("Briefing und Renninfos (Markdown)", `<textarea name="briefing" maxlength="10000">${esc(w.briefing)}</textarea>`, true)}
-          </div>`, "Das Passwort sehen nur Fahrer mit Startplatz, das Briefing nur angemeldete Fahrer.")}
+          </div>`, "Session-Name und Passwort braucht es nur bei Events und Serien mit ein oder zwei Rennen, Ligen laufen über die iRacing-Liga. Das Passwort sehen nur Fahrer mit Startplatz, das Briefing nur angemeldete Fahrer.")}
         </div>
         <aside class="a-spalte">
           ${abschnittForm(4, "Strecke", `${feld("Strecke", eingabe("strecke", w.strecke, 'maxlength="80" list="a-strecken" id="r-strecke" autocomplete="off" placeholder="Name eintippen"'))}<div id="a-karte-vorschau">${kartenVorschau(karte)}</div>`, "Strecken aus der Bibliothek bringen ihre Streckenkarte automatisch mit.")}
@@ -574,7 +576,7 @@
             ${feld("Wetter", eingabe("wetter", planer.wetter))}
           </div>`)}
         </div>
-        <div class="a-spalte">${abschnittForm(3, "Rennkalender", `<div class="a-plan" id="a-plan-zeilen">${planerZeilenHtml()}</div>`, "Passwort und Briefing trägst du später je Rennen ein.")}</div>
+        <div class="a-spalte">${abschnittForm(3, "Rennkalender", `<div class="a-plan" id="a-plan-zeilen">${planerZeilenHtml()}</div>`, "Das Briefing trägst du später je Rennen ein.")}</div>
       </div>
       ${formLeiste("Rennen anlegen")}
     </form>`;
@@ -610,7 +612,7 @@
     const knoepfe = d.serien.length ? `<div class="a-leiste">${offeneSerien.length ? `<button type="button" class="a-knopf zweit" data-planer="${esc((serieVon(rennenFilter) || offeneSerien[0]).id)}">Saison planen</button>` : ""}<button type="button" class="a-knopf" data-rennen-neu="1">Neues Rennen</button></div>` : "";
     return `${form && form.art === "rennen" ? rennenForm() : ""}${planer ? planerForm() : ""}
       <section class="a-karte"><div class="a-kartenkopf"><h2>Rennen</h2>${knoepfe}</div>
-      ${d.serien.length ? `<div class="a-leiste">${chips}${serieVon(rennenFilter) && serieVon(rennenFilter).status !== "beendet" ? `<button type="button" class="a-knopf zweit klein a-rechts" data-passwort-alle="${esc(rennenFilter)}">Passwort für alle kommenden Rennen</button>` : ""}</div>` : ""}
+      ${d.serien.length ? `<div class="a-leiste">${chips}${serieVon(rennenFilter) && serieVon(rennenFilter).status !== "beendet" && brauchtZugang(serieVon(rennenFilter)) ? `<button type="button" class="a-knopf zweit klein a-rechts" data-passwort-alle="${esc(rennenFilter)}">Passwort für alle kommenden Rennen</button>` : ""}</div>` : ""}
       ${!d.serien.length ? '<p class="a-leer">Leg zuerst eine Serie an.</p>' : kommend.length ? `<div class="a-liste">${kommend.map(terminZeile).join("")}</div>` : '<p class="a-leer">Keine kommenden Rennen.</p>'}</section>
       ${vorbei.length ? `<section class="a-karte"><div class="a-kartenkopf"><h2>Vergangene Rennen</h2><span class="a-chip">${vorbei.length}</span></div><div class="a-liste">${vorbei.map(terminZeile).join("")}</div></section>` : ""}`;
   }

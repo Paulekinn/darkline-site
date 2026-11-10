@@ -87,13 +87,16 @@
   const fakt = (titel, wert, klasse) => (wert ? `<div class="${klasse || ""}"><dt>${esc(titel)}</dt><dd>${esc(wert)}</dd></div>` : "");
   const namenListe = (liste, ichName) => liste.map((f, i) => `<li class="${f.name === ichName ? "ich" : ""}"><em>${i + 1}</em><span>${esc(f.name)}</span>${f.gast ? '<small class="gast">Gast</small>' : ""}${f.fahrzeugklasse ? `<small>${esc(f.fahrzeugklasse)}</small>` : ""}</li>`).join("");
 
+  // Trägt die Rennleitung bei einer Liga doch Zugangsdaten ein, werden sie auch angezeigt.
+  const zeigeZugang = (r) => r.zugangNoetig || !!r.server || !!r.passwort;
+
   // Ablauf bis zum Start als Leuchten: grün erledigt, gelb Warteliste, dunkel noch offen
   function ablauf(r) {
     const schritte = [
       ["Profil", stand.fahrer.profil ? "on" : ""],
       ["Gemeldet", r.ich ? (r.ich.status === "starter" ? "on" : "warte") : ""],
       ["Briefing", r.briefing ? "on" : ""],
-      ["Zugangsdaten", r.passwort ? "on" : ""],
+      ...(zeigeZugang(r) ? [["Zugangsdaten", r.passwort ? "on" : ""]] : []),
     ];
     const text = { on: "erledigt", warte: "Warteliste", "": "noch offen" };
     return `<ol class="fb-ablauf" aria-label="Ablauf bis zum Start">${schritte.map(([name, st]) => `<li class="${st}" aria-label="${name}: ${text[st]}"><i aria-hidden="true"></i><span aria-hidden="true">${name}</span></li>`).join("")}</ol>`;
@@ -101,7 +104,7 @@
 
   function hauptRennen(r) {
     const schluss = r.offen && r.anmeldungZu && !r.ich ? "" : r.offen ? `${r.anmeldungZu ? "Abmeldung" : "Anmeldung und Abmeldung"} bis ${datum(r.schluss)}, ${uhr(r.schluss)}` : r.status === "abgesagt" ? "" : "Änderungen jetzt bitte im Discord an die Rennleitung.";
-    const passwort = r.ich && r.ich.status === "starter" ? r.passwort || "Kommt im Discord" : "";
+    const passwort = zeigeZugang(r) && r.ich && r.ich.status === "starter" ? r.passwort || "Kommt im Discord" : "";
     const konflikt = r.konflikt && r.konflikt.length ? `<p class="fb-konflikt">Überschneidung mit: ${esc(r.konflikt.join(", "))}. Melde dich bei einem der Rennen ab.</p>` : "";
     return `<article class="fb-haupt ${farbe(r.serieFarbe)}${r.serieTyp === "event" ? " ist-event" : ""}">
       <div class="fb-haupt-bild" ${motiv(rennBild(r))} aria-hidden="true"></div>
@@ -189,8 +192,9 @@
         <div><div class="lbl">Heute ist Renntag</div><h2>${esc(r.titel)}</h2><p>${esc([r.serieName, r.strecke, uhr(r.start)].filter(Boolean).join(" · "))}</p></div>
         <div class="fb-countdown" data-start="${esc(r.start)}" aria-hidden="true"></div>
       </div>
-      <div class="fb-renntag-reihe">
-        ${zugang("Server", r.server, "Folgt im Discord")}${zugang("Passwort", r.passwort, "Folgt im Discord")}
+      ${zeigeZugang(r) ? "" : '<p class="fb-klein">Du brauchst keine Zugangsdaten. Die Session findest du in iRacing bei unserer Liga.</p>'}
+      <div class="fb-renntag-reihe${zeigeZugang(r) ? "" : " ohne-zugang"}">
+        ${zeigeZugang(r) ? `${zugang("Server", r.server, "Folgt im Discord")}${zugang("Passwort", r.passwort, "Folgt im Discord")}` : ""}
         <dl class="fb-fakten">${fakt("Training", r.training)}${fakt("Qualifying", r.qualifying)}${fakt("Rennen", r.renndauer)}${fakt("Wetter", r.wetter)}</dl>
       </div>
       <ul class="fb-renntag-liste">${RENNTAG_LISTE.map(([k, t]) => `<li><label><input type="checkbox" data-haken="${k}" data-rennen="${esc(r.id)}"${haken[k] ? " checked" : ""}> ${esc(t)}</label></li>`).join("")}</ul>

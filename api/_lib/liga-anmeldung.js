@@ -102,6 +102,8 @@ function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, ser
         offen: !abgesagt && serie.status !== "beendet" && jetzt < schlussMs,
         anmeldungZu: serie.anmeldungOffen === false || serie.status === "geplant",
         anmeldungFolgt: serie.status === "geplant",
+        // Ligen laufen über die iRacing-Liga. Eigene Zugangsdaten braucht es nur bei Events und Serien mit ein oder zwei Rennen.
+        zugangNoetig: serie.typ === "event" || !(serie.rennenGesamt > 2),
         strecke: r.strecke || "", streckenBild: r.streckenBild || null, fahrzeuge: r.fahrzeuge || "", fahrzeugklassen: serie.fahrzeugklassen || [], plaetze: r.plaetze || 0,
         training: r.training || "", qualifying: r.qualifying || "", renndauer: r.renndauer || "", wetter: r.wetter || "", server: r.server || "", briefing: r.briefing || "",
         starter: starter.map(oeffentlich), warteliste: warteliste.map(oeffentlich),

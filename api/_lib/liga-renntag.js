@@ -32,7 +32,7 @@ function falte(zeile) {
 function kalenderIcs(rennen, jetzt) {
   const zeilen = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Darkline Performance//Liga//DE", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:Darkline Simracing Series", "X-WR-TIMEZONE:Europe/Berlin", "REFRESH-INTERVAL;VALUE=DURATION:PT6H", "X-PUBLISHED-TTL:PT6H"];
   rennen.filter((r) => r.ich).forEach((r) => {
-    const info = r.ich.status === "starter" ? "Du bist gemeldet. Server und Passwort stehen im Fahrerbereich." : `Du stehst auf Platz ${r.ich.platz} der Warteliste.`;
+    const info = r.ich.status !== "starter" ? `Du stehst auf Platz ${r.ich.platz} der Warteliste.` : r.zugangNoetig ? "Du bist gemeldet. Server und Passwort stehen im Fahrerbereich." : "Du bist gemeldet. Die Session findest du in iRacing bei unserer Liga.";
     zeilen.push("BEGIN:VEVENT", `UID:${r.id}@darklineperformance.de`, `DTSTAMP:${icsZeit(jetzt)}`, `DTSTART:${icsZeit(r.start)}`, `DTEND:${icsZeit(r.ende)}`, `SUMMARY:${icsText([r.serieName, r.titel].filter(Boolean).join(": "))}`, ...(r.strecke ? [`LOCATION:${icsText(r.strecke)}`] : []), `DESCRIPTION:${icsText(info)}`, `URL:${LINK}/fahrerbereich`, `STATUS:${r.status === "abgesagt" ? "CANCELLED" : "CONFIRMED"}`, "END:VEVENT");
   });
   zeilen.push("END:VCALENDAR");
@@ -63,7 +63,7 @@ function rennenHeute(rennen, serien, jetzt) {
 const erinnerungKarte = (r) => ({
   title: `Heute Renntag: ${r.titel}`.slice(0, 256), url: `${LINK}/fahrerbereich`, color: FARBE,
   fields: [feld("Serie", r.serieName), feld("Start", `${berlinUhr(r.start)} Uhr`), feld("Strecke", r.strecke), feld("Gemeldet", r.plaetze ? `${r.starter.length} von ${r.plaetze}` : r.starter.length)],
-  footer: { text: "Server und Passwort stehen im Fahrerbereich." },
+  footer: { text: r.zugangNoetig ? "Server und Passwort stehen im Fahrerbereich." : "Die Session findest du in iRacing bei unserer Liga." },
 });
 
 // Läuft über den täglichen Zeitplan. Der Merker verhindert doppelte Nachrichten, auch wenn die Adresse mehrfach aufgerufen wird.
