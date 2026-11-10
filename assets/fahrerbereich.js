@@ -43,6 +43,7 @@
     if (r.status === "abgesagt") return '<span class="fb-status abgesagt">Abgesagt</span>';
     if (r.ich && r.ich.status === "starter") return '<span class="fb-status starter">Dabei</span>';
     if (r.ich) return `<span class="fb-status warteliste">Warteliste · Platz ${r.ich.platz}</span>`;
+    if (r.offen && r.anmeldungFolgt) return '<span class="fb-status geschlossen">Anmeldung folgt</span>';
     if (!r.offen || r.anmeldungZu) return '<span class="fb-status geschlossen">Anmeldung geschlossen</span>';
     return '<span class="fb-status">Nicht angemeldet</span>';
   }
@@ -62,6 +63,7 @@
   }
 
   const GESCHLOSSEN = '<span class="fb-zu">Anmeldung geschlossen</span>';
+  const FOLGT = '<span class="fb-zu">Anmeldung folgt</span>';
   // Die Season, in der dieser Fahrer noch fehlt. Bei Events gibt es keine Gäste, dort zählt die Anmeldung zum Rennen.
   const offeneSeason = (r) => { const s = stand.serien.find((x) => x.id === r.serie); return s && s.typ !== "event" && !s.ich && s.anmeldungOffen ? s : null; };
   const seasonKnopf = (s) => `<button type="button" class="fb-knopf fb-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Für die Season anmelden</button>`;
@@ -74,7 +76,7 @@
     if (!r.offen) return r.status === "abgesagt" ? "" : r.ich ? dabeiStatus(r) : GESCHLOSSEN;
     const season = stand.fahrer.profil ? offeneSeason(r) : null;
     if (r.ich) return `${dabeiStatus(r)}${season ? `${klassenAuswahl("h-" + r.id, r.fahrzeugklassen)}${seasonKnopf(season)}` : ""}<button type="button" class="fb-abmelden" data-aktion="abmelden" data-rennen="${esc(r.id)}" data-quelle="${esc(r.ich.quelle)}">Abmelden</button>`;
-    if (r.anmeldungZu) return GESCHLOSSEN;
+    if (r.anmeldungZu) return r.anmeldungFolgt ? FOLGT : GESCHLOSSEN;
     if (!stand.fahrer.profil) return '<button type="button" class="fb-knopf fb-melden" data-profil="1">Erst Profil ausfüllen</button>';
     const voll = r.plaetze && r.starter.length >= r.plaetze;
     // In einer Season ist die Anmeldung für alle Runden der Normalfall, ein einzelnes Rennen die Ausnahme für Gäste.
@@ -175,7 +177,7 @@
       let aktion = "";
       if (s.ich) aktion = `<span class="fb-dabei"><i aria-hidden="true">✓</i>Dabei</span><button type="button" class="fb-abmelden" data-serie-aktion="serie-abmelden" data-serie="${esc(s.id)}">Abmelden</button>`;
       else if (s.anmeldungOffen && stand.fahrer.profil) aktion = `${klassenAuswahl("s-" + s.id, s.fahrzeugklassen)}<button type="button" class="fb-knopf fb-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Jetzt anmelden</button>`;
-      else if (!s.anmeldungOffen) aktion = GESCHLOSSEN;
+      else if (!s.anmeldungOffen) aktion = s.status === "geplant" ? FOLGT : GESCHLOSSEN;
       const info = [s.ich ? `Dabei${s.fahrzeugklasse ? ` · ${s.fahrzeugklasse}` : ""}` : "", s.einstufungDurchRennleitung ? "Einstufung durch Rennleitung" : s.klasse].filter(Boolean).join(" · ");
       return `<li class="${farbe(s.farbe)}${s.ich ? " dabei" : ""}"><span class="fb-serie-bild" ${motiv(bildVon(s.id, s.bildVersion))} aria-hidden="true"></span><div>${artBadge(s.typ)} <a href="/liga?serie=${encodeURIComponent(s.id)}">${esc(s.name)}</a>${info ? `<small>${esc(info)}</small>` : ""}</div><div class="fb-serie-aktion">${aktion}</div></li>`;
     }).join("");

@@ -18,7 +18,7 @@
   };
   const TABS = [["cockpit", "Cockpit"], ["reports", "Reports"], ["serien", "Seasons &amp; Events"], ["rennen", "Rennen"], ["strecken", "Strecken"], ["fahrer", "Fahrer"], ["ergebnisse", "Ergebnisse"], ["protokoll", "Protokoll"]];
   const URTEILE = [["kein-vergehen", "Kein Vergehen"], ["verwarnung", "Verwarnung"], ["strafpunkte", "Strafpunkte"], ["zeitstrafe", "Zeitstrafe"], ["dsq", "Disqualifikation"]];
-  const NEUE_SERIE = { name: "", typ: "liga", saison: "", status: "anmeldung", anmeldungOffen: true, farbe: "rot", beschreibung: "", kategorie: "Sports_Car", fahrzeugklassen: [], rennenGesamt: 8, gewerteteRennen: 7, anmeldeschlussMinuten: 60,
+  const NEUE_SERIE = { name: "", typ: "liga", saison: "", status: "geplant", anmeldungOffen: true, farbe: "rot", beschreibung: "", kategorie: "Sports_Car", fahrzeugklassen: [], rennenGesamt: 8, gewerteteRennen: 7, anmeldeschlussMinuten: 60,
     klassen: [{ name: "Pro", min: 2500, max: null }, { name: "Pro-Am", min: 1500, max: 2499 }, { name: "Am", min: 0, max: 1499 }],
     punkte: [30, 26, 23, 21, 19, 17, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2], punkteDanach: 1, bonusPole: 1, bonusSchnellsteRunde: 1, mindestRundenProzent: 75 };
   const NEUES_RENNEN = { titel: "", serie: "", status: "geplant", datum: "", startzeit: "20:00", strecke: "", fahrzeuge: "", plaetze: 40, training: "", qualifying: "", renndauer: "", wetter: "", server: "", passwort: "", briefing: "" };
@@ -285,6 +285,10 @@
     // Alle Rennen gefahren, aber noch nicht beendet: Das entscheidet die Rennleitung, wenn Reports und Strafen erledigt sind.
     const fertig = laufend.filter((s) => { const eigene = d.rennen.filter((r) => r.serie === s.id && r.status !== "abgesagt"); return eigene.length >= s.rennenGesamt && eigene.every((r) => String(r.datum) < heute()); });
     const abschluss = fertig.length ? `<section class="a-karte a-karte-info"><h2>Kann beendet werden</h2><div class="a-liste">${fertig.map((s) => `<div class="a-abschluss s-${esc(s.farbe || "rot")}"><span><b>${esc(s.name)}</b><small>Alle Rennen sind gefahren. Beende die Serie, sobald Reports und Strafen erledigt sind.</small></span><button type="button" class="a-knopf zweit klein" data-serie-bearbeiten="${esc(s.id)}">Öffnen</button></div>`).join("")}</div></section>` : "";
+    // Eine geplante Serie wechselt nicht von selbst. Rückt ihr Termin näher, erinnert das Cockpit an die Anmeldung.
+    const grenze = plusTage(heute(), 14);
+    const baldFaellig = d.serien.map((s) => ({ s, r: s.status === "geplant" ? kommend.find((x) => x.serie === s.id) : null })).filter((x) => x.r && String(x.r.datum) <= grenze);
+    const anmeldungFaellig = baldFaellig.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Anmeldung noch nicht geöffnet</h2><span class="a-chip gelb">${baldFaellig.length}</span></div><div class="a-liste">${baldFaellig.map(({ s, r }) => `<div class="a-abschluss s-${esc(s.farbe || "rot")}"><span><b>${esc(s.name)}</b><small>Erstes Rennen am ${esc(datumKurz(r.datum))}, die Season steht noch auf „Geplant“.</small></span><button type="button" class="a-knopf klein" data-serie-oeffnen="${esc(s.id)}">Anmeldung öffnen</button></div>`).join("")}</div></section>` : "";
     const kachel = (wert, text, art, ziel) => `<button type="button" class="a-kennzahl ${art}" data-tab="${ziel}"><b>${wert}</b><span>${esc(text)}</span></button>`;
     const reportsHtml = offene.slice(0, 5).map(reportZeile).join("");
     const termine = kommend.slice(0, 5).map(terminZeile).join("");
@@ -297,6 +301,7 @@
         ${kachel(unfertig.length, "Rennen unvollständig", unfertig.length ? "warnung" : "", "rennen")}
       </div>
       ${(d.fehlendeErgebnisse || []).length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Ergebnis fehlt</h2><span class="a-chip gelb">${d.fehlendeErgebnisse.length}</span></div><div class="a-liste">${d.fehlendeErgebnisse.slice(0, 6).map((r) => `<div class="a-abschluss ${serienFarbe(r.serie)}"><span><b>${esc(r.titel)}</b><small>${esc([(serieVon(r.serie) || {}).name, datumKurz(r.datum)].filter(Boolean).join(" · "))}</small></span><button type="button" class="a-knopf zweit klein" data-ergebnis-import="${esc(r.serie)}">Importieren</button></div>`).join("")}</div></section>` : ""}
+      ${anmeldungFaellig}
       ${abschluss}
       <div class="a-zwei">
         <section class="a-karte"><div class="a-kartenkopf"><h2>Zu entscheiden</h2><button type="button" class="a-knopf zweit klein" data-tab="reports">Alle Reports</button></div>${reportsHtml ? `<div class="a-liste">${reportsHtml}</div>` : '<p class="a-leer">Aktuell liegt nichts an.</p>'}</section>
@@ -332,7 +337,7 @@
         ${feld("Name", eingabe("name", w.name, 'maxlength="60"'))}
         ${feld("Art", auswahl("typ", w.typ, [["liga", "Liga"], ["event", "Event"]]))}
         <div class="a-feld" data-nur-liga${w.typ === "event" ? " hidden" : ""}><label>Saison</label>${eingabe("saison", w.saison, 'maxlength="40" placeholder="Saison 1"')}</div>
-        ${feld("Status", auswahl("status", w.status, [["anmeldung", "Anmeldung"], ["laeuft", "Läuft"], ["beendet", "Beendet"]]))}
+        ${feld("Status", auswahl("status", w.status, [["geplant", "Geplant"], ["anmeldung", "Anmeldung"], ["laeuft", "Läuft"], ["beendet", "Beendet"]]))}
         ${farben}
         ${feld("iRacing-Kategorie", auswahl("kategorie", w.kategorie, [["Sports_Car", "Sports Car"], ["Formula", "Formula"], ["Oval", "Oval"], ["Dirt_Road", "Dirt Road"], ["Dirt_Oval", "Dirt Oval"]]))}
         ${feld("Beschreibung", `<textarea name="beschreibung" maxlength="400" style="min-height:60px">${esc(w.beschreibung)}</textarea>`, true)}
@@ -344,7 +349,7 @@
         ${feld("Anmeldeschluss (Minuten vor Start)", eingabe("anmeldeschlussMinuten", w.anmeldeschlussMinuten, 'type="number" min="0"'))}
         ${feld("Report-Frist (Stunden)", eingabe("reportStunden", w.reportStunden ?? 24, 'type="number" min="1"'))}
         ${feld("Einspruchsfrist (Stunden)", eingabe("einspruchStunden", w.einspruchStunden ?? 48, 'type="number" min="1"'))}
-      </div><label class="a-check"><input type="checkbox" name="anmeldungOffen"${w.anmeldungOffen !== false ? " checked" : ""}> Fahrer können sich anmelden</label>`)}
+      </div><label class="a-check"><input type="checkbox" name="anmeldungOffen"${w.anmeldungOffen !== false ? " checked" : ""}> Fahrer können sich anmelden</label><p class="a-hinweis">Solange der Status „Geplant“ ist, bleibt die Anmeldung immer geschlossen.</p>`)}
       ${abschnittForm(3, "Klassen", `<label class="a-check"><input type="checkbox" name="ohneKlassen" id="s-ohne-klassen"${w.ohneKlassen ? " checked" : ""}> Keine Klassen nach iRating: alle fahren in einer gemeinsamen Wertung, bei Multiclass je Fahrzeugklasse</label>
         <div class="a-spalte" id="a-klassen-bereich"${w.ohneKlassen ? " hidden" : ""}><div class="a-klassen-kopf"><span>Name</span><span>Von</span><span>Bis</span><span></span></div><div class="a-klassen" id="a-klassen">${w.klassen.map(klasseZeile).join("")}</div><div><button type="button" class="a-knopf zweit klein" data-klasse-neu="1">Klasse hinzufügen</button></div><div id="a-klassen-check"></div></div>`)}
       ${abschnittForm(4, "Punkte", `<div class="a-leiste"><span class="a-beschriftung">Vorlage</span>${PUNKTE_VORLAGEN.map(([t], i) => `<button type="button" class="a-knopf zweit klein" data-punkte-vorlage="${i}">${esc(t)}</button>`).join("")}</div><div class="a-felder">
@@ -376,11 +381,11 @@
     return `<article class="a-serie s-${esc(s.farbe || "rot")}${s.status === "beendet" ? " beendet" : ""}">
       <div class="a-serie-bild" style="background-image:url('${esc(window.LigaKarte.bildVon(s.id, s.bildVersion))}')" aria-hidden="true"></div>
       <div class="a-serie-inhalt">
-        <div class="a-leiste">${istEvent ? '<span class="a-chip gold">★ Event</span>' : '<span class="a-chip hell">Season</span>'}${statusChip(s.status)}${s.anmeldungOffen === false ? '<span class="a-chip">Anmeldung zu</span>' : ""}</div>
+        <div class="a-leiste">${istEvent ? '<span class="a-chip gold">★ Event</span>' : '<span class="a-chip hell">Season</span>'}${s.status === "geplant" ? '<span class="a-chip">Geplant</span>' : statusChip(s.status)}${s.anmeldungOffen === false && s.status !== "geplant" ? '<span class="a-chip">Anmeldung zu</span>' : ""}</div>
         <h3>${esc(s.name)}</h3>
         <p class="a-hinweis">${esc([istEvent ? "" : s.saison, s.ohneKlassen ? "Ohne iRating-Klassen" : `${(s.klassen || []).length} Klassen`, istEvent ? "" : `${s.gewerteteRennen} von ${s.rennenGesamt} Rennen gewertet`].filter(Boolean).join(" · "))}</p>
         ${info}
-        <div class="a-leiste"><button type="button" class="a-knopf klein" data-serie-bearbeiten="${esc(s.id)}">Bearbeiten</button>${aktionen}<a class="a-knopf zweit klein" href="/liga?serie=${encodeURIComponent(s.id)}">Ansehen</a></div>
+        <div class="a-leiste">${s.status === "geplant" ? `<button type="button" class="a-knopf klein" data-serie-oeffnen="${esc(s.id)}">Anmeldung öffnen</button>` : ""}<button type="button" class="a-knopf${s.status === "geplant" ? " zweit" : ""} klein" data-serie-bearbeiten="${esc(s.id)}">Bearbeiten</button>${aktionen}<a class="a-knopf zweit klein" href="/liga?serie=${encodeURIComponent(s.id)}">Ansehen</a></div>
       </div>
     </article>`;
   }
@@ -924,6 +929,10 @@
     if (b.dataset.serienReiter) { serienReiter = b.dataset.serienReiter; form = null; setzeMeldung(""); return zeichne(); }
     if (b.dataset.serieNeu) { form = { art: "serie", id: null, werte: b.dataset.serieNeu === "event" ? { ...NEUE_SERIE, typ: "event", rennenGesamt: 1, gewerteteRennen: 1 } : NEUE_SERIE }; planer = null; return zeigeFormular(); }
     if (b.dataset.terminNeu) { const s = serieVon(b.dataset.terminNeu); rennenFilter = s.id; tab = "rennen"; planer = null; form = { art: "rennen", id: null, werte: { ...NEUES_RENNEN, serie: s.id, titel: s.name, briefing: s.briefingVorlage || "" } }; return zeigeFormular(); }
+    if (b.dataset.serieOeffnen) {
+      const { id, bildVersion: bild, ...s } = serieVon(b.dataset.serieOeffnen);
+      return aktion({ aktion: "serie-speichern", id, serie: { ...s, status: "anmeldung", anmeldungOffen: true } }, "Anmeldung geöffnet.");
+    }
     if (b.dataset.serieBearbeiten) {
       const s = serieVon(b.dataset.serieBearbeiten);
       form = { art: "serie", id: s.id, werte: s };
@@ -936,7 +945,7 @@
       // Neue Saison: Regeln und Klassen bleiben, Status und Bild beginnen neu.
       const { id, bildVersion: bild, ...s } = serieVon(b.dataset.serieKopie);
       const saison = /\d+/.test(s.saison || "") ? s.saison.replace(/\d+/, (n) => Number(n) + 1) : "";
-      form = { art: "serie", id: null, werte: { ...s, name: saison ? `${s.name} ${saison}` : `${s.name} Neu`, saison, status: "anmeldung", anmeldungOffen: true } };
+      form = { art: "serie", id: null, werte: { ...s, name: saison ? `${s.name} ${saison}` : `${s.name} Neu`, saison, status: "geplant", anmeldungOffen: true } };
       serienReiter = s.typ === "event" ? "event" : "liga";
       planer = null;
       return zeigeFormular();

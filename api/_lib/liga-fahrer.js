@@ -129,6 +129,7 @@ async function anmelden(s, profil, body, alle, kat) {
   const { rennen, stand } = rennenPruefen(s, kat, alle, body.rennen);
   if (!stand) throw new Hinweis("Die Anmeldung für dieses Rennen ist geschlossen.");
   if (stand.ich) return alle;
+  if (stand.anmeldungFolgt) throw new Hinweis("Die Anmeldung für diese Serie ist noch nicht geöffnet.");
   if (stand.anmeldungZu) throw new Hinweis("Die Anmeldung für diese Serie ist geschlossen.");
   const parallel = A.kollisionen(kat.rennen, rennen.id, alle, optionen(s, kat));
   if (parallel.length) throw new Hinweis(`Dieses Rennen überschneidet sich mit: ${parallel.join(", ")}. Melde dich dort zuerst ab.`);
@@ -157,6 +158,7 @@ async function serieAnmelden(s, profil, body, alle, kat) {
   if (!profil) throw new Hinweis("Bitte fülle zuerst dein Fahrerprofil aus.");
   const serie = kat.serien.find((x) => x.id === body.serie);
   if (!serie) throw new Hinweis("Diese Serie gibt es nicht.");
+  if (serie.status === "geplant") throw new Hinweis("Die Anmeldung für diese Serie ist noch nicht geöffnet.");
   if (serie.anmeldungOffen === false || serie.status === "beendet") throw new Hinweis("Die Anmeldung für diese Serie ist geschlossen.");
   if (alle.some((e) => e.typ === "serie" && e.serieId === serie.id && e.discordId === s.id)) return alle;
   const pfad = A.mitgliedPfad(serie.id, s.id, fahrzeugklasseWaehlen(serie.fahrzeugklassen || [], String(body.fahrzeugklasse || "")), profil.iracingName);

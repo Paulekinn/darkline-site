@@ -493,7 +493,7 @@
   let fahrerStand = null;
   const FARBEN = ["rot", "blau", "lila", "gruen", "gelb", "tuerkis"];
   const farbeSerie = (s) => `s-${FARBEN.includes(s.farbe) ? s.farbe : "rot"}`;
-  const STATUS = { anmeldung: "Anmeldung offen", laeuft: "Läuft", beendet: "Beendet" };
+  const STATUS = { geplant: "Geplant", anmeldung: "Anmeldung offen", laeuft: "Läuft", beendet: "Beendet" };
   const artBadge = (typ, klein) => `<span class="liga-art ${typ === "event" ? "event" : "liga"}${klein ? " klein" : ""}">${typ === "event" ? "Event" : "Liga"}</span>`;
   const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
   const terminText = (r) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.datum || ""); return `${m ? `${m[3]}.${m[2]}.` : ""}${r.startzeit ? ` · ${r.startzeit}` : ""}`; };
@@ -501,6 +501,7 @@
 
   function serienAktion(s) {
     if (s.status === "beendet") return "";
+    if (s.status === "geplant") return '<span class="liga-zu">Anmeldung folgt</span>';
     const offen = s.anmeldungOffen !== false;
     const geschlossen = '<span class="liga-zu">Anmeldung geschlossen</span>';
     if (!fahrerStand || !fahrerStand.angemeldet) return offen ? '<a class="liga-melden" href="/api/discord-login?ziel=liga">Jetzt anmelden</a>' : geschlossen;
@@ -591,13 +592,14 @@
     // Kopfbereich: nächstes Rennen und Zahlen
     const kopfBereich = document.querySelector(".liga-kopf");
     kopfBereich.classList.add("gross");
-    $("liga-fortschritt").innerHTML = `<div class="liga-fakten"><div><b>${aktiv.length}</b><span>${aktiv.length === 1 ? "Aktive Serie" : "Aktive Serien"}</span></div><div><b>${termine.length}</b><span>Geplante Rennen</span></div>${aktiv.some((s) => !s.ohneKlassen) ? `<div><b>${Math.max(0, ...aktiv.filter((s) => !s.ohneKlassen).map((s) => (s.klassen || []).length))}</b><span>Klassen</span></div>` : ""}</div>`;
+    const imBetrieb = (l) => l.filter((s) => s.status !== "geplant").length;
+    $("liga-fortschritt").innerHTML = `<div class="liga-fakten"><div><b>${imBetrieb(aktiv)}</b><span>${imBetrieb(aktiv) === 1 ? "Aktive Serie" : "Aktive Serien"}</span></div><div><b>${termine.length}</b><span>Geplante Rennen</span></div>${aktiv.some((s) => !s.ohneKlassen) ? `<div><b>${Math.max(0, ...aktiv.filter((s) => !s.ohneKlassen).map((s) => (s.klassen || []).length))}</b><span>Klassen</span></div>` : ""}</div>`;
     if (termine[0]) { kopfBereich.querySelector(".wrap").insertAdjacentHTML("beforeend", feature(termine[0].r, termine[0].s)); countdown(); setInterval(countdown, 30000); }
 
     const liste = (l) => `<div class="liga-poster-raster">${l.map((s) => serienKarte(s, rennen)).join("")}</div>`;
     const ligen = aktiv.filter((s) => s.typ !== "event");
     const events = aktiv.filter((s) => s.typ === "event");
-    if (ligen.length) einfuegen(abschnitt("Ligen", `${ligen.length} aktiv`, "", liste(ligen)));
+    if (ligen.length) einfuegen(abschnitt("Ligen", imBetrieb(ligen) ? `${imBetrieb(ligen)} aktiv` : "In Planung", "", liste(ligen)));
     if (events.length) einfuegen(abschnitt("Events", `${events.length} ${events.length === 1 ? "Termin" : "Termine"}`, "", liste(events)));
     if (!aktiv.length) einfuegen(abschnitt("Ligen und Events", "In Planung", "", '<p class="liga-hinweis">Neue Serien werden hier und im Discord angekündigt.</p>'));
     const weitere = termine.slice(1, 7);

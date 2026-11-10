@@ -72,6 +72,19 @@ function supabaseAttrappe(seite = 1000) {
 const B = require("../api/_lib/blob");
 
 const tests = {
+  "Geplant: Anmeldung ist zu, ein Termin startet die Serie nicht von selbst": () => {
+    assert.strictEqual(D.wirksamerStatus({ id: "gt3", status: "geplant" }, [SERIENRENNEN], START + 1), "geplant");
+    const serien = { gt3: { status: "geplant", anmeldungOffen: true, name: "GT3" } };
+    const r = A.baueRennen([SERIENRENNEN], [], { ...OPT, serien })[0];
+    assert.strictEqual(r.anmeldungZu, true);
+    assert.strictEqual(r.anmeldungFolgt, true);
+    const [s] = A.baueSerien([{ id: "gt3", name: "GT3", status: "geplant", anmeldungOffen: true, klassen: [] }], [], { discordId: "2", profil: null, klasseFuer: () => null });
+    assert.strictEqual(s.status, "geplant");
+    assert.strictEqual(s.anmeldungOffen, false);
+    const offen = A.baueRennen([SERIENRENNEN], [], { ...OPT, serien: { gt3: { status: "anmeldung", name: "GT3" } } })[0];
+    assert.strictEqual(offen.anmeldungZu, false);
+    assert.strictEqual(offen.anmeldungFolgt, false);
+  },
   "Season: Wer für die Season gemeldet ist, steht in allen Runden": () => {
     const runden = Array.from({ length: 8 }, (_, i) => ({ ...SERIENRENNEN, id: `r${i + 1}`, titel: `Runde ${i + 1}`, datum: `2026-12-${String(10 + i).padStart(2, "0")}`, plaetze: 40 }));
     const stand = A.baueRennen(runden, [mitglied("gt3", "2", 100)], { ...OPT, discordId: "2" });

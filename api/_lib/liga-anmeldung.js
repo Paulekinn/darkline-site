@@ -100,7 +100,8 @@ function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, ser
         startMs: r.startMs, endeMs: r.startMs + dauerMinuten(r.renndauer) * 60e3,
         // In einer beendeten Serie ändert sich nichts mehr. Ist nur die Anmeldung der Serie zu, kann man sich noch abmelden.
         offen: !abgesagt && serie.status !== "beendet" && jetzt < schlussMs,
-        anmeldungZu: serie.anmeldungOffen === false,
+        anmeldungZu: serie.anmeldungOffen === false || serie.status === "geplant",
+        anmeldungFolgt: serie.status === "geplant",
         strecke: r.strecke || "", streckenBild: r.streckenBild || null, fahrzeuge: r.fahrzeuge || "", fahrzeugklassen: serie.fahrzeugklassen || [], plaetze: r.plaetze || 0,
         training: r.training || "", qualifying: r.qualifying || "", renndauer: r.renndauer || "", wetter: r.wetter || "", server: r.server || "", briefing: r.briefing || "",
         starter: starter.map(oeffentlich), warteliste: warteliste.map(oeffentlich),
@@ -131,7 +132,7 @@ function baueSerien(serienListe, eintraege, { discordId, profil, klasseFuer }) {
     const eigen = mitglieder.find((e) => e.discordId === discordId);
     const sportsCar = !s.kategorie || s.kategorie === "Sports_Car";
     const klasse = profil && sportsCar && !s.ohneKlassen ? (klasseFuer(profil.irating, s.klassen || []) || {}).name || "" : "";
-    return { id: s.id, name: s.name, typ: s.typ || "liga", saison: s.saison || "", status: s.status || "anmeldung", anmeldungOffen: s.anmeldungOffen !== false && s.status !== "beendet", farbe: s.farbe || "rot", bildVersion: s.bildVersion || 0, fahrzeugklassen: s.fahrzeugklassen || [], fahrer: mitglieder.length, ich: !!eigen, fahrzeugklasse: eigen ? eigen.fahrzeugklasse : "", klasse, einstufungDurchRennleitung: !sportsCar && !s.ohneKlassen };
+    return { id: s.id, name: s.name, typ: s.typ || "liga", saison: s.saison || "", status: s.status || "anmeldung", anmeldungOffen: s.anmeldungOffen !== false && s.status !== "beendet" && s.status !== "geplant", farbe: s.farbe || "rot", bildVersion: s.bildVersion || 0, fahrzeugklassen: s.fahrzeugklassen || [], fahrer: mitglieder.length, ich: !!eigen, fahrzeugklasse: eigen ? eigen.fahrzeugklasse : "", klasse, einstufungDurchRennleitung: !sportsCar && !s.ohneKlassen };
   });
 }
 

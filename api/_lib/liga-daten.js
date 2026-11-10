@@ -52,7 +52,7 @@ function pruefeSerie(e) {
     name,
     typ: e.typ === "event" ? "event" : "liga",
     saison: text(e.saison, 40),
-    status: ["anmeldung", "laeuft", "beendet"].includes(e.status) ? e.status : "anmeldung",
+    status: ["geplant", "anmeldung", "laeuft", "beendet"].includes(e.status) ? e.status : "anmeldung",
     anmeldungOffen: e.anmeldungOffen !== false && e.anmeldungOffen !== "false",
     farbe: FARBEN.includes(e.farbe) ? e.farbe : "rot",
     beschreibung: text(e.beschreibung, 400),
