@@ -21,7 +21,7 @@ module.exports = async (req, res) => {
     useRequest(req);
     return await bereich(req, res);
   } catch (e) {
-    if (e instanceof Hinweis || FUER_NUTZER.test(e.message)) return res.status(400).json({ error: e.message });
+    if (e instanceof Hinweis || FUER_NUTZER.test(e.message)) return res.status(e.konflikt ? 409 : 400).json({ error: e.message, ...(e.konflikt ? { konflikt: true } : {}) });
     console.error("Liga:", e);
     return res.status(500).json({ error: "Technischer Fehler. Bitte versuche es gleich noch einmal." });
   }

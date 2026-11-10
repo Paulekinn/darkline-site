@@ -5,7 +5,7 @@
 //   liga/daten/ergebnisse/<serie>/<subsession>.json  eingelesene Ergebnisse
 //   liga/daten/privat/<serie>.json    Einstufungen und Strafen
 const crypto = require("crypto");
-const { blobPut, blobGet, blobGetBinaer, blobDelete, blobList, blobInhalte } = require("./blob");
+const { blobPut, blobGet, blobGetMitStand, blobPutWenn, blobGetBinaer, blobDelete, blobList, blobInhalte } = require("./blob");
 const { pruefeRegeln, berechneTabelle } = require("../../assets/liga-wertung.js");
 const { fahrerKennung } = require("./session");
 const { berlinNachUtc, dauerMinuten } = require("./liga-anmeldung");
@@ -181,6 +181,36 @@ const idAus = (p) => p.split("/").pop().replace(/\.json$/, "");
 const leseJson = async (p) => { const t = await blobGet(p); return t ? JSON.parse(t) : null; };
 const schreibe = (p, o) => blobPut(p, JSON.stringify(o), "application/json");
 
+// Ändert eine JSON-Datei, ohne gleichzeitige Änderungen anderer zu überschreiben: lesen, ändern, nur bei unverändertem Stand schreiben, sonst von vorn.
+// aendern(alt) bekommt den aktuellen Inhalt (oder leer() bei fehlender Datei) und liefert den neuen, oder undefined, wenn nichts zu schreiben ist.
+// Prüfungen gehören hinein, sie laufen bei jedem Versuch neu.
+const VERSUCHE = 6;
+const warte = (ms) => new Promise((ok) => setTimeout(ok, ms));
+async function jsonAendern(pfad, aendern, leer = () => null) {
+  for (let versuch = 1; ; versuch++) {
+    const { text, stand } = await blobGetMitStand(pfad);
+    const alt = text ? JSON.parse(text) : leer();
+    const neu = await aendern(alt);
+    if (neu === undefined) return alt; // Nichts zu ändern
+    if (await blobPutWenn(pfad, JSON.stringify(neu), "application/json", stand)) return neu;
+    if (versuch >= VERSUCHE) throw new Hinweis("Gerade speichern mehrere gleichzeitig. Bitte versuche es gleich noch einmal.");
+    await warte(30 * versuch + Math.random() * 60);
+  }
+}
+
+// Vergleicht den Stand, mit dem ein Formular geöffnet wurde, mit dem gespeicherten. Felder, die das Formular nicht bearbeitet, zählen nicht.
+const geordnet = (w) => (Array.isArray(w) ? w.map(geordnet) : w && typeof w === "object" ? Object.fromEntries(Object.keys(w).sort().map((k) => [k, geordnet(w[k])])) : w);
+function nochAktuell(vorher, jetzt, ohne = []) {
+  if (!vorher || typeof vorher !== "object") return true; // Ältere Seiten schicken keinen Stand mit.
+  const kern = (o) => { const k = { ...o }; ["id", ...ohne].forEach((f) => delete k[f]); return JSON.stringify(geordnet(k)); };
+  return kern(vorher) === kern(jetzt);
+}
+// Konflikt: Die Seite lädt den neuen Stand, behält aber die Eingaben im Formular.
+const konflikt = (text) => Object.assign(new Hinweis(text), { konflikt: true });
+function nichtUeberschreiben(vorher, jetzt, ohne, was) {
+  if (!nochAktuell(vorher, jetzt, ohne)) throw konflikt(`${was} hat inzwischen jemand anderes geändert. Deine Eingaben stehen noch im Formular. Speicherst du noch einmal, ersetzen sie die andere Änderung, mit „Abbrechen“ verwirfst du sie.`);
+}
+
 async function ordner(prefix) {
   return (await blobInhalte(prefix)).map(([pfad, inhalt]) => ({ id: idAus(pfad), ...JSON.parse(inhalt) }));
 }
@@ -267,6 +297,8 @@ async function serieDatenLoeschen(id) {
 const tabelleLesen = (serie) => leseJson(`${WURZEL}tabellen/${brauchtId(serie)}.json`);
 const privatLesen = async (serie) => (await leseJson(`${WURZEL}privat/${brauchtId(serie)}.json`)) || { einstufung: {}, strafen: [] };
 const privatSchreiben = (serie, d) => schreibe(`${WURZEL}privat/${brauchtId(serie)}.json`, d);
+// Strafen, Einstufungen und Urteile einer Serie liegen in einer Datei. Änderungen daran laufen deshalb immer hierüber.
+const privatAendern = (serie, aendern) => jsonAendern(`${WURZEL}privat/${brauchtId(serie)}.json`, (p) => aendern({ einstufung: {}, strafen: [], ...p }), () => ({}));
 const ergebnisseLesen = (serie) => ordner(`${WURZEL}ergebnisse/${brauchtId(serie)}/`);
 const ergebnisSpeichern = (serie, e) => schreibe(`${WURZEL}ergebnisse/${brauchtId(serie)}/${e.id}.json`, e);
 const ergebnisLoeschen = (serie, id) => {
@@ -283,4 +315,4 @@ async function tabelleNeu(serie, regeln, ergebnisse) {
   return warnungen;
 }
 
-module.exports = { pruefungNachRennen, strafkonten, streckenZusammen, streckenImportSpeichern, streckeAusImportEntfernen, datumPlus, rennenOhneErgebnis, wirksamerStatus, pruefeStrecke, streckeSpeichern, streckeLoeschen, serieDatenLoeschen, pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };
+module.exports = { pruefungNachRennen, strafkonten, streckenZusammen, streckenImportSpeichern, streckeAusImportEntfernen, datumPlus, rennenOhneErgebnis, wirksamerStatus, pruefeStrecke, streckeSpeichern, streckeLoeschen, serieDatenLoeschen, pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, privatAendern, jsonAendern, nochAktuell, nichtUeberschreiben, konflikt, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };

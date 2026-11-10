@@ -3,7 +3,9 @@
   "use strict";
   const API = "api/liga?r=admin";
   const app = document.getElementById("app");
-  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  // Stand beim Öffnen eines Formulars. Der Server lehnt das Speichern ab, wenn jemand anderes inzwischen geändert hat.
+  const kopie = (o) => (o ? JSON.parse(JSON.stringify(o)) : null);
+  const esc = (s) =>String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const zahl = (n) => (n === null || n === undefined ? "–" : Number(n).toLocaleString("de-DE"));
   const zeit = (iso) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
   const datumKurz = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ""); return m ? `${m[3]}.${m[2]}.${m[1]}` : ""; };
@@ -26,7 +28,9 @@
   let d = null;
   let tab = "cockpit";
   let serieId = "";
-  let form = null;        // { art: "serie"|"rennen", id, werte }
+  let form = null;        // { art: "serie"|"rennen"|"strecke", id, werte, vorher }
+  let konflikt = false;   // Letztes Speichern scheiterte, weil jemand anderes inzwischen geändert hatte
+  let notizEntwurf = null; // { id, text, konflikt } solange Notizen nicht gespeichert sind
   let meldung = null;     // { text, fehler }
   let datei = null;       // eingelesene Ergebnisdatei
   let vorschau = null;
@@ -69,6 +73,7 @@
     try {
       const r = await fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(daten) });
       const j = await r.json().catch(() => ({}));
+      konflikt = !r.ok && !!j.konflikt;
       if (r.ok) { antwort = j; setzeMeldung(erfolg); }
       else setzeMeldung(j.error || "Das hat nicht geklappt.", true);
     } catch (e) {
@@ -80,7 +85,13 @@
 
   async function aktion(daten, erfolg) {
     const a = await sende(daten, erfolg);
-    if (a) { form = null; await lade().catch(() => {}); }
+    if (a) { form = null; notizEntwurf = null; await lade().catch(() => {}); }
+    else if (konflikt) {
+      // Jemand anderes war schneller: neuen Stand holen, Eingaben behalten. Das nächste Speichern gilt dann bewusst gegen diesen Stand.
+      await lade().catch(() => {});
+      if (form && form.id) form.vorher = kopie(form.art === "serie" ? serieVon(form.id) : (form.art === "rennen" ? d.rennen : d.strecken).find((x) => x.id === form.id));
+      if (notizEntwurf) notizEntwurf.konflikt = true;
+    }
     zeichne();
     return a;
   }
@@ -1008,11 +1019,12 @@
   }
 
   function reportDetail(r) {
-    const clip = r.clip ? `<p><a href="${esc(r.clip)}" target="_blank" rel="noopener noreferrer">Clip ansehen ↗</a></p>` : "";
+    const entwurf = notizEntwurf && notizEntwurf.id === r.id ? notizEntwurf : null;
+    const clip =r.clip ? `<p><a href="${esc(r.clip)}" target="_blank" rel="noopener noreferrer">Clip ansehen ↗</a></p>` : "";
     const einsprueche = r.einsprueche.map((e) => `<div class="a-einspruch"><b>Einspruch von ${esc(e.name)} · ${esc(zeit(e.zeit))}</b><p>${esc(e.text)}</p></div>`).join("");
     const urteil = r.urteil ? `<p class="a-hinweis">Aktuelles Urteil: ${esc(urteilKurz(r.urteil))} · von ${esc(r.urteil.von)} · ${esc(zeit(r.urteil.zeit))}</p>` : "";
     const status = !r.urteil && !r.ichBeteiligt ? `<button type="button" class="a-knopf zweit klein" data-report-status="${r.status === "pruefung" ? "offen" : "pruefung"}">${r.status === "pruefung" ? "Zurück auf offen" : "In Prüfung nehmen"}</button>` : "";
-    const notizen = r.ichBeteiligt ? "" : `<form id="f-notiz" class="a-karte" novalidate><h2>Interne Notizen</h2><textarea name="notizen" maxlength="5000" aria-label="Interne Notizen">${esc(r.notizen)}</textarea><div><button type="submit" class="a-knopf zweit">Notizen speichern</button></div></form>`;
+    const notizen = r.ichBeteiligt ? "" : `<form id="f-notiz" class="a-karte" novalidate><h2>Interne Notizen</h2><textarea name="notizen" maxlength="5000" aria-label="Interne Notizen">${esc(entwurf ? entwurf.text : r.notizen)}</textarea>${entwurf && entwurf.konflikt ? `<p class="a-hinweis">Neuer Stand von jemand anderem:</p><pre class="a-notiz-stand">${esc(r.notizen || "(leer)")}</pre>` : ""}<div><button type="submit" class="a-knopf zweit">Notizen speichern</button></div></form>`;
     return `<section class="a-karte"><div class="a-kartenkopf"><div class="a-leiste"><button type="button" class="a-knopf zweit klein" data-report-zurueck="1">Zurück</button><h2>${esc(r.rennenTitel)}</h2>${reportChip(r)}</div>${status}</div>
       <p class="a-hinweis">${esc(r.serieName)} · Eingang ${esc(zeit(r.erstellt))}</p>
       <p><b>${esc(r.von.name)}</b> meldet <b>${esc(r.gegen.name)}</b> · ${esc(r.stelle)}</p>
@@ -1161,11 +1173,11 @@
     if (b.dataset.terminNeu) { const s = serieVon(b.dataset.terminNeu); rennenFilter = s.id; tab = "rennen"; planer = null; form = { art: "rennen", id: null, werte: { ...NEUES_RENNEN, serie: s.id, titel: s.name, briefing: s.briefingVorlage || "" } }; return zeigeFormular(); }
     if (b.dataset.serieOeffnen) {
       const { id, bildVersion: bild, ...s } = serieVon(b.dataset.serieOeffnen);
-      return aktion({ aktion: "serie-speichern", id, serie: { ...s, status: "anmeldung", anmeldungOffen: true } }, "Anmeldung geöffnet.");
+      return aktion({ aktion: "serie-speichern", id, serie: { ...s, status: "anmeldung", anmeldungOffen: true }, vorher: serieVon(id) }, "Anmeldung geöffnet.");
     }
     if (b.dataset.serieBearbeiten) {
       const s = serieVon(b.dataset.serieBearbeiten);
-      form = { art: "serie", id: s.id, werte: s };
+      form = { art: "serie", id: s.id, werte: s, vorher: kopie(s) };
       planer = null;
       tab = "serien";
       serienReiter = s.status === "beendet" ? "archiv" : s.typ === "event" ? "event" : "liga";
@@ -1219,7 +1231,7 @@
       return zeichne();
     }
     if (b.dataset.streckeNeu) { form = { art: "strecke", id: null, werte: { name: "", variante: "", land: "", laengeKm: "", kurven: "", notiz: "" } }; return zeigeFormular(); }
-    if (b.dataset.streckeBearbeiten) { form = { art: "strecke", id: b.dataset.streckeBearbeiten, werte: d.strecken.find((s) => s.id === b.dataset.streckeBearbeiten) }; return zeigeFormular(); }
+    if (b.dataset.streckeBearbeiten) { const st = d.strecken.find((s) => s.id === b.dataset.streckeBearbeiten); form = { art: "strecke", id: b.dataset.streckeBearbeiten, werte: st, vorher: kopie(st) }; return zeigeFormular(); }
     if (b.dataset.streckeLoeschen && window.confirm("Diese Strecke wirklich löschen? Geplante Rennen behalten den Namen, die Karte entfällt.")) return aktion({ aktion: "strecke-loeschen", id: form.id }, "Strecke gelöscht.");
     if (b.dataset.rennenNeu) {
       const serie = rennenFilter === "alle" ? "" : rennenFilter;
@@ -1227,7 +1239,7 @@
       planer = null;
       return zeigeFormular();
     }
-    if (b.dataset.rennenBearbeiten) { form = { art: "rennen", id: b.dataset.rennenBearbeiten, werte: d.rennen.find((r) => r.id === b.dataset.rennenBearbeiten) }; planer = null; tab = "rennen"; return zeigeFormular(); }
+    if (b.dataset.rennenBearbeiten) { const re = d.rennen.find((r) => r.id === b.dataset.rennenBearbeiten); form = { art: "rennen", id: b.dataset.rennenBearbeiten, werte: re, vorher: kopie(re) }; planer = null; tab = "rennen"; return zeigeFormular(); }
     if (b.dataset.rennenWeg && window.confirm(`„${b.dataset.titel}“ wirklich löschen? Anmeldungen zu diesem Rennen werden mit gelöscht, eingelesene Ergebnisse bleiben erhalten.`)) return aktion({ aktion: "rennen-loeschen", id: b.dataset.rennenWeg }, "Rennen gelöscht.");
     if (b.dataset.klasseNeu) { document.getElementById("a-klassen").insertAdjacentHTML("beforeend", klasseZeile({ name: "", min: "", max: "" })); return klassenKontrolle(); }
     if (b.dataset.klasseWeg) { b.closest(".a-klasse").remove(); return klassenKontrolle(); }
@@ -1288,7 +1300,10 @@
       if (a) { const hinweis = meldung; await akteLaden(profil.iracingName, a.custId, stand.discord); meldung = hinweis; zeichne(); }
       return;
     }
-    if (f.id === "f-notiz") return aktion({ aktion: "report-notiz", id: reportId, notizen: w.notizen }, "Notizen gespeichert.");
+    if (f.id === "f-notiz") {
+      notizEntwurf = { id: reportId, text: w.notizen };
+      return aktion({ aktion: "report-notiz", id: reportId, notizen: w.notizen, notizenVorher: ((d.reports || []).find((r) => r.id === reportId) || {}).notizen || "" }, "Notizen gespeichert.");
+    }
     if (f.id === "f-reglement") {
       const reglement = reglementAusFormular(f);
       reglementEntwurf = { ...reglement, stand: reglementAktuell().stand };
@@ -1324,16 +1339,16 @@
       // Eingaben merken, damit sie bei einem Fehler im Formular stehen bleiben
       form.werte = { ...w, punkte: String(w.punkte).split(/[\s,;]+/).filter(Boolean), fahrzeugklassen: String(w.fahrzeugklassen).split(",").map((x) => x.trim()).filter(Boolean) };
       // Nach dem Speichern steht man im Reiter, in den die Serie jetzt gehört.
-      if (await aktion({ aktion: "serie-speichern", id: form.id, serie: w }, w.typ === "event" ? "Event gespeichert." : "Season gespeichert.")) { serienReiter = w.status === "beendet" ? "archiv" : w.typ === "event" ? "event" : "liga"; zeichne(); }
+      if (await aktion({ aktion: "serie-speichern", id: form.id, serie: w, vorher: form.vorher },w.typ === "event" ? "Event gespeichert." : "Season gespeichert.")) { serienReiter = w.status === "beendet" ? "archiv" : w.typ === "event" ? "event" : "liga"; zeichne(); }
     } else if (f.id === "f-rennen") {
       form.werte = w;
-      aktion({ aktion: "rennen-speichern", id: form.id, rennen: { ...w, streckeId: (streckeAus(w.strecke) || {}).id || "" } }, "Rennen gespeichert.");
+      aktion({ aktion: "rennen-speichern", id: form.id, rennen: { ...w, streckeId: (streckeAus(w.strecke) || {}).id || "" }, vorher: form.vorher },"Rennen gespeichert.");
     } else if (f.id === "f-strecke") {
       const neu = !form.id;
       form.werte = w;
-      const a = await aktion({ aktion: "strecke-speichern", id: form.id, strecke: w }, neu ? "Strecke angelegt, jetzt kannst du die Karte hochladen." : "Strecke gespeichert.");
+      const a = await aktion({ aktion: "strecke-speichern", id: form.id, strecke: w, vorher: form.vorher },neu ? "Strecke angelegt, jetzt kannst du die Karte hochladen." : "Strecke gespeichert.");
       // Bei einer neuen Strecke geht es direkt mit dem Hochladen der Karte weiter.
-      if (a && neu) { form = { art: "strecke", id: a.id, werte: d.strecken.find((s) => s.id === a.id) || w }; zeigeFormular(); }
+      if (a && neu) { const st = d.strecken.find((s) => s.id === a.id); form = { art: "strecke", id: a.id, werte: st || w, vorher: kopie(st) }; zeigeFormular(); }
     } else if (f.id === "f-plan") {
       planerLesen();
       const vorhanden = d.rennen.filter((r) => r.serie === planer.serie).length;

@@ -194,6 +194,21 @@ async function speichern(report) {
   verwerfen();
   await blobPut(`${R}${D.brauchtId(id)}.json`, JSON.stringify(daten), "application/json");
 }
+// Ändert einen Report, ohne gleichzeitige Stimmen oder Notizen anderer Stewards zu überschreiben.
+// aendern(report) bekommt den aktuellen Stand und ändert ihn direkt. Prüfungen darin laufen bei jedem Versuch neu.
+async function aendern(id, aenderung) {
+  D.brauchtId(id);
+  verwerfen();
+  let ergebnis;
+  await D.jsonAendern(`${R}${id}.json`, async (alt) => {
+    if (!alt) throw new Hinweis("Diesen Report gibt es nicht.");
+    ergebnis = { id, ...alt };
+    await aenderung(ergebnis);
+    const { id: _, einsprueche, ...daten } = ergebnis;
+    return daten;
+  });
+  return ergebnis;
+}
 async function einspruchSpeichern(reportId, discordId, inhalt) {
   verwerfen();
   await blobPut(`${E}${D.brauchtId(reportId)}/${D.brauchtId(discordId)}.json`, JSON.stringify(inhalt), "application/json");
@@ -321,4 +336,4 @@ async function discordMelden(report, urteil, vorher) {
   }
 }
 
-module.exports = { cooldownBis, ergebnisStand, staendeSetzen, pruefeStimme, stimmeSetzen, mehrheit, stimmenSicht, rennKontext, reportKarte, einspruchKarte, teamMelden, webhooksTesten, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden, urteilKarte };
+module.exports = { cooldownBis, ergebnisStand, staendeSetzen, pruefeStimme, stimmeSetzen, mehrheit, stimmenSicht, rennKontext, reportKarte, einspruchKarte, teamMelden, webhooksTesten, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, aendern, einspruchSpeichern, neueId, discordMelden, urteilKarte };

@@ -213,6 +213,7 @@ const aktionen = {
     let id = b.id;
     if (id) {
       const bisher = serieFinden(kat, D.brauchtId(id));
+      D.nichtUeberschreiben(b.vorher, bisher, ["bildVersion"], "Diese Serie");
       if (bisher.bildVersion) daten.bildVersion = bisher.bildVersion;
     } else {
       id = D.slug(daten.name);
@@ -246,6 +247,7 @@ const aktionen = {
     if (id) {
       const bisher = kat.strecken.find((s) => s.id === id);
       if (!bisher) throw new Hinweis("Diese Strecke gibt es nicht.");
+      D.nichtUeberschreiben(b.vorher, bisher, ["kartenVersion"], "Diese Strecke");
       if (bisher.kartenVersion) daten.kartenVersion = bisher.kartenVersion;
       if (bisher.g61) daten.g61 = bisher.g61;
     } else {
@@ -289,9 +291,10 @@ const aktionen = {
     A.nummerPflicht(extras);
     const geaendert = extras.nummer !== bisher.nummer;
     const entscheid = geaendert ? P.nummerEntscheid("bestaetigt", extras.nummer) : null;
-    const profil = { ...bisher, ...A.pruefeProfil(b.profil), ...extras, ...(entscheid ? { nummerEntscheid: entscheid } : {}), gespeichert: new Date().toISOString() };
-    await P.speichern({ id: discordId, avatar: "" }, profil, extras);
-    await blobPut(A.profilPfad(discordId), JSON.stringify(profil), "application/json");
+    const felder = { ...A.pruefeProfil(b.profil), ...extras, ...(entscheid ? { nummerEntscheid: entscheid } : {}), gespeichert: new Date().toISOString() };
+    await P.speichern({ id: discordId, avatar: "" }, { ...bisher, ...felder }, extras);
+    // Nur die bearbeiteten Felder, damit z. B. der Discord-Stand aus einem gleichzeitigen Abgleich erhalten bleibt.
+    const profil = await D.jsonAendern(A.profilPfad(discordId), (aktuell) => ({ ...(aktuell || bisher), ...felder }));
     // Hat die Rennleitung die Nummer selbst geändert, ist ein offener Antrag erledigt.
     if (geaendert) await P.wunschLoeschen(discordId);
     await Dc.abgleichen(discordId, profil, await eintraege(), kat.serien);
@@ -307,9 +310,9 @@ const aktionen = {
     const bisher = JSON.parse(gespeichert);
     const extras = { nummer: wunsch.nach, land: bisher.land || "", team: bisher.team || "", kanal: bisher.kanal || "", zeigeBild: bisher.zeigeBild !== false };
     const entscheid = P.nummerEntscheid("bestaetigt", wunsch.nach);
-    const profil = { ...bisher, nummer: wunsch.nach, nummerEntscheid: entscheid, gespeichert: new Date().toISOString() };
-    await P.speichern({ id: discordId, avatar: "" }, profil, extras);
-    await blobPut(A.profilPfad(discordId), JSON.stringify(profil), "application/json");
+    const felder = { nummer: wunsch.nach, nummerEntscheid: entscheid, gespeichert: new Date().toISOString() };
+    await P.speichern({ id: discordId, avatar: "" }, { ...bisher, ...felder }, extras);
+    const profil = await D.jsonAendern(A.profilPfad(discordId), (aktuell) => ({ ...(aktuell || bisher), ...felder }));
     await P.wunschLoeschen(discordId);
     await Dc.abgleichen(discordId, profil, await eintraege(), kat.serien);
     await Dc.nachricht(discordId, entscheid.text);
@@ -319,9 +322,8 @@ const aktionen = {
     const discordId = D.brauchtId(b.discordId);
     const wunsch = await P.wunschLesen(discordId);
     if (!wunsch) throw new Hinweis("Dieser Antrag liegt nicht mehr vor.");
-    const gespeichert = await blobGet(A.profilPfad(discordId));
     const entscheid = P.nummerEntscheid("abgelehnt", wunsch.nach, wunsch.von, String(b.grund || "").trim().slice(0, 300));
-    if (gespeichert) await blobPut(A.profilPfad(discordId), JSON.stringify({ ...JSON.parse(gespeichert), nummerEntscheid: entscheid }), "application/json");
+    await D.jsonAendern(A.profilPfad(discordId), (aktuell) => (aktuell ? { ...aktuell, nummerEntscheid: entscheid } : undefined));
     await P.wunschLoeschen(discordId);
     await Dc.nachricht(discordId, entscheid.text);
     return {};
@@ -424,7 +426,11 @@ const aktionen = {
   async "rennen-speichern"(b, kat) {
     const daten = D.pruefeRennen(b.rennen || {}, kat.serien.map((s) => s.id));
     let id = b.id;
-    if (id) { if (!kat.rennen.some((r) => r.id === id)) throw new Hinweis("Dieses Rennen gibt es nicht."); } else id = D.neueRennenId(daten);
+    if (id) {
+      const bisher = kat.rennen.find((r) => r.id === id);
+      if (!bisher) throw new Hinweis("Dieses Rennen gibt es nicht.");
+      D.nichtUeberschreiben(b.vorher, bisher, ["streckenBild"], "Dieses Rennen");
+    } else id = D.neueRennenId(daten);
     await D.rennenSpeichern(id, daten);
     return { id };
   },
@@ -485,10 +491,9 @@ const aktionen = {
     const serie = serieFinden(kat, b.serie);
     const ergebnis = (await D.ergebnisseLesen(b.serie)).find((e) => e.id === String(b.id));
     if (!ergebnis) throw new Hinweis("Dieses Ergebnis gibt es nicht.");
-    const privat = await D.privatLesen(b.serie);
     const offen = (await R.alleReports(true)).some((r) => r.serie === serie.id && Math.abs(new Date(r.start) - new Date(ergebnis.start)) <= 12 * 3600e3 && (!r.urteil || ((r.einsprueche || []).length > 0 && !r.endgueltig)));
     if (offen) throw new Hinweis("Zu diesem Rennen sind noch Reports oder Einsprüche offen. Entscheide sie zuerst.");
-    await D.privatSchreiben(b.serie, { ...privat, endgueltig: [...new Set([...(privat.endgueltig || []), ergebnis.start])] });
+    await D.privatAendern(b.serie, (privat) => ({ ...privat, endgueltig: [...new Set([...(privat.endgueltig || []), ergebnis.start])] }));
     return {};
   },
   async "bericht-daten"(b, kat) {
@@ -510,11 +515,13 @@ const aktionen = {
     return {};
   },
   async "report-stimme"(b, kat, s) {
-    const report = await R.lesen(b.id);
-    darfEntscheiden(report, s);
-    if (report.urteil) throw new Hinweis("Dieser Report ist bereits entschieden.");
-    keinePunkteBeiEvents(kat, report.serie, (b.stimme || {}).art);
-    await R.speichern(R.stimmeSetzen(report, s, R.pruefeStimme(b.stimme || {})));
+    const stimme = R.pruefeStimme(b.stimme || {});
+    await R.aendern(b.id, (report) => {
+      darfEntscheiden(report, s);
+      if (report.urteil) throw new Hinweis("Dieser Report ist bereits entschieden.");
+      keinePunkteBeiEvents(kat, report.serie, stimme.art);
+      R.stimmeSetzen(report, s, stimme);
+    });
     return {};
   },
   async "ergebnis-loeschen"(b, kat) {
@@ -531,18 +538,17 @@ const aktionen = {
     const ergebnis = (await D.ergebnisseLesen(b.serie)).find((e) => e.id === String(b.rennen));
     const fahrer = ergebnis && ergebnis.fahrer.find((f) => f.cust === String(b.cust));
     if (!fahrer) throw new Hinweis("Bitte wähle Rennen und Fahrer aus.");
-    const privat = await D.privatLesen(b.serie);
-    privat.strafen.push({ id: `${Date.now()}`, rennen: ergebnis.id, cust: fahrer.cust, name: fahrer.name, punkte, grund: String(b.grund || "").trim().slice(0, 200) });
-    await D.privatSchreiben(b.serie, privat);
+    const strafe = { id: `${Date.now()}`, rennen: ergebnis.id, cust: fahrer.cust, name: fahrer.name, punkte, grund: String(b.grund || "").trim().slice(0, 200) };
+    await D.privatAendern(b.serie, (privat) => ({ ...privat, strafen: [...privat.strafen, strafe] }));
     await neuBerechnen(kat, b.serie);
     return {};
   },
   async "strafe-loeschen"(b, kat) {
     serieFinden(kat, b.serie);
-    const privat = await D.privatLesen(b.serie);
-    if (privat.strafen.some((s) => s.id === String(b.id) && s.reportId)) throw new Hinweis("Diese Strafe gehört zu einem Report. Bitte ändere dort das Urteil.");
-    privat.strafen = privat.strafen.filter((s) => s.id !== String(b.id));
-    await D.privatSchreiben(b.serie, privat);
+    await D.privatAendern(b.serie, (privat) => {
+      if (privat.strafen.some((s) => s.id === String(b.id) && s.reportId)) throw new Hinweis("Diese Strafe gehört zu einem Report. Bitte ändere dort das Urteil.");
+      return { ...privat, strafen: privat.strafen.filter((s) => s.id !== String(b.id)) };
+    });
     await neuBerechnen(kat, b.serie);
     return {};
   },
@@ -550,25 +556,28 @@ const aktionen = {
     const serie = serieFinden(kat, b.serie);
     if (!/^\d+$/.test(String(b.cust || ""))) throw new Hinweis("Für diesen Fahrer fehlt die iRacing-ID.");
     if (b.klasse && !serie.klassen.some((k) => k.id === b.klasse)) throw new Hinweis("Diese Klasse gibt es nicht.");
-    const privat = await D.privatLesen(b.serie);
-    if (b.klasse) privat.einstufung[b.cust] = b.klasse; else delete privat.einstufung[b.cust];
-    await D.privatSchreiben(b.serie, privat);
+    await D.privatAendern(b.serie, (privat) => {
+      const einstufung = { ...privat.einstufung };
+      if (b.klasse) einstufung[b.cust] = b.klasse; else delete einstufung[b.cust];
+      return { ...privat, einstufung };
+    });
     await neuBerechnen(kat, b.serie);
     return {};
   },
   async "report-status"(b, kat, s) {
-    const report = await R.lesen(b.id);
-    darfEntscheiden(report, s);
-    if (report.urteil) throw new Hinweis("Dieser Report ist bereits entschieden.");
-    report.status = b.status === "pruefung" ? "pruefung" : "offen";
-    await R.speichern(report);
+    await R.aendern(b.id, (report) => {
+      darfEntscheiden(report, s);
+      if (report.urteil) throw new Hinweis("Dieser Report ist bereits entschieden.");
+      report.status = b.status === "pruefung" ? "pruefung" : "offen";
+    });
     return {};
   },
   async "report-notiz"(b, kat, s) {
-    const report = await R.lesen(b.id);
-    darfEntscheiden(report, s);
-    report.notizen = String(b.notizen || "").slice(0, 5000);
-    await R.speichern(report);
+    await R.aendern(b.id, (report) => {
+      darfEntscheiden(report, s);
+      if (typeof b.notizenVorher === "string" && b.notizenVorher !== (report.notizen || "")) throw D.konflikt("Die Notizen hat inzwischen jemand anderes geändert. Dein Text steht noch im Feld, der neue Stand darunter. Speicherst du noch einmal, ersetzt dein Text ihn.");
+      report.notizen = String(b.notizen || "").slice(0, 5000);
+    });
     return {};
   },
   async "report-urteil"(b, kat, s) {
@@ -583,17 +592,18 @@ const aktionen = {
       if (!fahrer) throw new Hinweis("Bitte wähle das eingelesene Ergebnis und den Fahrer aus, für den die Strafe gilt.");
       ziel = { rennen: ergebnis.id, cust: fahrer.cust, name: fahrer.name };
     }
-    const privat = R.urteilAnwenden(await D.privatLesen(report.serie), report.id, urteil, ziel);
-    await D.privatSchreiben(report.serie, privat);
+    await D.privatAendern(report.serie, (privat) => R.urteilAnwenden(privat, report.id, urteil, ziel));
     const einsprueche = ((await R.alleReports(true)).find((r) => r.id === report.id) || {}).einsprueche || [];
-    const vorher = report.urteil;
-    report.urteil = { ...urteil, ...(ziel || {}), von: s.name, zeit: new Date().toISOString() };
-    report.status = "entschieden";
-    // Nach geprüftem Einspruch ist das Urteil endgültig.
-    report.endgueltig = einsprueche.length > 0;
-    await R.speichern(report);
+    let vorher;
+    const entschieden = await R.aendern(report.id, (r) => {
+      vorher = r.urteil;
+      r.urteil = { ...urteil, ...(ziel || {}), von: s.name, zeit: new Date().toISOString() };
+      r.status = "entschieden";
+      // Nach geprüftem Einspruch ist das Urteil endgültig.
+      r.endgueltig = einsprueche.length > 0;
+    });
     const warnungen = (await neuBerechnen(kat, report.serie)) || [];
-    await R.discordMelden(report, urteil, vorher);
+    await R.discordMelden(entschieden, urteil, vorher);
     return { warnungen: warnungen.filter((w) => w.startsWith("Zeitstrafe")) };
   },
   async "fahrer-aus-serie"(b, kat) {
