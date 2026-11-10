@@ -1,8 +1,8 @@
 // Discord-Rollen und Servername der Fahrer. Ohne DISCORD_BOT_TOKEN, DISCORD_GUILD_ID, LIGA_ROLLE_INTERESSENT und LIGA_ROLLE_FAHRER passiert nichts.
 // Was in Discord angekommen ist, steht im privaten Profil unter "discord". Ein fehlgeschlagener Aufruf wird deshalb beim nächsten Öffnen des Fahrerbereichs nachgeholt.
 // Ein Fehler hier darf nie eine Anmeldung oder das Speichern eines Profils verhindern.
-const { blobPut } = require("./blob");
 const A = require("./liga-anmeldung");
+const D = require("./liga-daten");
 
 const API = "https://discord.com/api/v10";
 const MAX_NAME = 32;
@@ -59,9 +59,9 @@ async function abgleichen(discordId, profil, alle, serien) {
     let neu = { ...vorher };
     for (const s of offen) if (await ausfuehren(z, discordId, s).catch((e) => { console.warn("Liga: Discord nicht erreichbar:", e.message); return false; })) neu = { ...neu, ...s.neu };
     if (JSON.stringify(neu) === JSON.stringify(vorher)) return profil;
-    const aktualisiert = { ...profil, discord: neu };
-    await blobPut(A.profilPfad(discordId), JSON.stringify(aktualisiert), "application/json");
-    return aktualisiert;
+    // Discord antwortet in Sekunden. Gespeichert wird deshalb nur der Discord-Stand am aktuellen Profil, damit eine Änderung in der Zwischenzeit erhalten bleibt.
+    // Wurde das Profil inzwischen gelöscht, wird es nicht neu angelegt.
+    return (await D.jsonAendern(A.profilPfad(discordId), (aktuell) => (aktuell ? { ...aktuell, discord: neu } : undefined))) || profil;
   } catch (e) {
     console.warn("Liga: Discord-Abgleich fehlgeschlagen:", e.message);
     return profil;

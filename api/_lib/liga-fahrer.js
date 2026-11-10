@@ -203,12 +203,18 @@ async function profilSpeichern(s, bisher, eingaben) {
   const wunsch = bisher && bisher.nummer && eingabe.nummer !== bisher.nummer ? eingabe.nummer : null;
   const extras = wunsch ? { ...eingabe, nummer: bisher.nummer } : eingabe;
   const neu = wunsch ? await P.wunschSetzen(s, grunddaten.iracingName, bisher.nummer, wunsch) : false;
-  const profil = { ...grunddaten, ...extras, ...(bisher && bisher.discord ? { discord: bisher.discord } : {}), ...(bisher && bisher.nummerEntscheid ? { nummerEntscheid: bisher.nummerEntscheid } : {}), discordId: s.id, gespeichert: new Date().toISOString() };
-  await P.speichern(s, profil, extras).catch(async (e) => {
+  const felder = { ...grunddaten, ...extras, discordId: s.id, gespeichert: new Date().toISOString() };
+  // Discord-Stand und Nummernentscheid kommen aus dem aktuellen Profil, sie schreiben der Abgleich und die Rennleitung.
+  const mitStand = (p) => ({ ...felder, ...(p && p.discord ? { discord: p.discord } : {}), ...(p && p.nummerEntscheid ? { nummerEntscheid: p.nummerEntscheid } : {}) });
+  await P.speichern(s, mitStand(bisher), extras).catch(async (e) => {
     if (neu) await P.wunschLoeschen(s.id).catch(() => {});
     throw e;
   });
-  await blobPut(A.profilPfad(s.id), JSON.stringify(profil), "application/json");
+  const profil = await D.jsonAendern(A.profilPfad(s.id), (aktuell) => {
+    // Hat die Rennleitung die Nummer gerade geändert, würde das Speichern sie zurückdrehen.
+    if ((aktuell && aktuell.nummer) !== (bisher && bisher.nummer)) throw new Hinweis("Die Rennleitung hat gerade dein Profil geändert. Bitte lade die Seite neu.");
+    return mitStand(aktuell);
+  });
   if (bisher && !wunsch) await P.wunschLoeschen(s.id);
   if (neu) await R.teamMelden({ title: "Startnummer: Änderung beantragt", url: "https://darklineperformance.de/liga-admin", color: 0xd3121b, fields: [{ name: "Fahrer", value: grunddaten.iracingName, inline: true }, { name: "Bisher", value: `#${bisher.nummer}`, inline: true }, { name: "Neu", value: `#${wunsch}`, inline: true }] });
   return profil;
@@ -245,9 +251,11 @@ module.exports = async (req, res) => {
     profil = await profilSpeichern(s, profil, body.profil);
   } else if (body.aktion === "nummer-gelesen") {
     if (profil && profil.nummerEntscheid) {
-      const { nummerEntscheid, ...rest } = profil;
-      await blobPut(A.profilPfad(s.id), JSON.stringify(rest), "application/json");
-      profil = rest;
+      profil = await D.jsonAendern(A.profilPfad(s.id), (aktuell) => {
+        if (!aktuell) return undefined;
+        const { nummerEntscheid, ...rest } = aktuell;
+        return rest;
+      }) || profil;
     }
   } else if (body.aktion === "anmelden") {
     alle = await anmelden(s, profil, body, alle, kat);

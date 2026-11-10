@@ -62,7 +62,19 @@ function supabaseAttrappe(seite = 1000) {
     anfragen.push({ url: u, o });
     const m = o.method || "GET";
     const pfad = u.searchParams.get("pfad") || "";
+    const auswahl = (liste) => { const sp = (u.searchParams.get("select") || "pfad").split(","); return liste.map((z) => Object.fromEntries(sp.map((s) => [s, z[s]]))); };
+    if (m === "POST" && String(o.headers.prefer).includes("ignore-duplicates")) {
+      const neu = JSON.parse(o.body).filter((z) => !zeilen.has(z.pfad));
+      neu.forEach((z) => zeilen.set(z.pfad, z));
+      return { ok: true, status: 201, json: async () => auswahl(neu) };
+    }
     if (m === "POST") { for (const z of JSON.parse(o.body)) zeilen.set(z.pfad, z); return { ok: true }; }
+    if (m === "PATCH") {
+      const z = zeilen.get(pfad.slice(3));
+      const passt = z && "eq." + z.geaendert === u.searchParams.get("geaendert");
+      if (passt) zeilen.set(z.pfad, { ...z, ...JSON.parse(o.body) });
+      return { ok: true, status: 200, json: async () => auswahl(passt ? [zeilen.get(z.pfad)] : []) };
+    }
     if (m === "DELETE") { [...pfad.slice(4, -1).matchAll(/"((?:[^"\\]|\\.)*)"/g)].forEach((x) => zeilen.delete(x[1].replace(/\\(.)/g, "$1"))); return { ok: true }; }
     let treffer = [...zeilen.values()].sort((a, b) => a.pfad.localeCompare(b.pfad));
     if (pfad.startsWith("eq.")) treffer = treffer.filter((z) => z.pfad === pfad.slice(3));
@@ -406,6 +418,53 @@ const tests = {
       assert.strictEqual(a.anfragen.filter((x) => x.o.method === "DELETE").length, 3);
     } finally { a.ende(); }
   },
+  "Speicher: Bedingtes Schreiben greift nur beim gelesenen Stand": async () => {
+    const a = supabaseAttrappe();
+    try {
+      assert.strictEqual(await B.blobPutWenn("liga/x.json", "1", "application/json", null), true);
+      assert.strictEqual(await B.blobPutWenn("liga/x.json", "2", "application/json", null), false, "Anlegen nur, wenn es die Datei noch nicht gibt");
+      const { text, stand } = await B.blobGetMitStand("liga/x.json");
+      assert.strictEqual(text, "1");
+      assert.strictEqual(await B.blobPutWenn("liga/x.json", "3", "application/json", stand), true);
+      assert.strictEqual(await B.blobPutWenn("liga/x.json", "4", "application/json", stand), false, "Alter Stand darf nicht mehr schreiben");
+      assert.strictEqual(await B.blobGet("liga/x.json"), "3");
+      assert.notStrictEqual((await B.blobGetMitStand("liga/x.json")).stand, stand);
+      assert.deepStrictEqual(await B.blobGetMitStand("liga/fehlt"), { text: null, stand: null });
+    } finally { a.ende(); }
+  },
+  "Gleichzeitig: Zwei Strafen in derselben Serie gehen beide nicht verloren": async () => {
+    const a = supabaseAttrappe();
+    try {
+      await Promise.all(["a", "b", "c"].map((id) => D.privatAendern("gt3", (p) => ({ ...p, strafen: [...p.strafen, { id }] }))));
+      const p = await D.privatLesen("gt3");
+      assert.deepStrictEqual(p.strafen.map((s) => s.id).sort(), ["a", "b", "c"]);
+      assert.deepStrictEqual(p.einstufung, {});
+      // Eine Prüfung in der Änderung läuft gegen den aktuellen Stand und bricht ab, ohne zu schreiben.
+      await assert.rejects(() => D.privatAendern("gt3", () => { throw new D.Hinweis("nein"); }), /nein/);
+      assert.strictEqual((await D.privatLesen("gt3")).strafen.length, 3);
+    } finally { a.ende(); }
+  },
+  "Gleichzeitig: Zwei Stewards stimmen ab, beide Stimmen bleiben": async () => {
+    const a = supabaseAttrappe();
+    try {
+      await B.blobPut("liga/daten/reports/r1.json", JSON.stringify({ serie: "gt3", notizen: "x" }), "application/json");
+      await Promise.all([{ id: "1", name: "A" }, { id: "2", name: "B" }].map((wer) => R.aendern("r1", (r) => { R.stimmeSetzen(r, wer, { art: "verwarnung" }); })));
+      const r = await R.lesen("r1");
+      assert.deepStrictEqual(r.stimmen.map((s) => s.von).sort(), ["1", "2"]);
+      assert.strictEqual(r.notizen, "x");
+      assert.strictEqual(r.id, "r1");
+      assert.strictEqual(JSON.parse(a.zeilen.get("liga/daten/reports/r1.json").inhalt).id, undefined, "Die Kennung steht nur im Pfad");
+      await assert.rejects(() => R.aendern("fehlt", () => {}), /gibt es nicht/);
+    } finally { a.ende(); }
+  },
+  "Gleichzeitig: Formular erkennt fremde Änderungen, Reihenfolge und Nebenfelder zählen nicht": () => {
+    const s = { id: "gt3", name: "GT3", punkte: [25, 18], bildVersion: 1 };
+    assert.strictEqual(D.nochAktuell({ punkte: [25, 18], name: "GT3", id: "gt3" }, s, ["bildVersion"]), true);
+    assert.strictEqual(D.nochAktuell({ ...s, bildVersion: 9 }, s, ["bildVersion"]), true);
+    assert.strictEqual(D.nochAktuell({ ...s, name: "GT3 alt" }, s, ["bildVersion"]), false);
+    assert.strictEqual(D.nochAktuell(undefined, s), true, "Ältere Seiten ohne Stand werden nicht blockiert");
+    assert.throws(() => D.nichtUeberschreiben({ ...s, name: "x" }, s, [], "Diese Serie"), (e) => e.konflikt === true && /jemand anderes/.test(e.message));
+  },
   "Speicher: Unterstriche im Pfad wirken nicht als Platzhalter": async () => {
     const a = supabaseAttrappe();
     try {
@@ -631,8 +690,13 @@ const tests = {
     const aufrufe = [];
     const gespeichert = [];
     let lehneNameAb = true;
-    global.fetch = async (url, init) => {
-      if (String(url).startsWith("https://speicher.example")) { gespeichert.push(JSON.parse(JSON.parse(init.body)[0].inhalt)); return { ok: true, text: async () => "" }; }
+    // Gespeichertes Profil. Das Team hat der Fahrer inzwischen geändert, der Abgleich darf es nicht zurückdrehen.
+    let zeile = { inhalt: JSON.stringify({ iracingName: "Max Mustermann", custId: "1", nummer: 31, team: "Neu" }), binaer: false, geaendert: "2026-11-10T10:00:00.000Z" };
+    global.fetch = async (url, init = {}) => {
+      if (String(url).startsWith("https://speicher.example")) {
+        if (init.method === "PATCH") { zeile = { ...zeile, ...JSON.parse(init.body) }; gespeichert.push(JSON.parse(zeile.inhalt)); return { ok: true, json: async () => [{ pfad: "x" }] }; }
+        return { ok: true, json: async () => [zeile] };
+      }
       aufrufe.push(`${init.method} ${url}${init.body ? ` ${init.body}` : ""}`);
       return { ok: !(lehneNameAb && init.method === "PATCH"), status: 403 };
     };
@@ -650,6 +714,7 @@ const tests = {
       ]);
       assert.deepStrictEqual(erst.discord, { i: true, f: true });
       assert.deepStrictEqual(gespeichert[0].discord, { i: true, f: true });
+      assert.strictEqual(gespeichert[0].team, "Neu", "Eine Änderung während des Abgleichs bleibt erhalten");
       aufrufe.length = 0;
       lehneNameAb = false;
       const zweit = await Dc.abgleichen("9", erst, alle, serien);

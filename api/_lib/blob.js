@@ -57,6 +57,25 @@ async function blobGet(pathname) {
   return z ? alsText(z) : null;
 }
 
+// Inhalt samt Änderungsstand. Der Stand ist der Nachweis für blobPutWenn, dass seitdem niemand anderes geschrieben hat.
+async function blobGetMitStand(pathname) {
+  const z = await einZeile(pathname, "inhalt,binaer,geaendert");
+  return z ? { text: alsText(z), stand: z.geaendert } : { text: null, stand: null };
+}
+
+// Schreibt nur, wenn die Datei noch den gelesenen Stand hat. Stand null heißt: nur anlegen, wenn es sie noch nicht gibt.
+// Gibt false zurück, wenn jemand anderes dazwischen gespeichert hat. Dann liest der Aufrufer neu und versucht es noch einmal.
+async function blobPutWenn(pathname, body, contentType, stand) {
+  // Der neue Stand muss sich vom alten unterscheiden, auch wenn zwei Schreibvorgänge in dieselbe Millisekunde fallen.
+  const vorher = stand ? Date.parse(stand) : 0;
+  const geaendert = new Date(Math.max(Date.now(), vorher + 1)).toISOString();
+  const zeile = { inhalt: String(body), binaer: false, typ: contentType || "", geaendert };
+  const r = stand === null
+    ? await anfrage("Speichern", { on_conflict: "pfad", select: "pfad" }, { method: "POST", headers: { "content-type": "application/json", prefer: "resolution=ignore-duplicates,return=representation" }, body: JSON.stringify([{ pfad: pathname, ...zeile }]) })
+    : await anfrage("Speichern", { pfad: `eq.${pathname}`, geaendert: `eq.${stand}`, select: "pfad" }, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=representation" }, body: JSON.stringify(zeile) });
+  return (await r.json()).length === 1;
+}
+
 // Inhalt als Buffer (Bilder), null wenn es die Datei nicht gibt
 async function blobGetBinaer(pathname) {
   const z = await einZeile(pathname, "inhalt,binaer");
@@ -77,4 +96,4 @@ const blobList = async (prefix) => (await zeilen(prefix, "pfad,geaendert")).map(
 // Alle Textdateien unter einem Pfad als [pathname, Inhalt], mit einer Abfrage statt einer je Datei
 const blobInhalte = async (prefix) => (await zeilen(prefix, "pfad,inhalt,binaer")).map((z) => [z.pfad, alsText(z)]);
 
-module.exports = { useRequest, blobPut, blobGet, blobGetBinaer, blobDelete, blobList, blobInhalte };
+module.exports = { useRequest, blobPut, blobGet, blobGetMitStand, blobPutWenn, blobGetBinaer, blobDelete, blobList, blobInhalte };
