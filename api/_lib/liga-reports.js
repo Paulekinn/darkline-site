@@ -249,6 +249,25 @@ async function teamMelden(karte) {
   }
 }
 
+// Knopf „Discord testen“: eine Probe an jeden eingerichteten Webhook, Ergebnis je Kanal "ok", "fehlt" oder "fehler".
+const TEST_ZIELE = [["Reports", "LIGA_DISCORD_WEBHOOK_TEAM"], ["Renntag", "LIGA_DISCORD_WEBHOOK"], ["Urteile", "LIGA_DISCORD_WEBHOOK_URTEILE"]];
+function webhooksTesten(wer, reportBeispiel) {
+  return Promise.all(TEST_ZIELE.map(async ([kanal, schluessel]) => {
+    const url = process.env[schluessel];
+    if (!url) return { kanal, stand: "fehlt" };
+    if (schluessel === "LIGA_DISCORD_WEBHOOK_TEAM") return { kanal, stand: (await teamMelden(reportBeispiel)) ? "ok" : "fehler" };
+    try {
+      const karte = { title: `Test: ${kanal}`, description: `Ausgelöst von ${wer} über den Knopf „Discord testen“. Diese Nachricht kann gelöscht werden.`, color: 0xd3121b };
+      const antwort = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(4000), body: JSON.stringify({ embeds: [karte], allowed_mentions: { parse: [] } }) });
+      if (!antwort.ok) console.error(`Discord-Test ${kanal} abgelehnt:`, antwort.status);
+      return { kanal, stand: antwort.ok ? "ok" : "fehler" };
+    } catch (e) {
+      console.error(`Discord-Test ${kanal} fehlgeschlagen:`, e.message);
+      return { kanal, stand: "fehler" };
+    }
+  }));
+}
+
 // Alles zu einem Fahrer für die Rennleitung: Fälle, Strafen und Summen. Gesucht wird über iRacing-ID oder Discord-ID.
 function fahrerAkte(reports, privatJeSerie, { cust, discordId }) {
   const ist = (p) => (!!cust && String(p.cust || "") === cust) || (!!discordId && p.discordId === discordId);
@@ -278,4 +297,4 @@ async function discordMelden(report, urteil) {
   }
 }
 
-module.exports = { cooldownBis, ergebnisStand, staendeSetzen, pruefeStimme, stimmeSetzen, mehrheit, stimmenSicht, rennKontext, reportKarte, einspruchKarte, teamMelden, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden };
+module.exports = { cooldownBis, ergebnisStand, staendeSetzen, pruefeStimme, stimmeSetzen, mehrheit, stimmenSicht, rennKontext, reportKarte, einspruchKarte, teamMelden, webhooksTesten, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden };

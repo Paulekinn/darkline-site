@@ -497,6 +497,26 @@ const tests = {
     assert.doesNotThrow(() => P.pruefeKonflikte(alle, "p1", "x", 46));
     assert.doesNotThrow(() => P.pruefeKonflikte(alle, "p2", "y", 7));
   },
+  "Discord testen: jeder Webhook meldet ok, fehlt oder fehler": async () => {
+    const alt = { fetch: global.fetch, env: { ...process.env } };
+    Object.assign(process.env, { LIGA_DISCORD_WEBHOOK_TEAM: "https://hook.example/team", LIGA_DISCORD_WEBHOOK: "https://hook.example/renntag" });
+    delete process.env.LIGA_DISCORD_WEBHOOK_URTEILE;
+    const gesendet = [];
+    global.fetch = async (url, init) => { gesendet.push([url, JSON.parse(init.body)]); return { ok: !String(url).endsWith("renntag"), status: 404 }; };
+    const fehler = console.error;
+    console.error = () => {};
+    try {
+      const ergebnis = await R.webhooksTesten("Leitung", { title: "Beispiel" });
+      assert.deepStrictEqual(ergebnis, [{ kanal: "Reports", stand: "ok" }, { kanal: "Renntag", stand: "fehler" }, { kanal: "Urteile", stand: "fehlt" }]);
+      assert.strictEqual(gesendet.length, 2);
+      assert.match(gesendet[1][1].embeds[0].description, /Leitung/);
+      assert.deepStrictEqual(gesendet[1][1].allowed_mentions, { parse: [] });
+    } finally {
+      console.error = fehler;
+      global.fetch = alt.fetch;
+      for (const k of ["LIGA_DISCORD_WEBHOOK_TEAM", "LIGA_DISCORD_WEBHOOK", "LIGA_DISCORD_WEBHOOK_URTEILE"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
+    }
+  },
   "Profil: Entscheidung zur Startnummer nennt Nummer und Grund": () => {
     assert.match(P.nummerEntscheid("bestaetigt", 42).text, /auf #42 geändert/);
     const ab = P.nummerEntscheid("abgelehnt", 42, 31, "Nummer ist reserviert");
