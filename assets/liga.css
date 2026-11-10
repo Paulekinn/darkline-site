@@ -143,9 +143,9 @@
 .liga-konto a,.liga-konto button{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;padding:0 16px;border-left:1px solid var(--scan);font:700 .78rem/1 var(--f-wide);font-variation-settings:"wdth" 110;text-transform:uppercase;white-space:nowrap}
 .liga-konto a:hover,.liga-konto button:hover{background:var(--scan)}
 .liga-konto a:focus-visible,.liga-konto button:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
-.liga-konto a.haupt{background:var(--red);color:#fff}
-.liga-konto a.haupt:hover{background:#ee1a24}
-.liga-konto a.haupt[aria-current="page"]{background:none;color:var(--ink);box-shadow:inset 0 -3px 0 var(--red)}
+.liga-konto a.haupt{gap:8px;color:#fff}
+.liga-konto a.haupt::before{content:"";width:7px;height:7px;background:var(--red);transform:skewX(-12deg)}
+.liga-konto a.haupt[aria-current="page"]{box-shadow:inset 0 -3px 0 var(--red)}
 .liga-konto a.leitung{color:var(--liga-gold)}
 .liga-konto button{font-size:.68rem;color:var(--liga-rot)}
 @media (max-width:760px){
