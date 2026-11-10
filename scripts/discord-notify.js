@@ -3,7 +3,8 @@
 // 2. neu angelegte, geplante Rennen (Termin im Kalender)
 // Das Abschließen eines Rennens postet nichts: Das Ergebnis kommt erst mit dem Rennbericht.
 // Gepostet wird nur, was in diesem Push NEU ist. Spätere Korrekturen an bestehenden Einträgen lösen keinen Post aus.
-// Gehört eine neue News zu einem Rennen (Feld "Zugehöriges Rennen"), postet nur die News, damit nichts doppelt kommt.
+// Eine Rennvorschau zu einem Rennen (Feld "Zugehöriges Rennen") postet nichts, das Rennen wurde schon beim Anlegen angekündigt.
+// Gehört eine andere neue News zu einem gerade angelegten Rennen, postet nur die News, damit nichts doppelt kommt.
 // Auf anderen Branches als main läuft alles als Probelauf: die Posts werden nur im Log angezeigt.
 const { execFileSync } = require("child_process");
 const fs = require("fs");
@@ -66,8 +67,9 @@ function collect() {
     if (c.file.startsWith("content/news/")) news.push({ id, ...now });
     else if (c.file.startsWith("content/races/") && !done(now)) races.push({ id, ...now });
   }
-  const linked = new Set(news.map((p) => p.rennen).filter(Boolean));
-  return { news, races: races.filter((r) => !linked.has(r.id)) };
+  const posts = news.filter((p) => !(p.kategorie === "Rennvorschau" && p.rennen));
+  const linked = new Set(posts.map((p) => p.rennen).filter(Boolean));
+  return { news: posts, races: races.filter((r) => !linked.has(r.id)) };
 }
 
 // ---------- Karten für Discord ----------

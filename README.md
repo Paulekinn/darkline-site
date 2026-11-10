@@ -126,7 +126,7 @@ Nach jedem Speichern im Admin postet eine GitHub Action (`.github/workflows/disc
 
 Ein Rennen auf *abgeschlossen* zu setzen postet nichts; das Ergebnis kommt erst mit dem Rennbericht.
 
-Nur Neues wird gepostet; Korrekturen an bestehenden Einträgen lösen keinen Post aus. Ist eine neue News mit einem Rennen verknüpft, kommt nur die News. Die Action wartet, bis der Eintrag live ist, damit der Link funktioniert.
+Nur Neues wird gepostet; Korrekturen an bestehenden Einträgen lösen keinen Post aus. Eine Rennvorschau, die mit einem Rennen verknüpft ist, postet nichts, weil das Rennen schon beim Anlegen angekündigt wurde. Die Action wartet, bis der Eintrag live ist, damit der Link funktioniert.
 
 Einrichtung: in Discord im Kanal → Integrationen → Webhooks einen Webhook anlegen und die URL in GitHub unter Settings → Secrets and variables → Actions als `DISCORD_WEBHOOK_URL` speichern.
 
