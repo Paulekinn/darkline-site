@@ -530,6 +530,8 @@ const tests = {
     assert.strictEqual(R.urteilKarte(report, { art: "strafpunkte", punkte: 2 }, { art: "verwarnung" }).title, "Urteil · DSRS · Runde 3");
     assert.strictEqual(R.urteilKarte(report, { art: "kein-vergehen" }, { art: "verwarnung" }), null);
     assert.strictEqual(R.urteilKarte({ rennenTitel: "Runde 3", gegen: { name: "X" } }, { art: "dsq" }).title, "Urteil · Runde 3");
+    assert.strictEqual(R.urteilKarte({ rennenTitel: "R", gegen: { name: "X", discordId: "123456789012345678" } }, { art: "dsq" }).fields[0].value, "<@123456789012345678>");
+    assert.strictEqual(R.urteilKarte({ rennenTitel: "R", gegen: { name: "X", discordId: "<@&1>" } }, { art: "dsq" }).fields[0].value, "X");
   },
   "Discord testen: jeder Webhook meldet ok, fehlt oder fehler": async () => {
     const alt = { fetch: global.fetch, env: { ...process.env } };
