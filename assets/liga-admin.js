@@ -381,7 +381,7 @@
     return `<section class="a-held"><div class="a-held-bild" aria-hidden="true"></div><div><span class="a-kicker">Rennleitung</span><h1>Hallo, ${esc(d.name)}</h1><p>${offene.length ? `${offene.length} ${offene.length === 1 ? "Report wartet" : "Reports warten"} auf eine Entscheidung.` : "Keine offenen Reports, alles erledigt."}</p></div></section>
       <div class="a-kennzahlen">
         ${kachel(offene.length, "Offene Reports", offene.length ? "alarm" : "", "reports")}
-        ${kachel(einsprueche.length, "Einsprüche", einsprueche.length ? "alarm" : "", "reports")}
+        ${einsprueche.length ? kachel(einsprueche.length, "Einsprüche", "alarm", "reports") : ""}
         ${kachel(laufend.length, "Aktive Serien", "", "serien")}
         ${kachel(kommend.length, "Geplante Rennen", "", "rennen")}
         ${kachel(unfertig.length, "Rennen unvollständig", unfertig.length ? "warnung" : "", "rennen")}
@@ -436,7 +436,7 @@
         ${feld("Fahrzeugklassen (bei Multiclass)", eingabe("fahrzeugklassen", (w.fahrzeugklassen || []).join(", "), 'placeholder="GTP, GT3"'))}
         ${feld("Anmeldeschluss (Minuten vor Start)", eingabe("anmeldeschlussMinuten", w.anmeldeschlussMinuten, 'type="number" min="0"'))}
         ${feld("Report-Frist (Stunden)", eingabe("reportStunden", w.reportStunden ?? 24, 'type="number" min="1"'))}
-        ${feld("Einspruchsfrist (Stunden)", eingabe("einspruchStunden", w.einspruchStunden ?? 48, 'type="number" min="1"'))}
+        ${eingabe("einspruchStunden", w.einspruchStunden ?? 48, 'type="hidden"')}
         ${feld("Strafpunkte-Grenze (0 = aus)", eingabe("strafpunkteGrenze", w.strafpunkteGrenze ?? 0, 'type="number" min="0"'))}
       </div><label class="a-check"><input type="checkbox" name="anmeldungOffen"${w.anmeldungOffen !== false ? " checked" : ""}> Fahrer können sich anmelden</label><p class="a-hinweis">Solange der Status „Geplant“ ist, bleibt die Anmeldung immer geschlossen.</p>`)}
       ${abschnittForm(3, "Klassen", `<label class="a-check"><input type="checkbox" name="ohneKlassen" id="s-ohne-klassen"${w.ohneKlassen ? " checked" : ""}> Keine Klassen nach iRating: alle fahren in einer gemeinsamen Wertung, bei Multiclass je Fahrzeugklasse</label>
@@ -1190,7 +1190,7 @@
       return zeichne();
     }
     if (b.dataset.ergebnisEndgueltig) {
-      if (!window.confirm("Ergebnis jetzt endgültig freigeben? Sonst geschieht das automatisch nach Ablauf der Report- und Einspruchsfristen.")) return;
+      if (!window.confirm("Ergebnis jetzt endgültig freigeben? Sonst geschieht das automatisch nach Ablauf der Report-Frist.")) return;
       return aktion({ aktion: "ergebnis-endgueltig", serie: serieId, id: b.dataset.ergebnisEndgueltig }, "Ergebnis ist endgültig.");
     }
     if (b.dataset.pruefungErledigt) return aktion({ aktion: "pruefung-erledigt", serie: b.dataset.serie, id: b.dataset.pruefungErledigt }, "Als erledigt markiert.");

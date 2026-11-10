@@ -16,6 +16,8 @@ const ARTEN = ["kein-vergehen", "verwarnung", "strafpunkte", "zeitstrafe", "dsq"
 const STRAFEND = ["strafpunkte", "zeitstrafe", "dsq"];
 
 const text = (v, max) => String(v ?? "").trim().slice(0, max);
+// Laut Reglement 8.6 ist ein Einspruch ausgeschlossen. Mit LIGA_EINSPRUCH=1 ließe er sich wieder einschalten.
+const einspruchAktiv = () => process.env.LIGA_EINSPRUCH === "1";
 const reportStunden = (serie) => (serie && Number.isFinite(serie.reportStunden) ? serie.reportStunden : REPORT_STUNDEN);
 const einspruchStunden = (serie) => (serie && Number.isFinite(serie.einspruchStunden) ? serie.einspruchStunden : EINSPRUCH_STUNDEN);
 
@@ -80,7 +82,7 @@ function ergebnisStand(start, ctx) {
   if (((ctx.privat || {}).endgueltig || []).includes(start)) return "endgueltig";
   const kalender = ctx.rennen.filter((r) => r.serie === ctx.serie.id).map((r) => ({ r, ms: A.berlinNachUtc(r.datum, r.startzeit) })).filter((x) => x.ms !== null && naehe(x.ms) <= 12 * 3600e3).sort((a, b) => naehe(a.ms) - naehe(b.ms))[0];
   const ende = kalender ? kalender.ms + A.dauerMinuten(kalender.r.renndauer) * 60e3 : t + 120 * 60e3;
-  const fristen = [ende + reportStunden(ctx.serie) * 3600e3, ...faelle.filter((r) => !r.endgueltig).map((r) => new Date(r.urteil.zeit).getTime() + einspruchStunden(ctx.serie) * 3600e3)];
+  const fristen = [ende + reportStunden(ctx.serie) * 3600e3, ...faelle.filter((r) => einspruchAktiv() && !r.endgueltig).map((r) => new Date(r.urteil.zeit).getTime() + einspruchStunden(ctx.serie) * 3600e3)];
   return ctx.jetzt > Math.max(...fristen) ? "endgueltig" : "vorlaeufig";
 }
 
@@ -151,7 +153,7 @@ function sichtFahrer(report, einsprueche, discordId, jetzt, serie) {
     endgueltig: !!report.endgueltig, beteiligt: beteiligt(report, discordId), rolle: report.von.discordId === discordId ? "melder" : report.gegen.discordId === discordId ? "gemeldet" : "",
     meinEinspruch: eigene[0] ? eigene[0].text : "",
     einspruchFrist: report.urteil ? new Date(frist).toISOString() : "",
-    kannEinspruch: !!(report.urteil && !report.endgueltig && beteiligt(report, discordId) && !eigene.length && jetzt <= frist),
+    kannEinspruch: !!(einspruchAktiv() && report.urteil && !report.endgueltig && beteiligt(report, discordId) && !eigene.length && jetzt <= frist),
   };
 }
 

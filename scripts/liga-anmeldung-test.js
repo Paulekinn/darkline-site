@@ -43,6 +43,11 @@ const akteSerien = [{ id: "a", name: "Serie A" }, { id: "b", name: "Serie B", ty
 const kartenTabelle = () => new Map([["gt3", { rennenGesamt: 8, klassen: [{ id: "pro", name: "Pro", min: 2500, max: null, fahrer: [{ name: "Lena Beispiel", pos: 1, punkte: 50, rennen: [], irating: 3000, karte: { rating: 90 } }, { name: "Tom Muster", pos: 2, punkte: 40, rennen: [], karte: null }] }] }], ["leer", null]]);
 
 const G = require("../api/_lib/liga-strecken");
+// Der Einspruch ist abgeschaltet. Seine Regeln bleiben getestet, damit er sich gefahrlos wieder einschalten lässt.
+function mitEinspruch(fn) {
+  process.env.LIGA_EINSPRUCH = "1";
+  try { return fn(); } finally { delete process.env.LIGA_EINSPRUCH; }
+}
 const gpsRunde = (n, r = 0.01) => Array.from({ length: n }, (_, i) => { const w = (i / n) * 2 * Math.PI; return { d: i / (n - 1) * 0.999, lat: 50 + r * Math.sin(w), lon: 6 + r * Math.cos(w) }; });
 
 // Supabase-Attrappe: versteht die Filter, die der Speicher verwendet
@@ -121,7 +126,14 @@ const tests = {
     assert.strictEqual(R.ergebnisStand(s, { ...basis, reports: [report({ urteil: { zeit: s }, einsprueche: [{}], endgueltig: true })] }), "endgueltig");
     assert.strictEqual(R.ergebnisStand(s, { ...basis, reports: [report({ serie: "andere", urteil: null })] }), "endgueltig");
   },
-  "Ergebnis: Freigabe von Hand und Einspruchsfrist nach einem Urteil": () => {
+  "Einspruch: ist abgeschaltet und verlängert keine Frist": () => {
+    assert.strictEqual(R.sichtFahrer(ENTSCHIEDEN, [], "2", 2000, {}).kannEinspruch, false);
+    const start = Date.UTC(2026, 10, 10, 19);
+    const s = iso(start);
+    const stand = R.ergebnisStand(s, { serie: { id: "gt3", reportStunden: 24, einspruchStunden: 48 }, rennen: [], reports: [{ serie: "gt3", start: s, einsprueche: [], urteil: { zeit: iso(start + 20 * 36e5) } }], privat: {}, jetzt: start + 40 * 36e5 });
+    assert.strictEqual(stand, "endgueltig");
+  },
+  "Ergebnis: Freigabe von Hand und Einspruchsfrist nach einem Urteil": () => mitEinspruch(() => {
     const start = Date.UTC(2026, 10, 10, 19);
     const s = iso(start);
     const urteilZeit = start + 20 * 36e5;
@@ -132,7 +144,7 @@ const tests = {
     const t = { rennen: [{ start: s, strecke: "Spa" }] };
     R.staendeSetzen(t, { ...basis, jetzt: start + 36e5 });
     assert.strictEqual(t.rennen[0].vorlaeufig, true);
-  },
+  }),
   "Urteile: gehen nur in den eigenen Kanal und nur bei einer Strafe": async () => {
     const alt = { fetch: global.fetch, liga: process.env.LIGA_DISCORD_WEBHOOK, urteile: process.env.LIGA_DISCORD_WEBHOOK_URTEILE };
     const aufrufe = [];
@@ -883,7 +895,7 @@ const tests = {
     assert.strictEqual(R.sichtFahrer(REPORT, [], "2", 5000, {}).rolle, "gemeldet");
     assert.strictEqual(R.sichtFahrer(REPORT, [], "3", 5000, {}).beteiligt, false);
   },
-  "Einspruch nur für Beteiligte, einmal und innerhalb der Frist": () => {
+  "Einspruch nur für Beteiligte, einmal und innerhalb der Frist": () => mitEinspruch(() => {
     const in48h = 1000 + 48 * 3600e3;
     assert.strictEqual(R.sichtFahrer(ENTSCHIEDEN, [], "2", in48h, {}).kannEinspruch, true);
     assert.strictEqual(R.sichtFahrer(ENTSCHIEDEN, [], "2", in48h + 1, {}).kannEinspruch, false);
@@ -891,7 +903,7 @@ const tests = {
     assert.strictEqual(R.sichtFahrer(ENTSCHIEDEN, [{ discordId: "2", text: "x" }], "2", 2000, {}).kannEinspruch, false);
     assert.strictEqual(R.sichtFahrer({ ...ENTSCHIEDEN, endgueltig: true }, [], "2", 2000, {}).kannEinspruch, false);
     assert.strictEqual(R.sichtFahrer(ENTSCHIEDEN, [], "2", 2 * 3600e3 + 1, { einspruchStunden: 1 }).kannEinspruch, false);
-  },
+  }),
   "Beteiligte erkennt das System": () => {
     assert.ok(R.beteiligt(REPORT, "1") && R.beteiligt(REPORT, "2") && !R.beteiligt(REPORT, "3"));
   },
