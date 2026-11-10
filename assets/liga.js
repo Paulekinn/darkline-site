@@ -511,6 +511,25 @@
   const FARBEN = ["rot", "blau", "lila", "gruen", "gelb", "tuerkis"];
   const farbeSerie = (s) => `s-${FARBEN.includes(s.farbe) ? s.farbe : "rot"}`;
   const STATUS = { geplant: "Geplant", anmeldung: "Anmeldung offen", laeuft: "Läuft", beendet: "Beendet" };
+  // Einfarbige Logos von Twitch und YouTube (Pfade aus Simple Icons, CC0), Farbe kommt aus dem Text
+  const PLATTFORM_LOGO = {
+    twitch: "M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z",
+    youtube: "M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z",
+  };
+  const plattform = (s) => (/youtu/.test(s.uebertragung) ? "youtube" : "twitch");
+  const plattformLogo = (p) => `<svg class="liga-plattform" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="${PLATTFORM_LOGO[p]}"/></svg>`;
+  // Plakette, wenn für die Serie eine Übertragung eingetragen ist. Ein Klick öffnet den Kanal.
+  const streamBadge = (s) => {
+    if (!s.uebertragung) return "";
+    const p = plattform(s);
+    return `<a class="liga-pill liga-pill-stream ${p}" href="${esc(s.uebertragung)}" target="_blank" rel="noopener" title="Die Rennen dieser Serie werden übertragen">${plattformLogo(p)}${p === "youtube" ? "YouTube" : "Twitch"}-Übertragung</a>`;
+  };
+  // Schräges Band oben rechts auf der Serienkarte, wenn eine Übertragung eingetragen ist
+  const streamBand = (s) => {
+    if (!s.uebertragung) return "";
+    const p = plattform(s);
+    return `<a class="liga-band ${p}" href="${esc(s.uebertragung)}" target="_blank" rel="noopener" title="Die Rennen dieser Serie werden übertragen">${plattformLogo(p)}${p === "youtube" ? "YouTube" : "Twitch"}</a>`;
+  };
   const artBadge = (typ, klein) => `<span class="liga-art ${typ === "event" ? "event" : "liga"}${klein ? " klein" : ""}">${typ === "event" ? "Event" : "Liga"}</span>`;
   const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
   const terminText = (r) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.datum || ""); return `${m ? `${m[3]}.${m[2]}.` : ""}${r.startzeit ? ` · ${r.startzeit}` : ""}`; };
@@ -565,6 +584,7 @@
     const klassen = s.ohneKlassen ? (s.fahrzeugklassen || []).map((k) => `<span class="liga-klassenchip" style="--k:${window.LigaKarte.fahrzeugFarbe(k)}">${esc(k)}</span>`).join("") : (s.klassen || []).map((k) => `<span class="liga-klassenchip ${farbe(k)}">${esc(k.name)}</span>`).join("");
     const umfang = s.typ === "event" ? "Einzelrennen" : `${s.rennenGesamt} Rennen`;
     return `<article class="liga-poster ${farbeSerie(s)}${s.typ === "event" ? " ist-event" : ""}${s.status === "beendet" ? " beendet" : ""}">
+      ${streamBand(s)}
       <div class="liga-poster-bild" style="background-image:url('${esc(kartenBild(s))}')" aria-hidden="true"></div>
       <div class="liga-poster-inhalt">
         <div class="liga-poster-kopf">${artBadge(s.typ)}${s.saison ? `<span class="liga-pill">${esc(s.saison)}</span>` : ""}<span class="liga-pill farbig">${esc(s.status === "anmeldung" && s.anmeldungOffen === false ? "Anmeldung geschlossen" : STATUS[s.status] || "")}</span></div>
@@ -740,7 +760,7 @@
 
     document.title = `${s.name} · Darkline Simracing Series`;
     $("liga-titel").innerHTML = esc(s.name);
-    document.querySelector(".liga-kicker").innerHTML = artBadge(s.typ);
+    document.querySelector(".liga-kicker").innerHTML = `${artBadge(s.typ)}${streamBadge(s)}`;
     $("liga-saison").textContent = [s.saison, s.beschreibung].filter(Boolean).join(" · ");
     $("liga-cta").innerHTML = `${serienAktion(s)}<a class="liga-mini zweit" href="/liga">Alle Serien</a>`;
     const d = daten.tabelle;

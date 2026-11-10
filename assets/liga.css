@@ -507,6 +507,20 @@ a.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--paper
 :is(#liga-main,#rw-main,#fa-main,#fb-main) > .sheet::before{content:none}
 :is(#liga-main,#rw-main,#fa-main,#fb-main) > section + section{border-top:0}
 .liga-kopf{--monitor:var(--sheet);background:transparent}
+/* Plakette an Serienkarte und Serienkopf, wenn eine Übertragung eingetragen ist */
+.liga-pill-stream{display:inline-flex;align-items:center;gap:5px;position:relative;z-index:2;background:color-mix(in srgb,#9146ff 28%,#07090a);color:#cbb2ff;text-decoration:none}
+.liga-plattform{flex:none;width:12px;height:12px}
+.liga-pill-stream.youtube{background:color-mix(in srgb,#ff0033 24%,#07090a);color:#ff9aa6}
+.liga-pill-stream:hover{color:#fff}
+.liga-pill-stream:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.liga-kicker .liga-pill-stream{margin-left:8px;vertical-align:middle}
+/* Auf der Serienkarte als schräges Band über der Ecke oben rechts, die Karte schneidet die Enden ab */
+.liga-band{position:absolute;top:24px;right:-48px;z-index:3;width:200px;padding:7px 0 6px;transform:rotate(45deg);text-align:center;background:#9146ff;color:#fff;font:800 .66rem/1 var(--f-wide);font-variation-settings:"wdth" 112;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;box-shadow:0 3px 12px rgba(0,0,0,.5)}
+.liga-band{display:flex;align-items:center;justify-content:center;gap:7px}
+.liga-band .liga-plattform{width:13px;height:13px}
+.liga-band.youtube{background:#e0002b}
+.liga-band:hover{filter:brightness(1.15)}
+.liga-band:focus-visible{outline:2px solid #fff;outline-offset:-4px}
 /* Streifen über dem Inhalt: Übertragung am Renntag oder Aufruf für Broadcaster */
 .liga-stream{display:block;position:relative;z-index:2;border-bottom:1px solid var(--scan);background:linear-gradient(90deg,rgba(211,18,27,.16),rgba(21,25,28,.55) 65%);color:var(--ink);text-decoration:none;font-size:.9rem}
 .liga-stream .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding-block:10px}
