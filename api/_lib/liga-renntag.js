@@ -60,11 +60,23 @@ function rennenHeute(rennen, serien, jetzt) {
   });
 }
 
-const erinnerungKarte = (r) => ({
-  title: `Heute Renntag: ${r.titel}`.slice(0, 256), url: `${LINK}/fahrerbereich`, color: FARBE,
-  fields: [feld("Serie", r.serieName), feld("Start", `${berlinUhr(r.start)} Uhr`), feld("Strecke", r.strecke), feld("Gemeldet", r.plaetze ? `${r.starter.length} von ${r.plaetze}` : r.starter.length)],
-  footer: { text: r.zugangNoetig ? "Server und Passwort stehen im Fahrerbereich." : "Die Session findest du in iRacing bei unserer Liga." },
-});
+// Alles Wichtige zum Renntag auf einen Blick, mit Frist für An- und Abmeldung und dem Stand der Meldungen.
+function erinnerungKarte(r) {
+  const bereich = `[Fahrerbereich](${LINK}/fahrerbereich)`;
+  const warte = (r.warteliste || []).length;
+  const gemeldet = `${r.plaetze ? `${r.starter.length} von ${r.plaetze}` : r.starter.length}${warte ? `, ${warte} auf der Warteliste` : ""}`;
+  const ablauf = [r.training && `Training ${r.training}`, r.qualifying && `Qualifying ${r.qualifying}`, r.renndauer && `Rennen ${r.renndauer}`].filter(Boolean).join(" · ");
+  return {
+    title: `Heute Renntag: ${r.titel}`.slice(0, 256), url: `${LINK}/fahrerbereich`, color: FARBE,
+    description: r.schluss ? `An- oder abmelden kannst du dich noch bis **${berlinUhr(r.schluss)} Uhr** im ${bereich}.` : `An- und Abmeldung im ${bereich}.`,
+    fields: [
+      feld("Serie", r.serieName), feld("Start", `${berlinUhr(r.start)} Uhr`), feld("Strecke", r.strecke), feld("Gemeldet", gemeldet),
+      ...(ablauf ? [feld("Ablauf", ablauf, false)] : []),
+      ...(r.fahrzeuge ? [feld("Fahrzeuge", r.fahrzeuge, false)] : []),
+    ],
+    footer: { text: r.zugangNoetig ? "Server und Passwort stehen im Fahrerbereich." : "Die Session findest du in iRacing bei unserer Liga." },
+  };
+}
 
 // Läuft über den täglichen Zeitplan. Der Merker verhindert doppelte Nachrichten, auch wenn die Adresse mehrfach aufgerufen wird.
 async function erinnern(jetzt = Date.now()) {

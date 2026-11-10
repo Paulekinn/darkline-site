@@ -251,13 +251,16 @@ async function teamMelden(karte) {
 
 // Knopf „Discord testen“: eine Probe an jeden eingerichteten Webhook, Ergebnis je Kanal "ok", "fehlt" oder "fehler".
 const TEST_ZIELE = [["Reports", "LIGA_DISCORD_WEBHOOK_TEAM"], ["Renntag", "LIGA_DISCORD_WEBHOOK"], ["Urteile", "LIGA_DISCORD_WEBHOOK_URTEILE"]];
-function webhooksTesten(wer, reportBeispiel) {
+// beispiele: { Reports, Renntag, Urteile } mit je einer Karte, wie sie im Ernstfall gepostet würde.
+function webhooksTesten(wer, beispiele = {}) {
   return Promise.all(TEST_ZIELE.map(async ([kanal, schluessel]) => {
     const url = process.env[schluessel];
     if (!url) return { kanal, stand: "fehlt" };
-    if (schluessel === "LIGA_DISCORD_WEBHOOK_TEAM") return { kanal, stand: (await teamMelden(reportBeispiel)) ? "ok" : "fehler" };
+    if (schluessel === "LIGA_DISCORD_WEBHOOK_TEAM") return { kanal, stand: (await teamMelden(beispiele.Reports)) ? "ok" : "fehler" };
     try {
-      const karte = { title: `Test: ${kanal}`, description: `Ausgelöst von ${wer} über den Knopf „Discord testen“. Diese Nachricht kann gelöscht werden.`, color: 0xd3121b };
+      const hinweis = `Beispiel, ausgelöst von ${wer} über „Discord testen“. Kann gelöscht werden.`;
+      const vorlage = beispiele[kanal];
+      const karte = vorlage ? { ...vorlage, title: `Test · ${vorlage.title}`.slice(0, 256), footer: { text: hinweis } } : { title: `Test: ${kanal}`, description: hinweis, color: 0xd3121b };
       const antwort = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(4000), body: JSON.stringify({ embeds: [karte], allowed_mentions: { parse: [] } }) });
       if (!antwort.ok) console.error(`Discord-Test ${kanal} abgelehnt:`, antwort.status);
       return { kanal, stand: antwort.ok ? "ok" : "fehler" };
@@ -284,17 +287,35 @@ function fahrerAkte(reports, privatJeSerie, { cust, discordId }) {
   };
 }
 
-// Optionale kurze Meldung im eigenen Urteils-Kanal. Details stehen nur im Fahrerbereich, niemand wird angepingt.
+const strafeText = (u) => (u.art === "strafpunkte" ? `${u.punkte} Strafpunkte` : u.art === "zeitstrafe" ? `${u.sekunden} Sekunden Zeitstrafe` : "Disqualifikation");
+
+// Karte für den Urteils-Kanal. Gemeldet wird eine neue Strafe, eine geänderte Strafe und eine aufgehobene Strafe, sonst nichts.
+function urteilKarte(report, urteil, vorher) {
+  const jetzt = istStrafend(urteil);
+  const war = !!vorher && istStrafend(vorher);
+  if (!jetzt && !war) return null;
+  const titel = [report.serieName, report.rennenTitel].filter(Boolean).join(" · ");
+  const felder = [{ name: "Fahrer", value: String((report.gegen && report.gegen.name) || "–"), inline: true }];
+  if (jetzt) felder.push({ name: "Strafe", value: strafeText(urteil), inline: true });
+  if (war) felder.push({ name: "Bisher", value: strafeText(vorher), inline: true });
+  return {
+    title: (!jetzt ? `Strafe aufgehoben · ${titel}` : `${war ? "Korrigiert: " : ""}Urteil · ${titel}`).slice(0, 256),
+    url: "https://darklineperformance.de/fahrerbereich", color: jetzt ? 0xd3121b : 0x6b7280, fields: felder, footer: { text: "Details im Fahrerbereich." },
+  };
+}
+
+// Optionale Meldung im eigenen Urteils-Kanal. Details stehen nur im Fahrerbereich, niemand wird angepingt.
 // Bewusst ohne Rückgriff auf LIGA_DISCORD_WEBHOOK: Urteile sollen nie im allgemeinen Liga-Kanal landen.
-async function discordMelden(report, urteil) {
+async function discordMelden(report, urteil, vorher) {
   const url = process.env.LIGA_DISCORD_WEBHOOK_URTEILE;
-  if (!url || !istStrafend(urteil)) return;
-  const was = urteil.art === "strafpunkte" ? `${urteil.punkte} Strafpunkte` : urteil.art === "zeitstrafe" ? `${urteil.sekunden} Sekunden Zeitstrafe` : "Disqualifikation";
+  const karte = urteilKarte(report, urteil, vorher);
+  if (!url || !karte) return;
   try {
-    await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `Urteil der Rennleitung · ${report.rennenTitel}: ${report.gegen.name} erhält ${was}. Details im Fahrerbereich.`, allowed_mentions: { parse: [] } }) });
+    const antwort = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(4000), body: JSON.stringify({ embeds: [karte], allowed_mentions: { parse: [] } }) });
+    if (!antwort.ok) console.error("Discord-Meldung zum Urteil abgelehnt:", antwort.status);
   } catch (e) {
     console.error("Discord-Meldung fehlgeschlagen:", e.message);
   }
 }
 
-module.exports = { cooldownBis, ergebnisStand, staendeSetzen, pruefeStimme, stimmeSetzen, mehrheit, stimmenSicht, rennKontext, reportKarte, einspruchKarte, teamMelden, webhooksTesten, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden };
+module.exports = { cooldownBis, ergebnisStand, staendeSetzen, pruefeStimme, stimmeSetzen, mehrheit, stimmenSicht, rennKontext, reportKarte, einspruchKarte, teamMelden, webhooksTesten, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden, urteilKarte };
