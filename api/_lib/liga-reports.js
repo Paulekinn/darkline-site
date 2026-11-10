@@ -67,6 +67,29 @@ function urteilAnwenden(privat, reportId, urteil, ziel) {
 
 const beteiligt = (report, discordId) => report.von.discordId === discordId || report.gegen.discordId === discordId;
 
+/* ---------- Vorläufiges oder endgültiges Ergebnis ---------- */
+const einspruchOffen = (r) => (r.einsprueche || []).length > 0 && !r.endgueltig;
+
+// Vorläufig, solange noch etwas offen ist oder die Fristen laufen. Ein offener Fall geht immer vor, auch vor einer Freigabe von Hand.
+// ctx: { serie, rennen (Kalender), reports (mit einsprueche), privat, jetzt }
+function ergebnisStand(start, ctx) {
+  const t = new Date(start).getTime();
+  const naehe = (w) => Math.abs(w - t);
+  const faelle = ctx.reports.filter((r) => r.serie === ctx.serie.id && naehe(new Date(r.start).getTime()) <= 12 * 3600e3);
+  if (faelle.some((r) => !r.urteil || einspruchOffen(r))) return "vorlaeufig";
+  if (((ctx.privat || {}).endgueltig || []).includes(start)) return "endgueltig";
+  const kalender = ctx.rennen.filter((r) => r.serie === ctx.serie.id).map((r) => ({ r, ms: A.berlinNachUtc(r.datum, r.startzeit) })).filter((x) => x.ms !== null && naehe(x.ms) <= 12 * 3600e3).sort((a, b) => naehe(a.ms) - naehe(b.ms))[0];
+  const ende = kalender ? kalender.ms + A.dauerMinuten(kalender.r.renndauer) * 60e3 : t + 120 * 60e3;
+  const fristen = [ende + reportStunden(ctx.serie) * 3600e3, ...faelle.filter((r) => !r.endgueltig).map((r) => new Date(r.urteil.zeit).getTime() + einspruchStunden(ctx.serie) * 3600e3)];
+  return ctx.jetzt > Math.max(...fristen) ? "endgueltig" : "vorlaeufig";
+}
+
+// Ergänzt jedes Rennen einer gelesenen Tabelle um seinen aktuellen Stand.
+function staendeSetzen(tabelle, ctx) {
+  if (tabelle && Array.isArray(tabelle.rennen)) tabelle.rennen.forEach((r) => { r.vorlaeufig = ergebnisStand(r.start, ctx) === "vorlaeufig"; });
+  return tabelle;
+}
+
 /* ---------- Abstimmung der Stewards ---------- */
 const STIMMEN_NOETIG = 2;
 
@@ -242,4 +265,4 @@ async function discordMelden(report, urteil) {
   }
 }
 
-module.exports = { pruefeStimme, stimmeSetzen, mehrheit, stimmenSicht, rennKontext, reportKarte, einspruchKarte, teamMelden, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden };
+module.exports = { ergebnisStand, staendeSetzen, pruefeStimme, stimmeSetzen, mehrheit, stimmenSicht, rennKontext, reportKarte, einspruchKarte, teamMelden, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, einspruchSpeichern, neueId, discordMelden };

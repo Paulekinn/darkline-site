@@ -34,7 +34,8 @@ async function gemeldeteFahrer(kat, serieId) {
 // Details einer Serie: Fahrer mit Profil, Rennen mit Listen, Ergebnisse und Strafen
 async function serienDetails(kat, id) {
   const serie = serieFinden(kat, id);
-  const [alle, ergebnisse, privat, oeffentlich] = await Promise.all([eintraege(), D.ergebnisseLesen(id), D.privatLesen(id), P.oeffentlicheProfile()]);
+  const [alle, ergebnisse, privat, oeffentlich, alleReports] = await Promise.all([eintraege(), D.ergebnisseLesen(id), D.privatLesen(id), P.oeffentlicheProfile(), R.alleReports(false)]);
+  const standCtx = { serie, rennen: kat.rennen, reports: alleReports, privat, jetzt: Date.now() };
   const mitglieder = alle.filter((e) => e.typ === "serie" && e.serieId === id);
   const direkt = alle.filter((e) => e.typ === "rennen" && kat.rennen.some((r) => r.id === e.rennenId && r.serie === id));
   const ids = [...new Set([...mitglieder, ...direkt].map((e) => e.discordId))];
@@ -55,7 +56,7 @@ async function serienDetails(kat, id) {
   return {
     serie: id, fahrer,
     rennen: A.baueRennen(kat.rennen.filter((r) => r.serie === id), alle, opt).map(({ id: rid, titel, start, status, plaetze, starter, warteliste }) => ({ id: rid, titel, start, status, plaetze, starter, warteliste })),
-    ergebnisse: ergebnisse.map((e) => ({ id: e.id, start: e.start, strecke: e.strecke, variante: e.variante, fahrer: e.fahrer.map((f) => ({ cust: f.cust, name: f.name })) })).sort((a, b) => String(a.start).localeCompare(String(b.start))),
+    ergebnisse: ergebnisse.map((e) => ({ id: e.id, start: e.start, strecke: e.strecke, variante: e.variante, stand: R.ergebnisStand(e.start, standCtx), fahrer: e.fahrer.map((f) => ({ cust: f.cust, name: f.name })) })).sort((a, b) => String(a.start).localeCompare(String(b.start))),
     strafen: [
       ...privat.strafen.map((s) => ({ ...s, typ: "punkte" })),
       ...(privat.zeitstrafen || []).map((s) => ({ ...s, typ: "zeit" })),
@@ -109,6 +110,7 @@ async function protokollText(b, kat) {
     "report-stimme": async () => `Stimme abgegeben: ${await report()}`,
     "pruefung-erledigt": () => `Prüfung nach dem Rennen erledigt in ${serie(b.serie)}`,
     "bericht-posten": () => `Rennbericht im Discord gepostet: ${serie(b.serie)}`,
+    "ergebnis-endgueltig": () => `Ergebnis endgültig freigegeben in ${serie(b.serie)}`,
     "saison-planen": () => `${(b.rennen || []).length} Rennen geplant in ${serie(b.serie)}`,
     "rennen-speichern": () => `${b.id ? "Rennen geändert" : "Rennen angelegt"}: ${(b.rennen || {}).titel}`,
     "rennen-loeschen": () => `Rennen gelöscht: ${rennen(b.id)}`,
@@ -176,7 +178,8 @@ async function berichtZumErgebnis(kat, serieId, id) {
   if (!ergebnis) throw new Hinweis("Dieses Ergebnis gibt es nicht.");
   const bericht = Renntag.berichtDaten(serie, ergebnis, await D.tabelleLesen(serieId), kat.rennen);
   if (!bericht) throw new Hinweis("Für dieses Rennen gibt es noch keinen Rennbericht.");
-  return bericht;
+  const stand = R.ergebnisStand(ergebnis.start, { serie, rennen: kat.rennen, reports: await R.alleReports(true), privat: await D.privatLesen(serieId), jetzt: Date.now() });
+  return { ...bericht, vorlaeufig: stand === "vorlaeufig" };
 }
 
 // Bildziel „strecke:<id>“ führt zu einer Strecke der Bibliothek.
@@ -388,6 +391,17 @@ const aktionen = {
     const warnungen = (await neuBerechnen(kat, b.serie)) || [];
     const berichtOffen = !!process.env.LIGA_DISCORD_WEBHOOK && !(await Renntag.berichtSchonGepostet(ergebnis.id));
     return { warnungen, ergebnisId: ergebnis.id, berichtOffen };
+  },
+  // Vor Ablauf der Fristen von Hand freigeben. Offene Reports und Einsprüche gehen vor.
+  async "ergebnis-endgueltig"(b, kat) {
+    const serie = serieFinden(kat, b.serie);
+    const ergebnis = (await D.ergebnisseLesen(b.serie)).find((e) => e.id === String(b.id));
+    if (!ergebnis) throw new Hinweis("Dieses Ergebnis gibt es nicht.");
+    const privat = await D.privatLesen(b.serie);
+    const offen = (await R.alleReports(true)).some((r) => r.serie === serie.id && Math.abs(new Date(r.start) - new Date(ergebnis.start)) <= 12 * 3600e3 && (!r.urteil || ((r.einsprueche || []).length > 0 && !r.endgueltig)));
+    if (offen) throw new Hinweis("Zu diesem Rennen sind noch Reports oder Einsprüche offen. Entscheide sie zuerst.");
+    await D.privatSchreiben(b.serie, { ...privat, endgueltig: [...new Set([...(privat.endgueltig || []), ergebnis.start])] });
+    return {};
   },
   async "bericht-daten"(b, kat) {
     return { bericht: await berichtZumErgebnis(kat, b.serie, b.id) };

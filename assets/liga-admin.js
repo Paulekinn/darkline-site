@@ -328,7 +328,7 @@
       g.fillText(s === String(t || "") ? s : `${s.trimEnd()}…`, x, y);
     };
     text("DARKLINE SIMRACING SERIES", 56, 66, `800 20px ${schrift}`, "#ff4a54");
-    text(`ERGEBNIS · ${b.serieName}`.toUpperCase(), 56, 124, `900 44px ${schrift}`, "#ffffff", 1088);
+    text(`${b.vorlaeufig ? "VORLÄUFIGES ERGEBNIS" : "ERGEBNIS"} · ${b.serieName}`.toUpperCase(), 56, 124, `900 44px ${schrift}`, "#ffffff", 1088);
     // Viele Rennen tragen die Strecke schon im Titel.
     text(b.titel.includes(b.strecke.split(" · ")[0]) ? b.titel : `${b.titel} · ${b.strecke}`, 56, 166, `600 24px ${schrift}`, "#c4cbc8", 1088);
     const klassen = b.klassen.slice(0, 3);
@@ -803,7 +803,7 @@
   function ergebnisTab() {
     if (!d.serien.length) return '<section class="a-karte"><p class="a-leer">Leg zuerst eine Serie an.</p></section>';
     const det = d.details;
-    const ergebnisse = det.ergebnisse.map((e) => `<tr><td>${esc(zeit(e.start))}</td><td class="umbruch">${esc([e.strecke, e.variante].filter(Boolean).join(" · "))}</td><td class="rechts">${e.fahrer.length}</td><td class="rechts"><div class="a-leiste a-rechtsbuendig"><button type="button" class="a-knopf zweit klein" data-bericht-posten="${esc(e.id)}">In Discord posten</button><button type="button" class="a-knopf gefahr klein" data-ergebnis-loeschen="${esc(e.id)}">Löschen</button></div></td></tr>`).join("");
+    const ergebnisse = det.ergebnisse.map((e) => `<tr><td>${esc(zeit(e.start))}</td><td class="umbruch">${esc([e.strecke, e.variante].filter(Boolean).join(" · "))}</td><td class="rechts">${e.fahrer.length}</td><td>${e.stand === "vorlaeufig" ? '<span class="a-chip gelb">Vorläufig</span>' : '<span class="a-chip gruen">Endgültig</span>'}</td><td class="rechts"><div class="a-leiste a-rechtsbuendig">${e.stand === "vorlaeufig" ? `<button type="button" class="a-knopf zweit klein" data-ergebnis-endgueltig="${esc(e.id)}">Endgültig freigeben</button>` : ""}<button type="button" class="a-knopf zweit klein" data-bericht-posten="${esc(e.id)}">In Discord posten</button><button type="button" class="a-knopf gefahr klein" data-ergebnis-loeschen="${esc(e.id)}">Löschen</button></div></td></tr>`).join("");
     const strafen = det.strafen.map((s) => {
       const e = det.ergebnisse.find((x) => x.id === s.rennen);
       const wert = s.typ === "zeit" ? `+${s.sekunden} s` : s.typ === "dsq" ? "DSQ" : `−${s.punkte}`;
@@ -822,7 +822,7 @@
       <div class="a-feld"><label for="a-datei">Ergebnisdatei (JSON)</label><input type="file" id="a-datei" accept=".json,application/json"></div>
     </section>
     ${vorschauHtml()}
-    <section class="a-karte"><h2>Eingelesene Rennen</h2>${ergebnisse ? `<div class="a-scroll"><table><thead><tr><th>Start</th><th>Strecke</th><th class="rechts">Fahrer</th><th></th></tr></thead><tbody>${ergebnisse}</tbody></table></div>` : '<p class="a-leer">Noch kein Ergebnis eingelesen.</p>'}</section>
+    <section class="a-karte"><h2>Eingelesene Rennen</h2>${ergebnisse ? `<div class="a-scroll"><table><thead><tr><th>Start</th><th>Strecke</th><th class="rechts">Fahrer</th><th>Stand</th><th></th></tr></thead><tbody>${ergebnisse}</tbody></table></div>` : '<p class="a-leer">Noch kein Ergebnis eingelesen.</p>'}</section>
     <section class="a-karte"><h2>Strafen</h2>${strafForm}${strafen ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>Rennen</th><th class="rechts">Punkte</th><th>Grund</th><th></th></tr></thead><tbody>${strafen}</tbody></table></div>` : ""}</section>`;
   }
   const fahrerOptionen = (e, gewaehlt) => e.fahrer.map((f) => `<option value="${esc(f.cust)}"${f.cust === gewaehlt ? " selected" : ""}>${esc(f.name)}</option>`).join("");
@@ -1145,6 +1145,10 @@
       const gepostet = await rennberichtPosten(serieId, b.dataset.berichtPosten);
       if (gepostet) setzeMeldung("Rennbericht im Discord gepostet.");
       return zeichne();
+    }
+    if (b.dataset.ergebnisEndgueltig) {
+      if (!window.confirm("Ergebnis jetzt endgültig freigeben? Sonst geschieht das automatisch nach Ablauf der Report- und Einspruchsfristen.")) return;
+      return aktion({ aktion: "ergebnis-endgueltig", serie: serieId, id: b.dataset.ergebnisEndgueltig }, "Ergebnis ist endgültig.");
     }
     if (b.dataset.pruefungErledigt) return aktion({ aktion: "pruefung-erledigt", serie: b.dataset.serie, id: b.dataset.pruefungErledigt }, "Als erledigt markiert.");
     if (b.dataset.ergebnisLoeschen && window.confirm("Dieses Ergebnis wirklich löschen? Die Tabelle wird neu berechnet.")) return aktion({ aktion: "ergebnis-loeschen", serie: serieId, id: b.dataset.ergebnisLoeschen }, "Ergebnis gelöscht.");

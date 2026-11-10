@@ -74,6 +74,9 @@
   }
   const kachel = (art, titel, name, wert) => `<div class="liga-kachel ${art}"><span>${esc(titel)}</span><b>${esc(name)}</b><small>${esc(wert)}</small></div>`;
 
+  const VORLAEUFIG = '<span class="liga-vorlaeufig">Vorläufig</span>';
+  const vorlaeufigHinweis = (text) => `<p class="liga-vorlaeufig-hinweis"><b>Vorläufiges Ergebnis</b>${esc(text)}</p>`;
+
   function berichtHtml(r, s) {
     const mehrere = r.bericht.length > 1;
     return r.bericht.map((b) => {
@@ -87,7 +90,7 @@
       return `<article class="liga-bericht ${farbeSerie(s)}">
         <div class="liga-bericht-bild" style="background-image:url('${esc(kartenBild(s))}')" aria-hidden="true"></div>
         <div class="liga-bericht-haupt">
-          <div class="liga-bericht-zeile">${mehrere ? `<span class="liga-bericht-klasse">${esc(b.fahrzeugklasse)}</span>` : ""}<span class="lbl">${esc(kopfzeile)}</span></div>
+          <div class="liga-bericht-zeile">${mehrere ? `<span class="liga-bericht-klasse">${esc(b.fahrzeugklasse)}</span>` : ""}<span class="lbl">${esc(kopfzeile)}</span>${r.vorlaeufig ? VORLAEUFIG : ""}</div>
           <h3>${esc(sieger)} <small>gewinnt ${r.strecke ? `in ${esc(r.strecke)}` : "das Rennen"}</small></h3>
           ${verfolger.length ? `<ol class="liga-bericht-podium" start="2">${verfolger.map((n, i) => `<li class="p${i + 2}"><b>P${i + 2}</b>${esc(n)}</li>`).join("")}</ol>` : ""}
         </div>
@@ -447,7 +450,7 @@
         return f ? `<li class="${farbe(k)}"><span>${esc(k.name)}</span><b>${esc(f.name)}</b></li>` : "";
       }).join("");
       return `<article class="liga-rennkarte">
-        <header><div class="liga-rennnr">R${r.nr}</div><div class="liga-strecke">${esc(r.strecke)}<small>${esc([r.variante, datum(r.start)].filter(Boolean).join(" · "))}</small></div></header>
+        <header><div class="liga-rennnr">R${r.nr}</div><div class="liga-strecke">${esc(r.strecke)}<small>${esc([r.variante, datum(r.start)].filter(Boolean).join(" · "))}</small>${r.vorlaeufig ? VORLAEUFIG : ""}</div></header>
         ${sieger ? `<ul class="liga-sieger">${sieger}</ul>` : ""}
       </article>`;
     });
@@ -680,7 +683,9 @@
       const r = ansicht === "saison" ? null : rennenMitErgebnis.find((x) => String(x.nr) === ansicht);
       reiter.forEach((b) => b.setAttribute("aria-selected", String(b.dataset.k === aktiv)));
       ansichtKnoepfe.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.ansicht === ansicht)));
-      $("liga-tabelle").innerHTML = r ? `<p class="liga-renninfo"><b>R${r.nr}</b>${esc([r.strecke, r.variante, datum(r.start)].filter(Boolean).join(" · "))}</p>${rennTabelle(k, r, d)}` : tabelle(k, d);
+      const offeneRunden = d.rennen.filter((x) => x.vorlaeufig).map((x) => `R${x.nr}`).join(", ");
+      const hinweis = r ? (r.vorlaeufig ? vorlaeufigHinweis("Strafen der Rennleitung können dieses Ergebnis noch ändern.") : "") : offeneRunden ? vorlaeufigHinweis(`${offeneRunden} noch nicht endgültig. Strafen der Rennleitung können die Wertung noch ändern.`) : "";
+      $("liga-tabelle").innerHTML = r ? `${hinweis}<p class="liga-renninfo"><b>R${r.nr}</b>${esc([r.strecke, r.variante, datum(r.start)].filter(Boolean).join(" · "))}</p>${rennTabelle(k, r, d)}` : `${hinweis}${tabelle(k, d)}`;
       $("liga-legende").style.display = r ? "none" : "";
     };
     const waehle = (id) => { aktiv = id; zeichne(); };

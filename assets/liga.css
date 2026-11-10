@@ -470,3 +470,8 @@ a.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--paper
 .liga-tab-nr{font:700 .68rem/1 var(--f-mono);color:var(--muted)}
 .liga-fahrer .liga-flagge{margin-right:0}
 @media (prefers-reduced-motion:reduce){a.liga-fk:hover{transform:none}}
+/* Vorlaeufige Ergebnisse */
+.liga-vorlaeufig{display:inline-block;padding:3px 8px;background:color-mix(in srgb,var(--liga-gelb) 18%,#07090a);box-shadow:inset 0 0 0 1px var(--liga-gelb);font:700 .62rem/1.3 var(--f-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--liga-gelb);white-space:nowrap}
+.liga-strecke .liga-vorlaeufig{justify-self:start;margin-top:5px}
+.liga-vorlaeufig-hinweis{display:flex;flex-wrap:wrap;gap:3px 10px;align-items:baseline;margin:0 0 10px;padding:10px 13px;background:color-mix(in srgb,var(--liga-gelb) 11%,var(--paper));border-left:4px solid var(--liga-gelb);font-size:.9rem;color:#d8ddda}
+.liga-vorlaeufig-hinweis b{font:900 .84rem/1.2 var(--f-wide);font-variation-settings:"wdth" 112;text-transform:uppercase;color:var(--liga-gelb)}

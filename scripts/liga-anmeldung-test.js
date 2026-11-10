@@ -73,6 +73,37 @@ const B = require("../api/_lib/blob");
 const T = require("../api/_lib/liga-renntag");
 
 const tests = {
+  "Ergebnis: vorläufig bis die Fristen abgelaufen sind": () => {
+    const start = Date.UTC(2026, 10, 10, 19);
+    const ctx = (o) => ({ serie: { id: "gt3", reportStunden: 24, einspruchStunden: 48 }, rennen: [{ serie: "gt3", datum: "2026-11-10", startzeit: "20:00", renndauer: "60 min" }], reports: [], privat: {}, jetzt: start + 36e5, ...o });
+    const s = iso(start);
+    assert.strictEqual(R.ergebnisStand(s, ctx()), "vorlaeufig");
+    assert.strictEqual(R.ergebnisStand(s, ctx({ jetzt: start + 24 * 36e5 })), "vorlaeufig");
+    assert.strictEqual(R.ergebnisStand(s, ctx({ jetzt: start + 26 * 36e5 })), "endgueltig");
+  },
+  "Ergebnis: offene Reports und Einsprüche halten es vorläufig, auch nach einer Freigabe": () => {
+    const start = Date.UTC(2026, 10, 10, 19);
+    const s = iso(start);
+    const spaet = start + 30 * 864e5;
+    const basis = { serie: { id: "gt3", reportStunden: 24, einspruchStunden: 48 }, rennen: [], privat: { endgueltig: [s] }, jetzt: spaet };
+    const report = (o) => ({ serie: "gt3", start: s, einsprueche: [], ...o });
+    assert.strictEqual(R.ergebnisStand(s, { ...basis, reports: [report({ urteil: null })] }), "vorlaeufig");
+    assert.strictEqual(R.ergebnisStand(s, { ...basis, reports: [report({ urteil: { zeit: s }, einsprueche: [{}] })] }), "vorlaeufig");
+    assert.strictEqual(R.ergebnisStand(s, { ...basis, reports: [report({ urteil: { zeit: s }, einsprueche: [{}], endgueltig: true })] }), "endgueltig");
+    assert.strictEqual(R.ergebnisStand(s, { ...basis, reports: [report({ serie: "andere", urteil: null })] }), "endgueltig");
+  },
+  "Ergebnis: Freigabe von Hand und Einspruchsfrist nach einem Urteil": () => {
+    const start = Date.UTC(2026, 10, 10, 19);
+    const s = iso(start);
+    const urteilZeit = start + 20 * 36e5;
+    const basis = { serie: { id: "gt3", reportStunden: 24, einspruchStunden: 48 }, rennen: [], reports: [{ serie: "gt3", start: s, einsprueche: [], urteil: { zeit: iso(urteilZeit) } }], privat: {} };
+    assert.strictEqual(R.ergebnisStand(s, { ...basis, jetzt: start + 40 * 36e5 }), "vorlaeufig");
+    assert.strictEqual(R.ergebnisStand(s, { ...basis, jetzt: urteilZeit + 49 * 36e5 }), "endgueltig");
+    assert.strictEqual(R.ergebnisStand(s, { ...basis, privat: { endgueltig: [s] }, jetzt: start + 36e5 }), "endgueltig");
+    const t = { rennen: [{ start: s, strecke: "Spa" }] };
+    R.staendeSetzen(t, { ...basis, jetzt: start + 36e5 });
+    assert.strictEqual(t.rennen[0].vorlaeufig, true);
+  },
   "Urteile: gehen nur in den eigenen Kanal und nur bei einer Strafe": async () => {
     const alt = { fetch: global.fetch, liga: process.env.LIGA_DISCORD_WEBHOOK, urteile: process.env.LIGA_DISCORD_WEBHOOK_URTEILE };
     const aufrufe = [];

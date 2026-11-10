@@ -111,7 +111,7 @@ function berichtKarte(b, mitBild) {
   const zeilen = b.klassen.map((k) => `${mehrere ? `**${k.fahrzeugklasse}**\n` : ""}${k.podium.map((n, i) => `${i + 1}. ${n}`).join("\n")}`).join("\n\n");
   const k = b.klassen[0];
   return {
-    title: `Ergebnis: ${b.titel}`.slice(0, 256), url: `${LINK}/liga?serie=${encodeURIComponent(b.serie)}`, color: FARBE, description: zeilen.slice(0, 1500),
+    title: `${b.vorlaeufig ? "Vorläufiges Ergebnis" : "Ergebnis"}: ${b.titel}`.slice(0, 256), ...(b.vorlaeufig ? { footer: { text: "Strafen der Rennleitung können das Ergebnis noch ändern." } } : {}), url: `${LINK}/liga?serie=${encodeURIComponent(b.serie)}`, color: FARBE, description: zeilen.slice(0, 1500),
     fields: [feld("Serie", b.serieName), feld("Strecke", b.strecke), ...(k.schnellste ? [feld("Schnellste Runde", `${k.schnellste.name}, ${k.schnellste.zeit}`)] : []), ...(k.aufholer ? [feld("Fahrer des Tages", `${k.aufholer.name}, ${k.aufholer.plaetze} Plätze gutgemacht`)] : [])],
     ...(mitBild ? { image: { url: "attachment://rennbericht.jpg" } } : {}),
   };
