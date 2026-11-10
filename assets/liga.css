@@ -138,6 +138,8 @@
 .bar nav.liga-nav a.liga-nav-knopf.zweit{margin-left:6px;border-color:var(--liga-gold);background:none;color:var(--liga-gold)}
 .bar nav.liga-nav a.liga-nav-knopf.zweit:hover{background:var(--liga-gold);color:#17120a}
 @media (max-width:760px){
+  /* Das umgebrochene Menü ist am Handy zu hoch, um beim Scrollen stehen zu bleiben. */
+  .bar:has(nav.liga-nav){position:static}
   .bar nav.liga-nav .liga-nav-rechts{margin-left:0}
   .bar nav.liga-nav a{padding:14px 11px 11px;font-size:.82rem}
   .bar nav.liga-nav a.liga-nav-knopf{padding:10px 13px}

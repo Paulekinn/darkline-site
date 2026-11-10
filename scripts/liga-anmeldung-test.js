@@ -72,6 +72,18 @@ function supabaseAttrappe(seite = 1000) {
 const B = require("../api/_lib/blob");
 
 const tests = {
+  "Season: Wer für die Season gemeldet ist, steht in allen Runden": () => {
+    const runden = Array.from({ length: 8 }, (_, i) => ({ ...SERIENRENNEN, id: `r${i + 1}`, titel: `Runde ${i + 1}`, datum: `2026-12-${String(10 + i).padStart(2, "0")}`, plaetze: 40 }));
+    const stand = A.baueRennen(runden, [mitglied("gt3", "2", 100)], { ...OPT, discordId: "2" });
+    assert.strictEqual(stand.length, 8);
+    assert.ok(stand.every((r) => r.ich && r.ich.status === "starter" && r.ich.quelle === "serie" && r.starter.length === 1));
+  },
+  "Season: Eine Einzelmeldung gilt nur für dieses eine Rennen": () => {
+    const runden = [{ ...SERIENRENNEN, id: "r1", plaetze: 40 }, { ...SERIENRENNEN, id: "r2", datum: "2026-12-17", plaetze: 40 }];
+    const [eins, zwei] = A.baueRennen(runden, [eintrag("r1", "2", 100)], { ...OPT, discordId: "2" });
+    assert.strictEqual(eins.ich.quelle, "rennen");
+    assert.strictEqual(zwei.ich, null);
+  },
   "Speicher: Text und Bilder kommen unverändert zurück, fehlende Dateien sind null": async () => {
     const a = supabaseAttrappe();
     try {

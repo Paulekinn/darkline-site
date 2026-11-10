@@ -62,15 +62,24 @@
   }
 
   const GESCHLOSSEN = '<span class="fb-zu">Anmeldung geschlossen</span>';
-  const dabeiStatus = (r) => (r.ich.status === "starter" ? '<span class="fb-dabei"><i aria-hidden="true">✓</i>Du bist dabei</span>' : `<span class="fb-dabei warte">Warteliste, Platz ${Number(r.ich.platz)}</span>`);
+  // Die Season, in der dieser Fahrer noch fehlt. Bei Events gibt es keine Gäste, dort zählt die Anmeldung zum Rennen.
+  const offeneSeason = (r) => { const s = stand.serien.find((x) => x.id === r.serie); return s && s.typ !== "event" && !s.ich && s.anmeldungOffen ? s : null; };
+  const seasonKnopf = (s) => `<button type="button" class="fb-knopf fb-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Für die Season anmelden</button>`;
+  const dabeiStatus = (r) => {
+    if (r.ich.status !== "starter") return `<span class="fb-dabei warte">Warteliste, Platz ${Number(r.ich.platz)}</span>`;
+    return `<span class="fb-dabei"><i aria-hidden="true">✓</i>${r.ich.quelle === "rennen" && offeneSeason(r) ? "Als Gast dabei" : "Du bist dabei"}</span>`;
+  };
 
   function aktionHtml(r) {
     if (!r.offen) return r.status === "abgesagt" ? "" : r.ich ? dabeiStatus(r) : GESCHLOSSEN;
-    if (r.ich) return `${dabeiStatus(r)}<button type="button" class="fb-abmelden" data-aktion="abmelden" data-rennen="${esc(r.id)}" data-quelle="${esc(r.ich.quelle)}">Abmelden</button>`;
+    const season = stand.fahrer.profil ? offeneSeason(r) : null;
+    if (r.ich) return `${dabeiStatus(r)}${season ? `${klassenAuswahl("h-" + r.id, r.fahrzeugklassen)}${seasonKnopf(season)}` : ""}<button type="button" class="fb-abmelden" data-aktion="abmelden" data-rennen="${esc(r.id)}" data-quelle="${esc(r.ich.quelle)}">Abmelden</button>`;
     if (r.anmeldungZu) return GESCHLOSSEN;
     if (!stand.fahrer.profil) return '<button type="button" class="fb-knopf fb-melden" data-profil="1">Erst Profil ausfüllen</button>';
     const voll = r.plaetze && r.starter.length >= r.plaetze;
-    return `${klassenAuswahl(r.id, r.fahrzeugklassen)}<button type="button" class="fb-knopf fb-melden" data-aktion="anmelden" data-rennen="${esc(r.id)}">${voll ? "Auf die Warteliste" : "Jetzt anmelden"}</button>`;
+    // In einer Season ist die Anmeldung für alle Runden der Normalfall, ein einzelnes Rennen die Ausnahme für Gäste.
+    if (season) return `${klassenAuswahl("h-" + r.id, r.fahrzeugklassen)}${seasonKnopf(season)}<button type="button" class="fb-abmelden" data-aktion="anmelden" data-rennen="${esc(r.id)}">${voll ? "Nur dieses Rennen, auf die Warteliste" : "Nur dieses Rennen als Gast"}</button>`;
+    return `${klassenAuswahl("h-" + r.id, r.fahrzeugklassen)}<button type="button" class="fb-knopf fb-melden" data-aktion="anmelden" data-rennen="${esc(r.id)}">${voll ? "Auf die Warteliste" : "Jetzt anmelden"}</button>`;
   }
 
   const fakt = (titel, wert, klasse) => (wert ? `<div class="${klasse || ""}"><dt>${esc(titel)}</dt><dd>${esc(wert)}</dd></div>` : "");
@@ -144,17 +153,19 @@
     </section>`;
   }
 
-  function weiteresRennen(r) {
-    return `<article class="fb-karte ${farbe(r.serieFarbe)}${r.serieTyp === "event" ? " ist-event" : ""}">
-      <div class="fb-karte-datum"><b>${esc(zeitFormat({ day: "2-digit" }).format(new Date(r.start)))}</b><small>${esc(zeitFormat({ month: "short" }).format(new Date(r.start)).replace(".", ""))}</small></div>
-      <div class="fb-karte-inhalt">
-        <div class="fb-karte-kopf"><time>${esc(`${zeitFormat({ weekday: "short" }).format(new Date(r.start))} · ${uhr(r.start)}`)}</time>${statusChip(r)}</div>
-        <h3><button type="button" class="fb-waehle" data-waehle="${esc(r.id)}">${esc(r.titel)}</button></h3>
-        <p>${serienTag(r)}${r.konflikt && r.konflikt.length ? '<span class="fb-konflikt-kurz">Überschneidung</span>' : ""}</p>
-        <p>${esc(belegung(r))}</p>
-        <div class="fb-karte-aktion">${aktionHtml(r)}</div>
-      </div>
-    </article>`;
+  // Ruhige Terminliste. Angemeldet wird im großen Bereich oben, ein Klick auf die Zeile öffnet das Rennen dort.
+  function weiteresRennen(r, mehrereSerien) {
+    const start = new Date(r.start);
+    const wann = `${zeitFormat({ weekday: "short" }).format(start).replace(".", "")} · ${uhr(r.start)}`;
+    const strecke = r.strecke && !String(r.titel).includes(r.strecke) ? r.strecke : "";
+    const belegt = r.plaetze ? `${r.starter.length}/${r.plaetze}` : String(r.starter.length);
+    const abmelden = r.offen && r.ich ? `<button type="button" class="fb-abmelden" data-aktion="abmelden" data-rennen="${esc(r.id)}" data-quelle="${esc(r.ich.quelle)}">Abmelden</button>` : "";
+    return `<li class="fb-termin ${farbe(r.serieFarbe)}${r.serieTyp === "event" ? " ist-event" : ""}">
+      <div class="fb-termin-datum"><b>${esc(zeitFormat({ day: "2-digit" }).format(start))}</b><small>${esc(zeitFormat({ month: "short" }).format(start).replace(".", ""))}</small></div>
+      <div class="fb-termin-karte">${r.streckenBild ? `<img src="api/liga?r=bild&k=${encodeURIComponent(r.streckenBild.k)}&v=${encodeURIComponent(r.streckenBild.v)}" alt="" loading="lazy">` : ""}</div>
+      <div class="fb-termin-text"><button type="button" class="fb-waehle" data-waehle="${esc(r.id)}">${esc(r.titel)}</button><small>${esc([strecke, wann, mehrereSerien ? r.serieName : "", `${belegt} gemeldet`].filter(Boolean).join(" · "))}</small>${r.konflikt && r.konflikt.length ? '<span class="fb-konflikt-kurz">Überschneidung</span>' : ""}</div>
+      <div class="fb-termin-status">${statusChip(r)}${abmelden}</div>
+    </li>`;
   }
 
   function serienPanel() {
@@ -379,7 +390,7 @@
       <div class="fb-raster">
         <div class="fb-haupt-spalte">
           ${haupt ? hauptRennen(haupt) : `<p class="fb-leer">${esc(leerText)}</p>`}
-          ${rest.length ? `<h3 class="fb-zwischen">Weitere Rennen</h3><div class="fb-karten">${rest.map(weiteresRennen).join("")}</div>` : ""}
+          ${rest.length ? `<h3 class="fb-zwischen">Weitere Rennen</h3><ol class="fb-termine">${rest.map((r) => weiteresRennen(r, new Set(rest.map((x) => x.serie)).size > 1)).join("")}</ol>` : ""}
         </div>
         <aside class="fb-seiten-spalte">${serienPanel()}${haupt ? feldPanel(haupt) : ""}${profilPanel}</aside>
       </div>
@@ -439,7 +450,7 @@
       return;
     }
     if (b.dataset.aktion === "anmelden") {
-      const select = $("fz-" + b.dataset.rennen);
+      const select = b.parentElement.querySelector("select");
       return sende({ aktion: "anmelden", rennen: b.dataset.rennen, fahrzeugklasse: select ? select.value : "" });
     }
     if (b.dataset.aktion === "abmelden") {
@@ -448,7 +459,7 @@
       return;
     }
     if (b.dataset.serieAktion === "serie-anmelden") {
-      const select = $("fz-s-" + b.dataset.serie);
+      const select = b.parentElement.querySelector("select");
       return sende({ aktion: "serie-anmelden", serie: b.dataset.serie, fahrzeugklasse: select ? select.value : "" });
     }
     if (b.dataset.serieAktion === "serie-abmelden" && window.confirm("Wirklich aus dieser Serie abmelden? Du wirst dann auch aus allen kommenden Rennen der Serie genommen.")) {
