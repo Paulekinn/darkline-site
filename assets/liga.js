@@ -30,6 +30,10 @@
       return `<i class="${i < gefahren ? "on" : ""} ${anteil < 0.5 ? "g" : anteil < 0.8 ? "y" : "r"}" title="${esc(r ? `R${r.nr} · ${r.strecke}` : `Rennen ${i + 1}`)}"></i>`;
     }).join("");
     $("liga-saison").textContent = [s.saison, s.beschreibung].filter(Boolean).join(" · ");
+    if (s.typ === "event") {
+      $("liga-fortschritt").innerHTML = `<div class="liga-fakten"><div><b>${fahrer}</b><span>Fahrer</span></div><div><b>${gruppen.length}</b><span>Wertungen</span></div></div>`;
+      return;
+    }
     $("liga-fortschritt").innerHTML = `<div class="liga-fakten">
         <div><b>${gefahren}/${d.rennenGesamt}</b><span>Rennen</span></div>
         <div><b>${fahrer}</b><span>Fahrer</span></div>
@@ -402,6 +406,8 @@
       const strafe = (z.zeitstrafe ? `<span class="liga-tag minus">+${z.zeitstrafe}s</span>` : "") + (z.strafe ? `<span class="liga-tag minus">−${z.strafe}</span>` : "");
       if (w.status !== "OK") return `<b><span class="liga-tag aus">${esc(w.status)}</span></b>${strafe ? `<small>${strafe}</small>` : ""}`;
       const tags = (w.pole ? '<span class="liga-tag pp">PP</span>' : "") + (w.schnellsteRunde ? '<span class="liga-tag sr">SR</span>' : "");
+      // Bei Events zählt nur die Platzierung, die Spalte zeigt dann nur Pole, schnellste Runde und Strafen.
+      if (d.istEvent) return tags || strafe ? `<small>${tags}${strafe}</small>` : '<span class="liga-leerzelle">–</span>';
       return `<b>${w.punkte}</b>${tags || strafe ? `<small>${tags}${strafe}</small>` : ""}`;
     };
     const reihen = zeilen.map((z) => {
@@ -419,7 +425,7 @@
       </tr>`;
     }).join("");
     return `<div class="liga-scroll ${farbe(k)}" tabindex="0" role="region" aria-label="Ergebnis ${esc(k.name)}, Rennen ${r.nr}"><table class="liga-tabelle">
-      <thead><tr><th>Fahrer</th>${k.gesamt ? "<th>Klasse</th>" : ""}<th class="zahl">Start</th><th class="zahl">+/−</th><th class="zahl">Abstand</th><th class="zahl">Runden</th><th class="zahl">Beste Runde</th><th class="zahl">Inc</th><th class="zahl">Punkte</th></tr></thead>
+      <thead><tr><th>Fahrer</th>${k.gesamt ? "<th>Klasse</th>" : ""}<th class="zahl">Start</th><th class="zahl">+/−</th><th class="zahl">Abstand</th><th class="zahl">Runden</th><th class="zahl">Beste Runde</th><th class="zahl">Inc</th><th class="zahl">${d.istEvent ? "Info" : "Punkte"}</th></tr></thead>
       <tbody>${reihen}</tbody>
     </table></div>`;
   }
@@ -465,6 +471,12 @@
   /* ---------- Regeln: alle Werte kommen aus der Seriendatei ---------- */
   function regelnHtml(r) {
     const klassen = [...r.klassen].sort((a, b) => b.min - a.min).map((k) => `<div class="liga-regel-klasse ${farbe(k)}"><b>${esc(k.name)}</b><span>iRating ${esc(bereich(k))}</span></div>`).join("");
+    if (r.typ === "event") return `${r.ohneKlassen ? "" : `<div class="liga-regel-klassen">${klassen}</div>`}
+      <ul class="liga-regelliste">
+        <li>Bei Events zählt die Platzierung, Punkte werden nicht vergeben.</li>
+        <li>Gewertet wird, wer mindestens ${r.mindestRundenProzent} % der Runden des Klassensiegers schafft.</li>
+        <li>Zeitstrafen und Disqualifikationen wirken direkt auf die Platzierung.</li>
+      </ul>`;
     const punkte = r.punkte.map((p, i) => `<div class="${podium(i + 1)}">P${i + 1}<b>${p}</b></div>`).join("") + (r.punkteDanach ? `<div>P${r.punkte.length + 1}+<b>${r.punkteDanach}</b></div>` : "");
     return `${r.ohneKlassen ? "" : `<div class="liga-regel-klassen">${klassen}</div>`}
       <h3 class="liga-regel-titel">${r.ohneKlassen ? "Punkte pro Rennen" : "Punkte pro Rennen und Klasse"}</h3>
@@ -633,8 +645,20 @@
     b.disabled = false;
   });
 
+  // Wiederkehrende Events: wer wann gewonnen hat und die ewige Bestenliste
+  function eventreiheZeigen(reihe) {
+    if (!reihe.ausgaben.length) return;
+    const name = (f) => (f.pid ? `<a href="/fahrer?id=${encodeURIComponent(f.pid)}">${esc(f.name)}</a>` : esc(f.name));
+    const ausgaben = reihe.ausgaben.map((a) => `<article class="liga-ausgabe"><header><a href="${serienLink({ id: a.serie })}"><b>${esc(a.jahr)}</b></a>${a.vorlaeufig ? VORLAEUFIG : ""}</header>${a.klassen.map((k) => `<div>${a.klassen.length > 1 ? `<h3>${esc(k.name)}</h3>` : ""}<ol>${k.podium.map((f) => `<li class="p${f.platz}"><em>${f.platz}</em>${name(f)}</li>`).join("")}</ol></div>`).join("")}</article>`).join("");
+    einfuegen(abschnitt("Siegerliste", reihe.name, "", `<div class="liga-ausgaben">${ausgaben}</div>`));
+    if (!reihe.bestenliste.length) return;
+    const zeilen = reihe.bestenliste.map((f, i) => `<tr><td><span class="liga-fahrer"><span class="liga-pos ${podium(i + 1)}"><b>${i + 1}</b></span>${name(f)}</span></td><td class="zahl">${f.p1}</td><td class="zahl">${f.p2}</td><td class="zahl">${f.p3}</td></tr>`).join("");
+    einfuegen(abschnitt("Ewige Bestenliste", reihe.name, "", `<div class="liga-scroll k-ges" tabindex="0" role="region" aria-label="Ewige Bestenliste"><table class="liga-tabelle"><thead><tr><th>Fahrer</th><th class="zahl">Siege</th><th class="zahl">2. Plätze</th><th class="zahl">3. Plätze</th></tr></thead><tbody>${zeilen}</tbody></table></div><p class="liga-legende"><span>Es zählen nur endgültige Ergebnisse.</span></p>`));
+  }
+
   function zeige(d, regeln) {
     // Bei mehreren Fahrzeugklassen werden leere Gruppen ausgeblendet, sonst wären es zu viele Reiter.
+    d.istEvent = regeln.typ === "event";
     const gruppen = new Set(d.klassen.map((k) => k.fahrzeugklasse)).size > 1 ? d.klassen.filter((k) => k.fahrer.length) : d.klassen;
     const besetzt = gruppen.filter((k) => k.fahrer.length);
     kopf(d, gruppen, regeln);
@@ -648,7 +672,7 @@
     });
     const rennenMitErgebnis = d.rennen.filter((r) => Array.isArray(r.ergebnisse) && r.ergebnisse.length);
     const ansichtWahl = d.rennenGesamt > 1 && rennenMitErgebnis.length ? `<div class="liga-ansicht" role="group" aria-label="Saison oder einzelnes Rennen"><button type="button" data-ansicht="saison" aria-pressed="true">Saison</button>${rennenMitErgebnis.map((r) => `<button type="button" data-ansicht="${r.nr}" aria-pressed="false" title="${esc(r.strecke)}">R${r.nr}</button>`).join("")}</div>` : "";
-    einfuegen(abschnitt("Tabelle", d.saison, "", `${ansichtWahl}<div class="liga-tabs" role="tablist" aria-label="Wertung wählen">${alleReiter.map((k) => `<button type="button" class="${farbe(k)}" role="tab" id="tab-${esc(k.id)}" data-k="${esc(k.id)}" aria-controls="liga-tabelle" aria-selected="false">${esc(k.name)}</button>`).join("")}</div>
+    einfuegen(abschnitt(d.istEvent ? "Ergebnis" : "Tabelle", d.saison, "", `${ansichtWahl}<div class="liga-tabs" role="tablist" aria-label="Wertung wählen">${alleReiter.map((k) => `<button type="button" class="${farbe(k)}" role="tab" id="tab-${esc(k.id)}" data-k="${esc(k.id)}" aria-controls="liga-tabelle" aria-selected="false">${esc(k.name)}</button>`).join("")}</div>
       <div id="liga-tabelle" role="tabpanel"></div>
       <p class="liga-legende" id="liga-legende"><span><b style="color:var(--liga-gold)">Gold</b>, <b style="color:var(--liga-silber)">Silber</b>, <b style="color:var(--liga-bronze)">Bronze</b> = Podium</span><span><b class="liga-tag pp">PP</b> = Pole</span><span><b class="liga-tag sr">SR</b> = schnellste Runde</span><span><b class="liga-tag aus">DNF</b> = nicht gewertet</span><span><b class="liga-tag aus">DSQ</b> = disqualifiziert</span><span>Durchgestrichen = Streichergebnis</span></p>`, "liga-tabelle-bereich"));
 
@@ -667,7 +691,7 @@
     const titelLaeuft = d.rennenGesamt > 1 && d.restRennen > 0;
     const spitzeTitel = titelLaeuft ? "Titelkampf" : d.rennenGesamt > 1 && d.restRennen === 0 ? "Endstand" : "Die Spitze";
     const spitzeMeta = titelLaeuft ? `Noch ${d.restRennen} Rennen · bis zu ${d.maxProRennen} Punkte pro Rennen` : `Nach ${d.rennen.length} von ${d.rennenGesamt} Rennen`;
-    einfuegen(abschnitt(spitzeTitel, spitzeMeta, "", `<div class="liga-karten">${besetzt.map((k) => karte(k, d)).join("")}</div>${titelLaeuft ? '<p class="liga-legende"><span>Voller Balken = aktuelle Punkte</span><span>Heller Balken = bis Saisonende noch möglich</span><span>Stand ohne künftige Strafen</span></p>' : ""}`));
+    if (!d.istEvent) einfuegen(abschnitt(spitzeTitel, spitzeMeta, "", `<div class="liga-karten">${besetzt.map((k) => karte(k, d)).join("")}</div>${titelLaeuft ? '<p class="liga-legende"><span>Voller Balken = aktuelle Punkte</span><span>Heller Balken = bis Saisonende noch möglich</span><span>Stand ohne künftige Strafen</span></p>' : ""}`));
     const fahrerkarten = fahrerkartenAbschnitt(besetzt, regeln, d);
     if (fahrerkarten) einfuegen(fahrerkarten);
     // Rennen und Regeln nebeneinander
@@ -678,7 +702,7 @@
     const reiter = [...document.querySelectorAll(".liga-tabs button")];
     const ansichtKnoepfe = [...document.querySelectorAll("[data-ansicht]")];
     // Ein einzelnes Event hat keine Saison, dort zählt nur das Rennergebnis.
-    let ansicht = d.rennenGesamt === 1 && rennenMitErgebnis.length ? String(rennenMitErgebnis[0].nr) : "saison";
+    let ansicht = (d.rennenGesamt === 1 || d.istEvent) && rennenMitErgebnis.length ? String(rennenMitErgebnis[0].nr) : "saison";
     let aktiv = (alleReiter.find((k) => k.fahrer.length) || alleReiter[0]).id;
     const zeichne = () => {
       const k = alleReiter.find((x) => x.id === aktiv);
@@ -722,5 +746,6 @@
     const d = daten.tabelle;
     if (d && Array.isArray(d.rennen) && d.rennen.length && Array.isArray(d.klassen)) zeige(d, s);
     else leer(s);
+    if (daten.eventreihe) eventreiheZeigen(daten.eventreihe);
   });
 })();

@@ -28,3 +28,13 @@
   .fa-karte{max-width:340px;width:100%}
 }
 @media (max-width:620px){.fa-zahlen{grid-template-columns:repeat(3,minmax(0,1fr));width:100%}}
+
+/* Event-Erfolge */
+.fa-erfolge{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:6px;margin:0;padding:0;list-style:none}
+.fa-erfolge li{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:11px 14px;background:var(--paper);border-left:4px solid var(--scan)}
+.fa-erfolge li.p1{border-left-color:var(--liga-gold)}
+.fa-erfolge li.p2{border-left-color:var(--liga-silber)}
+.fa-erfolge li.p3{border-left-color:var(--liga-bronze)}
+.fa-erfolge b{font:900 .9rem/1 var(--f-wide);text-transform:uppercase}
+.fa-erfolge a{font-weight:700;color:var(--ink);text-underline-offset:3px}
+.fa-erfolge small{flex:1 1 100%;font:.72rem/1.2 var(--f-mono);color:var(--muted)}

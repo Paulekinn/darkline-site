@@ -6,6 +6,7 @@ const { blobPut, blobDelete, blobList } = require("./blob");
 const D = require("./liga-daten");
 const { fahrerKennung } = require("./session");
 const { Hinweis } = D;
+const { eventErfolge } = require("./liga-events");
 
 const PREFIX = "liga/fahrerprofile/";
 const PID = /^[0-9a-f]{16}$/;
@@ -124,13 +125,14 @@ function fahrerAkte(serien, tabellen, pid) {
   });
   if (!treffer.length) return null;
   const verlauf = treffer.flatMap(({ s, t, k, f }) => f.rennen.map((r, i) => r && t.rennen[i] && {
-    serie: s.id, serieName: s.name, serieFarbe: s.farbe || "rot", klasse: k.name, nr: t.rennen[i].nr, strecke: t.rennen[i].strecke, start: t.rennen[i].start,
+    serie: s.id, serieName: s.name, serieFarbe: s.farbe || "rot", event: s.typ === "event", klasse: k.name, nr: t.rennen[i].nr, strecke: t.rennen[i].strecke, start: t.rennen[i].start,
     platz: r.platz, status: r.status, punkte: r.punkte, pole: r.pole, schnellsteRunde: r.schnellsteRunde, strafe: r.strafe, gestrichen: r.gestrichen, zeitstrafe: r.zeitstrafe,
   }).filter(Boolean)).sort((a, b) => String(b.start).localeCompare(String(a.start)));
   const anzahl = (bedingung) => verlauf.filter(bedingung).length;
   return {
     name: treffer[0].f.name,
     bilanz: { starts: verlauf.length, siege: anzahl((r) => r.platz === 1), podien: anzahl((r) => r.platz !== null && r.platz <= 3), poles: anzahl((r) => r.pole), schnellste: anzahl((r) => r.schnellsteRunde), ausfaelle: anzahl((r) => r.status !== "OK") },
+    erfolge: eventErfolge(serien, tabellen, pid),
     karten: treffer.map(({ s, t, k, f }) => ({ pid, serie: s.id, serieName: s.name, serieTyp: s.typ || "liga", bildVersion: s.bildVersion || 0, rennenGesamt: t.rennenGesamt, klasseId: k.id, klasse: k.name, offen: k.offen, min: k.min, max: k.max, name: f.name, pos: f.pos, punkte: f.punkte, rennen: f.rennen, karte: f.karte })),
     verlauf,
   };

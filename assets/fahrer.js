@@ -23,7 +23,7 @@
       <td>${esc(datum(r.start))}</td>
       <td><a class="fa-serie s-${esc(r.serieFarbe)}" href="/liga?serie=${encodeURIComponent(r.serie)}">${esc(r.serieName)}</a></td>
       <td>${esc(r.klasse)}</td>
-      <td class="zahl liga-rennen${r.gestrichen ? " gestrichen" : ""}">${ok ? `<b>${r.punkte}</b>` : `<b><span class="liga-tag aus">${esc(r.status)}</span></b>`}${tags ? `<small>${tags}</small>` : ""}</td>
+      <td class="zahl liga-rennen${r.gestrichen ? " gestrichen" : ""}">${ok ? `<b>${r.event ? `P${r.platz}` : r.punkte}</b>` : `<b><span class="liga-tag aus">${esc(r.status)}</span></b>`}${tags ? `<small>${tags}</small>` : ""}</td>
     </tr>`;
   }
 
@@ -51,6 +51,7 @@
           ${karteHtml(haupt, p)}
         </div>
       </section>
+      ${(d.erfolge || []).length ? `<section class="sheet"><div class="wrap"><div class="doc-head"><h2 class="wide">Event-Erfolge</h2><div class="doc-meta lbl">${d.erfolge.length} ${d.erfolge.length === 1 ? "Podium" : "Podien"}</div></div><ul class="fa-erfolge">${d.erfolge.map((e) => `<li class="${podium(e.platz)}"><b>${e.platz === 1 ? "Sieger" : `P${e.platz}`}</b><a href="/liga?serie=${encodeURIComponent(e.serie)}">${esc(e.titel)}</a>${e.klasse ? `<small>${esc(e.klasse)}</small>` : ""}</li>`).join("")}</ul></div></section>` : ""}
       ${d.karten.length > 1 ? `<section class="sheet"><div class="wrap"><div class="doc-head"><h2 class="wide">Weitere Serien</h2><div class="doc-meta lbl">${d.karten.length} Wertungen</div></div><div class="fa-karten">${d.karten.slice(1).map((k) => karteHtml(k, p)).join("")}</div></div></section>` : ""}
       <section class="sheet"><div class="wrap">
         <div class="doc-head"><h2 class="wide">Ergebnisse</h2><div class="doc-meta lbl">${b.starts} ${b.starts === 1 ? "Rennen" : "Rennen"}</div></div>

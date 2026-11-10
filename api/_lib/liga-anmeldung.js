@@ -148,7 +148,7 @@ function eigeneKarten(serienListe, tabellen, iracingName, pid) {
     return t.klassen.flatMap((k) => {
       const f = k.fahrer.find((x) => x.karte && (x.pid ? x.pid === pid : x.name.trim().toLowerCase() === name));
       if (!f) return [];
-      return [{ pid: f.pid, serie: s.id, serieName: s.name, bildVersion: s.bildVersion || 0, rennenGesamt: t.rennenGesamt, klasseId: k.id, klasse: k.name, offen: k.offen, min: k.min, max: k.max, name: f.name, pos: f.pos, punkte: f.punkte, rennen: f.rennen, karte: f.karte }];
+      return [{ pid: f.pid, serie: s.id, serieName: s.name, serieTyp: s.typ || "liga", bildVersion: s.bildVersion || 0, rennenGesamt: t.rennenGesamt, klasseId: k.id, klasse: k.name, offen: k.offen, min: k.min, max: k.max, name: f.name, pos: f.pos, punkte: f.punkte, rennen: f.rennen, karte: f.karte }];
     });
   });
 }

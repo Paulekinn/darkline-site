@@ -51,6 +51,7 @@ function pruefeSerie(e) {
   const serie = {
     name,
     typ: e.typ === "event" ? "event" : "liga",
+    eventReihe: e.typ === "event" ? text(e.eventReihe, 60) : "",
     saison: text(e.saison, 40),
     status: ["geplant", "anmeldung", "laeuft", "beendet"].includes(e.status) ? e.status : "anmeldung",
     anmeldungOffen: e.anmeldungOffen !== false && e.anmeldungOffen !== "false",

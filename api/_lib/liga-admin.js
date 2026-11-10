@@ -195,6 +195,12 @@ function streckeZiel(kat, ziel) {
   return strecke;
 }
 
+// Bei Events zählt nur die Platzierung, Strafpunkte hätten dort keine Wirkung.
+function keinePunkteBeiEvents(kat, serieId, art) {
+  const serie = kat.serien.find((s) => s.id === serieId);
+  if (art === "strafpunkte" && serie && serie.typ === "event") throw new Hinweis("Bei Events gibt es keine Strafpunkte. Bitte wähle eine Zeitstrafe oder Disqualifikation.");
+}
+
 const aktionen = {
   async "serie-speichern"(b, kat) {
     const daten = D.pruefeSerie(b.serie || {});
@@ -449,6 +455,7 @@ const aktionen = {
     const report = await R.lesen(b.id);
     darfEntscheiden(report, s);
     if (report.urteil) throw new Hinweis("Dieser Report ist bereits entschieden.");
+    keinePunkteBeiEvents(kat, report.serie, (b.stimme || {}).art);
     await R.speichern(R.stimmeSetzen(report, s, R.pruefeStimme(b.stimme || {})));
     return {};
   },
@@ -460,6 +467,7 @@ const aktionen = {
   },
   async "strafe-hinzufuegen"(b, kat) {
     serieFinden(kat, b.serie);
+    keinePunkteBeiEvents(kat, b.serie, "strafpunkte");
     const punkte = Number(b.punkte);
     if (!Number.isInteger(punkte) || punkte < 1 || punkte > 1000) throw new Hinweis("Bitte gib die Strafpunkte als ganze Zahl an.");
     const ergebnis = (await D.ergebnisseLesen(b.serie)).find((e) => e.id === String(b.rennen));
@@ -509,6 +517,7 @@ const aktionen = {
     const report = await R.lesen(b.id);
     darfEntscheiden(report, s);
     const urteil = R.pruefeUrteil(b.urteil || {});
+    keinePunkteBeiEvents(kat, report.serie, urteil.art);
     let ziel = null;
     if (R.istStrafend(urteil)) {
       const ergebnis = (await D.ergebnisseLesen(report.serie)).find((e) => e.id === String(b.ergebnis));

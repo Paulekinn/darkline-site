@@ -424,6 +424,7 @@
       ${abschnittForm(1, "Grundlagen", `<div class="a-felder">
         ${feld("Name", eingabe("name", w.name, 'maxlength="60"'))}
         ${feld("Art", auswahl("typ", w.typ, [["liga", "Liga"], ["event", "Event"]]))}
+        <div class="a-feld" data-nur-event${w.typ === "event" ? "" : " hidden"}><label>Eventreihe</label>${eingabe("eventReihe", w.eventReihe || "", 'maxlength="60" list="a-eventreihen" autocomplete="off" placeholder="z. B. 6h Nürburgring"')}<datalist id="a-eventreihen">${[...new Set(d.serien.map((s) => s.eventReihe).filter(Boolean))].map((n) => `<option value="${esc(n)}"></option>`).join("")}</datalist></div>
         <div class="a-feld" data-nur-liga${w.typ === "event" ? " hidden" : ""}><label>Saison</label>${eingabe("saison", w.saison, 'maxlength="40" placeholder="Saison 1"')}</div>
         ${feld("Status", auswahl("status", w.status, [["geplant", "Geplant"], ["anmeldung", "Anmeldung"], ["laeuft", "Läuft"], ["beendet", "Beendet"]]))}
         ${farben}
@@ -441,7 +442,7 @@
       </div><label class="a-check"><input type="checkbox" name="anmeldungOffen"${w.anmeldungOffen !== false ? " checked" : ""}> Fahrer können sich anmelden</label><p class="a-hinweis">Solange der Status „Geplant“ ist, bleibt die Anmeldung immer geschlossen.</p>`)}
       ${abschnittForm(3, "Klassen", `<label class="a-check"><input type="checkbox" name="ohneKlassen" id="s-ohne-klassen"${w.ohneKlassen ? " checked" : ""}> Keine Klassen nach iRating: alle fahren in einer gemeinsamen Wertung, bei Multiclass je Fahrzeugklasse</label>
         <div class="a-spalte" id="a-klassen-bereich"${w.ohneKlassen ? " hidden" : ""}><div class="a-klassen-kopf"><span>Name</span><span>Von</span><span>Bis</span><span></span></div><div class="a-klassen" id="a-klassen">${w.klassen.map(klasseZeile).join("")}</div><div><button type="button" class="a-knopf zweit klein" data-klasse-neu="1">Klasse hinzufügen</button></div><div id="a-klassen-check"></div></div>`)}
-      ${abschnittForm(4, "Punkte", `<div class="a-leiste"><span class="a-beschriftung">Vorlage</span>${PUNKTE_VORLAGEN.map(([t], i) => `<button type="button" class="a-knopf zweit klein" data-punkte-vorlage="${i}">${esc(t)}</button>`).join("")}</div><div class="a-felder">
+      <div data-nur-liga${w.typ === "event" ? " hidden" : ""}>${abschnittForm(4, "Punkte", `<div class="a-leiste"><span class="a-beschriftung">Vorlage</span>${PUNKTE_VORLAGEN.map(([t], i) => `<button type="button" class="a-knopf zweit klein" data-punkte-vorlage="${i}">${esc(t)}</button>`).join("")}</div><div class="a-felder">
         ${feld("Punkte nach Platz", eingabe("punkte", w.punkte.join(", ")), true)}
         ${feld("Punkte für alle danach", eingabe("punkteDanach", w.punkteDanach, 'type="number" min="0"'))}
         ${feld("Bonus Pole", eingabe("bonusPole", w.bonusPole, 'type="number" min="0"'))}
@@ -449,7 +450,7 @@
         ${feld("Mindestrunden in Prozent", eingabe("mindestRundenProzent", w.mindestRundenProzent, 'type="number" min="0" max="100"'))}
         ${feld("Mindestzahl an Startern", eingabe("mindestStarter", w.mindestStarter ?? 5, 'type="number" min="0"'))}
         ${feld("Punkte bei verkürzter Distanz (%)", eingabe("punkteVerkuerztProzent", w.punkteVerkuerztProzent ?? 50, 'type="number" min="0" max="100"'))}
-      </div>`)}
+      </div>`)}</div>
       ${abschnittForm(5, "Briefing-Vorlage", `<textarea name="briefingVorlage" maxlength="10000" placeholder="Wird bei jedem neuen Rennen automatisch eingefügt">${esc(w.briefingVorlage || "")}</textarea>`, "Markdown ist möglich. Bereits angelegte Rennen bleiben unverändert.")}
       ${abschnittForm(6, "Bild der Serie", form.id ? bildFeld(form.id) : '<p class="a-hinweis">Ein eigenes Bild kannst du hinzufügen, sobald die Serie gespeichert ist.</p>')}
       ${formLeiste("Serie speichern", loeschen)}
@@ -814,7 +815,7 @@
       const aktion = s.reportId ? '<span class="a-chip">aus Report</span>' : `<button type="button" class="a-knopf gefahr klein" data-strafe-loeschen="${esc(s.id)}">Löschen</button>`;
       return `<tr><td>${esc(s.name)}</td><td class="umbruch">${esc(e ? e.strecke : s.rennen)}</td><td class="rechts">${esc(wert)}</td><td class="umbruch">${esc(s.grund || "")}</td><td class="rechts">${aktion}</td></tr>`;
     }).join("");
-    const strafForm = det.ergebnisse.length ? `<form class="a-felder" id="f-strafe" novalidate>
+    const strafForm = det.ergebnisse.length && (serieVon(serieId) || {}).typ !== "event" ? `<form class="a-felder" id="f-strafe" novalidate>
         ${feld("Rennen", `<select name="rennen" id="s-rennen">${det.ergebnisse.map((e) => `<option value="${esc(e.id)}">${esc(e.strecke)} · ${esc(zeit(e.start))}</option>`).join("")}</select>`)}
         ${feld("Fahrer", `<select name="cust" id="s-fahrer">${fahrerOptionen(det.ergebnisse[0])}</select>`)}
         ${feld("Strafpunkte", '<input name="punkte" type="number" min="1">')}
@@ -946,6 +947,9 @@
     </form>`;
   }
 
+  // Bei Events zählt nur die Platzierung, dort gibt es keine Strafpunkte.
+  const urteileFuer = (r) => URTEILE.filter(([a]) => a !== "strafpunkte" || (serieVon(r.serie) || {}).typ !== "event");
+
   // Stimmen der Stewards. Solange man nicht selbst abgestimmt hat, bleiben die anderen verborgen.
   function abstimmung(r) {
     if (r.ichBeteiligt) return "";
@@ -955,7 +959,7 @@
     const ergebnis = s.mehrheit ? `<p class="a-meldung">Mehrheit: ${esc(stimmeText(s.mehrheit))} (${s.mehrheit.anzahl} Stimmen). Die Entscheidung unten ist damit vorbelegt.</p>` : "";
     const e = s.eigene || {};
     const form = r.urteil ? "" : `<form id="f-stimme" class="a-felder" novalidate>
-        ${feld("Deine Stimme", `<select name="art">${URTEILE.map(([v, t]) => `<option value="${v}"${v === (e.art || "kein-vergehen") ? " selected" : ""}>${t}</option>`).join("")}</select>`)}
+        ${feld("Deine Stimme", `<select name="art">${urteileFuer(r).map(([v, t]) => `<option value="${v}"${v === (e.art || "kein-vergehen") ? " selected" : ""}>${t}</option>`).join("")}</select>`)}
         ${feld("Punkte oder Sekunden", `<input name="wert" type="number" min="1" value="${esc(e.punkte ?? e.sekunden ?? "")}">`)}
         ${feld("Kurze Notiz", `<input name="notiz" maxlength="300" value="${esc(e.notiz || "")}">`, true)}
         <div><button type="submit" class="a-knopf zweit klein">${s.eigene ? "Stimme ändern" : "Stimme abgeben"}</button></div>
@@ -984,7 +988,7 @@
       <div class="a-felder">
         ${feld("Vorlage aus dem Strafkatalog", `<select name="vergehen" id="u-katalog"><option value="">Keine Vorlage</option>${katalogVorlagen().map((k) => `<option value="${esc(k.nr)}"${k.nr === u.vergehen ? " selected" : ""}>${esc(`${k.nr} ${k.gruppe}: ${k.erklaerung}`)}</option>`).join("")}</select>`, true)}
         <div class="a-aehnlich breit" id="u-aehnlich">${aehnlicheFaelle(u.vergehen, r.id)}</div>
-        ${feld("Entscheidung", `<select name="art" id="u-art">${URTEILE.map(([v, t]) => `<option value="${v}"${v === art ? " selected" : ""}>${t}</option>`).join("")}</select>`)}
+        ${feld("Entscheidung", `<select name="art" id="u-art">${urteileFuer(r).map(([v, t]) => `<option value="${v}"${v === art ? " selected" : ""}>${t}</option>`).join("")}</select>`)}
         <div class="a-feld" data-nur="strafpunkte"${art === "strafpunkte" ? "" : " hidden"}><label>Strafpunkte</label><input name="punkte" type="number" min="1" value="${esc(u.punkte ?? "")}"></div>
         <div class="a-feld" data-nur="zeitstrafe"${art === "zeitstrafe" ? "" : " hidden"}><label>Sekunden</label><input name="sekunden" type="number" min="1" value="${esc(u.sekunden ?? "")}"></div>
         <div class="a-feld" data-nur="strafe"${strafend ? "" : " hidden"}><label>Eingelesenes Ergebnis</label><select name="ergebnis" id="u-ergebnis">${det.ergebnisse.map((e) => `<option value="${esc(e.id)}"${naechstes && e.id === naechstes.id ? " selected" : ""}>${esc(e.strecke)} · ${esc(zeit(e.start))}</option>`).join("")}</select></div>
@@ -1339,6 +1343,7 @@
     if (t.name === "typ" && t.closest("#f-serie")) {
       const f = t.closest("#f-serie");
       f.querySelectorAll("[data-nur-liga]").forEach((el) => { el.hidden = t.value === "event"; });
+      f.querySelectorAll("[data-nur-event]").forEach((el) => { el.hidden = t.value !== "event"; });
       // Ein Event ist ein einzelnes Rennen.
       if (t.value === "event") { f.elements.rennenGesamt.value = 1; f.elements.gewerteteRennen.value = 1; f.elements.saison.value = ""; }
       return;

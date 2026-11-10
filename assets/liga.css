@@ -477,3 +477,18 @@ a.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--paper
 .liga-strecke .liga-vorlaeufig{justify-self:start;margin-top:5px}
 .liga-vorlaeufig-hinweis{display:flex;flex-wrap:wrap;gap:3px 10px;align-items:baseline;margin:0 0 10px;padding:10px 13px;background:color-mix(in srgb,var(--liga-gelb) 11%,var(--paper));border-left:4px solid var(--liga-gelb);font-size:.9rem;color:#d8ddda}
 .liga-vorlaeufig-hinweis b{font:900 .84rem/1.2 var(--f-wide);font-variation-settings:"wdth" 112;text-transform:uppercase;color:var(--liga-gelb)}
+
+/* Eventreihen */
+.liga-ausgaben{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:8px}
+.liga-ausgabe{display:grid;gap:10px;align-content:start;padding:14px 16px;background:var(--paper);border-top:3px solid var(--liga-gold)}
+.liga-ausgabe header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.liga-ausgabe header a{color:var(--ink);text-decoration:none}
+.liga-ausgabe header b{font:900 1.5rem/1 var(--f-wide);font-variation-settings:"wdth" 116}
+.liga-ausgabe h3{margin:0 0 5px;font:700 .68rem/1.2 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.liga-ausgabe ol{display:grid;gap:5px;margin:0;padding:0;list-style:none}
+.liga-ausgabe li{display:flex;align-items:baseline;gap:9px;font-weight:700;overflow-wrap:anywhere}
+.liga-ausgabe li a{color:inherit;text-underline-offset:3px}
+.liga-ausgabe li em{font:900 1rem/1 var(--f-wide);font-style:normal}
+.liga-ausgabe li.p1 em{color:var(--liga-gold)}
+.liga-ausgabe li.p2 em{color:var(--liga-silber)}
+.liga-ausgabe li.p3 em{color:var(--liga-bronze)}

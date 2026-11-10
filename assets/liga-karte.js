@@ -23,7 +23,7 @@
     const avatar = p.bild && d.pid ? `<img class="liga-fk-avatar" src="${esc(avatarVon(d.pid, p.bild))}" alt="" width="48" height="48">` : "";
     return `<div class="liga-fk-bild" style="background-image:url('${esc(bildVon(d.serie, d.bildVersion))}')" aria-hidden="true"></div>
       <div class="liga-fk-kopf"><div class="liga-fk-rating"><b>${c.rating === null ? "–" : c.rating}</b><span>${esc(hinweis)}</span></div><span class="liga-fk-klasse">${esc(d.klasse)}</span></div>
-      <div class="liga-fk-fahrer">${avatar}<div class="liga-fk-name"><strong>${p.nummer ? `<span class="liga-fk-nummer">#${esc(p.nummer)}</span> ` : ""}${esc(d.name)}</strong><small>${flagge(p.land)}${esc(d.serieName)} · P${d.pos} · ${d.punkte} Punkte</small></div></div>
+      <div class="liga-fk-fahrer">${avatar}<div class="liga-fk-name"><strong>${p.nummer ? `<span class="liga-fk-nummer">#${esc(p.nummer)}</span> ` : ""}${esc(d.name)}</strong><small>${flagge(p.land)}${esc(d.serieName)} · P${d.pos}${d.serieTyp === "event" ? "" : ` · ${d.punkte} Punkte`}</small></div></div>
       ${werte(c)}
       <div class="liga-fk-form" aria-label="Ergebnisse der letzten Rennen">${d.rennen.slice(-6).map(formKasten).join("")}</div>
       ${c.abzeichen.length ? `<div class="liga-fk-abzeichen">${c.abzeichen.map((a) => `<span class="a-${esc(a.art)}">${esc(a.text)}</span>`).join("")}</div>` : ""}`;

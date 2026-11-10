@@ -79,6 +79,28 @@ const T = require("../api/_lib/liga-renntag");
 const K = require("../api/_lib/liga-regeln");
 
 const tests = {
+  "Eventreihe: Siegerliste, und die Bestenliste zählt nur endgültige Ergebnisse": () => {
+    const E = require("../api/_lib/liga-events");
+    const zeile = (name, pid, platz, status = "OK") => ({ name, pid, gesamt: { platz, status } });
+    const tab = (start, namen) => ({ rennen: [{ start, ergebnisse: [{ fahrzeugklasse: "GT3", zeilen: namen }] }] });
+    const a = [zeile("Anna", "a", 1), zeile("Ben", "b", 2), zeile("Cem", "c", 3), zeile("Dia", "d", 4)];
+    const b = [zeile("Ben", "b", 1), zeile("Anna", "a", 2), zeile("Eva", "e", null, "DNF")];
+    const serien = [{ id: "e25", name: "6h 2025" }, { id: "e26", name: "6h 2026" }, { id: "e27", name: "6h 2027" }];
+    const tabellen = new Map([["e25", tab("2025-05-01T18:00:00Z", a)], ["e26", tab("2026-05-01T18:00:00Z", b)], ["e27", tab("2027-05-01T18:00:00Z", b)]]);
+    const r = E.eventReihe("6h", serien, tabellen, (s) => s.id === "e27");
+    assert.deepStrictEqual(r.ausgaben.map((x) => [x.jahr, x.vorlaeufig]), [["2027", true], ["2026", false], ["2025", false]]);
+    assert.deepStrictEqual(r.bestenliste.map((f) => [f.name, f.p1, f.p2, f.p3]), [["Anna", 1, 1, 0], ["Ben", 1, 1, 0], ["Cem", 0, 0, 1]]);
+    assert.strictEqual(r.ausgaben[2].klassen[0].podium.length, 3);
+  },
+  "Eventreihe: Erfolge fürs Profil und Tabellen ohne Ergebnis": () => {
+    const E = require("../api/_lib/liga-events");
+    const zeile = (pid, platz) => ({ name: pid, pid, gesamt: { platz, status: "OK" } });
+    const tab = { rennen: [{ start: "2026-05-01T18:00:00Z", ergebnisse: [{ fahrzeugklasse: "GT3", zeilen: [zeile("a", 1), zeile("b", 2)] }] }] };
+    const serien = [{ id: "e", name: "Einmal", typ: "event", eventReihe: "6h Spa" }, { id: "l", name: "Liga", typ: "liga" }];
+    assert.deepStrictEqual(E.eventErfolge(serien, new Map([["e", tab], ["l", tab]]), "b").map((x) => [x.titel, x.platz]), [["6h Spa 2026", 2]]);
+    assert.strictEqual(E.podienVon(null), null);
+    assert.deepStrictEqual(E.eventReihe("x", [{ id: "e" }], new Map(), () => false), { name: "x", ausgaben: [], bestenliste: [] });
+  },
   "Sortierung: Nummern stehen an der richtigen Stelle": () => {
     const F = require("../assets/liga-reglement-format.js");
     assert.deepStrictEqual(["5.10", "4.3", "", "5.8", "04.0", "5"].sort(F.nummerVergleich), ["04.0", "4.3", "5", "5.8", "5.10", ""]);
