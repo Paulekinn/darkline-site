@@ -492,3 +492,19 @@ a.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--paper
 .liga-ausgabe li.p1 em{color:var(--liga-gold)}
 .liga-ausgabe li.p2 em{color:var(--liga-silber)}
 .liga-ausgabe li.p3 em{color:var(--liga-bronze)}
+
+/* Liga-Seiten: ein durchgehender Hintergrund mit weichen Lichtflecken statt einzelner Abschnitts-Kacheln.
+   Ohne die Sektor-Marken S1, S2 … und ohne Trennlinien. Das Startbild läuft in denselben Grundton aus. */
+:is(#liga-main,#rw-main,#fa-main,#fb-main){position:relative;isolation:isolate;background:
+  linear-gradient(180deg,var(--sheet) 0,var(--sheet) 380px,transparent 880px),
+  radial-gradient(70vw 560px at 92% 16%,rgba(211,18,27,.10),transparent 70%),
+  radial-gradient(60vw 760px at 4% 40%,rgba(124,72,214,.07),transparent 72%),
+  radial-gradient(70vw 760px at 96% 76%,rgba(211,18,27,.07),transparent 72%),
+  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .045 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+  var(--sheet);
+  background-repeat:no-repeat,no-repeat,no-repeat,no-repeat,repeat,no-repeat}
+:is(#liga-main,#rw-main,#fa-main,#fb-main) > .sheet{background:none;border-top:0}
+:is(#liga-main,#rw-main,#fa-main,#fb-main) > .sheet::before{content:none}
+:is(#liga-main,#rw-main,#fa-main,#fb-main) > section + section{border-top:0}
+.liga-kopf{--monitor:var(--sheet);background:transparent}
+.liga-kopf .photo{-webkit-mask-image:linear-gradient(180deg,#000 62%,transparent);mask-image:linear-gradient(180deg,#000 62%,transparent)}
