@@ -463,8 +463,9 @@
           <div class="a-felder">
             ${feld("Einstufung der Fahrer", auswahl("einstufungArt", w.einstufungArt || "irating", [["irating", "Nach iRating"], ["sichtung", "Nach Sichtungsrennen"]]))}
             <div class="a-feld" data-nur-sichtung${w.einstufungArt === "sichtung" ? "" : " hidden"}><label>Pace-Grenzen in % zur schnellsten Runde</label>${eingabe("sichtungGrenzen", (w.sichtungGrenzen || []).join(" / ").replace(/\./g, ","), 'placeholder="101,5 / 103" autocomplete="off"')}</div>
+            <div class="a-feld" data-nur-sichtung${w.einstufungArt === "sichtung" ? "" : " hidden"}><label>Mindestrunden je Sichtungsstrecke (0 = keine)</label>${eingabe("sichtungMindestRunden", w.sichtungMindestRunden ?? 0, 'type="number" min="0"')}</div>
           </div>
-          <p class="a-hinweis" data-nur-sichtung${w.einstufungArt === "sichtung" ? "" : " hidden"}>Je eine Grenze zwischen zwei Klassen, von oben nach unten. Beispiel bei Pro, Pro-Am und Am: „101,5 / 103“ heißt bis 101,5 % Pro, bis 103 % Pro-Am, darüber Am. Leer lassen für die Standardwerte. Wer keine Sichtung gefahren ist, wird nach den iRating-Grenzen oben eingestuft.</p></div>`)}
+          <p class="a-hinweis" data-nur-sichtung${w.einstufungArt === "sichtung" ? "" : " hidden"}>Je eine Grenze zwischen zwei Klassen, von oben nach unten. Beispiel bei Pro, Pro-Am und Am: „101,5 / 103“ heißt bis 101,5 % Pro, bis 103 % Pro-Am, darüber Am. Leer lassen für die Standardwerte. Besteht die Sichtung aus mehreren Strecken (je ein Rennen als Sichtungsrennen markieren), zählt der Mittelwert der Strecken. Eine Strecke zählt nur mit den Mindestrunden. Wer keine Sichtung gefahren ist, wird nach den iRating-Grenzen oben eingestuft.</p></div>`)}
       <div data-nur-liga${w.typ === "event" ? " hidden" : ""}>${abschnittForm(4, "Punkte", `<div class="a-leiste"><span class="a-beschriftung">Vorlage</span>${PUNKTE_VORLAGEN.map(([t], i) => `<button type="button" class="a-knopf zweit klein" data-punkte-vorlage="${i}">${esc(t)}</button>`).join("")}</div><div class="a-felder">
         ${feld("Punkte nach Platz", eingabe("punkte", w.punkte.join(", ")), true)}
         ${feld("Punkte für alle danach", eingabe("punkteDanach", w.punkteDanach, 'type="number" min="0"'))}
@@ -784,6 +785,8 @@
 
   // Klassenvorschlag aus den Sichtungsrennen. Übernommen wird erst auf Knopfdruck, danach lässt sich jede Klasse oben einzeln ändern.
   const rundenzeit = (t) => { if (!t) return "–"; const s = t / 10000; return `${Math.floor(s / 60)}:${(s % 60).toFixed(3).padStart(6, "0")}`; };
+  // „Circuit de Spa-Francorchamps · Grand Prix“ → „Spa-Francorchamps“, damit drei Strecken nebeneinander passen
+  const kurzerStreckenname = (s) => { const n = s.split(" · ")[0].replace(/^(Circuit de |Circuit |Autodromo Nazionale |Autodromo Internazionale |Autodromo |Autódromo |Circuito de |Circuito )/i, "").replace(/ (Circuit|Raceway|Speedway|Motorsport Park)$/i, ""); return n.length > 16 ? `${n.slice(0, 15)}…` : n; };
   function sichtungKarte(serie, det) {
     const v = det.sichtung;
     if (!v || !serie || serie.ohneKlassen) return "";
@@ -791,12 +794,15 @@
     const grenzen = v.klassen.map((k, i) => (i < v.grenzen.length ? `${esc(k.name)} bis ${String(v.grenzen[i]).replace(".", ",")} %` : `${esc(k.name)} darüber`)).join(" · ");
     if (!v.fahrer.length) return `<section class="a-karte"><h2>Sichtung</h2><p class="a-leer">Noch kein Sichtungsrennen eingelesen. Hak beim Rennen „Sichtungsrennen“ an und lies danach das Ergebnis ein. Bis dahin gilt die Klasse nach iRating.</p><p class="a-hinweis">Grenzen: ${grenzen}</p></section>`;
     const offen = v.fahrer.filter((f) => f.vorschlag && f.vorschlag !== f.fest).length;
-    const zeile = (f) => `<tr><td>${esc(f.name)}${f.fahrzeugklasse && v.fahrer.some((x) => x.fahrzeugklasse !== f.fahrzeugklasse) ? ` ${fahrzeugChip(f.fahrzeugklasse)}` : ""}</td><td class="rechts">${rundenzeit(f.besteRunde)}</td><td class="rechts">${f.prozent === null ? "–" : `${String(f.prozent.toFixed(1)).replace(".", ",")} %`}</td><td><b>${esc(name(f.vorschlag))}</b></td><td>${esc(name(f.nachIrating))}</td><td>${f.fest ? (f.fest === f.vorschlag ? '<span class="a-chip gruen">Übernommen</span>' : `<span class="a-chip gelb">${esc(name(f.fest))}</span>`) : '<span class="a-chip">nach iRating</span>'}</td></tr>`;
-    return `<section class="a-karte"><div class="a-kartenkopf"><h2>Sichtung</h2><span class="a-chip">${v.rennen} Sichtungsrennen · ${v.fahrer.length} Fahrer</span></div>
-      <p class="a-hinweis">Vorschlag aus der besten Runde im Vergleich zur schnellsten der Fahrzeugklasse. Grenzen: ${grenzen}</p>
-      <div class="a-scroll"><table><thead><tr><th>Fahrer</th><th class="rechts">Beste Runde</th><th class="rechts">Abstand</th><th>Vorschlag</th><th>Nach iRating</th><th>Aktuell</th></tr></thead><tbody>${v.fahrer.map(zeile).join("")}</tbody></table></div>
+    const prozent = (p) => `${String(p.toFixed(1)).replace(".", ",")} %`;
+    // Je Strecke: Abstand und darunter die Rundenzeit. Ungültig heißt: zu wenige Runden oder keine Rundenzeit.
+    const zelle = (z) => (!z ? '<td class="rechts">–</td>' : z.gueltig ? `<td class="rechts">${prozent(z.prozent)}<small class="a-unter">${rundenzeit(z.zeit)}</small></td>` : `<td class="rechts"><span class="a-chip rot" title="${esc(`${z.runden} Runden${v.mindestRunden ? `, nötig ${v.mindestRunden}` : ""}`)}">ungültig</span></td>`);
+    const zeile = (f) => `<tr><td>${esc(f.name)}${f.fahrzeugklasse && v.fahrer.some((x) => x.fahrzeugklasse !== f.fahrzeugklasse) ? ` ${fahrzeugChip(f.fahrzeugklasse)}` : ""}</td>${f.zeiten.map(zelle).join("")}<td class="rechts"><b>${f.prozent === null ? "–" : prozent(f.prozent)}</b></td><td>${f.vollstaendig ? `<b>${esc(name(f.vorschlag))}</b>` : `<span class="a-chip gelb" title="Nicht jede Strecke gültig gefahren, bitte von Hand einstufen">${f.gewertet} von ${v.strecken.length} Strecken</span>`}</td><td>${esc(name(f.nachIrating))}</td><td>${f.fest ? (f.fest === f.vorschlag ? '<span class="a-chip gruen">Übernommen</span>' : `<span class="a-chip gelb">${esc(name(f.fest))}</span>`) : '<span class="a-chip">nach iRating</span>'}</td></tr>`;
+    return `<section class="a-karte"><div class="a-kartenkopf"><h2>Sichtung</h2><span class="a-chip">${v.strecken.length} ${v.strecken.length === 1 ? "Strecke" : "Strecken"} · ${v.fahrer.length} Fahrer</span></div>
+      <p class="a-hinweis">Je Strecke zählt die beste Runde im Vergleich zur schnellsten der Fahrzeugklasse${v.mindestRunden ? `, aber nur mit mindestens ${v.mindestRunden} Runden` : ""}. Entscheidend ist der Mittelwert aller Strecken. Grenzen: ${grenzen}</p>
+      <div class="a-scroll"><table><thead><tr><th>Fahrer</th>${v.strecken.map((s) => `<th class="rechts" title="${esc(s)}">${esc(kurzerStreckenname(s))}</th>`).join("")}<th class="rechts">Schnitt</th><th>Vorschlag</th><th>Nach iRating</th><th>Aktuell</th></tr></thead><tbody>${v.fahrer.map(zeile).join("")}</tbody></table></div>
       <div class="a-leiste"><button type="button" class="a-knopf${offen ? "" : " zweit"}" data-sichtung-uebernehmen="1">${offen ? `Vorschläge übernehmen (${offen} ${offen === 1 ? "Änderung" : "Änderungen"})` : "Vorschläge erneut übernehmen"}</button></div>
-      <p class="a-hinweis">Wer bei keiner Sichtung war, bleibt nach iRating eingestuft. Einzelne Fahrer kannst du danach oben in der Spalte „Klasse“ verschieben.</p>
+      <p class="a-hinweis">Übernommen werden nur Fahrer, die jede Strecke gültig gefahren sind. Alle anderen bleiben nach iRating eingestuft, bis du sie oben in der Spalte „Klasse“ von Hand setzt.</p>
     </section>`;
   }
 

@@ -49,6 +49,7 @@ a{color:inherit}
 h2{margin:0;font:900 1.14rem/1.15 var(--a-breit);font-variation-settings:"wdth" 114;text-transform:uppercase;transform:skewX(-7deg);transform-origin:left bottom}
 h3{margin:6px 0 0;font:800 .8rem/1.2 var(--a-breit);text-transform:uppercase;color:var(--a-leise)}
 .a-hinweis{margin:0;font-size:.84rem;color:var(--a-leise)}
+.a-unter{display:block;font-size:.72rem;color:var(--a-leise)}
 .a-notiz-stand{margin:0;padding:10px 12px;border:1px dashed var(--a-linie,rgba(255,255,255,.2));border-radius:8px;white-space:pre-wrap;font:inherit;font-size:.88rem;max-height:220px;overflow:auto}
 .a-gut{color:var(--a-ok)}
 .a-leer{margin:0;padding:14px;background:var(--a-flaeche2);font-size:.88rem;color:var(--a-leise)}

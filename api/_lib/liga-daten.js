@@ -104,7 +104,7 @@ function pruefeEinstufung(e, klassen, ohneKlassen) {
   const grenzen = eingabe.length ? eingabe.map(Number) : SICHTUNG_STANDARD.slice(0, noetig);
   if (grenzen.length !== noetig) throw new Hinweis(`Für ${klassen.length} Klassen braucht die Sichtung ${noetig} Pace-Grenze${noetig === 1 ? "" : "n"}, zum Beispiel ${SICHTUNG_STANDARD.slice(0, noetig).join(" / ").replace(/\./g, ",")}.`);
   if (grenzen.some((g, i) => !(g > 100 && g < 150) || (i && g <= grenzen[i - 1]))) throw new Hinweis("Die Pace-Grenzen müssen über 100 % liegen und von Klasse zu Klasse steigen, zum Beispiel 101,5 / 103.");
-  return { einstufungArt: "sichtung", sichtungGrenzen: grenzen.map((g) => Math.round(g * 10) / 10) };
+  return { einstufungArt: "sichtung", sichtungGrenzen: grenzen.map((g) => Math.round(g * 10) / 10), sichtungMindestRunden: ganzzahl(e.sichtungMindestRunden ?? 0, "Mindestrunden je Sichtungsstrecke", 0, 200) };
 }
 
 // Ein Ergebnis gehört zu einem Sichtungsrennen, wenn dessen Start höchstens zwölf Stunden daneben liegt. Es zählt dann nicht für die Tabelle.
@@ -114,28 +114,51 @@ function istSichtung(ergebnis, rennen, serieId) {
 }
 const wertungsErgebnisse = (ergebnisse, rennen, serieId) => ergebnisse.filter((e) => !istSichtung(e, rennen, serieId));
 
-// Klassenvorschlag aus den Sichtungsrennen: beste Runde je Fahrer, verglichen mit der schnellsten seiner Fahrzeugklasse.
+// Klassenvorschlag aus der Sichtung. Eine Sichtung besteht meist aus mehreren Strecken:
+// Je Strecke zählt die beste Runde im Vergleich zur schnellsten derselben Fahrzeugklasse auf dieser Strecke, aber nur mit den Mindestrunden.
+// Der Wert eines Fahrers ist der Mittelwert über alle Strecken. Einen Vorschlag gibt es nur, wer jede Strecke gültig gefahren ist.
+const rund1 = (x) => Math.round(x * 10) / 10;
 function sichtungVorschlag(serie, ergebnisse, rennen, einstufung = {}) {
-  const sichtung = ergebnisse.filter((e) => istSichtung(e, rennen, serie.id));
   const klassen = [...serie.klassen].sort((a, b) => b.min - a.min);
   const grenzen = serie.sichtungGrenzen || SICHTUNG_STANDARD.slice(0, klassen.length - 1);
-  const beste = new Map();
-  sichtung.forEach((e) => e.fahrer.forEach((f) => {
-    const bisher = beste.get(f.cust);
-    if (!bisher) beste.set(f.cust, { cust: f.cust, name: f.name, irating: f.irating, fz: f.fahrzeugklasseId, fzName: f.fahrzeugklasseName, besteRunde: f.besteRunde, rennen: 1 });
-    else { bisher.rennen++; if (f.besteRunde && (!bisher.besteRunde || f.besteRunde < bisher.besteRunde)) bisher.besteRunde = f.besteRunde; }
-  }));
-  const liste = [...beste.values()];
-  const referenz = new Map();
-  liste.forEach((f) => { if (f.besteRunde && (!referenz.has(f.fz) || f.besteRunde < referenz.get(f.fz))) referenz.set(f.fz, f.besteRunde); });
-  const fahrer = liste.map((f) => {
-    const prozent = f.besteRunde ? Math.round((f.besteRunde / referenz.get(f.fz)) * 1000) / 10 : null;
-    const stufe = prozent === null ? -1 : grenzen.findIndex((g) => prozent <= g);
-    const vorschlag = prozent === null ? "" : (klassen[stufe === -1 ? klassen.length - 1 : stufe] || {}).id || "";
+  const mindestRunden = serie.sichtungMindestRunden || 0;
+  // Dieselbe Strecke zweimal gefahren (etwa zwei Gruppen) zählt als eine Strecke.
+  const streckenName = (e) => [e.strecke, e.variante].filter(Boolean).join(" · ") || `Rennen ${e.id}`;
+  const jeStrecke = new Map();
+  ergebnisse.filter((e) => istSichtung(e, rennen, serie.id)).sort((a, b) => String(a.start).localeCompare(String(b.start))).forEach((e) => {
+    const name = streckenName(e);
+    if (!jeStrecke.has(name)) jeStrecke.set(name, []);
+    jeStrecke.get(name).push(e);
+  });
+  const strecken = [...jeStrecke.keys()];
+  const fahrer = new Map();
+  strecken.forEach((strecke, i) => {
+    // Beste gültige Runde je Fahrer auf dieser Strecke
+    const beste = new Map();
+    jeStrecke.get(strecke).forEach((e) => e.fahrer.forEach((f) => {
+      if (!fahrer.has(f.cust)) fahrer.set(f.cust, { cust: f.cust, name: f.name, irating: f.irating, fz: f.fahrzeugklasseId, fzName: f.fahrzeugklasseName, zeiten: strecken.map(() => null) });
+      const gueltig = f.besteRunde > 0 && (f.runden || 0) >= mindestRunden;
+      const bisher = beste.get(f.cust);
+      if (!bisher || (gueltig && (!bisher.gueltig || f.besteRunde < bisher.zeit))) beste.set(f.cust, { zeit: f.besteRunde || null, runden: Math.max(f.runden || 0, bisher ? bisher.runden : 0), gueltig });
+    }));
+    const referenz = new Map();
+    beste.forEach((b, cust) => { const fz = fahrer.get(cust).fz; if (b.gueltig && (!referenz.has(fz) || b.zeit < referenz.get(fz))) referenz.set(fz, b.zeit); });
+    beste.forEach((b, cust) => {
+      const f = fahrer.get(cust);
+      f.zeiten[i] = { zeit: b.zeit, runden: b.runden, gueltig: b.gueltig, prozent: b.gueltig ? rund1((b.zeit / referenz.get(f.fz)) * 100) : null };
+    });
+  });
+  const liste = [...fahrer.values()].map((f) => {
+    const gewertet = f.zeiten.filter((z) => z && z.gueltig);
+    const vollstaendig = strecken.length > 0 && gewertet.length === strecken.length;
+    // Mittelwert aus den ungerundeten Einzelwerten wäre genauer, die gerundeten sind aber das, was alle in der Liste sehen.
+    const schnitt = gewertet.length ? rund1(gewertet.reduce((s, z) => s + z.prozent, 0) / gewertet.length) : null;
+    const stufe = schnitt === null ? -1 : grenzen.findIndex((g) => schnitt <= g);
+    const vorschlag = vollstaendig ? (klassen[stufe === -1 ? klassen.length - 1 : stufe] || {}).id || "" : "";
     const nachIrating = f.irating > 0 ? (klassen.find((k) => f.irating >= k.min && (k.max == null || f.irating <= k.max)) || {}).id || "" : "";
-    return { cust: f.cust, name: f.name, fahrzeugklasse: f.fzName, besteRunde: f.besteRunde, prozent, rennen: f.rennen, vorschlag, nachIrating, fest: einstufung[f.cust] || "" };
-  }).sort((a, b) => (a.prozent ?? 999) - (b.prozent ?? 999) || a.name.localeCompare(b.name, "de"));
-  return { rennen: sichtung.length, grenzen, klassen: klassen.map(({ id, name }) => ({ id, name })), fahrer };
+    return { cust: f.cust, name: f.name, fahrzeugklasse: f.fzName, zeiten: f.zeiten, gewertet: gewertet.length, vollstaendig, prozent: schnitt, vorschlag, nachIrating, fest: einstufung[f.cust] || "" };
+  }).sort((a, b) => b.vollstaendig - a.vollstaendig || (a.prozent ?? 999) - (b.prozent ?? 999) || a.name.localeCompare(b.name, "de"));
+  return { rennen: [...jeStrecke.values()].flat().length, strecken, mindestRunden, grenzen, klassen: klassen.map(({ id, name }) => ({ id, name })), fahrer: liste };
 }
 
 // Prüft und vereinheitlicht die Eingaben für ein Rennen.
