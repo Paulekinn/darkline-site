@@ -293,8 +293,9 @@ async function ordner(prefix) {
 // Eine Serie läuft automatisch, sobald ihr erstes nicht abgesagtes Rennen gestartet ist. „Beendet“ bleibt immer eine Entscheidung der Rennleitung.
 function wirksamerStatus(serie, rennen, jetzt) {
   if (serie.status !== "anmeldung") return serie.status;
+  // Sichtungsrennen liegen vor der Season und starten sie nicht.
   const gestartet = rennen.some((r) => {
-    const start = r.serie === serie.id && r.status !== "abgesagt" ? berlinNachUtc(r.datum, r.startzeit) : null;
+    const start = r.serie === serie.id && r.status !== "abgesagt" && !r.sichtung ? berlinNachUtc(r.datum, r.startzeit) : null;
     return start !== null && start <= jetzt;
   });
   return gestartet ? "laeuft" : serie.status;

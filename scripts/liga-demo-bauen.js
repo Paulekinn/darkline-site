@@ -36,7 +36,7 @@ const serie = (e) => D.pruefeSerie({
 
 const SERIEN = [
   { id: "demo-gt3-sprint", ...serie({ name: "Demo · GT3 Sprint Cup", saison: "Saison 1", status: "laeuft", farbe: "rot", fahrzeugklassen: ["GT3"], rennenGesamt: 8, gewerteteRennen: 7, strafpunkteGrenze: 10, modelle: "BMW M4 GT3 EVO\nFerrari 296 GT3\nPorsche 911 GT3 R (992)\nMercedes-AMG GT3 2020\nChevrolet Corvette Z06 GT3.R", freieWechsel: 1, beschreibung: "Beispiel-Season mit erfundenen Fahrern: acht Sprintrennen auf den Klassikern Europas, gewertet in Pro, Pro-Am und Am." }) },
-  { id: "demo-gt4-cup", ...serie({ name: "Demo · GT4 Cup", saison: "Saison 1", status: "anmeldung", farbe: "blau", fahrzeugklassen: ["GT4"], rennenGesamt: 6, gewerteteRennen: 6, beschreibung: "Die Einsteigerserie im GT4: kurze Rennen, faire Zweikämpfe. Die Anmeldung ist offen." }) },
+  { id: "demo-gt4-cup", ...serie({ name: "Demo · GT4 Cup", saison: "Saison 1", status: "anmeldung", farbe: "blau", fahrzeugklassen: ["GT4"], rennenGesamt: 6, gewerteteRennen: 6, einstufungArt: "sichtung", sichtungGrenzen: "101,5 / 103", sichtungMindestRunden: 7, beschreibung: "Die Einsteigerserie im GT4: kurze Rennen, faire Zweikämpfe. Die Klassen entstehen aus einer Sichtung auf drei Strecken." }) },
   { id: "demo-6h-nuerburgring", ...serie({ name: "Demo · 6h Nürburgring", typ: "event", eventReihe: "Demo 6h Nürburgring", status: "anmeldung", farbe: "gruen", fahrzeugklassen: ["GT3", "GT4"], rennenGesamt: 1, gewerteteRennen: 1, ohneKlassen: true, beschreibung: "Langstrecken-Event auf der Nordschleifen-Kombination. Teams aus zwei bis drei Fahrern." }) },
   { id: "demo-6h-nuerburgring-2025", ...serie({ name: "Demo · 6h Nürburgring 2025", typ: "event", eventReihe: "Demo 6h Nürburgring", status: "beendet", farbe: "gruen", fahrzeugklassen: ["GT3"], rennenGesamt: 1, gewerteteRennen: 1, ohneKlassen: true, beschreibung: "Die erste Ausgabe des Langstrecken-Events." }) },
 ];
@@ -49,7 +49,10 @@ const gt3 = STRECKEN.map(([strecke], i) => ({ id: `demo-gt3-r${i + 1}`, serie: "
 const gt4 = [3, 4, 5, 6, 7, 0].map((s, i) => ({ id: `demo-gt4-r${i + 1}`, serie: "demo-gt4-cup", titel: `Runde ${i + 1}`, datum: tag(18 + 14 * i), strecke: STRECKEN[s][0], ...rennenBasis, startzeit: "19:30", renndauer: "30 Min", fahrzeuge: "GT4" }));
 const event = { id: "demo-6h-2026", serie: "demo-6h-nuerburgring", titel: "6h Nürburgring", datum: tag(40), strecke: "Nürburgring Kombination", ...rennenBasis, startzeit: "14:00", plaetze: 60, training: "120 Min", qualifying: "30 Min", renndauer: "6 Std", fahrzeuge: "GT3 und GT4" };
 const eventAlt = { id: "demo-6h-2025", serie: "demo-6h-nuerburgring-2025", titel: "6h Nürburgring", datum: tag(-330), strecke: "Nürburgring Kombination", ...rennenBasis, startzeit: "14:00", plaetze: 60, renndauer: "6 Std" };
-const RENNEN = [...gt3, ...gt4, event, eventAlt];
+// GT4: Sichtung auf drei Strecken vor der Season. Intern, deshalb nicht auf der öffentlichen Seite.
+const SICHTUNG = [["Circuit de Spa-Francorchamps", "Spa", 1520000, -12], ["Autodromo Nazionale Monza", "Monza", 1185000, -11], ["Circuit Zandvoort", "Zandvoort", 1055000, -10]];
+const gt4Sichtung = SICHTUNG.map(([strecke, kurz, , tage], i) => ({ id: `demo-gt4-s${i + 1}`, serie: "demo-gt4-cup", titel: `Sichtung · ${kurz}`, datum: tag(tage), strecke, ...rennenBasis, startzeit: "20:00", renndauer: "30 Min", fahrzeuge: "GT4", sichtung: true }));
+const RENNEN = [...gt3, ...gt4Sichtung, ...gt4, event, eventAlt];
 
 // Ein erfundenes Rennergebnis im Format, das liga-wertung aus der iRacing-Datei liest
 function ergebnis(rennen, nr, runden, rundenzeit, fahrer) {
@@ -74,6 +77,16 @@ function ergebnis(rennen, nr, runden, rundenzeit, fahrer) {
 
 const gt3Ergebnisse = gt3.slice(0, 5).map((r, i) => ergebnis(r, i + 1, 24, STRECKEN[i][2], FAHRER.filter((f, j) => (j + i) % 9 !== 0)));
 const altErgebnis = ergebnis(eventAlt, 9, 142, 1410000, FAHRER.slice(0, 14));
+// Sichtungsergebnisse GT4: je Strecke beste Runde und gefahrene Runden. Zwei Sonderfälle zeigen, was ungültig ist.
+const GT4_FAHRER = FAHRER.slice(6, 18);
+const sichtungErgebnisse = SICHTUNG.map(([strecke, , rundenzeit], s) => ({
+  id: String(81000001 + s), start: isoStart(gt4Sichtung[s].datum, "20:00"), strecke, variante: "", kategorie: "sports_car", offiziell: false, warnungen: [],
+  // Fahrer 8 fährt Zandvoort nicht, Fahrer 4 schafft in Monza nur 5 statt 7 Runden.
+  fahrer: GT4_FAHRER.filter((_, j) => !(j === 8 && s === 2)).map((f, j) => ({
+    cust: f.cust, name: f.name, irating: f.irating, fahrzeugklasseId: "4048", fahrzeugklasseName: "GT4", klassenAbstand: -1, gesamt: j + 1, start: j + 1, incidents: 0, disqualifiziert: false,
+    runden: f === GT4_FAHRER[4] && s === 1 ? 5 : 10, besteRunde: Math.round(rundenzeit * (1 + (2.4 - f.irating / 1000) * 0.03 + zufall() * 0.012)),
+  })),
+}));
 // Eine Strafe aus einem Report, damit die Spalte in der Tabelle nicht leer bleibt
 const privat = { einstufung: {}, strafen: [{ id: "demo-1", reportId: "demo", rennen: gt3Ergebnisse[2].id, cust: FAHRER[5].cust, name: FAHRER[5].name, punkte: 3, grund: "Vermeidbare Kollision" }] };
 
@@ -109,7 +122,7 @@ const urteil = (art, extra, von) => ({ ...R.pruefeUrteil({ art, ...extra }), von
 const REPORTS = [
   { id: "demo-r1", ...reportBasis(letztes, 4), erstellt: vorTagen(1.5), von: person(FAHRER[3]), gegen: person(FAHRER[6]), stelle: "Runde 1, Kurve 1 (Tamburello)", beschreibung: "Beim Anbremsen auf die erste Schikane wurde ich von hinten getroffen und habe mich gedreht. Ich habe mehrere Plätze verloren.", clip: "https://www.twitch.tv/videos/beispiel", status: "offen", stimmen: [{ von: "demo-st2", name: "Steward B", art: "strafpunkte", punkte: 3, notiz: "Klarer Auffahrunfall", zeit: vorTagen(1) }] },
   { id: "demo-r2", ...reportBasis(letztes, 4), erstellt: vorTagen(1.2), von: person(FAHRER[9]), gegen: person(FAHRER[12]), stelle: "Runde 9, Rivazza", beschreibung: "Beim Überholversuch innen wurde mir die Tür zugemacht, Kontakt am Vorderrad.", status: "pruefung", stimmen: [{ von: STEWARD, name: "Demo-Steward", art: "verwarnung", notiz: "Rennunfall mit leichter Mitschuld", zeit: vorTagen(1) }, { von: "demo-st2", name: "Steward B", art: "verwarnung", notiz: "", zeit: vorTagen(0.8) }] },
-  { id: "demo-r3", ...reportBasis(gt3Ergebnisse[2], 2), erstellt: vorTagen(16), von: person(FAHRER[8]), gegen: person(FAHRER[5]), stelle: "Runde 4, Kurve 3", beschreibung: "Ich wurde in der Bremszone abgeschossen und musste an die Box.", status: "entschieden", urteil: urteil("strafpunkte", { punkte: 3, begruendung: "Vermeidbare Kollision beim Anbremsen.", rennen: gt3Ergebnisse[2].id, cust: FAHRER[5].cust, name: FAHRER[5].name }, "Steward B"), einsprueche: [{ discordId: discordVon(FAHRER[5]), name: FAHRER[5].name, text: "Ich war bereits neben ihm und hatte die Linie. Das Video zeigt, dass er nach innen gezogen hat.", zeit: vorTagen(15) }] },
+  { id: "demo-r3", ...reportBasis(gt3Ergebnisse[2], 2), erstellt: vorTagen(16), von: person(FAHRER[8]), gegen: person(FAHRER[5]), stelle: "Runde 4, Kurve 3", beschreibung: "Ich wurde in der Bremszone abgeschossen und musste an die Box.", status: "entschieden", urteil: urteil("strafpunkte", { punkte: 3, begruendung: "Vermeidbare Kollision beim Anbremsen.", rennen: gt3Ergebnisse[2].id, cust: FAHRER[5].cust, name: FAHRER[5].name }, "Steward B"), endgueltig: true },
   { id: "demo-r4", ...reportBasis(gt3Ergebnisse[1], 1), erstellt: vorTagen(22), von: person(FAHRER[14]), gegen: person(FAHRER[16]), stelle: "Runde 12, Parabolica", beschreibung: "Leichter Kontakt am Heck beim Herausbeschleunigen.", status: "entschieden", urteil: urteil("verwarnung", { begruendung: "Rennunfall, Verwarnung." }, "Demo-Steward"), endgueltig: true },
 ];
 privat.strafen[0].reportId = "demo-r3";
@@ -118,15 +131,15 @@ const adminReports = REPORTS.map((r) => ({ ...r, ichBeteiligt: false, stimmen: R
 const standCtx = { serie: SERIEN[0], rennen: RENNEN, reports: REPORTS, privat, jetzt: Date.now() };
 const starter = (liste) => liste.map((f) => ({ name: f.name, discordId: discordVon(f), fahrzeugklasse: "GT3" }));
 const detailsFuer = (s) => {
-  const fahrer = s.id === "demo-gt3-sprint" ? FAHRER : s.id === "demo-gt4-cup" ? FAHRER.slice(10, 15) : s.id === "demo-6h-nuerburgring" ? FAHRER.slice(0, 9) : [];
-  const ergebnisse = s.id === "demo-gt3-sprint" ? gt3Ergebnisse : s.id === "demo-6h-nuerburgring-2025" ? [altErgebnis] : [];
+  const fahrer = s.id === "demo-gt3-sprint" ? FAHRER : s.id === "demo-gt4-cup" ? GT4_FAHRER : s.id === "demo-6h-nuerburgring" ? FAHRER.slice(0, 9) : [];
+  const ergebnisse = s.id === "demo-gt3-sprint" ? gt3Ergebnisse : s.id === "demo-gt4-cup" ? sichtungErgebnisse : s.id === "demo-6h-nuerburgring-2025" ? [altErgebnis] : [];
   return {
     serie: s.id,
     fahrer: fahrer.map((f, i) => ({ pid: pid(f.cust), nummer: f.nummer, land: f.land, team: f.team, bild: "", discordId: discordVon(f), name: f.name, mitglied: s.typ !== "event", fahrzeugklasse: s.fahrzeugklassen[0] || "", custId: f.cust, iratingAngabe: f.irating, iratingErgebnis: ergebnisse.length ? f.irating + (i === 4 ? 210 : (i % 3) * 15) : null, klasseAuto: s.ohneKlassen ? "" : klasseNachIrating(s, f.irating), klasseFest: "", modell: (s.modelle || []).length ? modellVon(f) : "", wechsel: i === 2 ? 1 : 0 })).sort((a, b) => a.name.localeCompare(b.name, "de")),
     rennen: RENNEN.filter((r) => r.serie === s.id).map((r) => ({ id: r.id, titel: r.titel, start: isoStart(r.datum, r.startzeit), status: r.status, plaetze: r.plaetze, starter: starter(fahrer.slice(0, Math.min(fahrer.length, r.plaetze))), warteliste: [] })),
-    ergebnisse: ergebnisse.map((e) => ({ id: e.id, start: e.start, strecke: e.strecke, variante: e.variante, verkuerzt: false, sichtung: false, stand: R.ergebnisStand(e.start, { ...standCtx, serie: s }), fahrer: e.fahrer.map((f) => ({ cust: f.cust, name: f.name })) })),
+    ergebnisse: ergebnisse.map((e) => ({ id: e.id, start: e.start, strecke: e.strecke, variante: e.variante, verkuerzt: false, sichtung: D.istSichtung(e, RENNEN, s.id), stand: R.ergebnisStand(e.start, { ...standCtx, serie: s }), fahrer: e.fahrer.map((f) => ({ cust: f.cust, name: f.name })) })),
     strafen: s.id === "demo-gt3-sprint" ? privat.strafen.map((x) => ({ ...x, typ: "punkte" })) : [],
-    sichtung: null,
+    sichtung: s.einstufungArt === "sichtung" ? D.sichtungVorschlag(s, ergebnisse, RENNEN, {}) : null,
   };
 };
 const admin = {
@@ -151,7 +164,7 @@ const protokoll = [
 const demo = {
   hinweis: "Beispieldaten: alle Namen und Ergebnisse sind erfunden.",
   gebaut: new Date().toISOString(),
-  uebersicht: { serien, rennen: RENNEN.map(D.oeffentlichesRennen), kopfbildVersion: 0 },
+  uebersicht: { serien, rennen: RENNEN.filter((r) => !r.sichtung).map(D.oeffentlichesRennen), kopfbildVersion: 0 },
   serien: Object.fromEntries(SERIEN.map((s) => [s.id, { tabelle: tabellen.get(s.id) || null, fahrerprofile, ...(reiheDaten(s.id) ? { eventreihe: reiheDaten(s.id) } : {}) }])),
   admin, adminDetails, akten, protokoll,
   profile: Object.fromEntries(FAHRER.map((f) => [pid(f.cust), P.fahrerAkte(serien, tabellen, pid(f.cust))]).filter(([, a]) => a).map(([p, a]) => [p, { pid: p, ...a, profil: fahrerprofile[p] }])),
