@@ -457,6 +457,59 @@ const tests = {
       await assert.rejects(() => R.aendern("fehlt", () => {}), /gibt es nicht/);
     } finally { a.ende(); }
   },
+  "Fahrzeug: Liste der Season, Vergleich mit der iRacing-Datei und Prüfung nach dem Rennen": () => {
+    const F = require("../api/_lib/liga-fahrzeuge");
+    assert.deepStrictEqual(F.pruefeModelle("BMW M4 GT3\n  Porsche 911 GT3 R (992) \n\nbmw m4 gt3"), ["BMW M4 GT3", "Porsche 911 GT3 R (992)"]);
+    assert.deepStrictEqual(F.pruefeModelle(""), []);
+    assert.strictEqual(F.gleichesModell("BMW M4 GT3", "bmw  m4-gt3"), true);
+    assert.strictEqual(F.gleichesModell("BMW M4 GT3", "BMW M4 GT3 EVO"), false, "Ähnlicher Name ist ein anderes Auto");
+    const serie = { modelle: ["BMW M4 GT3", "Ferrari 296 GT3"] };
+    assert.strictEqual(F.modellPruefen(serie, "Ferrari 296 GT3"), "Ferrari 296 GT3");
+    assert.strictEqual(F.modellPruefen(serie, "ferrari 296 gt3"), "Ferrari 296 GT3", "Schreibweise aus der Datei wird erkannt");
+    assert.throws(() => F.modellPruefen(serie, ""), /Fahrzeug/);
+    assert.strictEqual(F.modellPruefen({ modelle: [] }, ""), "", "Ohne Liste keine Wahl");
+    const ergebnis = { fahrer: [{ cust: "1", name: "Anna", fahrzeug: "BMW M4 GT3" }, { cust: "2", name: "Ben", fahrzeug: "Ferrari 296 GT3" }, { cust: "3", name: "Cem", fahrzeug: "" }, { cust: "4", name: "Gast", fahrzeug: "Audi R8 LMS EVO II GT3" }] };
+    const discord = new Map([["1", "d1"], ["2", "d2"], ["3", "d3"]]);
+    const fahrzeuge = new Map([["d1", { modell: "BMW M4 GT3" }], ["d2", { modell: "BMW M4 GT3" }], ["d3", { modell: "BMW M4 GT3" }]]);
+    assert.deepStrictEqual(F.abweichungen(ergebnis, discord, fahrzeuge), [{ name: "Ben", cust: "2", discordId: "d2", gemeldet: "BMW M4 GT3", gefahren: "Ferrari 296 GT3" }], "Ohne Fahrzeug in der Datei und ohne Meldung keine Abweichung");
+    const p = D.pruefungNachRennen({ fahrer: [{ cust: "1", name: "A", incidents: 0 }] }, [], [{ name: "Ben" }]);
+    assert.strictEqual(p.fahrzeuge.length, 1);
+    assert.strictEqual(D.pruefungNachRennen({ fahrer: [{ cust: "1", name: "A", incidents: 0 }] }, []), null);
+    const basis = { name: "GT3", rennenGesamt: 8, gewerteteRennen: 8, punkte: "25 18", punkteDanach: 0, bonusPole: 0, bonusSchnellsteRunde: 0, mindestRundenProzent: 75, anmeldeschlussMinuten: 60, klassen: [{ name: "Alle", min: 0, max: "" }] };
+    assert.deepStrictEqual([D.pruefeSerie(basis).modelle, D.pruefeSerie(basis).freieWechsel], [[], 0]);
+    assert.deepStrictEqual([D.pruefeSerie({ ...basis, modelle: "BMW M4 GT3", freieWechsel: "1" }).modelle, D.pruefeSerie({ ...basis, freieWechsel: "1" }).freieWechsel], [["BMW M4 GT3"], 1]);
+  },
+  "Fahrzeug: ein freier Wechsel, danach nur per Antrag, Rennleitung entscheidet": async () => {
+    const F = require("../api/_lib/liga-fahrzeuge");
+    const a = supabaseAttrappe();
+    try {
+      const serie = { id: "gt3", modelle: ["BMW M4 GT3", "Ferrari 296 GT3", "Porsche 911 GT3 R (992)"], freieWechsel: 1 };
+      await assert.rejects(() => F.wechseln(serie, "11", "Ferrari 296 GT3"), /nicht angemeldet/);
+      await F.waehlen(serie, "11", "BMW M4 GT3", "Anna");
+      await F.waehlen(serie, "11", "Ferrari 296 GT3", "Anna");
+      assert.strictEqual((await F.lesen("gt3", "11")).modell, "BMW M4 GT3", "Die erste Wahl bleibt, eine zweite Anmeldung ändert nichts");
+      assert.strictEqual((await F.wechseln(serie, "11", "BMW M4 GT3")).art, "gleich");
+      const frei = await F.wechseln(serie, "11", "Ferrari 296 GT3");
+      assert.deepStrictEqual([frei.art, frei.eintrag.modell, F.freiUebrig(serie, frei.eintrag)], ["frei", "Ferrari 296 GT3", 0]);
+      const antrag = await F.wechseln(serie, "11", "Porsche 911 GT3 R (992)");
+      assert.deepStrictEqual([antrag.art, antrag.eintrag.modell, antrag.eintrag.antrag.nach], ["antrag", "Ferrari 296 GT3", "Porsche 911 GT3 R (992)"]);
+      assert.deepStrictEqual((await F.offeneAntraege()).map((x) => [x.serie, x.discordId, x.name]), [["gt3", "11", "Anna"]]);
+      assert.strictEqual((await F.wechseln(serie, "11", "Ferrari 296 GT3")).art, "zurueck", "Zurück zum eigenen Auto zieht den Antrag zurück");
+      assert.strictEqual((await F.lesen("gt3", "11")).antrag, null);
+      await F.wechseln(serie, "11", "Porsche 911 GT3 R (992)");
+      await F.entscheiden(serie, "11", false);
+      assert.deepStrictEqual([(await F.lesen("gt3", "11")).modell, (await F.lesen("gt3", "11")).antrag], ["Ferrari 296 GT3", null]);
+      await F.wechseln(serie, "11", "Porsche 911 GT3 R (992)");
+      const ja = await F.entscheiden(serie, "11", true);
+      assert.deepStrictEqual([ja.modell, ja.wechsel.map((w) => w.art)], ["Porsche 911 GT3 R (992)", ["frei", "genehmigt"]]);
+      await assert.rejects(() => F.entscheiden(serie, "11", true), /nicht mehr vor/);
+      const gesetzt = await F.setzen(serie, "11", "bmw m4 gt3");
+      assert.deepStrictEqual([gesetzt.modell, gesetzt.wechsel.slice(-1)[0].art], ["BMW M4 GT3", "rennleitung"]);
+      assert.strictEqual((await F.derSerie("gt3")).get("11").modell, "BMW M4 GT3");
+      await F.loeschen("gt3", "11");
+      assert.strictEqual(await F.lesen("gt3", "11"), null);
+    } finally { a.ende(); }
+  },
   "Sichtung: Season wählt iRating oder Sichtung, Pace-Grenzen werden geprüft": () => {
     const basis = { name: "GT3", rennenGesamt: 8, gewerteteRennen: 8, punkte: "25 18", punkteDanach: 0, bonusPole: 0, bonusSchnellsteRunde: 0, mindestRundenProzent: 75, anmeldeschlussMinuten: 60, klassen: [{ name: "Pro", min: 2500, max: "" }, { name: "Pro-Am", min: 1500, max: 2499 }, { name: "Am", min: 0, max: 1499 }] };
     assert.deepStrictEqual(D.pruefeSerie(basis).einstufungArt, "irating");

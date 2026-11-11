@@ -8,6 +8,7 @@ const D = require("./liga-daten");
 const { Hinweis } = D;
 const R = require("./liga-reports");
 const Dc = require("./liga-discord");
+const F = require("./liga-fahrzeuge");
 const { klasseFuer } = require("../../assets/liga-wertung.js");
 
 const SCHLUSS_MINUTEN = 60;
@@ -58,16 +59,21 @@ async function laufendeTabellen(kat) {
   return wert;
 }
 
-async function antwort(res, s, profil, alle, kat, frisch) {
+async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
   const pid = profil ? fahrerKennung(profil.custId) : "";
+  // Fahrzeug je Season mit Fahrzeugwahl, in der der Fahrer gemeldet ist
+  const mitWahl = kat.serien.filter((x) => (x.modelle || []).length && x.status !== "beendet" && alle.some((e) => e.typ === "serie" && e.serieId === x.id && e.discordId === s.id));
   // Die Abfragen hängen nicht voneinander ab und laufen deshalb gleichzeitig.
-  const [oeffentlich, wunsch, tabellen, reports] = await Promise.all([
+  const [oeffentlich, wunsch, tabellen, reports, fahrzeuge] = await Promise.all([
     pid ? P.angabenVon(pid).catch(() => null) : null,
     P.wunschLesen(s.id).catch(() => null),
     profil ? laufendeTabellen(kat) : null,
     reportDaten(s, kat, alle, frisch),
+    Promise.all(mitWahl.map(async (x) => { const f = await F.lesen(x.id, s.id).catch(() => null); return [x.id, f ? { modell: f.modell, antrag: f.antrag ? f.antrag.nach : "", freiUebrig: F.freiUebrig(x, f), wechsel: (f.wechsel || []).length } : null]; })),
   ]);
   return res.status(200).json({
+    ...extra,
+    fahrzeuge: Object.fromEntries(fahrzeuge.filter(([, f]) => f)),
     angemeldet: true,
     kalender: `/liga-kalender/${kalenderSchluessel(s.id)}`,
     fahrer: { name: s.name, profil, pid, oeffentlich, nummerWunsch: (wunsch || {}).nach || null },
@@ -177,7 +183,10 @@ async function serieAnmelden(s, profil, body, alle, kat) {
   if (serie.status === "geplant") throw new Hinweis("Die Anmeldung für diese Serie ist noch nicht geöffnet.");
   if (serie.anmeldungOffen === false || serie.status === "beendet") throw new Hinweis("Die Anmeldung für diese Serie ist geschlossen.");
   if (alle.some((e) => e.typ === "serie" && e.serieId === serie.id && e.discordId === s.id)) return alle;
+  // Das Fahrzeug wird vor der Anmeldung geprüft, damit niemand ohne Auto in der Season steht.
+  F.modellPruefen(serie, String(body.modell || ""));
   const pfad = A.mitgliedPfad(serie.id, s.id, fahrzeugklasseWaehlen(serie.fahrzeugklassen || [], String(body.fahrzeugklasse || "")), profil.iracingName);
+  await F.waehlen(serie, s.id, String(body.modell || ""), profil.iracingName);
   await blobPut(pfad, "1", "text/plain");
   return merke([...alle, jetztEintrag(pfad)]);
 }
@@ -192,6 +201,7 @@ async function serieAbmelden(s, body, alle, kat) {
   const ids = new Set(rennen.map((r) => r.id));
   const weg = alle.filter((e) => e.discordId === s.id && ((e.typ === "serie" && e.serieId === serie.id) || (e.typ !== "serie" && ids.has(e.rennenId))));
   if (weg.length) await blobDelete(weg.map((e) => e.pfad));
+  await F.loeschen(serie.id, s.id).catch(() => {});
   return merke(alle.filter((e) => !weg.includes(e)));
 }
 
@@ -247,6 +257,7 @@ module.exports = async (req, res) => {
   const [profilVorher, alleVorher, kat] = await Promise.all([profilLesen(s.id), eintraege(true), D.katalog(false)]);
   let profil = profilVorher;
   let alle = alleVorher;
+  const extra = {};
   if (body.aktion === "profil") {
     profil = await profilSpeichern(s, profil, body.profil);
   } else if (body.aktion === "nummer-gelesen") {
@@ -265,6 +276,12 @@ module.exports = async (req, res) => {
     alle = await serieAnmelden(s, profil, body, alle, kat);
   } else if (body.aktion === "serie-abmelden") {
     alle = await serieAbmelden(s, body, alle, kat);
+  } else if (body.aktion === "fahrzeug-wechseln") {
+    const serie = kat.serien.find((x) => x.id === body.serie);
+    if (!serie || serie.status === "beendet") throw new Hinweis("Diese Season gibt es nicht oder sie ist beendet.");
+    const { art, eintrag } = await F.wechseln(serie, s.id, String(body.modell || ""));
+    if (art === "antrag") await R.teamMelden({ title: "Fahrzeugwechsel beantragt", url: "https://darklineperformance.de/liga-admin", color: 0xd3121b, fields: [{ name: "Fahrer", value: (profil && profil.iracingName) || s.name, inline: true }, { name: "Season", value: serie.name, inline: true }, { name: "Von → Nach", value: `${eintrag.modell} → ${eintrag.antrag.nach}` }] }).catch(() => {});
+    extra.fahrzeugWechsel = art;
   } else if (body.aktion === "report-melden") {
     await reportMelden(s, profil, body, alle, kat);
   } else if (body.aktion === "report-einspruch") {
@@ -273,5 +290,5 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: "Unbekannte Aktion." });
   }
   profil = await Dc.abgleichen(s.id, profil, alle, kat.serien);
-  return await antwort(res, s, profil, alle, kat, true);
+  return await antwort(res, s, profil, alle, kat, true, extra);
 };

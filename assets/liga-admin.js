@@ -30,6 +30,7 @@
   let serieId = "";
   let form = null;        // { art: "serie"|"rennen"|"strecke", id, werte, vorher }
   let konflikt = false;   // Letztes Speichern scheiterte, weil jemand anderes inzwischen geändert hatte
+  let fahrzeugListe = null; // Fahrzeugnamen aus Garage 61, erst auf Knopfdruck geladen
   let notizEntwurf = null; // { id, text, konflikt } solange Notizen nicht gespeichert sind
   let meldung = null;     // { text, fehler }
   let datei = null;       // eingelesene Ergebnisdatei
@@ -293,7 +294,12 @@
     if (!liste.length) return "";
     const zeilen = liste.map((p) => {
       const teile = [p.noShows.length ? `Nicht erschienen: ${p.noShows.map((f) => f.name).join(", ")}` : "", p.incidents.length ? `Viele Incidents: ${p.incidents.map((f) => `${f.name} (${f.incidents})`).join(", ")}` : ""].filter(Boolean);
-      return `<div class="a-abschluss ${serienFarbe(p.serie)}"><span><b>${esc(p.strecke)}</b><small>${esc([p.serieName, zeit(p.start)].join(" · "))}</small>${teile.map((t) => `<small class="a-pruefung">${esc(t)}</small>`).join("")}</span><button type="button" class="a-knopf zweit klein" data-pruefung-erledigt="${esc(p.id)}" data-serie="${esc(p.serie)}">Erledigt</button></div>`;
+      // Anderes Auto als gemeldet: nachträglich genehmigen oder Ergebnis streichen
+      const fz = (p.fahrzeuge || []).map((f) => {
+        const daten = `data-serie="${esc(p.serie)}" data-discord="${esc(f.discordId || "")}" data-name="${esc(f.name)}"`;
+        return `<small class="a-pruefung">Anderes Fahrzeug: ${esc(f.name)} fuhr ${esc(f.gefahren)} statt ${esc(f.gemeldet)}</small><span class="a-pruefung-knoepfe"><button type="button" class="a-knopf zweit klein" data-fahrzeug-genehmigen="1" ${daten} data-modell="${esc(f.gefahren)}">Wechsel genehmigen</button><button type="button" class="a-knopf gefahr klein" data-fahrzeug-streichen="1" ${daten} data-rennen="${esc(p.id)}" data-cust="${esc(f.cust)}">Ergebnis streichen</button></span>`;
+      }).join("");
+      return `<div class="a-abschluss ${serienFarbe(p.serie)}"><span><b>${esc(p.strecke)}</b><small>${esc([p.serieName, zeit(p.start)].join(" · "))}</small>${teile.map((t) => `<small class="a-pruefung">${esc(t)}</small>`).join("")}${fz}</span><button type="button" class="a-knopf zweit klein" data-pruefung-erledigt="${esc(p.id)}" data-serie="${esc(p.serie)}">Erledigt</button></div>`;
     }).join("");
     return `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Prüfen nach dem Rennen</h2><span class="a-chip gelb">${liste.length}</span></div><div class="a-liste">${zeilen}</div></section>`;
   }
@@ -391,6 +397,11 @@
       const daten = `data-discord="${esc(w.discordId)}" data-name="${esc(w.name)}" data-nummer="${esc(w.nach)}"`;
       return `<div class="a-abschluss s-rot"><span><b>${esc(w.name)}</b><small>Von #${esc(w.von)} auf #${esc(w.nach)}, beantragt ${esc(zeit(w.seit))}</small></span><div class="a-leiste"><button type="button" class="a-knopf klein" data-nummer-aktion="nummer-bestaetigen" ${daten}>Bestätigen</button><button type="button" class="a-knopf zweit klein" data-nummer-aktion="nummer-ablehnen" ${daten}>Ablehnen</button></div></div>`;
     }).join("")}</div></section>` : "";
+    const fzAntraege = d.fahrzeugAntraege || [];
+    const fahrzeugHtml = fzAntraege.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Fahrzeugwechsel</h2><span class="a-chip gelb">${fzAntraege.length}</span></div><div class="a-liste">${fzAntraege.map((a) => {
+      const daten = `data-serie="${esc(a.serie)}" data-discord="${esc(a.discordId)}"`;
+      return `<div class="a-abschluss ${serienFarbe(a.serie)}"><span><b>${esc(a.name || "Fahrer")}</b><small>${esc(a.serieName)}: ${esc(a.modell)} → ${esc(a.antrag.nach)}, beantragt ${esc(zeit(a.antrag.seit))}${(a.wechsel || []).length ? ` · bisher ${a.wechsel.length} Wechsel` : ""}</small></span><div class="a-leiste"><button type="button" class="a-knopf klein" data-fahrzeug-entscheid="ja" ${daten}>Bestätigen</button><button type="button" class="a-knopf zweit klein" data-fahrzeug-entscheid="nein" ${daten}>Ablehnen</button></div></div>`;
+    }).join("")}</div></section>` : "";
     const kachel = (wert, text, art, ziel) => `<button type="button" class="a-kennzahl ${art}" data-tab="${ziel}"><b>${wert}</b><span>${esc(text)}</span></button>`;
     const reportsHtml = offene.slice(0, 5).map(reportZeile).join("");
     const termine = kommend.slice(0, 5).map(terminZeile).join("");
@@ -403,7 +414,7 @@
         ${kachel(unfertig.length, "Rennen unvollständig", unfertig.length ? "warnung" : "", "rennen")}
       </div>
       ${(d.fehlendeErgebnisse || []).length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Ergebnis fehlt</h2><span class="a-chip gelb">${d.fehlendeErgebnisse.length}</span></div><div class="a-liste">${d.fehlendeErgebnisse.slice(0, 6).map((r) => `<div class="a-abschluss ${serienFarbe(r.serie)}"><span><b>${esc(r.titel)}</b><small>${esc([(serieVon(r.serie) || {}).name, datumKurz(r.datum)].filter(Boolean).join(" · "))}</small></span><button type="button" class="a-knopf zweit klein" data-ergebnis-import="${esc(r.serie)}">Importieren</button></div>`).join("")}</div></section>` : ""}
-      ${nummernHtml}
+      ${nummernHtml}${fahrzeugHtml}
       ${anmeldungFaellig}
       ${cockpitPruefungen()}
       ${cockpitStrafkonten()}
@@ -457,7 +468,12 @@
         ${feld("Report-Frist (Stunden)", eingabe("reportStunden", w.reportStunden ?? 24, 'type="number" min="1"'))}
         ${eingabe("einspruchStunden", w.einspruchStunden ?? 48, 'type="hidden"')}
         ${feld("Strafpunkte-Grenze (0 = aus)", eingabe("strafpunkteGrenze", w.strafpunkteGrenze ?? 0, 'type="number" min="0"'))}
-      </div><label class="a-check"><input type="checkbox" name="anmeldungOffen"${w.anmeldungOffen !== false ? " checked" : ""}> Fahrer können sich anmelden</label><p class="a-hinweis">Solange der Status „Geplant“ ist, bleibt die Anmeldung immer geschlossen.</p>`)}
+      </div><label class="a-check"><input type="checkbox" name="anmeldungOffen"${w.anmeldungOffen !== false ? " checked" : ""}> Fahrer können sich anmelden</label><p class="a-hinweis">Solange der Status „Geplant“ ist, bleibt die Anmeldung immer geschlossen.</p>
+      <div class="a-felder">
+        ${feld("Erlaubte Fahrzeuge (eins pro Zeile, leer = keine Fahrzeugwahl)", `<textarea name="modelle" id="s-modelle" style="min-height:90px" placeholder="BMW M4 GT3&#10;Porsche 911 GT3 R (992)">${esc(Array.isArray(w.modelle) ? w.modelle.join("\n") : w.modelle || "")}</textarea>`, true)}
+        <div class="a-feld"><label>Fahrzeug hinzufügen</label><div class="a-leiste"><input id="s-modell-neu" list="a-modelle" autocomplete="off" placeholder="Name aus iRacing"><datalist id="a-modelle">${(fahrzeugListe || []).map((n) => `<option value="${esc(n)}"></option>`).join("")}</datalist><button type="button" class="a-knopf zweit klein" data-modell-neu="1">Hinzufügen</button>${fahrzeugListe ? "" : '<button type="button" class="a-knopf zweit klein" data-modelle-laden="1">Liste aus Garage 61 laden</button>'}</div></div>
+        ${feld("Freie Fahrzeugwechsel je Fahrer", eingabe("freieWechsel", w.freieWechsel ?? 0, 'type="number" min="0" max="10"'))}
+      </div><p class="a-hinweis">Mit Fahrzeugliste wählt jeder Fahrer bei der Anmeldung sein Modell. Weitere Wechsel als die freien nur mit eurer Zustimmung. Fährt jemand ein anderes Auto als gemeldet, erscheint das nach dem Einlesen im Cockpit.</p>`)}
       ${abschnittForm(3, "Klassen", `<label class="a-check"><input type="checkbox" name="ohneKlassen" id="s-ohne-klassen"${w.ohneKlassen ? " checked" : ""}> Keine Klassen nach iRating: alle fahren in einer gemeinsamen Wertung, bei Multiclass je Fahrzeugklasse</label>
         <div class="a-spalte" id="a-klassen-bereich"${w.ohneKlassen ? " hidden" : ""}><div class="a-klassen-kopf"><span>Name</span><span>Von</span><span>Bis</span><span></span></div><div class="a-klassen" id="a-klassen">${w.klassen.map(klasseZeile).join("")}</div><div><button type="button" class="a-knopf zweit klein" data-klasse-neu="1">Klasse hinzufügen</button></div><div id="a-klassen-check"></div>
           <div class="a-felder">
@@ -779,6 +795,7 @@
       <td class="rechts">${zahl(f.iratingAngabe)}</td>
       <td class="rechts ${abw ? "a-abweichung" : ""}">${zahl(f.iratingErgebnis)}${abw ? " !" : ""}</td>
       <td>${klasse}</td>
+      ${(serie.modelle || []).length ? `<td><select data-fahrzeug-von="${esc(f.discordId)}" aria-label="Fahrzeug von ${esc(f.name)}">${f.modell ? "" : '<option value="">– nicht gewählt –</option>'}${serie.modelle.map((m) => `<option value="${esc(m)}"${m === f.modell ? " selected" : ""}>${esc(m)}</option>`).join("")}</select>${f.wechsel ? `<small class="a-unter">${f.wechsel} Wechsel</small>` : ""}</td>` : ""}
       <td class="rechts">${akteKnopf(f.name, f.custId, f.discordId)} <button type="button" class="a-knopf gefahr klein" data-aus-serie="${esc(f.discordId)}" data-name="${esc(f.name)}">Entfernen</button></td>
     </tr>`;
   }
@@ -822,7 +839,7 @@
     return `${akteHtml()}<section class="a-karte"><div class="a-kartenkopf"><h2>Fahrer</h2>${serienAuswahl()}</div>
       <div class="a-kennzahlen">${kachel(det.fahrer.length, "Gemeldet")}${kachel(det.fahrer.filter((f) => f.mitglied).length, "In der Season")}${kachel(det.fahrer.filter((f) => !f.mitglied).length, "Einzelmeldungen")}${kachel(ohneProfil.length, "Ohne Profil", "alarm")}${kachel(abweichend.length, "iRating-Abweichung", "warnung")}</div>
       ${det.fahrer.length ? `<div class="a-leiste">${chips}<input type="search" id="a-fahrer-suche" class="a-suche" placeholder="Fahrer, ID oder Team suchen" aria-label="Fahrer suchen"></div>
-      ${filter.length ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>Meldung</th><th>iRacing-ID</th><th class="rechts" title="Vom Fahrer im Profil angegeben">iRating Profil</th><th class="rechts" title="Aus dem zuletzt eingelesenen Rennergebnis">iRating letztes Rennen</th><th>Klasse</th><th></th></tr></thead><tbody>${filter.map((f) => fahrerZeile(f, serie)).join("")}</tbody></table></div>` : '<p class="a-leer">Keine Fahrer in dieser Ansicht.</p>'}
+      ${filter.length ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>Meldung</th><th>iRacing-ID</th><th class="rechts" title="Vom Fahrer im Profil angegeben">iRating Profil</th><th class="rechts" title="Aus dem zuletzt eingelesenen Rennergebnis">iRating letztes Rennen</th><th>Klasse</th>${(serie.modelle || []).length ? "<th>Fahrzeug</th>" : ""}<th></th></tr></thead><tbody>${filter.map((f) => fahrerZeile(f, serie)).join("")}</tbody></table></div>` : '<p class="a-leer">Keine Fahrer in dieser Ansicht.</p>'}
       <p class="a-hinweis">„iRating Profil“ hat der Fahrer selbst angegeben. „iRating letztes Rennen“ stammt aus dem zuletzt eingelesenen Ergebnis und ist leer, solange kein Ergebnis dieses Fahrers vorliegt. Ein „!“ zeigt mehr als 150 Punkte Unterschied.</p>` : '<p class="a-leer">Noch keine Fahrer gemeldet.</p>'}
     </section>
     ${sichtungKarte(serie, det)}
@@ -1310,6 +1327,35 @@
       if (!window.confirm(verkuerzt ? "Dieses Rennen als verkürzt werten? Es gibt dann nur noch anteilige Platzpunkte, die Tabelle wird neu berechnet." : "Wieder volle Punkte für dieses Rennen vergeben?")) return;
       return aktion({ aktion: "ergebnis-distanz", serie: serieId, id: b.dataset.ergebnisDistanz, verkuerzt }, "Renndistanz geändert, die Tabelle ist aktualisiert.");
     }
+    if (b.dataset.modelleLaden) {
+      // Formular-Eingaben bleiben erhalten: nur die Vorschlagsliste wird ergänzt.
+      const a = await sende({ aktion: "fahrzeugliste" }, "Fahrzeuge aus Garage 61 geladen.");
+      if (a) { fahrzeugListe = a.fahrzeuge; const dl = document.getElementById("a-modelle"); if (dl) dl.innerHTML = fahrzeugListe.map((n) => `<option value="${esc(n)}"></option>`).join(""); b.remove(); }
+      return;
+    }
+    if (b.dataset.modellNeu) {
+      const feldNeu = document.getElementById("s-modell-neu"), liste = document.getElementById("s-modelle");
+      const wert = feldNeu.value.trim();
+      if (!wert) return;
+      const zeilen = liste.value.split("\n").map((x) => x.trim()).filter(Boolean);
+      if (!zeilen.some((x) => x.toLowerCase() === wert.toLowerCase())) liste.value = [...zeilen, wert].join("\n");
+      feldNeu.value = "";
+      return feldNeu.focus();
+    }
+    if (b.dataset.fahrzeugEntscheid) {
+      const ja = b.dataset.fahrzeugEntscheid === "ja";
+      const grund = ja ? "" : window.prompt("Grund für die Ablehnung (freiwillig). Der Fahrer bekommt ihn zu sehen.", "");
+      if (grund === null) return;
+      return aktion({ aktion: "fahrzeug-entscheiden", serie: b.dataset.serie, discordId: b.dataset.discord, ja, grund }, ja ? "Wechsel bestätigt, der Fahrer wird informiert." : "Wechsel abgelehnt, der Fahrer wird informiert.");
+    }
+    if (b.dataset.fahrzeugGenehmigen) {
+      if (!window.confirm(`${b.dataset.name} fährt ab jetzt offiziell den ${b.dataset.modell}. Das Ergebnis zählt. Fortfahren?`)) return;
+      return aktion({ aktion: "fahrzeug-setzen", serie: b.dataset.serie, discordId: b.dataset.discord, modell: b.dataset.modell }, "Fahrzeug übernommen. Markiere die Prüfung als erledigt, wenn sonst nichts offen ist.");
+    }
+    if (b.dataset.fahrzeugStreichen) {
+      if (!window.confirm(`Das Ergebnis von ${b.dataset.name} in diesem Rennen streichen? Es wird wie eine Disqualifikation gewertet und lässt sich unter „Ergebnisse“ bei den Strafen wieder löschen.`)) return;
+      return aktion({ aktion: "fahrzeug-streichen", serie: b.dataset.serie, rennen: b.dataset.rennen, cust: b.dataset.cust }, "Ergebnis gestrichen, die Tabelle ist aktualisiert.");
+    }
     if (b.dataset.sichtungUebernehmen) {
       if (!window.confirm("Alle Fahrer mit Sichtungszeit bekommen die vorgeschlagene Klasse. Von Hand gesetzte Klassen dieser Fahrer werden überschrieben. Fortfahren?")) return;
       return aktion({ aktion: "sichtung-uebernehmen", serie: serieId }, "Klassen aus der Sichtung übernommen, die Tabelle ist aktualisiert.");
@@ -1471,6 +1517,10 @@
       const er = d.details.ergebnisse.find((x) => x.id === t.value);
       document.getElementById("s-fahrer").innerHTML = er ? fahrerOptionen(er) : "";
       return;
+    }
+    if (t.dataset.fahrzeugVon !== undefined) {
+      if (!t.value || !window.confirm(`Fahrzeug auf ${t.value} setzen? Der Wechsel wird als Entscheidung der Rennleitung eingetragen.`)) return zeichne();
+      return aktion({ aktion: "fahrzeug-setzen", serie: serieId, discordId: t.dataset.fahrzeugVon, modell: t.value }, "Fahrzeug gespeichert.");
     }
     if (t.dataset.einstufung !== undefined) return aktion({ aktion: "einstufung-setzen", serie: serieId, cust: t.dataset.einstufung, klasse: t.value }, "Klasse gespeichert.");
     if (t.id === "a-datei" && t.files[0]) {
