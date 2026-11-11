@@ -87,9 +87,55 @@ function pruefeSerie(e) {
     mindestRundenProzent: ganzzahl(e.mindestRundenProzent, "Mindestrunden", 0, 100),
     mindestStarter: ganzzahl(e.mindestStarter ?? 0, "Mindestzahl an Startern", 0, 200),
     punkteVerkuerztProzent: ganzzahl(e.punkteVerkuerztProzent ?? 50, "Punkte bei verkürzter Distanz", 0, 100),
+    ...pruefeEinstufung(e, klassen, ohneKlassen),
   };
   pruefeRegeln(serie);
   return serie;
+}
+
+// Einstufung einer Season: nach iRating (Standard) oder nach Sichtungsrennen.
+// Bei Sichtung trennen Pace-Grenzen die Klassen: Abstand der besten Runde zur schnellsten in Prozent, je eine Grenze zwischen zwei Klassen.
+const SICHTUNG_STANDARD = [101.5, 103, 104.5, 106];
+function pruefeEinstufung(e, klassen, ohneKlassen) {
+  if (e.einstufungArt !== "sichtung" || ohneKlassen) return { einstufungArt: "irating" };
+  const noetig = klassen.length - 1;
+  // Erlaubt „101,5 / 103“ ebenso wie „101.5, 103“
+  const eingabe = Array.isArray(e.sichtungGrenzen) ? e.sichtungGrenzen.map(String) : (String(e.sichtungGrenzen || "").match(/\d+(?:[.,]\d+)?/g) || []).map((x) => x.replace(",", "."));
+  const grenzen = eingabe.length ? eingabe.map(Number) : SICHTUNG_STANDARD.slice(0, noetig);
+  if (grenzen.length !== noetig) throw new Hinweis(`Für ${klassen.length} Klassen braucht die Sichtung ${noetig} Pace-Grenze${noetig === 1 ? "" : "n"}, zum Beispiel ${SICHTUNG_STANDARD.slice(0, noetig).join(" / ").replace(/\./g, ",")}.`);
+  if (grenzen.some((g, i) => !(g > 100 && g < 150) || (i && g <= grenzen[i - 1]))) throw new Hinweis("Die Pace-Grenzen müssen über 100 % liegen und von Klasse zu Klasse steigen, zum Beispiel 101,5 / 103.");
+  return { einstufungArt: "sichtung", sichtungGrenzen: grenzen.map((g) => Math.round(g * 10) / 10) };
+}
+
+// Ein Ergebnis gehört zu einem Sichtungsrennen, wenn dessen Start höchstens zwölf Stunden daneben liegt. Es zählt dann nicht für die Tabelle.
+function istSichtung(ergebnis, rennen, serieId) {
+  const t = new Date(ergebnis.start).getTime();
+  return (rennen || []).some((r) => r.serie === serieId && r.sichtung && r.status !== "abgesagt" && Math.abs(berlinNachUtc(r.datum, r.startzeit) - t) <= 12 * 3600e3);
+}
+const wertungsErgebnisse = (ergebnisse, rennen, serieId) => ergebnisse.filter((e) => !istSichtung(e, rennen, serieId));
+
+// Klassenvorschlag aus den Sichtungsrennen: beste Runde je Fahrer, verglichen mit der schnellsten seiner Fahrzeugklasse.
+function sichtungVorschlag(serie, ergebnisse, rennen, einstufung = {}) {
+  const sichtung = ergebnisse.filter((e) => istSichtung(e, rennen, serie.id));
+  const klassen = [...serie.klassen].sort((a, b) => b.min - a.min);
+  const grenzen = serie.sichtungGrenzen || SICHTUNG_STANDARD.slice(0, klassen.length - 1);
+  const beste = new Map();
+  sichtung.forEach((e) => e.fahrer.forEach((f) => {
+    const bisher = beste.get(f.cust);
+    if (!bisher) beste.set(f.cust, { cust: f.cust, name: f.name, irating: f.irating, fz: f.fahrzeugklasseId, fzName: f.fahrzeugklasseName, besteRunde: f.besteRunde, rennen: 1 });
+    else { bisher.rennen++; if (f.besteRunde && (!bisher.besteRunde || f.besteRunde < bisher.besteRunde)) bisher.besteRunde = f.besteRunde; }
+  }));
+  const liste = [...beste.values()];
+  const referenz = new Map();
+  liste.forEach((f) => { if (f.besteRunde && (!referenz.has(f.fz) || f.besteRunde < referenz.get(f.fz))) referenz.set(f.fz, f.besteRunde); });
+  const fahrer = liste.map((f) => {
+    const prozent = f.besteRunde ? Math.round((f.besteRunde / referenz.get(f.fz)) * 1000) / 10 : null;
+    const stufe = prozent === null ? -1 : grenzen.findIndex((g) => prozent <= g);
+    const vorschlag = prozent === null ? "" : (klassen[stufe === -1 ? klassen.length - 1 : stufe] || {}).id || "";
+    const nachIrating = f.irating > 0 ? (klassen.find((k) => f.irating >= k.min && (k.max == null || f.irating <= k.max)) || {}).id || "" : "";
+    return { cust: f.cust, name: f.name, fahrzeugklasse: f.fzName, besteRunde: f.besteRunde, prozent, rennen: f.rennen, vorschlag, nachIrating, fest: einstufung[f.cust] || "" };
+  }).sort((a, b) => (a.prozent ?? 999) - (b.prozent ?? 999) || a.name.localeCompare(b.name, "de"));
+  return { rennen: sichtung.length, grenzen, klassen: klassen.map(({ id, name }) => ({ id, name })), fahrer };
 }
 
 // Prüft und vereinheitlicht die Eingaben für ein Rennen.
@@ -104,6 +150,8 @@ function pruefeRennen(e, serienIds) {
     strecke: text(e.strecke, 80), streckeId: istId(e.streckeId) ? e.streckeId : "", fahrzeuge: text(e.fahrzeuge, 80), plaetze: ganzzahl(e.plaetze, "Startplätze", 1, 200),
     training: text(e.training, 20), qualifying: text(e.qualifying, 20), renndauer: text(e.renndauer, 20), wetter: text(e.wetter, 60), server: text(e.server, 60),
     passwort: text(e.passwort, 60), briefing: text(e.briefing, 10000),
+    // Sichtungsrennen zählen nicht für die Tabelle, ihre Rundenzeiten bestimmen die Klassen.
+    sichtung: e.sichtung === true || e.sichtung === "true" || e.sichtung === "on",
   };
 }
 
@@ -307,12 +355,14 @@ const ergebnisLoeschen = (serie, id) => {
 };
 
 // Rechnet die öffentliche Tabelle aus allen Ergebnissen, Einstufungen und Strafen neu.
-async function tabelleNeu(serie, regeln, ergebnisse) {
+// rennen: alle Rennen, damit Sichtungsrennen herausfallen. Ohne Angabe zählt jedes Ergebnis.
+async function tabelleNeu(serie, regeln, alleErgebnisse, rennen) {
   const pfad = `${WURZEL}tabellen/${brauchtId(serie)}.json`;
+  const ergebnisse = wertungsErgebnisse(alleErgebnisse, rennen, serie);
   if (!ergebnisse.length) return blobDelete([pfad]);
   const { warnungen, ...oeffentlich } = berechneTabelle(ergebnisse, regeln, { ...(await privatLesen(serie)), pid: fahrerKennung });
   await schreibe(pfad, oeffentlich);
   return warnungen;
 }
 
-module.exports = { pruefungNachRennen, strafkonten, streckenZusammen, streckenImportSpeichern, streckeAusImportEntfernen, datumPlus, rennenOhneErgebnis, wirksamerStatus, pruefeStrecke, streckeSpeichern, streckeLoeschen, serieDatenLoeschen, pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, privatAendern, jsonAendern, nochAktuell, nichtUeberschreiben, konflikt, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };
+module.exports = { istSichtung, wertungsErgebnisse, sichtungVorschlag, SICHTUNG_STANDARD, pruefungNachRennen, strafkonten, streckenZusammen, streckenImportSpeichern, streckeAusImportEntfernen, datumPlus, rennenOhneErgebnis, wirksamerStatus, pruefeStrecke, streckeSpeichern, streckeLoeschen, serieDatenLoeschen, pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, privatAendern, jsonAendern, nochAktuell, nichtUeberschreiben, konflikt, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };

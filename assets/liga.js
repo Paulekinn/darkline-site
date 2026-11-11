@@ -470,7 +470,11 @@
 
   /* ---------- Regeln: alle Werte kommen aus der Seriendatei ---------- */
   function regelnHtml(r) {
-    const klassen = [...r.klassen].sort((a, b) => b.min - a.min).map((k) => `<div class="liga-regel-klasse ${farbe(k)}"><b>${esc(k.name)}</b><span>iRating ${esc(bereich(k))}</span></div>`).join("");
+    // Bei Sichtung entscheidet die Pace, das iRating gilt nur für Fahrer ohne Sichtung.
+    const sichtung = r.einstufungArt === "sichtung" && !r.ohneKlassen;
+    const grenzen = r.sichtungGrenzen || [];
+    const pace = (i) => (i < grenzen.length ? `Sichtung bis ${String(grenzen[i]).replace(".", ",")} %` : `Sichtung über ${String(grenzen[grenzen.length - 1]).replace(".", ",")} %`);
+    const klassen = [...r.klassen].sort((a, b) => b.min - a.min).map((k, i) => `<div class="liga-regel-klasse ${farbe(k)}"><b>${esc(k.name)}</b><span>${sichtung ? `${esc(pace(i))}<br>sonst iRating ${esc(bereich(k))}` : `iRating ${esc(bereich(k))}`}</span></div>`).join("");
     if (r.typ === "event") return `${r.ohneKlassen ? "" : `<div class="liga-regel-klassen">${klassen}</div>`}
       <ul class="liga-regelliste">
         <li>Bei Events zählt die Platzierung, Punkte werden nicht vergeben.</li>
@@ -487,7 +491,7 @@
         ${r.mindestStarter > 0 ? `<li>Punkte gibt es ab ${r.mindestStarter} gestarteten Teilnehmern.</li>` : ""}
         ${r.punkteVerkuerztProzent !== undefined ? `<li>Wird weniger als 75 % der ausgeschriebenen Renndistanz gefahren, gibt es ${r.punkteVerkuerztProzent} % der Platzpunkte.</li>` : ""}
         ${r.gewerteteRennen < r.rennenGesamt ? `<li>Es zählen die besten ${r.gewerteteRennen} von ${r.rennenGesamt} Rennen. Strafpunkte werden immer abgezogen.</li>` : ""}
-        ${r.ohneKlassen ? "" : "<li>Die Klasse richtet sich nach dem iRating zum Start und bleibt danach gleich.</li>"}
+        ${r.ohneKlassen ? "" : sichtung ? "<li>Die Klasse richtet sich nach dem Sichtungsrennen: Verglichen wird die beste Runde mit der schnellsten der Fahrzeugklasse. Das Sichtungsrennen zählt nicht für die Tabelle. Wer nicht dabei war, wird nach iRating eingestuft. Die Rennleitung bestätigt jede Einstufung.</li>" : "<li>Die Klasse richtet sich nach dem iRating zum Start und bleibt danach gleich.</li>"}
         ${r.typ !== "event" ? "<li>Gaststarter erscheinen im Rennergebnis, bekommen aber keine Punkte und nehmen auch niemandem welche weg.</li>" : ""}
         ${r.klassen.length > 1 ? "<li>Die Gesamtwertung vergibt eigene Punkte nach dem Zieleinlauf der ganzen Fahrzeugklasse. Die Klassenwertungen bleiben davon unberührt.</li>" : ""}
         <li>Bei Punktgleichheit entscheiden die Anzahl der Siege, dann der zweiten Plätze und so weiter, zuletzt das jüngste Rennen.</li>
@@ -601,7 +605,7 @@
     const d = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.datum || "");
     return `<a class="liga-termin ${farbeSerie(s)}${s.typ === "event" ? " ist-event" : ""}" href="${serienLink(s)}">
       <span class="liga-termin-datum"><b>${d ? d[3] : "–"}</b><small>${d ? MONATE[+d[2] - 1] : ""}</small></span>
-      <span class="liga-termin-text">${artBadge(s.typ, true)}<b>${esc(r.titel)}</b><small>${esc(s.name)}${r.startzeit ? ` · ${esc(r.startzeit)} Uhr` : ""}</small></span>
+      <span class="liga-termin-text">${artBadge(s.typ, true)}<b>${esc(r.titel)}</b><small>${esc(s.name)}${r.startzeit ? ` · ${esc(r.startzeit)} Uhr` : ""}${r.sichtung ? " · Sichtung" : ""}</small></span>
     </a>`;
   }
 

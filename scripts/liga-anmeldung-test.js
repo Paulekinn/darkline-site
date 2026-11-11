@@ -457,6 +457,41 @@ const tests = {
       await assert.rejects(() => R.aendern("fehlt", () => {}), /gibt es nicht/);
     } finally { a.ende(); }
   },
+  "Sichtung: Season wählt iRating oder Sichtung, Pace-Grenzen werden geprüft": () => {
+    const basis = { name: "GT3", rennenGesamt: 8, gewerteteRennen: 8, punkte: "25 18", punkteDanach: 0, bonusPole: 0, bonusSchnellsteRunde: 0, mindestRundenProzent: 75, anmeldeschlussMinuten: 60, klassen: [{ name: "Pro", min: 2500, max: "" }, { name: "Pro-Am", min: 1500, max: 2499 }, { name: "Am", min: 0, max: 1499 }] };
+    assert.deepStrictEqual(D.pruefeSerie(basis).einstufungArt, "irating");
+    assert.strictEqual(D.pruefeSerie(basis).sichtungGrenzen, undefined);
+    assert.deepStrictEqual(D.pruefeSerie({ ...basis, einstufungArt: "sichtung" }).sichtungGrenzen, [101.5, 103], "Leer heißt Standardwerte");
+    assert.deepStrictEqual(D.pruefeSerie({ ...basis, einstufungArt: "sichtung", sichtungGrenzen: "101,2 / 102,8" }).sichtungGrenzen, [101.2, 102.8]);
+    assert.deepStrictEqual(D.pruefeSerie({ ...basis, einstufungArt: "sichtung", sichtungGrenzen: "101.2, 103" }).sichtungGrenzen, [101.2, 103]);
+    assert.throws(() => D.pruefeSerie({ ...basis, einstufungArt: "sichtung", sichtungGrenzen: "102" }), /2 Pace-Grenzen/);
+    assert.throws(() => D.pruefeSerie({ ...basis, einstufungArt: "sichtung", sichtungGrenzen: "103 / 101" }), /steigen/);
+    assert.strictEqual(D.pruefeSerie({ ...basis, einstufungArt: "sichtung", ohneKlassen: true }).einstufungArt, "irating", "Ohne Klassen gibt es nichts einzustufen");
+    assert.strictEqual(D.pruefeRennen({ titel: "Sichtung", serie: "gt3", datum: "2026-12-01", startzeit: "20:00", plaetze: 30, sichtung: true }, ["gt3"]).sichtung, true);
+    assert.strictEqual(D.pruefeRennen({ titel: "Runde 1", serie: "gt3", datum: "2026-12-01", startzeit: "20:00", plaetze: 30 }, ["gt3"]).sichtung, false);
+  },
+  "Sichtung: Rennen zählt nicht für die Tabelle und liefert den Klassenvorschlag": () => {
+    const rennen = [{ id: "s", serie: "gt3", sichtung: true, status: "geplant", datum: "2026-12-01", startzeit: "20:00" }, { id: "r1", serie: "gt3", status: "geplant", datum: "2026-12-08", startzeit: "20:00" }];
+    const f = (cust, name, irating, besteRunde, fz = "1") => ({ cust, name, irating, besteRunde, fahrzeugklasseId: fz, fahrzeugklasseName: fz === "1" ? "GT3" : "GT4" });
+    const sichtung = { id: "100", start: "2026-12-01T19:00:00.000Z", fahrer: [f("1", "Anna", 1200, 1000000), f("2", "Ben", 3000, 1012000), f("3", "Cem", 2000, 1025000), f("4", "Dia", 1800, null), f("5", "Eva", 900, 1100000, "2")] };
+    const lauf = { id: "200", start: "2026-12-08T19:00:00.000Z", fahrer: [] };
+    assert.strictEqual(D.istSichtung(sichtung, rennen, "gt3"), true);
+    assert.strictEqual(D.istSichtung(lauf, rennen, "gt3"), false);
+    assert.strictEqual(D.istSichtung(sichtung, rennen, "gt4"), false, "Nur Sichtungsrennen derselben Serie");
+    assert.deepStrictEqual(D.wertungsErgebnisse([sichtung, lauf], rennen, "gt3").map((e) => e.id), ["200"]);
+    assert.strictEqual(D.istSichtung(sichtung, [{ ...rennen[0], status: "abgesagt" }], "gt3"), false);
+    const serie = { id: "gt3", klassen: [{ id: "am", name: "Am", min: 0, max: 1499 }, { id: "pro", name: "Pro", min: 2500, max: null }, { id: "proam", name: "Pro-Am", min: 1500, max: 2499 }], sichtungGrenzen: [101.5, 103] };
+    const v = D.sichtungVorschlag(serie, [sichtung, lauf], rennen, { 2: "proam" });
+    const je = Object.fromEntries(v.fahrer.map((x) => [x.name, x]));
+    assert.strictEqual(v.rennen, 1);
+    assert.deepStrictEqual(v.klassen.map((k) => k.id), ["pro", "proam", "am"], "Stärkste Klasse zuerst");
+    assert.deepStrictEqual([je.Anna.prozent, je.Anna.vorschlag, je.Anna.nachIrating], [100, "pro", "am"], "Schnell trotz niedrigem iRating: Pro");
+    assert.deepStrictEqual([je.Ben.prozent, je.Ben.vorschlag, je.Ben.fest], [101.2, "pro", "proam"]);
+    assert.deepStrictEqual([je.Cem.prozent, je.Cem.vorschlag], [102.5, "proam"]);
+    assert.deepStrictEqual([je.Dia.prozent, je.Dia.vorschlag, je.Dia.nachIrating], [null, "", "proam"], "Ohne Rundenzeit kein Vorschlag");
+    assert.deepStrictEqual([je.Eva.prozent, je.Eva.vorschlag], [100, "pro"], "Verglichen wird innerhalb der eigenen Fahrzeugklasse");
+    assert.deepStrictEqual(v.fahrer.map((x) => x.name).slice(-1), ["Dia"], "Ohne Zeit ganz unten");
+  },
   "Gleichzeitig: Formular erkennt fremde Änderungen, Reihenfolge und Nebenfelder zählen nicht": () => {
     const s = { id: "gt3", name: "GT3", punkte: [25, 18], bildVersion: 1 };
     assert.strictEqual(D.nochAktuell({ punkte: [25, 18], name: "GT3", id: "gt3" }, s, ["bildVersion"]), true);

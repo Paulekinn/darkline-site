@@ -459,7 +459,12 @@
         ${feld("Strafpunkte-Grenze (0 = aus)", eingabe("strafpunkteGrenze", w.strafpunkteGrenze ?? 0, 'type="number" min="0"'))}
       </div><label class="a-check"><input type="checkbox" name="anmeldungOffen"${w.anmeldungOffen !== false ? " checked" : ""}> Fahrer können sich anmelden</label><p class="a-hinweis">Solange der Status „Geplant“ ist, bleibt die Anmeldung immer geschlossen.</p>`)}
       ${abschnittForm(3, "Klassen", `<label class="a-check"><input type="checkbox" name="ohneKlassen" id="s-ohne-klassen"${w.ohneKlassen ? " checked" : ""}> Keine Klassen nach iRating: alle fahren in einer gemeinsamen Wertung, bei Multiclass je Fahrzeugklasse</label>
-        <div class="a-spalte" id="a-klassen-bereich"${w.ohneKlassen ? " hidden" : ""}><div class="a-klassen-kopf"><span>Name</span><span>Von</span><span>Bis</span><span></span></div><div class="a-klassen" id="a-klassen">${w.klassen.map(klasseZeile).join("")}</div><div><button type="button" class="a-knopf zweit klein" data-klasse-neu="1">Klasse hinzufügen</button></div><div id="a-klassen-check"></div></div>`)}
+        <div class="a-spalte" id="a-klassen-bereich"${w.ohneKlassen ? " hidden" : ""}><div class="a-klassen-kopf"><span>Name</span><span>Von</span><span>Bis</span><span></span></div><div class="a-klassen" id="a-klassen">${w.klassen.map(klasseZeile).join("")}</div><div><button type="button" class="a-knopf zweit klein" data-klasse-neu="1">Klasse hinzufügen</button></div><div id="a-klassen-check"></div>
+          <div class="a-felder">
+            ${feld("Einstufung der Fahrer", auswahl("einstufungArt", w.einstufungArt || "irating", [["irating", "Nach iRating"], ["sichtung", "Nach Sichtungsrennen"]]))}
+            <div class="a-feld" data-nur-sichtung${w.einstufungArt === "sichtung" ? "" : " hidden"}><label>Pace-Grenzen in % zur schnellsten Runde</label>${eingabe("sichtungGrenzen", (w.sichtungGrenzen || []).join(" / ").replace(/\./g, ","), 'placeholder="101,5 / 103" autocomplete="off"')}</div>
+          </div>
+          <p class="a-hinweis" data-nur-sichtung${w.einstufungArt === "sichtung" ? "" : " hidden"}>Je eine Grenze zwischen zwei Klassen, von oben nach unten. Beispiel bei Pro, Pro-Am und Am: „101,5 / 103“ heißt bis 101,5 % Pro, bis 103 % Pro-Am, darüber Am. Leer lassen für die Standardwerte. Wer keine Sichtung gefahren ist, wird nach den iRating-Grenzen oben eingestuft.</p></div>`)}
       <div data-nur-liga${w.typ === "event" ? " hidden" : ""}>${abschnittForm(4, "Punkte", `<div class="a-leiste"><span class="a-beschriftung">Vorlage</span>${PUNKTE_VORLAGEN.map(([t], i) => `<button type="button" class="a-knopf zweit klein" data-punkte-vorlage="${i}">${esc(t)}</button>`).join("")}</div><div class="a-felder">
         ${feld("Punkte nach Platz", eingabe("punkte", w.punkte.join(", ")), true)}
         ${feld("Punkte für alle danach", eingabe("punkteDanach", w.punkteDanach, 'type="number" min="0"'))}
@@ -534,7 +539,7 @@
             ${feld("Datum", eingabe("datum", w.datum, 'type="date"'))}
             ${feld("Rennstart (deutsche Zeit)", eingabe("startzeit", w.startzeit, 'type="time"'))}
             ${feld("Startplätze", eingabe("plaetze", w.plaetze, 'type="number" min="1"'))}
-          </div>`)}
+          </div><label class="a-check"><input type="checkbox" name="sichtung"${w.sichtung ? " checked" : ""}> Sichtungsrennen: zählt nicht für die Tabelle, die Rundenzeiten bestimmen die Klassen</label>`)}
           ${abschnittForm(2, "Ablauf", `<div class="a-felder">
             ${feld("Fahrzeuge", eingabe("fahrzeuge", w.fahrzeuge, 'maxlength="80"'))}
             ${feld("Training", eingabe("training", w.training, 'placeholder="30 min"'))}
@@ -565,7 +570,7 @@
     return `<article class="a-termin ${serienFarbe(r.serie)}${vorbei ? " vorbei" : ""}">
       <div class="a-datum"><b>${m ? m[3] : "–"}</b><small>${m ? MONATE[+m[2] - 1] : ""}</small></div>
       <div class="a-termin-karte">${r.streckenBild ? `<img src="${esc(kartenUrl(r.streckenBild))}" alt="" loading="lazy">` : ""}</div>
-      <div class="a-termin-text"><b>${esc(r.titel)}</b><small>${esc([s ? s.name : "", r.startzeit ? `${r.startzeit} Uhr` : "", r.strecke, r.plaetze ? `${r.plaetze} Plätze` : ""].filter(Boolean).join(" · "))}</small><span class="a-leiste">${r.status === "abgesagt" ? statusChip("abgesagt") : ""}${warnungen.map((w) => `<span class="a-chip gelb">${esc(w)}</span>`).join("")}</span></div>
+      <div class="a-termin-text"><b>${esc(r.titel)}</b><small>${esc([s ? s.name : "", r.startzeit ? `${r.startzeit} Uhr` : "", r.strecke, r.plaetze ? `${r.plaetze} Plätze` : ""].filter(Boolean).join(" · "))}</small><span class="a-leiste">${r.sichtung ? '<span class="a-chip hell">Sichtung</span>' : ""}${r.status === "abgesagt" ? statusChip("abgesagt") : ""}${warnungen.map((w) => `<span class="a-chip gelb">${esc(w)}</span>`).join("")}</span></div>
       <div class="a-leiste"><button type="button" class="a-knopf zweit klein" data-rennen-bearbeiten="${esc(r.id)}">Bearbeiten</button><button type="button" class="a-knopf zweit klein" data-rennen-schieben="${esc(r.id)}" data-titel="${esc(r.titel)}">Verschieben</button><button type="button" class="a-knopf zweit klein" data-rennen-kopie="${esc(r.id)}">Duplizieren</button><button type="button" class="a-knopf gefahr klein" data-rennen-weg="${esc(r.id)}" data-titel="${esc(r.titel)}">Löschen</button></div>
     </article>`;
   }
@@ -762,7 +767,7 @@
   const abweichung = (f) => f.iratingAngabe !== null && f.iratingErgebnis !== null && Math.abs(f.iratingAngabe - f.iratingErgebnis) > 150;
 
   function fahrerZeile(f, serie) {
-    const klassenOption = (auto, fest) => `<option value="">Automatisch${auto ? ` (${esc((serie.klassen.find((k) => k.id === auto) || {}).name || auto)})` : ""}</option>${serie.klassen.map((k) => `<option value="${esc(k.id)}"${k.id === fest ? " selected" : ""}>${esc(k.name)}</option>`).join("")}`;
+    const klassenOption = (auto, fest) => `<option value="">${serie.einstufungArt === "sichtung" ? "Nach iRating" : "Automatisch"}${auto ? ` (${esc((serie.klassen.find((k) => k.id === auto) || {}).name || auto)})` : ""}</option>${serie.klassen.map((k) => `<option value="${esc(k.id)}"${k.id === fest ? " selected" : ""}>${esc(k.name)}</option>`).join("")}`;
     const bild = f.bild && f.pid ? `<img class="a-avatar" src="${esc(window.LigaKarte.avatarVon(f.pid, f.bild))}" alt="" width="34" height="34" loading="lazy">` : `<span class="a-avatar leer" aria-hidden="true">${esc(String(f.name).trim().charAt(0).toUpperCase())}</span>`;
     const klasse = f.custId && !serie.ohneKlassen ? `<select data-einstufung="${esc(f.custId)}" aria-label="Klasse von ${esc(f.name)}">${klassenOption(f.klasseAuto, f.klasseFest)}</select>` : "–";
     const abw = abweichung(f);
@@ -775,6 +780,24 @@
       <td>${klasse}</td>
       <td class="rechts">${akteKnopf(f.name, f.custId, f.discordId)} <button type="button" class="a-knopf gefahr klein" data-aus-serie="${esc(f.discordId)}" data-name="${esc(f.name)}">Entfernen</button></td>
     </tr>`;
+  }
+
+  // Klassenvorschlag aus den Sichtungsrennen. Übernommen wird erst auf Knopfdruck, danach lässt sich jede Klasse oben einzeln ändern.
+  const rundenzeit = (t) => { if (!t) return "–"; const s = t / 10000; return `${Math.floor(s / 60)}:${(s % 60).toFixed(3).padStart(6, "0")}`; };
+  function sichtungKarte(serie, det) {
+    const v = det.sichtung;
+    if (!v || !serie || serie.ohneKlassen) return "";
+    const name = (id) => (v.klassen.find((k) => k.id === id) || {}).name || "–";
+    const grenzen = v.klassen.map((k, i) => (i < v.grenzen.length ? `${esc(k.name)} bis ${String(v.grenzen[i]).replace(".", ",")} %` : `${esc(k.name)} darüber`)).join(" · ");
+    if (!v.fahrer.length) return `<section class="a-karte"><h2>Sichtung</h2><p class="a-leer">Noch kein Sichtungsrennen eingelesen. Hak beim Rennen „Sichtungsrennen“ an und lies danach das Ergebnis ein. Bis dahin gilt die Klasse nach iRating.</p><p class="a-hinweis">Grenzen: ${grenzen}</p></section>`;
+    const offen = v.fahrer.filter((f) => f.vorschlag && f.vorschlag !== f.fest).length;
+    const zeile = (f) => `<tr><td>${esc(f.name)}${f.fahrzeugklasse && v.fahrer.some((x) => x.fahrzeugklasse !== f.fahrzeugklasse) ? ` ${fahrzeugChip(f.fahrzeugklasse)}` : ""}</td><td class="rechts">${rundenzeit(f.besteRunde)}</td><td class="rechts">${f.prozent === null ? "–" : `${String(f.prozent.toFixed(1)).replace(".", ",")} %`}</td><td><b>${esc(name(f.vorschlag))}</b></td><td>${esc(name(f.nachIrating))}</td><td>${f.fest ? (f.fest === f.vorschlag ? '<span class="a-chip gruen">Übernommen</span>' : `<span class="a-chip gelb">${esc(name(f.fest))}</span>`) : '<span class="a-chip">nach iRating</span>'}</td></tr>`;
+    return `<section class="a-karte"><div class="a-kartenkopf"><h2>Sichtung</h2><span class="a-chip">${v.rennen} Sichtungsrennen · ${v.fahrer.length} Fahrer</span></div>
+      <p class="a-hinweis">Vorschlag aus der besten Runde im Vergleich zur schnellsten der Fahrzeugklasse. Grenzen: ${grenzen}</p>
+      <div class="a-scroll"><table><thead><tr><th>Fahrer</th><th class="rechts">Beste Runde</th><th class="rechts">Abstand</th><th>Vorschlag</th><th>Nach iRating</th><th>Aktuell</th></tr></thead><tbody>${v.fahrer.map(zeile).join("")}</tbody></table></div>
+      <div class="a-leiste"><button type="button" class="a-knopf${offen ? "" : " zweit"}" data-sichtung-uebernehmen="1">${offen ? `Vorschläge übernehmen (${offen} ${offen === 1 ? "Änderung" : "Änderungen"})` : "Vorschläge erneut übernehmen"}</button></div>
+      <p class="a-hinweis">Wer bei keiner Sichtung war, bleibt nach iRating eingestuft. Einzelne Fahrer kannst du danach oben in der Spalte „Klasse“ verschieben.</p>
+    </section>`;
   }
 
   function fahrerTab() {
@@ -796,6 +819,7 @@
       ${filter.length ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>Meldung</th><th>iRacing-ID</th><th class="rechts" title="Vom Fahrer im Profil angegeben">iRating Profil</th><th class="rechts" title="Aus dem zuletzt eingelesenen Rennergebnis">iRating letztes Rennen</th><th>Klasse</th><th></th></tr></thead><tbody>${filter.map((f) => fahrerZeile(f, serie)).join("")}</tbody></table></div>` : '<p class="a-leer">Keine Fahrer in dieser Ansicht.</p>'}
       <p class="a-hinweis">„iRating Profil“ hat der Fahrer selbst angegeben. „iRating letztes Rennen“ stammt aus dem zuletzt eingelesenen Ergebnis und ist leer, solange kein Ergebnis dieses Fahrers vorliegt. Ein „!“ zeigt mehr als 150 Punkte Unterschied.</p>` : '<p class="a-leer">Noch keine Fahrer gemeldet.</p>'}
     </section>
+    ${sichtungKarte(serie, det)}
     <section class="a-karte"><h2>Starterlisten</h2>${rennen || '<p class="a-leer">Keine kommenden Rennen.</p>'}</section>`;
   }
 
@@ -814,6 +838,7 @@
     const keiner = v.rennen.gewertet === 0 ? '<p class="a-meldung fehler">Keiner der Fahrer in dieser Datei ist für diese Serie gemeldet. Prüfe, ob Serie und Datei zusammenpassen.</p>' : "";
     return `<section class="a-karte"><div class="a-kartenkopf"><h2>Vorschau: ${esc(v.rennen.strecke)}</h2><span class="a-chip">${v.rennen.gewertet} von ${v.rennen.gesamt} Fahrern gewertet · ${esc(zeit(v.rennen.start))}</span></div>
       ${keiner}
+      ${v.sichtung ? '<p class="a-meldung">Das ist ein Sichtungsrennen: Es zählt nicht für die Tabelle. Die Rundenzeiten erscheinen nach dem Veröffentlichen im Reiter „Fahrer“ als Klassenvorschlag.</p>' : ""}
       ${v.ersetzt ? '<p class="a-meldung fehler">Dieses Rennen ist schon eingelesen und würde ersetzt.</p>' : ""}
       ${v.gaeste && v.gaeste.length ? `<p class="a-hinweis">Als Gast ohne Punkte: ${esc(v.gaeste.join(", "))}</p>` : ""}
       ${v.warnungen.length ? `<ul class="a-warnung">${v.warnungen.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}
@@ -826,7 +851,7 @@
   function ergebnisTab() {
     if (!d.serien.length) return '<section class="a-karte"><p class="a-leer">Leg zuerst eine Serie an.</p></section>';
     const det = d.details;
-    const ergebnisse = det.ergebnisse.map((e) => `<tr><td>${esc(zeit(e.start))}</td><td class="umbruch">${esc([e.strecke, e.variante].filter(Boolean).join(" · "))}</td><td class="rechts">${e.fahrer.length}</td><td>${e.stand === "vorlaeufig" ? '<span class="a-chip gelb">Vorläufig</span>' : '<span class="a-chip gruen">Endgültig</span>'}${e.verkuerzt ? ' <span class="a-chip rot">Verkürzt</span>' : ""}</td><td class="rechts"><div class="a-leiste a-rechtsbuendig"><button type="button" class="a-knopf zweit klein" data-ergebnis-distanz="${esc(e.id)}" data-wert="${e.verkuerzt ? "" : "1"}">${e.verkuerzt ? "Volle Distanz" : "Unter 75 % Distanz"}</button>${e.stand === "vorlaeufig" ? `<button type="button" class="a-knopf zweit klein" data-ergebnis-endgueltig="${esc(e.id)}">Endgültig freigeben</button>` : ""}<button type="button" class="a-knopf zweit klein" data-bericht-posten="${esc(e.id)}">In Discord posten</button><button type="button" class="a-knopf gefahr klein" data-ergebnis-loeschen="${esc(e.id)}">Löschen</button></div></td></tr>`).join("");
+    const ergebnisse = det.ergebnisse.map((e) => `<tr><td>${esc(zeit(e.start))}</td><td class="umbruch">${esc([e.strecke, e.variante].filter(Boolean).join(" · "))}</td><td class="rechts">${e.fahrer.length}</td><td>${e.sichtung ? '<span class="a-chip hell" title="Zählt nicht für die Tabelle">Sichtung</span> ' : ""}${e.stand === "vorlaeufig" ? '<span class="a-chip gelb">Vorläufig</span>' : '<span class="a-chip gruen">Endgültig</span>'}${e.verkuerzt ? ' <span class="a-chip rot">Verkürzt</span>' : ""}</td><td class="rechts"><div class="a-leiste a-rechtsbuendig"><button type="button" class="a-knopf zweit klein" data-ergebnis-distanz="${esc(e.id)}" data-wert="${e.verkuerzt ? "" : "1"}">${e.verkuerzt ? "Volle Distanz" : "Unter 75 % Distanz"}</button>${e.stand === "vorlaeufig" ? `<button type="button" class="a-knopf zweit klein" data-ergebnis-endgueltig="${esc(e.id)}">Endgültig freigeben</button>` : ""}<button type="button" class="a-knopf zweit klein" data-bericht-posten="${esc(e.id)}">In Discord posten</button><button type="button" class="a-knopf gefahr klein" data-ergebnis-loeschen="${esc(e.id)}">Löschen</button></div></td></tr>`).join("");
     const strafen = det.strafen.map((s) => {
       const e = det.ergebnisse.find((x) => x.id === s.rennen);
       const wert = s.typ === "zeit" ? `+${s.sekunden} s` : s.typ === "dsq" ? "DSQ" : `−${s.punkte}`;
@@ -1279,6 +1304,10 @@
       if (!window.confirm(verkuerzt ? "Dieses Rennen als verkürzt werten? Es gibt dann nur noch anteilige Platzpunkte, die Tabelle wird neu berechnet." : "Wieder volle Punkte für dieses Rennen vergeben?")) return;
       return aktion({ aktion: "ergebnis-distanz", serie: serieId, id: b.dataset.ergebnisDistanz, verkuerzt }, "Renndistanz geändert, die Tabelle ist aktualisiert.");
     }
+    if (b.dataset.sichtungUebernehmen) {
+      if (!window.confirm("Alle Fahrer mit Sichtungszeit bekommen die vorgeschlagene Klasse. Von Hand gesetzte Klassen dieser Fahrer werden überschrieben. Fortfahren?")) return;
+      return aktion({ aktion: "sichtung-uebernehmen", serie: serieId }, "Klassen aus der Sichtung übernommen, die Tabelle ist aktualisiert.");
+    }
     if (b.dataset.ergebnisEndgueltig) {
       if (!window.confirm("Ergebnis jetzt endgültig freigeben? Sonst geschieht das automatisch 72 Stunden nach Rennende.")) return;
       return aktion({ aktion: "ergebnis-endgueltig", serie: serieId, id: b.dataset.ergebnisEndgueltig }, "Ergebnis ist endgültig.");
@@ -1339,8 +1368,9 @@
       // Eingaben merken, damit sie bei einem Fehler im Formular stehen bleiben
       form.werte = { ...w, punkte: String(w.punkte).split(/[\s,;]+/).filter(Boolean), fahrzeugklassen: String(w.fahrzeugklassen).split(",").map((x) => x.trim()).filter(Boolean) };
       // Nach dem Speichern steht man im Reiter, in den die Serie jetzt gehört.
-      if (await aktion({ aktion: "serie-speichern", id: form.id, serie: w, vorher: form.vorher },w.typ === "event" ? "Event gespeichert." : "Season gespeichert.")) { serienReiter = w.status === "beendet" ? "archiv" : w.typ === "event" ? "event" : "liga"; zeichne(); }
+      if (await aktion({ aktion: "serie-speichern", id: form.id, serie: w, vorher: form.vorher }, w.typ === "event" ? "Event gespeichert." : "Season gespeichert.")) { serienReiter = w.status === "beendet" ? "archiv" : w.typ === "event" ? "event" : "liga"; zeichne(); }
     } else if (f.id === "f-rennen") {
+      w.sichtung = f.elements.sichtung.checked;
       form.werte = w;
       aktion({ aktion: "rennen-speichern", id: form.id, rennen: { ...w, streckeId: (streckeAus(w.strecke) || {}).id || "" }, vorher: form.vorher },"Rennen gespeichert.");
     } else if (f.id === "f-strecke") {
@@ -1376,6 +1406,10 @@
       return;
     }
     if (t.id === "s-ohne-klassen") { document.getElementById("a-klassen-bereich").hidden = t.checked; return; }
+    if (t.name === "einstufungArt" && t.closest("#f-serie")) {
+      t.closest("#f-serie").querySelectorAll("[data-nur-sichtung]").forEach((el) => { el.hidden = t.value !== "sichtung"; });
+      return;
+    }
     if (t.name === "typ" && t.closest("#f-serie")) {
       const f = t.closest("#f-serie");
       f.querySelectorAll("[data-nur-liga]").forEach((el) => { el.hidden = t.value === "event"; });

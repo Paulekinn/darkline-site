@@ -133,7 +133,8 @@ function baueSerien(serienListe, eintraege, { discordId, profil, klasseFuer }) {
     const mitglieder = eintraege.filter((e) => e.typ === "serie" && e.serieId === s.id);
     const eigen = mitglieder.find((e) => e.discordId === discordId);
     const sportsCar = !s.kategorie || s.kategorie === "Sports_Car";
-    const klasse = profil && sportsCar && !s.ohneKlassen ? (klasseFuer(profil.irating, s.klassen || []) || {}).name || "" : "";
+    // Bei Sichtung steht die Klasse erst nach dem Sichtungsrennen fest, eine Vorhersage aus dem iRating wäre irreführend.
+    const klasse = s.einstufungArt === "sichtung" && !s.ohneKlassen ? "Einstufung nach Sichtung" : profil && sportsCar && !s.ohneKlassen ? (klasseFuer(profil.irating, s.klassen || []) || {}).name || "" : "";
     return { id: s.id, name: s.name, typ: s.typ || "liga", saison: s.saison || "", status: s.status || "anmeldung", anmeldungOffen: s.anmeldungOffen !== false && s.status !== "beendet" && s.status !== "geplant", farbe: s.farbe || "rot", bildVersion: s.bildVersion || 0, fahrzeugklassen: s.fahrzeugklassen || [], fahrer: mitglieder.length, ich: !!eigen, fahrzeugklasse: eigen ? eigen.fahrzeugklasse : "", klasse, einstufungDurchRennleitung: !sportsCar && !s.ohneKlassen };
   });
 }

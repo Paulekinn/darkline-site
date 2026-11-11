@@ -58,7 +58,8 @@ async function serienDetails(kat, id) {
   return {
     serie: id, fahrer,
     rennen: A.baueRennen(kat.rennen.filter((r) => r.serie === id), alle, opt).map(({ id: rid, titel, start, status, plaetze, starter, warteliste }) => ({ id: rid, titel, start, status, plaetze, starter, warteliste })),
-    ergebnisse: ergebnisse.map((e) => ({ id: e.id, start: e.start, strecke: e.strecke, variante: e.variante, verkuerzt: !!e.verkuerzt, stand: R.ergebnisStand(e.start, standCtx), fahrer: e.fahrer.map((f) => ({ cust: f.cust, name: f.name })) })).sort((a, b) => String(a.start).localeCompare(String(b.start))),
+    sichtung: serie.einstufungArt === "sichtung" ? D.sichtungVorschlag(serie, ergebnisse, kat.rennen, privat.einstufung) : null,
+    ergebnisse: ergebnisse.map((e) => ({ id: e.id, start: e.start, strecke: e.strecke, variante: e.variante, verkuerzt: !!e.verkuerzt, sichtung: D.istSichtung(e, kat.rennen, id), stand: R.ergebnisStand(e.start, standCtx), fahrer: e.fahrer.map((f) => ({ cust: f.cust, name: f.name })) })).sort((a, b) => String(a.start).localeCompare(String(b.start))),
     strafen: [
       ...privat.strafen.map((s) => ({ ...s, typ: "punkte" })),
       ...(privat.zeitstrafen || []).map((s) => ({ ...s, typ: "zeit" })),
@@ -73,7 +74,7 @@ function darfEntscheiden(report, s) {
 }
 
 async function neuBerechnen(kat, id) {
-  return D.tabelleNeu(id, serieFinden(kat, id), await D.ergebnisseLesen(id));
+  return D.tabelleNeu(id, serieFinden(kat, id), await D.ergebnisseLesen(id), kat.rennen);
 }
 
 const rennenFinden = (kat, id) => {
@@ -222,7 +223,7 @@ const aktionen = {
     }
     await D.serieSpeichern(id, daten);
     // Geänderte Punkte oder Klassen wirken sofort auf die Tabelle.
-    if (b.id) await D.tabelleNeu(id, daten, await D.ergebnisseLesen(id));
+    if (b.id) await D.tabelleNeu(id, { ...daten, id }, await D.ergebnisseLesen(id), kat.rennen);
     return { id };
   },
   async "serie-loeschen"(b, kat) {
@@ -432,12 +433,21 @@ const aktionen = {
       D.nichtUeberschreiben(b.vorher, bisher, ["streckenBild"], "Dieses Rennen");
     } else id = D.neueRennenId(daten);
     await D.rennenSpeichern(id, daten);
+    // Wird ein Rennen zur Sichtung, wieder zum Wertungsrennen oder einer anderen Serie zugeordnet, ändert sich die Tabelle.
+    const vorher = kat.rennen.find((r) => r.id === id);
+    if (vorher && (!!vorher.sichtung !== daten.sichtung || vorher.serie !== daten.serie)) {
+      const rennen = [...kat.rennen.filter((r) => r.id !== id), { ...daten, id }];
+      for (const s of new Set([daten.serie, vorher.serie])) await D.tabelleNeu(s, serieFinden(kat, s), await D.ergebnisseLesen(s), rennen);
+    }
     return { id };
   },
   async "rennen-loeschen"(b, kat) {
     if (!kat.rennen.some((r) => r.id === b.id)) throw new Hinweis("Dieses Rennen gibt es nicht.");
     // Einzelmeldungen und Abmeldungen gehören zum Rennen und gehen mit. Eingelesene Ergebnisse sind getrennt gespeichert und bleiben.
     const meldungen = (await eintraege()).filter((e) => e.typ !== "serie" && e.rennenId === b.id);
+    // Ohne das Sichtungsrennen würde sein Ergebnis plötzlich in der Tabelle zählen.
+    const weg = kat.rennen.find((r) => r.id === b.id);
+    if (weg.sichtung && (await D.ergebnisseLesen(weg.serie)).some((e) => D.istSichtung(e, [weg], weg.serie))) throw new Hinweis("Zu diesem Sichtungsrennen gibt es ein eingelesenes Ergebnis. Lösche zuerst das Ergebnis, sonst würde es in der Tabelle zählen. Bereits übernommene Klassen bleiben erhalten.");
     if (meldungen.length) await blobDelete(meldungen.map((e) => e.pfad));
     await D.rennenLoeschen(b.id);
     return {};
@@ -450,8 +460,10 @@ const aktionen = {
     const { ergebnis: neu, fremde, fehlend } = D.abgleichen(eingelesen, gemeldet, b.zugelassen, stamm);
     const vorhanden = await D.ergebnisseLesen(b.serie);
     const bisher = vorhanden.filter((e) => e.id !== neu.id);
-    const { warnungen, ...tabelle } = berechneTabelle([...bisher, neu], serie, await D.privatLesen(b.serie));
-    return { warnungen, tabelle, ersetzt: bisher.length !== vorhanden.length, fremde, fehlend, gaeste: neu.fahrer.filter((f) => f.gast).map((f) => f.name), rennen: { id: neu.id, strecke: neu.strecke, start: neu.start, gesamt: eingelesen.fahrer.length, gewertet: neu.fahrer.length } };
+    const sichtung = D.istSichtung(neu, kat.rennen, b.serie);
+    const wertung = D.wertungsErgebnisse([...bisher, neu], kat.rennen, b.serie);
+    const { warnungen, ...tabelle } = wertung.length ? berechneTabelle(wertung, serie, await D.privatLesen(b.serie)) : { warnungen: [], klassen: [], gesamt: [], rennen: [] };
+    return { sichtung, warnungen, tabelle, ersetzt: bisher.length !== vorhanden.length, fremde, fehlend, gaeste: neu.fahrer.filter((f) => f.gast).map((f) => f.name), rennen: { id: neu.id, strecke: neu.strecke, start: neu.start, gesamt: eingelesen.fahrer.length, gewertet: neu.fahrer.length } };
   },
   async "ergebnis-veroeffentlichen"(b, kat) {
     const serie = serieFinden(kat, b.serie);
@@ -563,6 +575,17 @@ const aktionen = {
     });
     await neuBerechnen(kat, b.serie);
     return {};
+  },
+  // Übernimmt den Klassenvorschlag aus den Sichtungsrennen für alle Fahrer mit Rundenzeit. Einzelne lassen sich danach von Hand ändern.
+  async "sichtung-uebernehmen"(b, kat) {
+    const serie = serieFinden(kat, b.serie);
+    if (serie.einstufungArt !== "sichtung") throw new Hinweis("Diese Season wird nach iRating eingestuft. Stelle sie zuerst auf Sichtung um.");
+    const { fahrer } = D.sichtungVorschlag(serie, await D.ergebnisseLesen(b.serie), kat.rennen);
+    const mitVorschlag = fahrer.filter((f) => f.vorschlag);
+    if (!mitVorschlag.length) throw new Hinweis("Es gibt noch keine Rundenzeiten aus einem Sichtungsrennen.");
+    await D.privatAendern(b.serie, (privat) => ({ ...privat, einstufung: { ...privat.einstufung, ...Object.fromEntries(mitVorschlag.map((f) => [f.cust, f.vorschlag])) } }));
+    await neuBerechnen(kat, b.serie);
+    return { anzahl: mitVorschlag.length };
   },
   async "report-status"(b, kat, s) {
     await R.aendern(b.id, (report) => {
