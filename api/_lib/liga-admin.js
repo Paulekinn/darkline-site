@@ -135,6 +135,7 @@ async function protokollText(b, kat) {
     "profil-bearbeiten": () => `Fahrerprofil geändert: ${(b.profil || {}).iracingName}${b.bildEntfernen ? ", Profilbild entfernt" : ""}`,
     "nummer-bestaetigen": () => `Startnummer bestätigt: ${b.name}, neu #${b.nummer}`,
     "nummer-ablehnen": () => `Startnummer abgelehnt: ${b.name}, gewünscht #${b.nummer}`,
+    "g61-sichtung-test": () => "",
     "fahrzeug-entscheiden": () => `Fahrzeugwechsel ${b.ja === true ? "bestätigt" : "abgelehnt"} in ${serie(b.serie)}`,
     "fahrzeug-setzen": () => `Fahrzeug gesetzt in ${serie(b.serie)}: ${b.modell}`,
     "fahrzeug-streichen": () => `Ergebnis wegen Fahrzeug gestrichen in ${serie(b.serie)}`,
@@ -324,6 +325,20 @@ const aktionen = {
     await Dc.abgleichen(discordId, profil, await eintraege(), kat.serien);
     await Dc.nachricht(discordId, entscheid.text);
     return {};
+  },
+  // Zugriffstest für die Sichtung: Was liefert Garage 61 aus dem Liga-Team? Nur lesen, nichts wird gespeichert.
+  // Zeigt Team, Mitglieder, Sessions der letzten 14 Tage und die Felder einer Beispielrunde, damit die Sichtung auf echte Daten passt.
+  async "g61-sichtung-test"() {
+    const team = process.env.G61_SICHTUNG_TEAM || "darkline-simracing-series";
+    const T = "G61_SICHTUNG_TOKEN";
+    const schritt = async (name, fn) => { try { return { name, ok: true, daten: await fn() }; } catch (e) { return { name, ok: false, fehler: `${e.status ? `Code ${e.status}: ` : ""}${e.message}` }; } };
+    const kurz = (o, tiefe = 0) => (Array.isArray(o) ? (o.length ? [kurz(o[0], tiefe + 1), `… ${o.length} Einträge`] : []) : o && typeof o === "object" ? (tiefe > 2 ? "{…}" : Object.fromEntries(Object.entries(o).slice(0, 40).map(([k, v]) => [k, kurz(v, tiefe + 1)]))) : o);
+    const nach = new Date(Date.now() - 14 * 864e5).toISOString();
+    const teamInfo = await schritt("Team", async () => { const t = await G61.g61Get(`/teams/${team}`, {}, T); return { name: t.name, slug: t.slug, mitglieder: (t.members || t.drivers || []).map((m) => [m.firstName, m.lastName].filter(Boolean).join(" ") || m.slug || m.name), felder: Object.keys(t) }; });
+    const events = await schritt("Sessions (14 Tage)", async () => G61.items(await G61.g61Get("/events", { team, after: nach, before: new Date().toISOString(), limit: 20 }, T)).map((e) => ({ id: e.id, start: e.startedAt, strecke: e.track && e.track.name, variante: e.track && e.track.variant, auto: e.car && e.car.name, runden: e.lapCount, fahrer: (e.drivers || []).length, iracing: !!e.platformEvent, felder: Object.keys(e) })));
+    const ersteId = events.ok && events.daten.find((e) => e.runden > 0);
+    const beispiel = ersteId ? await schritt("Beispiel-Session", async () => { const ev = await G61.g61Get(`/events/${ersteId.id}`, {}, T); const { laps, ...rest } = ev; return { session: kurz(rest), runden: (laps || []).length, ersteRunde: kurz((laps || [])[0] || null), sessionArten: [...new Set((laps || []).map((l) => l.sessionType))], sauber: (laps || []).filter((l) => l.clean).length }; }) : { name: "Beispiel-Session", ok: false, fehler: "Keine Session mit Runden in den letzten 14 Tagen gefunden. Bitte ein paar Runden fahren und erneut testen." };
+    return { g61Test: { team, schritte: [teamInfo, events, beispiel] } };
   },
   // Alle Fahrzeugnamen aus Garage 61 als Vorschlag für die Fahrzeugliste einer Season
   async fahrzeugliste() {

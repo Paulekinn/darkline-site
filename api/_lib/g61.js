@@ -17,9 +17,10 @@ function teamSlug() {
   return slug;
 }
 
-async function g61Fetch(path, params = {}) {
-  const token = process.env.GARAGE61_TOKEN;
-  if (!token) throw new Error("GARAGE61_TOKEN fehlt in den Vercel-Umgebungsvariablen.");
+// tokenName: welche Umgebungsvariable den Schlüssel enthält. Die Liga-Sichtung nutzt einen eigenen (G61_SICHTUNG_TOKEN).
+async function g61Fetch(path, params = {}, tokenName = "GARAGE61_TOKEN") {
+  const token = process.env[tokenName];
+  if (!token) throw new Error(`${tokenName} fehlt in den Vercel-Umgebungsvariablen.`);
   const qs = new URLSearchParams(params).toString();
   const r = await fetch(`${API}${path}${qs ? `?${qs}` : ""}`, { headers: { Authorization: `Bearer ${token}` } });
   if (r.status === 429) throw new RateLimited(Number(r.headers.get("retry-after")) || 60);
@@ -31,7 +32,7 @@ async function g61Fetch(path, params = {}) {
   return r;
 }
 
-const g61Get = async (path, params) => (await g61Fetch(path, params)).json();
+const g61Get = async (path, params, tokenName) => (await g61Fetch(path, params, tokenName)).json();
 const g61Text = async (path, params) => (await g61Fetch(path, params)).text();
 
 // Liefert den gemerkten Wert, solange er jünger als ttl Sekunden ist, sonst wird fn() neu ausgeführt.
