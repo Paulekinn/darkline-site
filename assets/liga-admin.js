@@ -31,6 +31,16 @@
   let form = null;        // { art: "serie"|"rennen"|"strecke", id, werte, vorher }
   let konflikt = false;   // Letztes Speichern scheiterte, weil jemand anderes inzwischen geändert hatte
   let fahrzeugListe = null; // Fahrzeugnamen aus Garage 61, erst auf Knopfdruck geladen
+  // Fahrzeugklassen zum Schnell-Hinzufügen. Garage 61 liefert keine Klasse mit, erkannt wird am iRacing-Namen.
+  // Cup-Autos (etwa Porsche 911 GT3 Cup) sind keine GT3-Klasse und fallen heraus. Ergebnis immer kurz prüfen.
+  const FAHRZEUGKLASSEN = [
+    ["GT3", (n) => /\bGT3\b/i.test(n) && !/\bCup\b/i.test(n)],
+    ["GT4", (n) => /\bGT4\b/i.test(n)],
+    ["GTP", (n) => /\bGTP\b|Hybrid V8|\b963\b|\b499P\b|ARX-06|V-Series\.R/i.test(n)],
+    ["LMP2", (n) => /\bLMP2\b|\bP217\b/i.test(n)],
+    ["LMP3", (n) => /\bLMP3\b|\bP320\b/i.test(n)],
+    ["TCR", (n) => /\bTCR\b/i.test(n)],
+  ];
   let notizEntwurf = null; // { id, text, konflikt } solange Notizen nicht gespeichert sind
   let meldung = null;     // { text, fehler }
   let datei = null;       // eingelesene Ergebnisdatei
@@ -471,7 +481,7 @@
       </div><label class="a-check"><input type="checkbox" name="anmeldungOffen"${w.anmeldungOffen !== false ? " checked" : ""}> Fahrer können sich anmelden</label><p class="a-hinweis">Solange der Status „Geplant“ ist, bleibt die Anmeldung immer geschlossen.</p>
       <div class="a-felder">
         ${feld("Erlaubte Fahrzeuge (eins pro Zeile, leer = keine Fahrzeugwahl)", `<textarea name="modelle" id="s-modelle" style="min-height:90px" placeholder="BMW M4 GT3&#10;Porsche 911 GT3 R (992)">${esc(Array.isArray(w.modelle) ? w.modelle.join("\n") : w.modelle || "")}</textarea>`, true)}
-        <div class="a-feld"><label>Fahrzeug hinzufügen</label><div class="a-leiste"><input id="s-modell-neu" list="a-modelle" autocomplete="off" placeholder="Name aus iRacing"><datalist id="a-modelle">${(fahrzeugListe || []).map((n) => `<option value="${esc(n)}"></option>`).join("")}</datalist><button type="button" class="a-knopf zweit klein" data-modell-neu="1">Hinzufügen</button>${fahrzeugListe ? "" : '<button type="button" class="a-knopf zweit klein" data-modelle-laden="1">Liste aus Garage 61 laden</button>'}</div><small class="a-hinweis" id="s-modelle-status" role="status">${fahrzeugListe ? `${fahrzeugListe.length} Fahrzeuge aus Garage 61 geladen. Tippe einen Teil des Namens, etwa „GT3“, und wähle aus den Vorschlägen.` : ""}</small></div>
+        <div class="a-feld breit"><label>Fahrzeug hinzufügen</label><div class="a-leiste"><input id="s-modell-neu" list="a-modelle" autocomplete="off" placeholder="Name aus iRacing"><datalist id="a-modelle">${(fahrzeugListe || []).map((n) => `<option value="${esc(n)}"></option>`).join("")}</datalist><button type="button" class="a-knopf zweit klein" data-modell-neu="1">Hinzufügen</button>${fahrzeugListe ? "" : '<button type="button" class="a-knopf zweit klein" data-modelle-laden="1">Liste aus Garage 61 laden</button>'}</div><div class="a-leiste"><span class="a-beschriftung">Ganze Klasse</span>${FAHRZEUGKLASSEN.map(([k]) => `<button type="button" class="a-knopf zweit klein" data-modell-klasse="${k}">${k}</button>`).join("")}</div><small class="a-hinweis" id="s-modelle-status" role="status">${fahrzeugListe ? `${fahrzeugListe.length} Fahrzeuge aus Garage 61 geladen. Tippe einen Teil des Namens, etwa „GT3“, und wähle aus den Vorschlägen.` : ""}</small></div>
         ${feld("Freie Fahrzeugwechsel je Fahrer", eingabe("freieWechsel", w.freieWechsel ?? 0, 'type="number" min="0" max="10"'))}
       </div><p class="a-hinweis">Mit Fahrzeugliste wählt jeder Fahrer bei der Anmeldung sein Modell. Weitere Wechsel als die freien nur mit eurer Zustimmung. Fährt jemand ein anderes Auto als gemeldet, erscheint das nach dem Einlesen im Cockpit.</p>`)}
       ${abschnittForm(3, "Klassen", `<label class="a-check"><input type="checkbox" name="ohneKlassen" id="s-ohne-klassen"${w.ohneKlassen ? " checked" : ""}> Keine Klassen nach iRating: alle fahren in einer gemeinsamen Wertung, bei Multiclass je Fahrzeugklasse</label>
@@ -1327,21 +1337,30 @@
       if (!window.confirm(verkuerzt ? "Dieses Rennen als verkürzt werten? Es gibt dann nur noch anteilige Platzpunkte, die Tabelle wird neu berechnet." : "Wieder volle Punkte für dieses Rennen vergeben?")) return;
       return aktion({ aktion: "ergebnis-distanz", serie: serieId, id: b.dataset.ergebnisDistanz, verkuerzt }, "Renndistanz geändert, die Tabelle ist aktualisiert.");
     }
-    if (b.dataset.modelleLaden) {
+    if (b.dataset.modelleLaden || b.dataset.modellKlasse) {
       // Formular-Eingaben bleiben erhalten: Das Formular wird nicht neu gezeichnet, die Rückmeldung steht direkt neben dem Knopf.
       const status = document.getElementById("s-modelle-status");
-      b.disabled = true;
-      status.textContent = "Lade Fahrzeuge aus Garage 61 …";
-      const a = await sende({ aktion: "fahrzeugliste" }, "");
-      b.disabled = false;
-      if (!a) { status.textContent = (meldung && meldung.text) || "Garage 61 hat nicht geantwortet. Bitte versuche es gleich noch einmal."; setzeMeldung(""); return; }
-      fahrzeugListe = a.fahrzeuge;
-      const dl = document.getElementById("a-modelle");
-      if (dl) dl.innerHTML = fahrzeugListe.map((n) => `<option value="${esc(n)}"></option>`).join("");
-      status.textContent = `${fahrzeugListe.length} Fahrzeuge aus Garage 61 geladen. Tippe einen Teil des Namens, etwa „GT3“, und wähle aus den Vorschlägen.`;
-      b.remove();
-      const feldNeu = document.getElementById("s-modell-neu");
-      if (feldNeu) feldNeu.focus();
+      if (!fahrzeugListe) {
+        b.disabled = true;
+        status.textContent = "Lade Fahrzeuge aus Garage 61 …";
+        const a = await sende({ aktion: "fahrzeugliste" }, "");
+        b.disabled = false;
+        if (!a) { status.textContent = (meldung && meldung.text) || "Garage 61 hat nicht geantwortet. Bitte versuche es gleich noch einmal."; setzeMeldung(""); return; }
+        fahrzeugListe = a.fahrzeuge;
+        const dl = document.getElementById("a-modelle");
+        if (dl) dl.innerHTML = fahrzeugListe.map((n) => `<option value="${esc(n)}"></option>`).join("");
+        const laden = document.querySelector("[data-modelle-laden]");
+        if (laden) laden.remove();
+        status.textContent = `${fahrzeugListe.length} Fahrzeuge aus Garage 61 geladen. Tippe einen Teil des Namens, etwa „GT3“, und wähle aus den Vorschlägen.`;
+      }
+      if (!b.dataset.modellKlasse) { const feldNeu = document.getElementById("s-modell-neu"); if (feldNeu) feldNeu.focus(); return; }
+      // Ganze Klasse: alle passenden Modelle anhängen, schon eingetragene bleiben einmalig
+      const [klasse, passt] = FAHRZEUGKLASSEN.find(([k]) => k === b.dataset.modellKlasse);
+      const liste = document.getElementById("s-modelle");
+      const zeilen = liste.value.split("\n").map((x) => x.trim()).filter(Boolean);
+      const neu = fahrzeugListe.filter(passt).filter((n) => !zeilen.some((x) => x.toLowerCase() === n.toLowerCase()));
+      liste.value = [...zeilen, ...neu].join("\n");
+      status.textContent = neu.length ? `${klasse}: ${neu.length} Fahrzeuge hinzugefügt (${neu.join(", ")}). Bitte kurz prüfen und ältere Modelle, die ihr nicht zulassen wollt, aus der Liste löschen.` : `${klasse}: Keine weiteren Fahrzeuge gefunden, alle passenden stehen schon in der Liste.`;
       return;
     }
     if (b.dataset.modellNeu) {
