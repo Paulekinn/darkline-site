@@ -327,7 +327,9 @@ const aktionen = {
   },
   // Alle Fahrzeugnamen aus Garage 61 als Vorschlag für die Fahrzeugliste einer Season
   async fahrzeugliste() {
-    const namen = [...new Set([...(await G61.cars()).values()].map((n) => String(n || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de"));
+    // Garage-61-Fehler (kein Zugriff, ausgelastet) sollen im Formular lesbar ankommen, nicht als „Technischer Fehler“.
+    const liste = await G61.cars().catch((e) => { throw new Hinweis(`Garage 61: ${e.message} Du kannst die Fahrzeuge auch von Hand eintragen.`); });
+    const namen = [...new Set([...liste.values()].map((n) => String(n || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de"));
     return { fahrzeuge: namen };
   },
   // Fahrzeugwechsel: Antrag des Fahrers bestätigen oder ablehnen, der Fahrer bekommt eine Direktnachricht.
