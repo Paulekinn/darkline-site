@@ -31,6 +31,7 @@
   let form = null;        // { art: "serie"|"rennen"|"strecke", id, werte, vorher }
   let konflikt = false;   // Letztes Speichern scheiterte, weil jemand anderes inzwischen geändert hatte
   let fahrzeugListe = null; // Fahrzeugnamen aus Garage 61, erst auf Knopfdruck geladen
+  let g61Test = null;       // Ergebnis des Garage-61-Zugriffstests (Protokoll-Reiter)
   // Fahrzeugklassen zum Schnell-Hinzufügen. Garage 61 liefert keine Klasse mit, erkannt wird am iRacing-Namen.
   // Cup-Autos (etwa Porsche 911 GT3 Cup) sind keine GT3-Klasse und fallen heraus. Ergebnis immer kurz prüfen.
   const FAHRZEUGKLASSEN = [
@@ -741,7 +742,9 @@
   function protokollTab() {
     if (protokoll === null && !protokollLaedt) protokollLaden();
     const zeilen = (protokoll || []).map((e) => `<tr><td>${esc(zeit(e.zeit))}</td><td>${esc(e.wer)}</td><td class="umbruch">${esc(e.text)}</td></tr>`).join("");
-    return `<section class="a-karte"><div class="a-kartenkopf"><h2>Änderungsprotokoll</h2><div class="a-leiste"><span class="a-chip">Letzte 300 Einträge</span><button type="button" class="a-knopf zweit klein" data-discord-test="1">Discord testen</button></div></div>${zeilen ? `<div class="a-scroll"><table><thead><tr><th>Zeit</th><th>Wer</th><th>Was</th></tr></thead><tbody>${zeilen}</tbody></table></div>` : `<p class="a-leer">${protokoll === null ? "Wird geladen …" : "Noch keine Änderungen protokolliert."}</p>`}</section>`;
+    // Ergebnis des Garage-61-Zugriffstests für die Sichtung: je Schritt ok oder Fehler, dazu die gelieferten Daten
+    const g61 = g61Test ? `<section class="a-karte"><div class="a-kartenkopf"><h2>Garage 61 · Sichtungs-Team</h2><span class="a-chip">${esc(g61Test.team)}</span></div>${g61Test.schritte.map((s) => `<h3>${s.ok ? "✅" : "❌"} ${esc(s.name)}</h3>${s.ok ? `<pre class="a-notiz-stand">${esc(JSON.stringify(s.daten, null, 2))}</pre>` : `<p class="a-meldung fehler">${esc(s.fehler)}</p>`}`).join("")}</section>` : "";
+    return `${g61}<section class="a-karte"><div class="a-kartenkopf"><h2>Änderungsprotokoll</h2><div class="a-leiste"><span class="a-chip">Letzte 300 Einträge</span><button type="button" class="a-knopf zweit klein" data-discord-test="1">Discord testen</button><button type="button" class="a-knopf zweit klein" data-g61-test="1">Garage 61 testen</button></div></div>${zeilen ? `<div class="a-scroll"><table><thead><tr><th>Zeit</th><th>Wer</th><th>Was</th></tr></thead><tbody>${zeilen}</tbody></table></div>` : `<p class="a-leer">${protokoll === null ? "Wird geladen …" : "Noch keine Änderungen protokolliert."}</p>`}</section>`;
   }
 
   /* ---------- Fahrer-Akte ---------- */
@@ -1178,6 +1181,13 @@
     const b = e.target.closest("button");
     if (!b) return;
     if (b.id === "a-logout") { await sende({ aktion: "logout" }); d = { angemeldet: false }; return zeichne(); }
+    if (b.dataset.g61Test) {
+      b.disabled = true;
+      b.textContent = "Teste Garage 61 …";
+      const a = await sende({ aktion: "g61-sichtung-test" }, "");
+      if (a && a.g61Test) { g61Test = a.g61Test; window.scrollTo(0, 0); }
+      return zeichne();
+    }
     if (b.dataset.discordTest) {
       const a = await aktion({ aktion: "discord-test" }, "");
       if (a && a.discord) {
