@@ -89,6 +89,12 @@
 .fb-serie-bild{position:absolute;inset:0 0 0 35%;z-index:-2;background-size:cover;background-position:center;opacity:.34}
 .fb-serien li::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,var(--monitor) 36%,color-mix(in srgb,var(--monitor) 40%,transparent))}
 .fb-serien li>div:not(.fb-serie-aktion){min-width:0;flex:1 1 130px}
+/* Fahrzeug in der Season und Wechsel */
+.fb-serien li>.fb-fahrzeug{flex:1 1 100%;display:grid;gap:4px;padding-top:6px;border-top:1px solid var(--scan,rgba(255,255,255,.1))}
+.fb-fahrzeug b{color:var(--ink)}
+.fb-antrag{color:var(--liga-gelb,#f2b705)}
+.fb-fahrzeug-wechsel{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.fb-fahrzeug-wechsel select{max-width:100%}
 .fb-serien a{font-size:.92rem;font-weight:800;text-decoration:none;overflow-wrap:anywhere}
 .fb-serien a:hover{color:var(--s)}
 .fb-serien small{display:block;margin-top:3px;font:.64rem/1.3 var(--f-mono);color:#b4bcb9}

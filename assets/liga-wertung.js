@@ -32,6 +32,8 @@
         irating: Number(r.oldi_rating),
         fahrzeugklasseId: r.car_class_id > 0 ? String(r.car_class_id) : "0",
         fahrzeugklasseName: String(r.car_class_short_name || "").trim(),
+        // Das konkrete Modell, etwa „BMW M4 GT3“. Damit prüft die Liga, ob jemand das gemeldete Auto gefahren ist.
+        fahrzeug: String(r.car_name || "").trim(),
         // Abstand zum Klassensieger in 1/10000 Sekunden. iRacing liefert -1 für alle, die nicht in der Führungsrunde sind.
         klassenAbstand: Number.isFinite(r.class_interval) ? r.class_interval : null,
         gesamt: r.finish_position + 1,

@@ -492,6 +492,7 @@
         ${r.punkteVerkuerztProzent !== undefined ? `<li>Wird weniger als 75 % der ausgeschriebenen Renndistanz gefahren, gibt es ${r.punkteVerkuerztProzent} % der Platzpunkte.</li>` : ""}
         ${r.gewerteteRennen < r.rennenGesamt ? `<li>Es zählen die besten ${r.gewerteteRennen} von ${r.rennenGesamt} Rennen. Strafpunkte werden immer abgezogen.</li>` : ""}
         ${r.ohneKlassen ? "" : sichtung ? `<li>Die Klasse richtet sich nach der Sichtung: Auf jeder Sichtungsstrecke zählt die beste Runde im Vergleich zur schnellsten der Fahrzeugklasse${r.sichtungMindestRunden ? `, gültig ab ${r.sichtungMindestRunden} gefahrenen Runden` : ""}. Entscheidend ist der Mittelwert über alle Strecken. Die Sichtung zählt nicht für die Tabelle. Wer nicht jede Strecke gefahren ist, wird nach iRating oder von der Rennleitung eingestuft. Die Rennleitung bestätigt jede Einstufung.</li>` : "<li>Die Klasse richtet sich nach dem iRating zum Start und bleibt danach gleich.</li>"}
+        ${(r.modelle || []).length ? `<li>Bei der Anmeldung wählt jeder Fahrer sein Fahrzeug (${r.modelle.length} zur Auswahl). ${r.freieWechsel ? `${r.freieWechsel === 1 ? "Ein Wechsel" : `${r.freieWechsel} Wechsel`} während der Season ${r.freieWechsel === 1 ? "ist" : "sind"} frei, jeder weitere nur mit Zustimmung der Rennleitung.` : "Ein Wechsel während der Season ist nur mit Zustimmung der Rennleitung möglich."} Wer ohne Genehmigung ein anderes Fahrzeug fährt, dem kann die Rennleitung das Ergebnis streichen.</li>` : ""}
         ${r.typ !== "event" ? "<li>Gaststarter erscheinen im Rennergebnis, bekommen aber keine Punkte und nehmen auch niemandem welche weg.</li>" : ""}
         ${r.klassen.length > 1 ? "<li>Die Gesamtwertung vergibt eigene Punkte nach dem Zieleinlauf der ganzen Fahrzeugklasse. Die Klassenwertungen bleiben davon unberührt.</li>" : ""}
         <li>Bei Punktgleichheit entscheiden die Anzahl der Siege, dann der zweiten Plätze und so weiter, zuletzt das jüngste Rennen.</li>
@@ -551,7 +552,10 @@
     if (!fahrerStand.fahrer.profil) return '<a class="liga-melden" href="/fahrerbereich">Jetzt anmelden</a>';
     const klassen = s.fahrzeugklassen || [];
     const auswahl = klassen.length > 1 ? `<select id="fz-${esc(s.id)}" class="liga-auswahl" aria-label="Fahrzeugklasse wählen"><option value="">Klasse</option>${klassen.map((k) => `<option value="${esc(k)}">${esc(k)}</option>`).join("")}</select>` : "";
-    return `${auswahl}<button type="button" class="liga-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Jetzt anmelden</button>`;
+    // Fahrzeugwahl der Season: Die erlaubten Modelle kommen mit dem Fahrerstand.
+    const modelle = (eigen && eigen.modelle) || [];
+    const modell = modelle.length ? `<select data-modell class="liga-auswahl" aria-label="Fahrzeug wählen"><option value="">Fahrzeug wählen</option>${modelle.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("")}</select>` : "";
+    return `${auswahl}${modell}<button type="button" class="liga-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Jetzt anmelden</button>`;
   }
 
   // Eure Livery-Bilder als Motiv der Karten. Je Serie immer dasselbe Bild.
@@ -658,9 +662,12 @@
     if (!b) return;
     if (b.dataset.serieAktion === "serie-abmelden" && !window.confirm("Wirklich aus dieser Serie abmelden? Du wirst dann auch aus allen kommenden Rennen der Serie genommen.")) return;
     const auswahl = $("fz-" + b.dataset.serie);
+    const modell = b.dataset.serieAktion === "serie-anmelden" ? b.parentElement.querySelector("select[data-modell]") : null;
+    if (modell && !modell.value) { modell.focus(); return window.alert("Bitte wähle zuerst dein Fahrzeug für diese Season. Ein späterer Wechsel ist nur nach den Regeln der Season möglich."); }
+    if (modell && !window.confirm(`Mit dem ${modell.value} für die Season anmelden? Ein späterer Fahrzeugwechsel ist nur eingeschränkt möglich.`)) return;
     b.disabled = true;
     try {
-      const r = await fetch("api/liga?r=fahrer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ aktion: b.dataset.serieAktion, serie: b.dataset.serie, fahrzeugklasse: auswahl ? auswahl.value : "" }) });
+      const r = await fetch("api/liga?r=fahrer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ aktion: b.dataset.serieAktion, serie: b.dataset.serie, fahrzeugklasse: auswahl ? auswahl.value : "", modell: modell ? modell.value : "" }) });
       if (r.ok) return location.reload();
       window.alert((await r.json().catch(() => ({}))).error || "Das hat nicht geklappt. Bitte versuche es noch einmal.");
     } catch (err) {

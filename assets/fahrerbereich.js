@@ -66,7 +66,17 @@
   const FOLGT = '<span class="fb-zu">Anmeldung folgt</span>';
   // Die Season, in der dieser Fahrer noch fehlt. Bei Events gibt es keine Gäste, dort zählt die Anmeldung zum Rennen.
   const offeneSeason = (r) => { const s = stand.serien.find((x) => x.id === r.serie); return s && s.typ !== "event" && !s.ich && s.anmeldungOffen ? s : null; };
-  const seasonKnopf = (s) => `<button type="button" class="fb-knopf fb-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Für die Season anmelden</button>`;
+  // Fahrzeug für die Season: Pflicht, wenn die Season eine Liste erlaubter Modelle hat. Ein Wechsel später nur nach den Regeln der Season.
+  const modellAuswahl = (s, wert = "") => ((s.modelle || []).length ? `<select data-modell aria-label="Fahrzeug wählen"><option value="">Fahrzeug wählen</option>${s.modelle.map((m) => `<option value="${esc(m)}"${m === wert ? " selected" : ""}>${esc(m)}</option>`).join("")}</select>` : "");
+  const seasonKnopf = (s) => `${modellAuswahl(s)}<button type="button" class="fb-knopf fb-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Für die Season anmelden</button>`;
+  // Eigenes Fahrzeug in einer Season und Wechsel
+  function fahrzeugZeile(s) {
+    const f = (stand.fahrzeuge || {})[s.id];
+    if (!f || !(s.modelle || []).length) return "";
+    const regel = f.freiUebrig > 0 ? `${f.freiUebrig} freier Wechsel übrig` : "Wechsel nur mit Zustimmung der Rennleitung";
+    const antrag = f.antrag ? `<small class="fb-antrag">Wechsel auf ${esc(f.antrag)} beantragt, die Rennleitung entscheidet.</small>` : "";
+    return `<div class="fb-fahrzeug"><small>Dein Fahrzeug: <b>${esc(f.modell)}</b> · ${esc(regel)}</small>${antrag}<div class="fb-fahrzeug-wechsel">${modellAuswahl(s, f.antrag || f.modell)}<button type="button" class="fb-abmelden" data-fahrzeug-wechsel="${esc(s.id)}">${f.freiUebrig > 0 ? "Fahrzeug wechseln" : "Wechsel beantragen"}</button></div></div>`;
+  }
   const dabeiStatus = (r) => {
     if (r.ich.status !== "starter") return `<span class="fb-dabei warte">Warteliste, Platz ${Number(r.ich.platz)}</span>`;
     return `<span class="fb-dabei"><i aria-hidden="true">✓</i>${r.ich.quelle === "rennen" && offeneSeason(r) ? "Als Gast dabei" : "Du bist dabei"}</span>`;
@@ -216,10 +226,10 @@
     const zeilen = offene.map((s) => {
       let aktion = "";
       if (s.ich) aktion = `<span class="fb-dabei"><i aria-hidden="true">✓</i>Dabei</span><button type="button" class="fb-abmelden" data-serie-aktion="serie-abmelden" data-serie="${esc(s.id)}">Abmelden</button>`;
-      else if (s.anmeldungOffen && profilFertig()) aktion = `${klassenAuswahl("s-" + s.id, s.fahrzeugklassen)}<button type="button" class="fb-knopf fb-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Jetzt anmelden</button>`;
+      else if (s.anmeldungOffen && profilFertig()) aktion = `${klassenAuswahl("s-" + s.id, s.fahrzeugklassen)}${modellAuswahl(s)}<button type="button" class="fb-knopf fb-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Jetzt anmelden</button>`;
       else if (!s.anmeldungOffen) aktion = s.status === "geplant" ? FOLGT : GESCHLOSSEN;
       const info = [s.ich ? `Dabei${s.fahrzeugklasse ? ` · ${s.fahrzeugklasse}` : ""}` : "", s.einstufungDurchRennleitung ? "Einstufung durch Rennleitung" : s.klasse].filter(Boolean).join(" · ");
-      return `<li class="${farbe(s.farbe)}${s.ich ? " dabei" : ""}"><span class="fb-serie-bild" ${motiv(bildVon(s.id, s.bildVersion))} aria-hidden="true"></span><div>${artBadge(s.typ)} <a href="/liga?serie=${encodeURIComponent(s.id)}">${esc(s.name)}</a>${info ? `<small>${esc(info)}</small>` : ""}</div><div class="fb-serie-aktion">${aktion}</div></li>`;
+      return `<li class="${farbe(s.farbe)}${s.ich ? " dabei" : ""}"><span class="fb-serie-bild" ${motiv(bildVon(s.id, s.bildVersion))} aria-hidden="true"></span><div>${artBadge(s.typ)} <a href="/liga?serie=${encodeURIComponent(s.id)}">${esc(s.name)}</a>${info ? `<small>${esc(info)}</small>` : ""}</div><div class="fb-serie-aktion">${aktion}</div>${s.ich ? fahrzeugZeile(s) : ""}</li>`;
     }).join("");
     return `<section class="fb-panel"><h3>Serien und Events</h3><ul class="fb-serien">${zeilen}</ul></section>`;
   }
@@ -520,8 +530,19 @@
       return;
     }
     if (b.dataset.serieAktion === "serie-anmelden") {
-      const select = b.parentElement.querySelector("select");
-      return sende({ aktion: "serie-anmelden", serie: b.dataset.serie, fahrzeugklasse: select ? select.value : "" });
+      const select = b.parentElement.querySelector("select:not([data-modell])");
+      const modell = b.parentElement.querySelector("select[data-modell]");
+      if (modell && !modell.value) { modell.focus(); return window.alert("Bitte wähle zuerst dein Fahrzeug für diese Season. Ein späterer Wechsel ist nur nach den Regeln der Season möglich."); }
+      if (modell && !window.confirm(`Mit dem ${modell.value} für die Season anmelden? Ein späterer Fahrzeugwechsel ist nur eingeschränkt möglich.`)) return;
+      return sende({ aktion: "serie-anmelden", serie: b.dataset.serie, fahrzeugklasse: select ? select.value : "", modell: modell ? modell.value : "" });
+    }
+    if (b.dataset.fahrzeugWechsel) {
+      const modell = b.parentElement.querySelector("select[data-modell]");
+      const f = (stand.fahrzeuge || {})[b.dataset.fahrzeugWechsel] || {};
+      if (!modell || !modell.value || modell.value === (f.antrag || f.modell)) return;
+      const frage = modell.value === f.modell ? "Antrag zurückziehen und beim bisherigen Fahrzeug bleiben?" : f.freiUebrig > 0 ? `Auf den ${modell.value} wechseln? Damit ist dein freier Wechsel verbraucht, er gilt ab dem nächsten Rennen.` : `Wechsel auf den ${modell.value} bei der Rennleitung beantragen?`;
+      if (!window.confirm(frage)) return;
+      return sende({ aktion: "fahrzeug-wechseln", serie: b.dataset.fahrzeugWechsel, modell: modell.value });
     }
     if (b.dataset.serieAktion === "serie-abmelden" && window.confirm("Wirklich aus dieser Serie abmelden? Du wirst dann auch aus allen kommenden Rennen der Serie genommen.")) {
       sende({ aktion: "serie-abmelden", serie: b.dataset.serie });

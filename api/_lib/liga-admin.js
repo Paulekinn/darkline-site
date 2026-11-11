@@ -11,6 +11,8 @@ const G = require("./liga-strecken");
 const Renntag = require("./liga-renntag");
 const Regeln = require("./liga-regeln");
 const Dc = require("./liga-discord");
+const F = require("./liga-fahrzeuge");
+const G61 = require("./g61");
 const { leseErgebnis, berechneTabelle, klasseFuer } = require("../../assets/liga-wertung.js");
 
 const eintraege = async () => (await blobList(A.PREFIX)).map(A.leseEintrag).filter(Boolean);
@@ -36,7 +38,7 @@ async function gemeldeteFahrer(kat, serieId) {
 // Details einer Serie: Fahrer mit Profil, Rennen mit Listen, Ergebnisse und Strafen
 async function serienDetails(kat, id) {
   const serie = serieFinden(kat, id);
-  const [alle, ergebnisse, privat, oeffentlich, alleReports] = await Promise.all([eintraege(), D.ergebnisseLesen(id), D.privatLesen(id), P.oeffentlicheProfile(), R.alleReports(false)]);
+  const [alle, ergebnisse, privat, oeffentlich, alleReports, fahrzeuge] = await Promise.all([eintraege(), D.ergebnisseLesen(id), D.privatLesen(id), P.oeffentlicheProfile(), R.alleReports(false), F.derSerie(id).catch(() => new Map())]);
   const standCtx = { serie, rennen: kat.rennen, reports: alleReports, privat, jetzt: Date.now() };
   const mitglieder = alle.filter((e) => e.typ === "serie" && e.serieId === id);
   const direkt = alle.filter((e) => e.typ === "rennen" && kat.rennen.some((r) => r.id === e.rennenId && r.serie === id));
@@ -52,7 +54,7 @@ async function serienDetails(kat, id) {
     const irating = p ? ausErgebnis.get(p.custId) ?? p.irating : null;
     const auto = sportsCar && irating !== null ? (klasseFuer(irating, serie.klassen) || {}).id || "" : "";
     const pid = p && p.custId ? fahrerKennung(p.custId) : "";
-    return { pid, nummer: p ? p.nummer ?? "" : "", land: p ? p.land || "" : "", team: p ? p.team || "" : "", bild: (pid && oeffentlich[pid] && oeffentlich[pid].bild) || "", discordId: d, name: eintrag.name, mitglied: mitglieder.some((e) => e.discordId === d), fahrzeugklasse: eintrag.fahrzeugklasse, custId: p ? p.custId : "", iratingAngabe: p ? p.irating : null, iratingErgebnis: p && ausErgebnis.has(p.custId) ? ausErgebnis.get(p.custId) : null, klasseAuto: auto, klasseFest: p ? privat.einstufung[p.custId] || "" : "" };
+    return { pid, nummer: p ? p.nummer ?? "" : "", land: p ? p.land || "" : "", team: p ? p.team || "" : "", bild: (pid && oeffentlich[pid] && oeffentlich[pid].bild) || "", discordId: d, name: eintrag.name, mitglied: mitglieder.some((e) => e.discordId === d), fahrzeugklasse: eintrag.fahrzeugklasse, custId: p ? p.custId : "", iratingAngabe: p ? p.irating : null, iratingErgebnis: p && ausErgebnis.has(p.custId) ? ausErgebnis.get(p.custId) : null, klasseAuto: auto, klasseFest: p ? privat.einstufung[p.custId] || "" : "", modell: (fahrzeuge.get(d) || {}).modell || "", wechsel: ((fahrzeuge.get(d) || {}).wechsel || []).length };
   }).sort((a, b) => a.name.localeCompare(b.name, "de"));
   const opt = { jetzt: Date.now(), schlussMinuten: 60, discordId: "", serien: { [id]: serie }, mitIds: true };
   return {
@@ -133,6 +135,10 @@ async function protokollText(b, kat) {
     "profil-bearbeiten": () => `Fahrerprofil geändert: ${(b.profil || {}).iracingName}${b.bildEntfernen ? ", Profilbild entfernt" : ""}`,
     "nummer-bestaetigen": () => `Startnummer bestätigt: ${b.name}, neu #${b.nummer}`,
     "nummer-ablehnen": () => `Startnummer abgelehnt: ${b.name}, gewünscht #${b.nummer}`,
+    "fahrzeug-entscheiden": () => `Fahrzeugwechsel ${b.ja === true ? "bestätigt" : "abgelehnt"} in ${serie(b.serie)}`,
+    "fahrzeug-setzen": () => `Fahrzeug gesetzt in ${serie(b.serie)}: ${b.modell}`,
+    "fahrzeug-streichen": () => `Ergebnis wegen Fahrzeug gestrichen in ${serie(b.serie)}`,
+    "sichtung-uebernehmen": () => `Klassen aus der Sichtung übernommen: ${serie(b.serie)}`,
     "report-status": async () => `Report-Status geändert: ${await report()}`,
     "report-urteil": async () => `Urteil gesprochen (${(b.urteil || {}).art}): ${await report()}`,
   };
@@ -164,7 +170,7 @@ async function cockpitHinweise(kat) {
   const serien = kat.serien.filter((s) => s.status !== "beendet");
   const rennen = kat.rennen.filter((r) => serien.some((s) => s.id === r.serie));
   const ergebnisse = new Map(await Promise.all(serien.map(async (s) => [s.id, await D.ergebnisseLesen(s.id)])));
-  const pruefungen = serien.flatMap((s) => ergebnisse.get(s.id).filter((e) => e.pruefung && !e.pruefung.erledigt).map((e) => ({ serie: s.id, serieName: s.name, id: e.id, strecke: e.strecke, start: e.start, noShows: e.pruefung.noShows, incidents: e.pruefung.incidents })));
+  const pruefungen = serien.flatMap((s) => ergebnisse.get(s.id).filter((e) => e.pruefung && !e.pruefung.erledigt).map((e) => ({ serie: s.id, serieName: s.name, id: e.id, strecke: e.strecke, start: e.start, noShows: e.pruefung.noShows, incidents: e.pruefung.incidents, fahrzeuge: e.pruefung.fahrzeuge || [] })));
   const strafkonten = (await Promise.all(serien.map(async (s) => D.strafkonten(s, await D.privatLesen(s.id))))).flat();
   const wert = { fehlendeErgebnisse: D.rennenOhneErgebnis(rennen, ergebnisse, Date.now()), pruefungen, strafkonten };
   fehlendCache = { bis: Date.now() + 60000, wert };
@@ -319,6 +325,39 @@ const aktionen = {
     await Dc.nachricht(discordId, entscheid.text);
     return {};
   },
+  // Alle Fahrzeugnamen aus Garage 61 als Vorschlag für die Fahrzeugliste einer Season
+  async fahrzeugliste() {
+    const namen = [...new Set([...(await G61.cars()).values()].map((n) => String(n || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de"));
+    return { fahrzeuge: namen };
+  },
+  // Fahrzeugwechsel: Antrag des Fahrers bestätigen oder ablehnen, der Fahrer bekommt eine Direktnachricht.
+  async "fahrzeug-entscheiden"(b, kat) {
+    const serie = serieFinden(kat, b.serie);
+    const discordId = D.brauchtId(b.discordId);
+    const vorher = await F.lesen(serie.id, discordId);
+    const ja = b.ja === true;
+    const grund = String(b.grund || "").trim().slice(0, 300);
+    await F.entscheiden(serie, discordId, ja);
+    const nach = vorher && vorher.antrag ? vorher.antrag.nach : "";
+    await Dc.nachricht(discordId, ja ? `✅ Dein Fahrzeugwechsel in **${serie.name}** ist bestätigt: Ab dem nächsten Rennen fährst du den **${nach}**.` : `❌ Dein Fahrzeugwechsel in **${serie.name}** auf den ${nach} wurde abgelehnt. Du fährst weiter den **${vorher ? vorher.modell : ""}**.${grund ? `\nGrund: ${grund}` : ""}`);
+    return {};
+  },
+  // Die Rennleitung setzt das Fahrzeug direkt, etwa nach einem im Rennen festgestellten Wechsel.
+  async "fahrzeug-setzen"(b, kat) {
+    await F.setzen(serieFinden(kat, b.serie), D.brauchtId(b.discordId), String(b.modell || ""));
+    return {};
+  },
+  // Anderes Auto als gemeldet und nicht genehmigt: Das Ergebnis dieses Fahrers wird gestrichen (gewertet wie eine Disqualifikation).
+  async "fahrzeug-streichen"(b, kat) {
+    serieFinden(kat, b.serie);
+    const ergebnis = (await D.ergebnisseLesen(b.serie)).find((e) => e.id === String(b.rennen));
+    const fahrer = ergebnis && ergebnis.fahrer.find((f) => f.cust === String(b.cust));
+    if (!fahrer) throw new Hinweis("Dieses Ergebnis gibt es nicht mehr.");
+    const id = `fz-${ergebnis.id}-${fahrer.cust}`;
+    await D.privatAendern(b.serie, (privat) => ((privat.disqualifikationen || []).some((x) => x.id === id) ? undefined : { ...privat, disqualifikationen: [...(privat.disqualifikationen || []), { id, rennen: ergebnis.id, cust: fahrer.cust, name: fahrer.name, grund: `Nicht gemeldetes Fahrzeug (${fahrer.fahrzeug})` }] }));
+    await neuBerechnen(kat, b.serie);
+    return {};
+  },
   async "nummer-ablehnen"(b) {
     const discordId = D.brauchtId(b.discordId);
     const wunsch = await P.wunschLesen(discordId);
@@ -468,11 +507,12 @@ const aktionen = {
   async "ergebnis-veroeffentlichen"(b, kat) {
     const serie = serieFinden(kat, b.serie);
     // Nicht gemeldete Fahrer werden nicht gewertet und auch nicht gespeichert.
-    const { gemeldet, stamm } = await gemeldeteFahrer(kat, b.serie);
+    const { gemeldet, stamm, discord } = await gemeldeteFahrer(kat, b.serie);
     const { ergebnis } = D.abgleichen(leseErgebnis(b.datei), gemeldet, b.zugelassen, stamm);
     if (!ergebnis.fahrer.length) throw new Hinweis("Keiner der Fahrer in dieser Datei ist für diese Serie gemeldet. Prüfe die Serie und die Datei oder lasse einzelne Fahrer als Gast zu.");
     // Ein Fehler bei der Zusatzprüfung darf das Veröffentlichen nicht verhindern.
-    const pruefung = D.pruefungNachRennen(ergebnis, await erwarteteStarter(kat, serie, ergebnis).catch(() => []));
+    const fahrzeuge =(serie.modelle || []).length ? F.abweichungen(ergebnis, discord, await F.derSerie(b.serie).catch(() => new Map())) : [];
+    const pruefung = D.pruefungNachRennen(ergebnis, await erwarteteStarter(kat, serie, ergebnis).catch(() => []), fahrzeuge);
     // Wird eine korrigierte Datei erneut eingelesen, bleibt die Markierung für die verkürzte Distanz erhalten.
     const bisher = (await D.ergebnisseLesen(b.serie)).find((e) => e.id === ergebnis.id);
     await D.ergebnisSpeichern(b.serie, { ...ergebnis, ...(pruefung ? { pruefung } : {}), ...(bisher && bisher.verkuerzt ? { verkuerzt: true } : {}) });
@@ -558,8 +598,10 @@ const aktionen = {
   async "strafe-loeschen"(b, kat) {
     serieFinden(kat, b.serie);
     await D.privatAendern(b.serie, (privat) => {
-      if (privat.strafen.some((s) => s.id === String(b.id) && s.reportId)) throw new Hinweis("Diese Strafe gehört zu einem Report. Bitte ändere dort das Urteil.");
-      return { ...privat, strafen: privat.strafen.filter((s) => s.id !== String(b.id)) };
+      const alle = [...privat.strafen, ...(privat.disqualifikationen || [])];
+      if (alle.some((s) => s.id === String(b.id) && s.reportId)) throw new Hinweis("Diese Strafe gehört zu einem Report. Bitte ändere dort das Urteil.");
+      // Auch eine gestrichene Wertung (etwa wegen eines nicht gemeldeten Fahrzeugs) lässt sich so zurücknehmen.
+      return { ...privat, strafen: privat.strafen.filter((s) => s.id !== String(b.id)), disqualifikationen: (privat.disqualifikationen || []).filter((s) => s.id !== String(b.id)) };
     });
     await neuBerechnen(kat, b.serie);
     return {};
@@ -635,6 +677,7 @@ const aktionen = {
     const ids = new Set(kat.rennen.filter((r) => r.serie === b.serie).map((r) => r.id));
     const weg = alle.filter((e) => e.discordId === String(b.discordId) && ((e.typ === "serie" && e.serieId === b.serie) || (e.typ !== "serie" && ids.has(e.rennenId))));
     if (weg.length) await blobDelete(weg.map((e) => e.pfad));
+    await F.loeschen(b.serie, String(b.discordId)).catch(() => {});
     return {};
   },
   async "fahrer-aus-rennen"(b, kat) {
@@ -677,7 +720,7 @@ module.exports = async (req, res) => {
     const alleReports = await R.alleReports(true);
     const ergebnisseJe = new Map(await Promise.all([...new Set(alleReports.map((r) => r.serie))].filter((x) => D.istId(x)).map(async (id) => [id, await D.ergebnisseLesen(id).catch(() => [])])));
     const reports = alleReports.map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id), stimmen: R.stimmenSicht(r, s.id), kontext: R.rennKontext(r, ergebnisseJe.get(r.serie) || []) }));
-    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), nummernWuensche: await P.wuenscheLesen().catch(() => []), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), nummernWuensche: await P.wuenscheLesen().catch(() => []), fahrzeugAntraege: (await F.offeneAntraege().catch(() => [])).map((a) => ({ ...a, serieName: (kat.serien.find((x) => x.id === a.serie) || {}).name || a.serie })), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });

@@ -88,6 +88,9 @@ function pruefeSerie(e) {
     mindestStarter: ganzzahl(e.mindestStarter ?? 0, "Mindestzahl an Startern", 0, 200),
     punkteVerkuerztProzent: ganzzahl(e.punkteVerkuerztProzent ?? 50, "Punkte bei verkürzter Distanz", 0, 100),
     ...pruefeEinstufung(e, klassen, ohneKlassen),
+    // Fahrzeugwahl: erlaubte Modelle (leer = keine Wahl) und freie Wechsel je Fahrer und Season
+    modelle: require("./liga-fahrzeuge").pruefeModelle(e.modelle),
+    freieWechsel: ganzzahl(e.freieWechsel ?? 0, "Freie Fahrzeugwechsel", 0, 10),
   };
   pruefeRegeln(serie);
   return serie;
@@ -206,13 +209,14 @@ function abgleichen(ergebnis, gemeldet, zugelassen, stammfahrer) {
 // Was die Rennleitung nach einem Rennen prüfen sollte: gemeldete Starter ohne Teilnahme und auffällig viele Incidents.
 // starter: [{ name, cust, discordId }]. Ohne Auffälligkeit ergibt das null.
 const INCIDENTS_MIN = 8;
-function pruefungNachRennen(ergebnis, starter) {
+// fahrzeuge: Fahrer, die ein anderes Auto als gemeldet gefahren sind (aus liga-fahrzeuge.abweichungen)
+function pruefungNachRennen(ergebnis, starter, fahrzeuge = []) {
   const dabei = new Set(ergebnis.fahrer.map((f) => f.cust));
   const noShows = starter.filter((f) => f.cust && !dabei.has(String(f.cust))).map(({ name, discordId }) => ({ name, discordId }));
   const schnitt = ergebnis.fahrer.reduce((t, f) => t + f.incidents, 0) / Math.max(1, ergebnis.fahrer.length);
   const grenze = Math.max(INCIDENTS_MIN, Math.ceil(schnitt * 2));
   const incidents = ergebnis.fahrer.filter((f) => f.incidents >= grenze).map(({ name, cust, incidents: anzahl }) => ({ name, cust, incidents: anzahl }));
-  return noShows.length || incidents.length ? { noShows, incidents, erledigt: false } : null;
+  return noShows.length || incidents.length || fahrzeuge.length ? { noShows, incidents, fahrzeuge, erledigt: false } : null;
 }
 
 // Strafpunkte je Fahrer, die die Grenze der Serie erreicht haben.
