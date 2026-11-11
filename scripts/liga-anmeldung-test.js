@@ -481,9 +481,9 @@ const tests = {
     assert.deepStrictEqual(D.wertungsErgebnisse([sichtung, lauf], rennen, "gt3").map((e) => e.id), ["200"]);
     assert.strictEqual(D.istSichtung(sichtung, [{ ...rennen[0], status: "abgesagt" }], "gt3"), false);
     const serie = { id: "gt3", klassen: [{ id: "am", name: "Am", min: 0, max: 1499 }, { id: "pro", name: "Pro", min: 2500, max: null }, { id: "proam", name: "Pro-Am", min: 1500, max: 2499 }], sichtungGrenzen: [101.5, 103] };
-    const v = D.sichtungVorschlag(serie, [sichtung, lauf], rennen, { 2: "proam" });
+    const v = D.sichtungVorschlag(serie, [{ ...sichtung, strecke: "Spa" }, lauf], rennen, { 2: "proam" });
     const je = Object.fromEntries(v.fahrer.map((x) => [x.name, x]));
-    assert.strictEqual(v.rennen, 1);
+    assert.deepStrictEqual(v.strecken, ["Spa"]);
     assert.deepStrictEqual(v.klassen.map((k) => k.id), ["pro", "proam", "am"], "Stärkste Klasse zuerst");
     assert.deepStrictEqual([je.Anna.prozent, je.Anna.vorschlag, je.Anna.nachIrating], [100, "pro", "am"], "Schnell trotz niedrigem iRating: Pro");
     assert.deepStrictEqual([je.Ben.prozent, je.Ben.vorschlag, je.Ben.fest], [101.2, "pro", "proam"]);
@@ -491,6 +491,37 @@ const tests = {
     assert.deepStrictEqual([je.Dia.prozent, je.Dia.vorschlag, je.Dia.nachIrating], [null, "", "proam"], "Ohne Rundenzeit kein Vorschlag");
     assert.deepStrictEqual([je.Eva.prozent, je.Eva.vorschlag], [100, "pro"], "Verglichen wird innerhalb der eigenen Fahrzeugklasse");
     assert.deepStrictEqual(v.fahrer.map((x) => x.name).slice(-1), ["Dia"], "Ohne Zeit ganz unten");
+  },
+  "Sichtung: Drei Strecken, je Strecke Abstand zur Bestzeit, Mindestrunden, Mittelwert entscheidet": () => {
+    const rennen = ["2026-12-01", "2026-12-02", "2026-12-03"].map((datum, i) => ({ id: `s${i}`, serie: "gt3", sichtung: true, status: "geplant", datum, startzeit: "20:00" }));
+    const f = (cust, besteRunde, runden = 10) => ({ cust, name: `Fahrer ${cust}`, irating: 2000, besteRunde, runden, fahrzeugklasseId: "1", fahrzeugklasseName: "GT3" });
+    // Spa ~2:17, Monza ~1:47, Imola ~1:41: absolute Zeiten sind nicht vergleichbar, nur der Abstand je Strecke.
+    const e = (id, tag, strecke, fahrer) => ({ id, start: `2026-12-0${tag}T19:00:00.000Z`, strecke, fahrer });
+    const ergebnisse = [
+      e("1", 1, "Spa", [f("a", 1370000), f("b", 1384000), f("c", 1410000), f("d", 1375000, 4)]),
+      e("2", 2, "Monza", [f("a", 1075000), f("b", 1070000), f("c", 1100000), f("d", 1071000)]),
+      e("3", 3, "Imola", [f("a", 1010000), f("b", 1020000), f("c", 1040000)]),
+      // Zweite Gruppe in Imola: zählt als dieselbe Strecke, die bessere Runde gilt
+      e("4", 3, "Imola", [f("c", 1030000)]),
+    ];
+    const serie = { id: "gt3", klassen: [{ id: "pro", name: "Pro", min: 2500, max: null }, { id: "proam", name: "Pro-Am", min: 1500, max: 2499 }, { id: "am", name: "Am", min: 0, max: 1499 }], sichtungGrenzen: [101.5, 103], sichtungMindestRunden: 8 };
+    const v = D.sichtungVorschlag(serie, ergebnisse, rennen);
+    const je = Object.fromEntries(v.fahrer.map((x) => [x.cust, x]));
+    assert.deepStrictEqual(v.strecken, ["Spa", "Monza", "Imola"]);
+    assert.strictEqual(v.mindestRunden, 8);
+    // a: Spa 100, Monza 100,5, Imola 100 → 100,2
+    assert.deepStrictEqual(je.a.zeiten.map((z) => z.prozent), [100, 100.5, 100]);
+    assert.deepStrictEqual([je.a.prozent, je.a.vorschlag, je.a.vollstaendig], [100.2, "pro", true]);
+    // b: Spa 101, Monza 100 (Bestzeit), Imola 101 → 100,7
+    assert.deepStrictEqual([je.b.prozent, je.b.vorschlag], [100.7, "pro"]);
+    // c: Spa 102,9, Monza 102,8, Imola 102 (zweite Gruppe) → 102,6
+    assert.deepStrictEqual(je.c.zeiten[2].prozent, 102);
+    assert.deepStrictEqual([je.c.prozent, je.c.vorschlag], [102.6, "proam"]);
+    // d: Spa mit nur 4 Runden ungültig und setzt auch keine Bestzeit, Imola nicht gefahren → kein Vorschlag
+    assert.strictEqual(je.d.zeiten[0].gueltig, false);
+    assert.strictEqual(je.d.zeiten[2], null);
+    assert.deepStrictEqual([je.d.gewertet, je.d.vollstaendig, je.d.vorschlag], [1, false, ""]);
+    assert.deepStrictEqual(v.fahrer.map((x) => x.cust), ["a", "b", "c", "d"], "Vollständige zuerst, nach Schnitt");
   },
   "Gleichzeitig: Formular erkennt fremde Änderungen, Reihenfolge und Nebenfelder zählen nicht": () => {
     const s = { id: "gt3", name: "GT3", punkte: [25, 18], bildVersion: 1 };
