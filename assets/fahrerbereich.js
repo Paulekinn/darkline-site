@@ -381,7 +381,7 @@
   const WERTUNG = { beste: "beste Runde", schnitt: "Durchschnitt der sauberen Runden" };
   // Gemessene Bedingungen eines Versuchs, etwa „Strecke 21,6–23,6 °C · Luft 18,9 °C · Gummi 56–58 %“
   const spanne = (w, e) => `${String(w[0]).replace(".", ",")}${w[1] !== w[0] ? `–${String(w[1]).replace(".", ",")}` : ""} ${e}`;
-  const messText = (b) => (b ? ` · Gemessen: ${[b.strecke && `Strecke ${spanne(b.strecke, "°C")}`, b.luft && `Luft ${spanne(b.luft, "°C")}`, b.gummi && `Gummi ${spanne(b.gummi, "%")}`, b.tank && `Tank beim Start ${spanne(b.tank, "l")}`].filter(Boolean).join(", ")}` : "");
+  const messText = (b) => (b ? ` · Gemessen: ${[b.strecke && `Strecke ${spanne(b.strecke, "°C")}`, b.luft && `Luft ${spanne(b.luft, "°C")}`, b.gummiStart ? `Gummi beim Start ${spanne(b.gummiStart, "%")}` : b.gummi && `Gummi ${spanne(b.gummi, "%")}`, b.tank && `Tank beim Start ${spanne(b.tank, "l")}`].filter(Boolean).join(", ")}` : "");
   async function sichtungLaden() {
     sichtungDaten = { laedt: true, liste: sichtungDaten ? sichtungDaten.liste : null };
     zeichne();
@@ -410,7 +410,7 @@
       <ol class="fb-schritte">
         <li><b>Garage-61-Team beitreten</b><span>Ohne Team sehen wir deine Runden nicht. Die Rennleitung gibt den Beitritt frei. Dein Name in Garage 61 muss zu deinem Profil passen: ${esc(x.iracingName || "–")}.</span><a class="fb-knopf fb-melden" href="${esc(x.teamLink)}" target="_blank" rel="noopener" data-team-beitritt="${esc(x.id)}">Team beitreten ↗</a></li>
         <li><b>Testfahrt einstellen</b><span>In iRacing eine Offline-Testfahrt starten und genau so einstellen wie in den Vorgaben unten.</span></li>
-        <li><b>${x.runden} saubere Runden am Stück</b><span>${x.mitAuto && x.modell ? `Mit deinem ${esc(x.modell)}. ` : ""}In- und Outlaps zählen nicht, ebenso Runden mit anderer Temperatur als vorgegeben oder Regen.${x.tankMin ? ` Starte jeden Stint mit mindestens ${x.tankMin} Litern im Tank.` : ""}</span></li>
+        <li><b>${x.runden} saubere Runden am Stück</b><span>${x.mitAuto && x.modell ? `Mit deinem ${esc(x.modell)}. ` : ""}In- und Outlaps zählen nicht, ebenso Runden mit anderer Temperatur oder anderem Streckenzustand als vorgegeben oder Regen.${x.tankMin ? ` Starte jeden Stint mit mindestens ${x.tankMin} Litern im Tank.` : ""}</span></li>
         <li><b>Ergebnis abgeben</b><span>Hier erscheint je Strecke dein bester gültiger Versuch. Mit dem Knopf gibst du ihn ab, danach ist er eingefroren.</span></li>
       </ol>
       <h4 class="fb-zwischen">Vorgaben für die Testfahrt</h4>

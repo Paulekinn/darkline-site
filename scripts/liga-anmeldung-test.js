@@ -558,15 +558,12 @@ const tests = {
     assert.strictEqual(S.bedingungenOk({ trackTemp: 31 }, serie), false, "Zu heiß");
     assert.strictEqual(S.bedingungenOk({ trackTemp: 25, precipitation: 0.2 }, serie), false, "Regen");
     assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackWetness: 3 }, serie), false, "Nasse Strecke");
-    // Streckenzustand und Lufttemperatur aus den Vorgaben
-    const vorgabe = { ...serie, sichtungSteckbrief: { zustand: "Mittel (Moderate Usage)", temperatur: "22 °C" } };
-    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: "Moderate Usage", airTemp: 22.4 }, vorgabe), true);
-    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: "MODERATE_USAGE", airTemp: 21.1 }, vorgabe), true, "Schreibweise und ein Grad Spielraum");
-    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: "high usage" }, vorgabe), false, "Anderer Gummi-Stand");
-    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: 5 }, vorgabe), true, "Zahl ist Gummi in Prozent und wird nicht geprüft");
-    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: 57 }, vorgabe), true);
+    // Lufttemperatur aus den Vorgaben, ein Grad Spielraum
+    const vorgabe = { ...serie, sichtungSteckbrief: { zustand: "60 %", temperatur: "22 °C" } };
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, airTemp: 22.4 }, vorgabe), true);
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, airTemp: 21.1 }, vorgabe), true);
     assert.strictEqual(S.bedingungenOk({ trackTemp: 25, airTemp: 25 }, vorgabe), false, "Zu warme Luft");
-    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: "high usage", airTemp: 30 }, serie), true, "Ohne Vorgabe keine Prüfung");
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, airTemp: 30 }, serie), true, "Ohne Vorgabe keine Prüfung");
   },
   "Sichtung: Auswertung aus Garage 61 nach Strecke, Zeitraum, Auto und Name": () => {
     const S = require("../api/_lib/liga-sichtung");
@@ -591,7 +588,7 @@ const tests = {
     assert.deepStrictEqual(versuche.get("1"), { spa: { wert: 137, beste: 137, schnitt: 138, runden: [139, 138, 137], event: "a", zeit: "2026-12-02T18:00:00Z", ...temp }, "ir-239": { wert: 108, beste: 108, schnitt: 108, runden: [108, 108, 108], event: "b", zeit: "2026-12-03T18:00:00Z", ...temp } });
     // Gemessene Bedingungen wie Garage 61 sie liefert: Gummi als Prozent
     const mitWerten = [1, 2, 3].map((n) => runde(anna, n, 130, spa, "BMW M4 GT4", { trackTemp: 20.55 + n, airTemp: 18.889, trackUsage: 55 + n }));
-    assert.deepStrictEqual(S.auswerten(serie, [{ id: "w", startedAt: "2026-12-05T18:00:00Z", laps: mitWerten }], fahrer, {}).versuche.get("1").spa.bedingungen, { strecke: [21.6, 23.6], luft: [18.9, 18.9], gummi: [56, 58] });
+    assert.deepStrictEqual(S.auswerten(serie, [{ id: "w", startedAt: "2026-12-05T18:00:00Z", laps: mitWerten }], fahrer, {}).versuche.get("1").spa.bedingungen, { strecke: [21.6, 23.6], luft: [18.9, 18.9], gummi: [56, 58], gummiStart: [56, 56] });
     assert.deepStrictEqual(versuche.get("2"), {}, "Ben fuhr den BMW statt seines gemeldeten Porsche");
     assert.deepStrictEqual(unbekannt, [{ slug: "max-muster", name: "Max Muster", runden: 3 }], "Doppelter Name in der Season: nicht eindeutig");
     // Von Hand zugeordnet zählt es
@@ -603,6 +600,11 @@ const tests = {
     assert.deepStrictEqual([tankAus.wert, tankAus.bedingungen.tank], [133, [50, 50]], "Der schnellere Stint mit 30 Litern zählt nicht");
     assert.strictEqual(S.auswerten(serie, [{ id: "t", startedAt: "2026-12-05T18:00:00Z", laps: tankRunden(30, 1) }], fahrer, {}).versuche.get("1").spa.wert, 132, "Ohne Vorgabe zählt jeder Tank");
     assert.strictEqual(D.pruefeSerie({ name: "GT4", rennenGesamt: 1, gewerteteRennen: 1, punkte: "1", punkteDanach: 0, bonusPole: 0, bonusSchnellsteRunde: 0, mindestRundenProzent: 0, anmeldeschlussMinuten: 0, klassen: [{ name: "Pro", min: 2500, max: "" }, { name: "Am", min: 0, max: 2499 }], einstufungArt: "sichtung", sichtungTankMin: "60" }).sichtungTankMin, 60);
+    // Streckenzustand: Gummi beim Start der Session ±3 % zur Vorgabe, danach darf er steigen
+    const gummiRunden = (session, start) => [0, 1, 2, 3].map((n) => runde(anna, n, n ? 129 + session : 200, spa, "BMW M4 GT4", { session, pitOut: n === 0, trackUsage: start + n * 4, startTime: `2026-12-05T18:0${n}:00Z` }));
+    const gummiSerie = { ...serie, sichtungSteckbrief: { zustand: "60 %" } };
+    const gummiAus = S.auswerten(gummiSerie, [{ id: "g", startedAt: "2026-12-05T18:00:00Z", laps: [...gummiRunden(1, 45), ...gummiRunden(2, 58)] }], fahrer, {}).versuche.get("1").spa;
+    assert.deepStrictEqual([gummiAus.wert, gummiAus.bedingungen.gummiStart], [131, [58, 58]], "Session mit 45 % Gummi zählt nicht, 58 % liegt im Spielraum");
     // Ohne Fahrzeugliste in der Season zählt jedes Auto
     assert.strictEqual(S.auswerten({ ...serie, modelle: [] }, events, fahrer, {}).versuche.get("2").spa.wert, 139);
   },
