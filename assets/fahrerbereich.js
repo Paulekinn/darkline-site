@@ -403,9 +403,16 @@
       return `<li class="fb-sicht-zeile"><div><b>${esc(s.name)}</b><small>${x.laeuft ? `Noch kein gültiger Versuch mit ${x.runden} sauberen Runden am Stück.` : "Noch keine Runden."}</small></div><span class="fb-status">Offen</span></li>`;
     };
     return `<section class="fb-panel"><div class="fb-fall-kopf"><h3>${esc(x.name)}: Sichtung</h3>${status}</div>
-      <p class="fb-klein">Deine Klasse bestimmt die Sichtung. Bau den Server aus dem Steckbrief als Offline-Testfahrt in iRacing nach und fahr ${x.runden} saubere Runden am Stück${x.mitAuto && x.modell ? ` mit deinem ${esc(x.modell)}` : ""}. In- und Outlaps zählen nicht, ebenso Runden mit anderem Streckenzustand, anderer Temperatur oder Regen. Garage 61 sammelt deine Runden, wenn du im Team der Liga bist.</p>
-      <p class="fb-klein"><a href="${esc(x.teamLink)}" target="_blank" rel="noopener">Dem Garage-61-Team der Liga beitreten</a> · Beitritt mit Freigabe durch die Rennleitung. Dein Name in Garage 61 muss zu deinem iRacing-Namen im Profil passen (${esc(x.iracingName || "–")}).</p>
+      <p class="fb-klein">Deine Klasse in dieser Season bestimmt die Sichtung. So gehst du vor:</p>
+      <ol class="fb-schritte">
+        <li><b>Garage-61-Team beitreten</b><span>Ohne Team sehen wir deine Runden nicht. Die Rennleitung gibt den Beitritt frei. Dein Name in Garage 61 muss zu deinem Profil passen: ${esc(x.iracingName || "–")}.</span><a class="fb-knopf fb-melden" href="${esc(x.teamLink)}" target="_blank" rel="noopener">Team beitreten ↗</a></li>
+        <li><b>Testfahrt einstellen</b><span>In iRacing eine Offline-Testfahrt starten und genau so einstellen wie in den Vorgaben unten.</span></li>
+        <li><b>${x.runden} saubere Runden am Stück</b><span>${x.mitAuto && x.modell ? `Mit deinem ${esc(x.modell)}. ` : ""}In- und Outlaps zählen nicht, ebenso Runden mit anderem Streckenzustand, anderer Temperatur oder Regen.</span></li>
+        <li><b>Ergebnis abgeben</b><span>Hier erscheint je Strecke dein bester gültiger Versuch. Mit dem Knopf gibst du ihn ab, danach ist er eingefroren.</span></li>
+      </ol>
+      <h4 class="fb-zwischen">Vorgaben für die Testfahrt</h4>
       <dl class="fb-fakten">${fakten.filter(([, w]) => w).map(([t, w]) => `<div><dt>${esc(t)}</dt><dd>${esc(w)}</dd></div>`).join("")}</dl>
+      <h4 class="fb-zwischen">Deine Strecken</h4>
       ${x.fehler ? `<p class="fb-meldung">${esc(x.fehler)}</p>` : ""}
       <ul class="fb-sicht-liste">${x.strecken.map(zeile).join("")}</ul>
       <p class="fb-klein">Nach der Abgabe ist der Wert eingefroren, spätere Runden zählen dafür nicht mehr. Zurücksetzen kann nur die Rennleitung. Was bis zum Ende der Sichtung nicht abgegeben ist, fehlt. Ohne alle Strecken gilt die Klasse nach iRating oder die Einstufung der Rennleitung. Deine Werte siehst nur du und die Rennleitung.</p>
