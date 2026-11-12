@@ -53,14 +53,15 @@ const LUFT_SPIELRAUM = 1;
 
 // Bedingungen wie im Steckbrief: trocken, kein Regen, Streckentemperatur im Bereich, Streckenzustand und Lufttemperatur wie vorgegeben.
 // trackWetness kommt als Stufe von iRacing (0 unbekannt, 1 trocken, ab 2 feucht). Fehlt ein Wert, wird er nicht geprüft.
-// trackUsage: Als Text wird er mit der Vorgabe verglichen, als Zahl 0 bis 6 als Stufe in derselben Reihenfolge. Jedes andere Format wird nicht geprüft.
+// trackUsage liefert Garage 61 als Gummi in Prozent (Test vom 12.11.2026: 57), der während der Fahrt steigt. Eine Zahl lässt sich keiner Stufe zuordnen
+// und wird deshalb nicht geprüft, nur als gemessener Wert gezeigt. Käme er als Text wie „Moderate Usage“, wird er mit der Vorgabe verglichen.
 function bedingungenOk(l, serie) {
   if (Number(l.precipitation) > 0) return false;
   if (Number(l.trackWetness) > 1) return false;
   const zustand = zustandVorgabe(serie);
-  if (zustand && l.trackUsage !== undefined && l.trackUsage !== null && l.trackUsage !== "") {
-    const wert = typeof l.trackUsage === "number" ? (Number.isInteger(l.trackUsage) && l.trackUsage >= 0 && l.trackUsage <= 6 ? ZUSTAENDE[l.trackUsage] : null) : zustandKern(l.trackUsage);
-    if (wert && ZUSTAENDE.includes(wert) && wert !== zustand) return false;
+  if (zustand && typeof l.trackUsage === "string" && l.trackUsage.trim()) {
+    const wert = zustandKern(l.trackUsage);
+    if (ZUSTAENDE.includes(wert) && wert !== zustand) return false;
   }
   const luft = luftVorgabe(serie);
   const lt = l.airTemp === undefined || l.airTemp === null || l.airTemp === "" ? null : Number(l.airTemp);
@@ -99,7 +100,7 @@ function besterVersuch(runden, n, wertung) {
         const wert = wertung === "schnitt" ? schnitt : beste;
         const zweit = wertung === "schnitt" ? beste : schnitt;
         if (!bester || wert < bester.wert - 1e-9 || (Math.abs(wert - bester.wert) <= 1e-9 && zweit < bester.zweit)) {
-          bester = { wert, zweit, beste, schnitt, runden: zeiten, event: fenster[0].event ?? null, zeit: fenster[0].zeit || null };
+          bester = { wert, zweit, beste, schnitt, runden: zeiten, event: fenster[0].event ?? null, zeit: fenster[0].zeit || null, fenster };
         }
       }
     };
@@ -110,7 +111,22 @@ function besterVersuch(runden, n, wertung) {
     pruefen();
   }
   if (!bester) return null;
-  return { wert: rund3(bester.wert), beste: rund3(bester.beste), schnitt: rund3(bester.schnitt), runden: bester.runden.map(rund3), event: bester.event, zeit: bester.zeit };
+  const bedingungen = gemessen(bester.fenster);
+  return { wert: rund3(bester.wert), beste: rund3(bester.beste), schnitt: rund3(bester.schnitt), runden: bester.runden.map(rund3), event: bester.event, zeit: bester.zeit, ...(bedingungen ? { bedingungen } : {}) };
+}
+
+// Gemessene Bedingungen während eines Versuchs, damit die Rennleitung sie mit den Vorgaben vergleichen kann:
+// Strecken- und Lufttemperatur von bis in °C, Gummi von bis in Prozent. Ohne Messwerte null.
+function gemessen(runden) {
+  const spanne = (feld, stellen) => {
+    const w = runden.map((r) => r[feld]).filter((x) => x !== undefined && x !== null && x !== "" && Number.isFinite(Number(x))).map(Number);
+    if (!w.length) return null;
+    const f = 10 ** stellen;
+    return [Math.round(Math.min(...w) * f) / f, Math.round(Math.max(...w) * f) / f];
+  };
+  const b = { strecke: spanne("trackTemp", 1), luft: spanne("airTemp", 1), gummi: spanne("trackUsage", 0) };
+  Object.keys(b).forEach((k) => { if (!b[k]) delete b[k]; });
+  return Object.keys(b).length ? b : null;
 }
 
 // Namen vergleichbar machen: Groß- und Kleinschreibung, Akzente, Leer- und Sonderzeichen zählen nicht.
@@ -160,7 +176,7 @@ function auswerten(serie, events, fahrer, zuordnung, mitAuto = (serie.modelle ||
       if (!gesammelt.has(f.discordId)) gesammelt.set(f.discordId, new Map());
       const jeStrecke = gesammelt.get(f.discordId);
       if (!jeStrecke.has(strecke.key)) jeStrecke.set(strecke.key, []);
-      jeStrecke.get(strecke.key).push({ lapTime: l.lapTime, lapNumber: l.lapNumber, session: kennung(l.session), run: kennung(l.run), event: ev.id, zeit: ev.startedAt || null, ok: sauber(l) && bedingungenOk(l, serie) && autoOk });
+      jeStrecke.get(strecke.key).push({ lapTime: l.lapTime, lapNumber: l.lapNumber, session: kennung(l.session), run: kennung(l.run), event: ev.id, zeit: ev.startedAt || null, trackTemp: l.trackTemp, airTemp: l.airTemp, trackUsage: typeof l.trackUsage === "number" ? l.trackUsage : undefined, ok:sauber(l) && bedingungenOk(l, serie) && autoOk });
     }
   }
   const versuche = new Map();
@@ -308,7 +324,7 @@ function standZusammen(serie, fahrer, abgaben, auswertung, mitglieder, privat = 
     const versuche = auswertung ? auswertung.versuche.get(f.discordId) || {} : {};
     return {
       discordId: f.discordId, name: f.name, cust: f.cust, irating: f.irating, modell: f.modell, imTeam: mitglieder ? imTeam.has(f.discordId) : null, teamAnfrage: (abgaben.get(f.discordId) || {}).teamAnfrage || "",
-      strecken: (serie.sichtungStrecken || []).map((s, i) => (eigene[s.key] ? { status: "abgegeben", wert: eigene[s.key].wert, prozent: vf.zeiten[i] ? vf.zeiten[i].prozent : null, abgegeben: eigene[s.key].abgegeben, gefahren: versuche[s.key] ? versuche[s.key].wert : null } : versuche[s.key] ? { status: "gefahren", wert: versuche[s.key].wert } : { status: "fehlt" })),
+      strecken: (serie.sichtungStrecken || []).map((s, i) => (eigene[s.key] ? { status: "abgegeben", wert: eigene[s.key].wert, prozent: vf.zeiten[i] ? vf.zeiten[i].prozent : null, abgegeben: eigene[s.key].abgegeben, gefahren: versuche[s.key] ? versuche[s.key].wert : null, bedingungen: eigene[s.key].bedingungen || null } : versuche[s.key] ? { status: "gefahren", wert: versuche[s.key].wert, bedingungen: versuche[s.key].bedingungen || null } : { status: "fehlt" })),
       prozent: vf.prozent, vollstaendig: vf.vollstaendig, vorschlag: vf.vorschlag, nachIrating: vf.nachIrating, fest: vf.fest,
     };
   });

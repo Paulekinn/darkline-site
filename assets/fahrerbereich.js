@@ -379,6 +379,9 @@
   const rundenzeit = (s) => (s > 0 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(3).padStart(6, "0").replace(".", ",")}` : "–");
   const tagText = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || ""); return m ? `${m[3]}.${m[2]}.${m[1]}` : ""; };
   const WERTUNG = { beste: "beste Runde", schnitt: "Durchschnitt der sauberen Runden" };
+  // Gemessene Bedingungen eines Versuchs, etwa „Strecke 21,6–23,6 °C · Luft 18,9 °C · Gummi 56–58 %“
+  const spanne = (w, e) => `${String(w[0]).replace(".", ",")}${w[1] !== w[0] ? `–${String(w[1]).replace(".", ",")}` : ""} ${e}`;
+  const messText = (b) => (b ? ` · Gemessen: ${[b.strecke && `Strecke ${spanne(b.strecke, "°C")}`, b.luft && `Luft ${spanne(b.luft, "°C")}`, b.gummi && `Gummi ${spanne(b.gummi, "%")}`].filter(Boolean).join(", ")}` : "");
   async function sichtungLaden() {
     sichtungDaten = { laedt: true, liste: sichtungDaten ? sichtungDaten.liste : null };
     zeichne();
@@ -397,9 +400,9 @@
     const fakten = [["Zeitraum", x.von && x.bis ? `${tagText(x.von)} bis ${tagText(x.bis)}` : "wird noch bekannt gegeben"], ["Gültig", `${x.runden} saubere Runden am Stück`], ["Gewertet", WERTUNG[x.wertung] || WERTUNG.beste], ["Dein Auto", x.mitAuto ? x.modell || "noch nicht gewählt" : ""], ["Uhrzeit", b.uhrzeit], ["Wetter", b.wetter], ["Streckenzustand", b.zustand], ["Setup", b.setup], ["Temperatur", [b.temperatur, temp].filter(Boolean).join(", ")]];
     const status = x.laeuft ? '<span class="fb-status starter">Läuft</span>' : x.vorbei ? '<span class="fb-status geschlossen">Vorbei</span>' : '<span class="fb-status warteliste">Noch nicht begonnen</span>';
     const zeile = (s) => {
-      if (s.abgabe) return `<li class="fb-sicht-zeile fertig"><div><b>${esc(s.name)}</b><small>Abgegeben: ${rundenzeit(s.abgabe.wert)}${s.abgabe.wertung === "schnitt" ? " im Schnitt" : ""} · Runden ${s.abgabe.runden.map(rundenzeit).join(", ")}</small></div><span class="fb-status starter">Eingefroren</span></li>`;
+      if (s.abgabe) return `<li class="fb-sicht-zeile fertig"><div><b>${esc(s.name)}</b><small>Abgegeben: ${rundenzeit(s.abgabe.wert)}${s.abgabe.wertung === "schnitt" ? " im Schnitt" : ""} · Runden ${s.abgabe.runden.map(rundenzeit).join(", ")}${esc(messText(s.abgabe.bedingungen))}</small></div><span class="fb-status starter">Eingefroren</span></li>`;
       if (x.vorbei) return `<li class="fb-sicht-zeile"><div><b>${esc(s.name)}</b><small>Nicht abgegeben, zählt als fehlend.</small></div><span class="fb-status abgesagt">Fehlt</span></li>`;
-      if (s.versuch) return `<li class="fb-sicht-zeile"><div><b>${esc(s.name)}</b><small>Bester gültiger Versuch: <b>${rundenzeit(s.versuch.wert)}</b>${x.wertung === "schnitt" ? " im Schnitt" : ""} · Runden ${s.versuch.runden.map(rundenzeit).join(", ")}</small></div>${x.laeuft ? `<button type="button" class="fb-knopf fb-melden" data-sicht-abgeben="${esc(s.key)}" data-serie="${esc(x.id)}" data-name="${esc(s.name)}" data-zeit="${esc(rundenzeit(s.versuch.wert))}">Ergebnis für ${esc(s.name)} abgeben</button>` : ""}</li>`;
+      if (s.versuch) return `<li class="fb-sicht-zeile"><div><b>${esc(s.name)}</b><small>Bester gültiger Versuch: <b>${rundenzeit(s.versuch.wert)}</b>${x.wertung === "schnitt" ? " im Schnitt" : ""} · Runden ${s.versuch.runden.map(rundenzeit).join(", ")}${esc(messText(s.versuch.bedingungen))}</small></div>${x.laeuft ? `<button type="button" class="fb-knopf fb-melden" data-sicht-abgeben="${esc(s.key)}" data-serie="${esc(x.id)}" data-name="${esc(s.name)}" data-zeit="${esc(rundenzeit(s.versuch.wert))}">Ergebnis für ${esc(s.name)} abgeben</button>` : ""}</li>`;
       return `<li class="fb-sicht-zeile"><div><b>${esc(s.name)}</b><small>${x.laeuft ? `Noch kein gültiger Versuch mit ${x.runden} sauberen Runden am Stück.` : "Noch keine Runden."}</small></div><span class="fb-status">Offen</span></li>`;
     };
     return `<section class="fb-panel"><div class="fb-fall-kopf"><h3>${esc(x.name)}: Sichtung</h3>${status}</div>
@@ -407,7 +410,7 @@
       <ol class="fb-schritte">
         <li><b>Garage-61-Team beitreten</b><span>Ohne Team sehen wir deine Runden nicht. Die Rennleitung gibt den Beitritt frei. Dein Name in Garage 61 muss zu deinem Profil passen: ${esc(x.iracingName || "–")}.</span><a class="fb-knopf fb-melden" href="${esc(x.teamLink)}" target="_blank" rel="noopener" data-team-beitritt="${esc(x.id)}">Team beitreten ↗</a></li>
         <li><b>Testfahrt einstellen</b><span>In iRacing eine Offline-Testfahrt starten und genau so einstellen wie in den Vorgaben unten.</span></li>
-        <li><b>${x.runden} saubere Runden am Stück</b><span>${x.mitAuto && x.modell ? `Mit deinem ${esc(x.modell)}. ` : ""}In- und Outlaps zählen nicht, ebenso Runden mit anderem Streckenzustand, anderer Temperatur oder Regen.</span></li>
+        <li><b>${x.runden} saubere Runden am Stück</b><span>${x.mitAuto && x.modell ? `Mit deinem ${esc(x.modell)}. ` : ""}In- und Outlaps zählen nicht, ebenso Runden mit anderer Temperatur als vorgegeben oder Regen.</span></li>
         <li><b>Ergebnis abgeben</b><span>Hier erscheint je Strecke dein bester gültiger Versuch. Mit dem Knopf gibst du ihn ab, danach ist er eingefroren.</span></li>
       </ol>
       <h4 class="fb-zwischen">Vorgaben für die Testfahrt</h4>

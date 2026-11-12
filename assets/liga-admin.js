@@ -825,7 +825,7 @@
   const STECKBRIEF = [
     ["uhrzeit", "Uhrzeit", "Tageszeit in der Testfahrt", Array.from({ length: 13 }, (_, i) => `${String(8 + i).padStart(2, "0")}:00 Uhr`)],
     ["wetter", "Wetter", "Himmel bei statischem Wetter, ohne Regen", ["Klar (Clear), statisch", "Leicht bewölkt (Partly Cloudy), statisch", "Überwiegend bewölkt (Mostly Cloudy), statisch", "Bedeckt (Overcast), statisch"]],
-    ["zustand", "Streckenzustand", "Gummi auf der Strecke, wird geprüft",["Sauber (Clean)", "Wenig Gummi (Low Usage)", "Etwas Gummi (Moderately Low Usage)", "Mittel (Moderate Usage)", "Viel Gummi (Moderately High Usage)", "Sehr viel Gummi (High Usage)", "Maximum (Maximum Usage)"]],
+    ["zustand", "Streckenzustand", "Nur Vorgabe, Garage 61 liefert dazu keinen prüfbaren Wert", ["Sauber (Clean)", "Wenig Gummi (Low Usage)", "Etwas Gummi (Moderately Low Usage)", "Mittel (Moderate Usage)", "Viel Gummi (Moderately High Usage)", "Sehr viel Gummi (High Usage)", "Maximum (Maximum Usage)"]],
     ["setup", "Setup", "Welches Setup gefahren wird", ["iRacing-Baseline-Setup", "Freies Setup"]],
     ["temperatur", "Lufttemperatur", "Wird geprüft, ein Grad Spielraum",Array.from({ length: 26 }, (_, i) => `${10 + i} °C`)],
   ];
@@ -877,7 +877,7 @@
         ${STECKBRIEF.map(([k, t, hilfe, liste]) => `<div class="a-feld"><label for="sb-${k}">${esc(t)}</label>${steckbriefAuswahl(k, liste, (w.sichtungSteckbrief || {})[k] || "")}<small class="a-hinweis">${esc(hilfe)}</small></div>`).join("")}
       </div>`, "Die Fahrer sehen diese Vorgaben im Fahrerbereich und stellen damit in iRacing ihre Testfahrt ein. „Keine Vorgabe“ heißt: frei wählbar.")}
       ${abschnittForm(4, "Automatische Prüfung der Runden", `<div class="a-feld"><label for="sb-temp-von">Streckentemperatur in °C</label><div class="a-bereich">${eingabe("sichtungTempMin", w.sichtungTempMin ?? "", 'id="sb-temp-von" type="number" min="-20" max="80" placeholder="von" aria-label="Streckentemperatur von"')}<span>bis</span>${eingabe("sichtungTempMax", w.sichtungTempMax ?? "", 'type="number" min="-20" max="80" placeholder="bis" aria-label="Streckentemperatur bis"')}</div></div>
-        <ul class="a-regeln"><li>Runden außerhalb dieses Bereichs zählen nicht. Leer lassen, wenn die Temperatur egal ist.</li><li>Runden mit Regen oder nasser Strecke zählen nie.</li><li>Sind oben Streckenzustand oder Lufttemperatur vorgegeben, zählen nur Runden mit genau diesem Gummi-Stand und höchstens einem Grad Abweichung bei der Luft.</li><li>Nur Runden mit dem in der Season gemeldeten Auto und auf den Strecken oben zählen.</li><li>Das Setup lässt sich nicht prüfen.</li></ul>`, "Diese Regeln wendet die Website selbst auf die Runden aus Garage 61 an.")}
+        <ul class="a-regeln"><li>Runden außerhalb dieses Bereichs zählen nicht. Leer lassen, wenn die Temperatur egal ist.</li><li>Runden mit Regen oder nasser Strecke zählen nie.</li><li>Ist oben eine Lufttemperatur vorgegeben, zählen nur Runden mit höchstens einem Grad Abweichung.</li><li>Den Streckenzustand liefert Garage 61 nur als Gummi in Prozent, der während der Fahrt steigt. Er wird nicht geprüft, steht aber im Stand bei jedem Versuch, ebenso die gemessenen Temperaturen.</li><li>Nur Runden mit dem in der Season gemeldeten Auto und auf den Strecken oben zählen.</li><li>Das Setup lässt sich nicht prüfen.</li></ul>`, "Diese Regeln wendet die Website selbst auf die Runden aus Garage 61 an.")}
       ${formLeiste("Einrichtung speichern")}
     </form>`;
   }
@@ -905,9 +905,12 @@
     if (!v) return einrichtung;
     const name = (id) => (v.klassen.find((k) => k.id === id) || {}).name || "–";
     const offen = v.fahrer.filter((f) => f.vorschlag && f.vorschlag !== f.fest).length;
+    // Gemessene Bedingungen des Versuchs, zum Vergleich mit den Vorgaben
+    const spanne = (w, e) => (w ? `${String(w[0]).replace(".", ",")}${w[1] !== w[0] ? `–${String(w[1]).replace(".", ",")}` : ""} ${e}` : "");
+    const messung = (b) => (b ? `<span class="a-messung" title="Gemessen während des Versuchs">${[b.strecke && `Strecke ${spanne(b.strecke, "°C")}`, b.luft && `Luft ${spanne(b.luft, "°C")}`, b.gummi && `Gummi ${spanne(b.gummi, "%")}`].filter(Boolean).map((x) => `<small>${esc(x)}</small>`).join("")}</span>` : "");
     const zelle = (z, s, f) => {
-      if (z.status === "abgegeben") return `<td class="rechts"><span class="a-chip gruen">abgegeben</span><b class="a-unter">${prozentText(z.prozent)}</b><small class="a-unter">${rundenzeit(z.wert)}</small><button type="button" class="a-weg" data-sicht-zurueck="${esc(s.key)}" data-discord="${esc(f.discordId)}" data-name="${esc(f.name)}" data-strecke-name="${esc(s.name)}" title="Abgabe zurücksetzen" aria-label="Abgabe von ${esc(f.name)} für ${esc(s.name)} zurücksetzen">×</button></td>`;
-      if (z.status === "gefahren") return `<td class="rechts"><span class="a-chip gelb">gefahren</span><small class="a-unter">${rundenzeit(z.wert)}</small></td>`;
+      if (z.status === "abgegeben") return `<td class="rechts"><span class="a-chip gruen">abgegeben</span><b class="a-unter">${prozentText(z.prozent)}</b><small class="a-unter">${rundenzeit(z.wert)}</small>${messung(z.bedingungen)}<button type="button" class="a-weg" data-sicht-zurueck="${esc(s.key)}" data-discord="${esc(f.discordId)}" data-name="${esc(f.name)}" data-strecke-name="${esc(s.name)}" title="Abgabe zurücksetzen" aria-label="Abgabe von ${esc(f.name)} für ${esc(s.name)} zurücksetzen">×</button></td>`;
+      if (z.status === "gefahren") return `<td class="rechts"><span class="a-chip gelb">gefahren</span><small class="a-unter">${rundenzeit(z.wert)}</small>${messung(z.bedingungen)}</td>`;
       return `<td class="rechts"><span class="a-chip">${v.vorbei ? "fehlt" : "offen"}</span></td>`;
     };
     const team = (f) => (f.imTeam === null ? "?" : f.imTeam ? '<span class="a-chip gruen">ja</span>' : f.teamAnfrage ? `<span class="a-chip gelb" title="Hat am ${esc(zeit(f.teamAnfrage))} auf „Team beitreten“ geklickt. Bitte in Garage 61 freigeben.">angefragt</span>` : '<span class="a-chip rot">nein</span>');
