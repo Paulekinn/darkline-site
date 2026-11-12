@@ -228,8 +228,22 @@ textarea{min-height:110px;resize:vertical}
 .a-bereich{display:grid;grid-template-columns:minmax(0,110px) max-content minmax(0,110px);justify-content:start;gap:8px;align-items:center}
 .a-bereich span{font-size:.84rem;color:var(--a-leise)}
 .a-regeln{margin:0;padding-left:18px;display:grid;gap:3px;font-size:.84rem;color:var(--a-leise)}
-.a-messung{display:grid;gap:1px;margin-top:4px;padding-top:4px;border-top:1px dashed var(--a-linie)}
-.a-messung small{font-size:.66rem;color:var(--a-leise)}
+/* Stand der Sichtung: alle Zeilen oben bündig, Strecken-Zellen gleich aufgebaut */
+.a-sicht-tabelle td{vertical-align:top}
+.a-sicht-tabelle .a-sz{min-width:150px;max-width:200px;text-align:left;white-space:normal}
+.a-sz-kopf{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:22px}
+.a-sz-kopf .a-weg{margin:0}
+.a-sz-werte{display:flex;align-items:baseline;gap:8px;margin-top:5px;font-variant-numeric:tabular-nums}
+.a-sz-werte span{font-size:.74rem;color:var(--a-leise)}
+.a-sz-grund{display:block;margin-top:5px;font-size:.7rem;line-height:1.35;color:var(--a-leise);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.a-messung{margin-top:4px}
+.a-messung summary{cursor:pointer;font-size:.66rem;color:var(--a-leise);list-style:none}
+.a-messung summary::-webkit-details-marker{display:none}
+.a-messung summary::before{content:"▸ "}
+.a-messung[open] summary::before{content:"▾ "}
+.a-messung small{display:block;font-size:.66rem;color:var(--a-leise)}
+.a-fakten div.breit{grid-column:span 2}
+@media (max-width:640px){.a-fakten div.breit{grid-column:auto}}
 .a-fakten{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr));gap:8px 14px;margin:0}
 .a-fakten div{display:grid;gap:2px;min-width:0}
 .a-fakten dt{font:500 .62rem/1.2 var(--a-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--a-leise)}
