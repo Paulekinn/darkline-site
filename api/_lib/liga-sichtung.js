@@ -254,7 +254,7 @@ function hinweisTexte(h, serie) {
   const texte = [`${h.runden} ${h.runden === 1 ? "Runde" : "Runden"} gefunden, längste gültige Folge: ${h.laengste} von ${n} am Stück.`];
   if (g.auto) texte.push(`${rundenText(g.auto.runden)} mit einem anderen Auto als gemeldet${g.auto.werte.length ? ` (${g.auto.werte.join(", ")})` : ""}.`);
   if (g.tank) texte.push(`${rundenText(g.tank.runden)} aus Stints mit zu wenig Sprit beim Start${g.tank.werte.length ? ` (${von(g.tank.werte, "Liter")})` : ""}, verlangt sind mindestens ${serie.sichtungTankMin} Liter.`);
-  if (g.gummi) texte.push(`${rundenText(g.gummi.runden)} aus Sessions mit falschem Streckenzustand${g.gummi.werte.length ? ` (${von(g.gummi.werte, "%")} Gummi beim Start)` : ""}, vorgegeben ist ${zustandVorgabe(serie)} %.`);
+  if (g.gummi) texte.push(`${rundenText(g.gummi.runden)} aus Sessions mit falschem Track State${g.gummi.werte.length ? ` (${von(g.gummi.werte, "%")} beim Start)` : ""}, vorgegeben ist ${zustandVorgabe(serie)} %.`);
   if (g.luft) texte.push(`${rundenText(g.luft.runden)} mit falscher Lufttemperatur${g.luft.werte.length ? ` (${von(g.luft.werte, "°C")})` : ""}, vorgegeben ist ${luftVorgabe(serie)} °C.`);
   if (g.strecke) texte.push(`${rundenText(g.strecke.runden)} mit Streckentemperatur außerhalb ${serie.sichtungTempMin ?? "?"} bis ${serie.sichtungTempMax ?? "?"} °C${g.strecke.werte.length ? ` (${von(g.strecke.werte, "°C")})` : ""}.`);
   if (g.regen) texte.push(`${rundenText(g.regen.runden)} mit Regen oder nasser Strecke.`);
@@ -488,7 +488,7 @@ const WERTUNG = { beste: "beste Runde", schnitt: "Durchschnitt der sauberen Rund
 function steckbriefZeilen(serie) {
   const b = serie.sichtungSteckbrief || {};
   const temp = serie.sichtungTempMin !== null && serie.sichtungTempMin !== undefined || serie.sichtungTempMax !== null && serie.sichtungTempMax !== undefined ? `${serie.sichtungTempMin ?? "?"} bis ${serie.sichtungTempMax ?? "?"} °C Strecke` : "";
-  return [["Uhrzeit", b.uhrzeit], ["Wetter", b.wetter], ["Streckenzustand", b.zustand], ["Setup", b.setup], ["Temperatur", b.temperatur || temp], ["Tank beim Start", serie.sichtungTankMin ? `mindestens ${serie.sichtungTankMin} Liter` : ""]].filter(([, w]) => w);
+  return [["Uhrzeit", b.uhrzeit], ["Wetter", b.wetter], ["Track State (freiwillig)", b.zustand], ["Setup", b.setup], ["Temperatur", b.temperatur || temp], ["Tank beim Start", serie.sichtungTankMin ? `mindestens ${serie.sichtungTankMin} Liter` : ""]].filter(([, w]) => w);
 }
 // Direktnachricht nach der Anmeldung zu einer Season mit Sichtung
 function einladungText(serie, modell) {
