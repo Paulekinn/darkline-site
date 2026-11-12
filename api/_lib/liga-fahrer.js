@@ -68,16 +68,19 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
   // Fahrzeug je Season mit Fahrzeugwahl, in der der Fahrer gemeldet ist
   const mitWahl = kat.serien.filter((x) => (x.modelle || []).length && x.status !== "beendet" && alle.some((e) => e.typ === "serie" && e.serieId === x.id && e.discordId === s.id));
   // Die Abfragen hängen nicht voneinander ab und laufen deshalb gleichzeitig.
-  const [oeffentlich, wunsch, tabellen, reports, fahrzeuge] = await Promise.all([
+  const [oeffentlich, wunsch, tabellen, reports, fahrzeuge, sichtungOffen] = await Promise.all([
     pid ? P.angabenVon(pid).catch(() => null) : null,
     P.wunschLesen(s.id).catch(() => null),
     profil ? laufendeTabellen(kat) : null,
     reportDaten(s, kat, alle, frisch),
     Promise.all(mitWahl.map(async (x) => { const f = await F.lesen(x.id, s.id).catch(() => null); return [x.id, f ? { modell: f.modell, antrag: f.antrag ? f.antrag.nach : "", freiUebrig: F.freiUebrig(x, f), wechsel: (f.wechsel || []).length } : null]; })),
+    // Offene Strecken in laufenden Sichtungen, damit der Reiter auffällt. Ein Fehler hier blendet nur den Hinweis aus.
+    Promise.all(sichtungSerien(kat, alle, s.id).map((x) => Sichtung.offeneStrecken(x, s.id).catch(() => 0))).then((n) => n.reduce((a, b) => a + b, 0)),
   ]);
   return res.status(200).json({
     ...extra,
     sichtung: sichtungSerien(kat, alle, s.id).map((x) => x.id),
+    sichtungOffen,
     fahrzeuge: Object.fromEntries(fahrzeuge.filter(([, f]) => f)),
     angemeldet: true,
     kalender: `/liga-kalender/${kalenderSchluessel(s.id)}`,

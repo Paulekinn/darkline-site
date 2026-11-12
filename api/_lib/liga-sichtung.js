@@ -354,6 +354,15 @@ async function abgebenAusGarage(serie, alle, discordId, key) {
   return abgeben(serie, discordId, key, versuch, ich.name);
 }
 
+// Für den Hinweis im Fahrerbereich: Wie viele Strecken dieser Fahrer in einer laufenden Sichtung noch abgeben kann. Liest nur die eigene Datei.
+async function offeneStrecken(serie, discordId, jetzt = Date.now()) {
+  if (!laeuft(serie, jetzt)) return 0;
+  const { blobGet } = require("./blob");
+  const t = await blobGet(pfad(serie.id, discordId));
+  const eigene = (t ? JSON.parse(t).abgaben : null) || {};
+  return (serie.sichtungStrecken || []).filter((s) => !eigene[s.key]).length;
+}
+
 // Kurzer Fortschritt für das Cockpit, ohne Garage 61: wie viele Fahrer haben alle Strecken abgegeben.
 async function fortschritt(serie, alle, jetzt = Date.now()) {
   const ids = new Set(alle.filter((e) => e.typ === "serie" && e.serieId === serie.id).map((e) => e.discordId));
@@ -389,4 +398,4 @@ function einladungText(serie, modell) {
   ].filter((z, i, a) => z !== "" || (a[i - 1] !== "" && i > 0)).join("\n");
 }
 
-module.exports = { standZusammen, einladungText, steckbriefZeilen, seasonFahrer, adminStand, fahrerStand, abgebenAusGarage, fortschritt, WURZEL, teamSlug, teamLink, zeitraum, laeuft, vorbei, streckeVon, sauber, bedingungenOk, besterVersuch, namensKern, g61Name, zuordner, auswerten, vorschlag, lesenAlle, abgeben, zuruecksetzen, derSerieLoeschen, eventsLaden, teamMitglieder, g61Fehlertext };
+module.exports = { offeneStrecken, standZusammen, einladungText, steckbriefZeilen, seasonFahrer, adminStand, fahrerStand, abgebenAusGarage, fortschritt, WURZEL, teamSlug, teamLink, zeitraum, laeuft, vorbei, streckeVon, sauber, bedingungenOk, besterVersuch, namensKern, g61Name, zuordner, auswerten, vorschlag, lesenAlle, abgeben, zuruecksetzen, derSerieLoeschen, eventsLaden, teamMitglieder, g61Fehlertext };
