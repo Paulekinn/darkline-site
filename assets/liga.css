@@ -175,6 +175,33 @@
 .bar nav.liga-nav .liga-nav-event::before{content:"★";width:auto;height:auto;background:none;color:var(--liga-gold);font-size:.8rem;transform:none}
 .bar nav.liga-nav .liga-nav-event[aria-current="page"]{border-bottom-color:var(--liga-gold)}
 
+/* Aufklappmenüs „Seasons“ und „Events“ in der Liga-Leiste */
+.liga-nav-menue{position:relative}
+.liga-nav-menue summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:13px 14px 10px;border-bottom:3px solid transparent;font:800 .8rem/1 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase;color:#dfe4e2;white-space:nowrap}
+.liga-nav-menue summary::-webkit-details-marker{display:none}
+.liga-nav-menue summary::after{content:"";width:6px;height:6px;margin-left:2px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-2px) rotate(45deg);transition:transform .15s}
+.liga-nav-menue[open] summary::after{transform:translateY(1px) rotate(-135deg)}
+.liga-nav-menue summary:hover,.liga-nav-menue[open] summary{color:var(--ink);background:rgba(255,255,255,.04)}
+.liga-nav-menue summary:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
+.liga-nav-menue.aktiv summary{color:var(--ink);border-bottom-color:var(--red)}
+.liga-nav-menue.event.aktiv summary{border-bottom-color:var(--liga-gold)}
+.liga-nav-menue summary em{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;box-sizing:border-box;background:var(--scan);color:#dfe4e2;font:700 .66rem/1 var(--f-mono,monospace);font-style:normal}
+.liga-nav-menue summary b{max-width:220px;overflow:hidden;text-overflow:ellipsis;font:inherit;color:var(--ink);text-transform:none;font-variation-settings:"wdth" 100;font-weight:700}
+.liga-nav-menue summary b::before{content:"·";margin-right:6px;color:var(--muted,#8a9497)}
+.liga-nav-liste{position:absolute;z-index:80;top:100%;left:0;display:grid;min-width:280px;max-width:min(420px,calc(100vw - 32px));max-height:min(60vh,420px);overflow:auto;padding:6px;background:#15191c;border:1px solid var(--scan);border-top:3px solid var(--red);box-shadow:0 14px 30px rgba(0,0,0,.55)}
+.liga-nav-menue.event .liga-nav-liste{border-top-color:var(--liga-gold)}
+.bar nav.liga-nav .liga-nav-liste a{display:grid;grid-template-columns:auto 1fr;column-gap:10px;row-gap:3px;align-items:center;padding:10px 12px;border:0;border-left:3px solid transparent;white-space:normal}
+.bar nav.liga-nav .liga-nav-liste a span{display:block;min-width:0;font:800 .84rem/1.2 var(--f-wide);font-variation-settings:"wdth" 104;letter-spacing:0;text-transform:uppercase;color:#fff}
+.bar nav.liga-nav .liga-nav-liste a small{display:block;grid-column:2;font:500 .62rem/1.2 var(--f-mono,monospace);letter-spacing:.04em;text-transform:uppercase;color:var(--muted,#8a9497)}
+.bar nav.liga-nav .liga-nav-liste a:hover{background:rgba(255,255,255,.05)}
+.bar nav.liga-nav .liga-nav-liste a[aria-current="page"]{border-left-color:var(--s);background:rgba(255,255,255,.06)}
+.bar nav.liga-nav .liga-nav-liste a.liga-nav-event[aria-current="page"]{border-left-color:var(--liga-gold)}
+@media (max-width:760px){
+  .liga-nav-menue summary{padding:12px 10px 9px;font-size:.76rem}
+  .liga-nav-menue summary b{max-width:120px}
+  .liga-nav-liste{position:fixed;left:16px;right:16px;top:auto;min-width:0;max-width:none}
+}
+
 /* Übersicht: Kopfbereich mit großem Bild und dem nächsten Rennen */
 .liga-kopf.gross .photo{inset:0;clip-path:none}
 .liga-kopf.gross .photo img{object-position:60% 42%;filter:contrast(1.08) brightness(.82) saturate(1.1)}
