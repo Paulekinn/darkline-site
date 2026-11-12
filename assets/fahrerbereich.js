@@ -412,7 +412,8 @@
       </ol>
       <h4 class="fb-zwischen">Vorgaben für die Testfahrt</h4>
       <dl class="fb-fakten">${fakten.filter(([, w]) => w).map(([t, w]) => `<div><dt>${esc(t)}</dt><dd>${esc(w)}</dd></div>`).join("")}</dl>
-      <h4 class="fb-zwischen">Deine Strecken</h4>
+      <div class="fb-sicht-kopf"><h4 class="fb-zwischen">Deine Strecken</h4>${x.vorbei ? "" : `<button type="button" class="fb-knopf zweit" data-sicht-neu="1"${sichtungDaten && sichtungDaten.laedt ? " disabled" : ""}>${sichtungDaten && sichtungDaten.laedt ? "Lädt …" : "↻ Runden neu laden"}</button>`}</div>
+      ${x.vorbei ? "" : '<p class="fb-klein">Gerade gefahren? Garage 61 braucht nach der Testfahrt ein paar Minuten, dann hier neu laden.</p>'}
       ${x.fehler ? `<p class="fb-meldung">${esc(x.fehler)}</p>` : ""}
       <ul class="fb-sicht-liste">${x.strecken.map(zeile).join("")}</ul>
       <p class="fb-klein">Nach der Abgabe ist der Wert eingefroren, spätere Runden zählen dafür nicht mehr. Zurücksetzen kann nur die Rennleitung. Was bis zum Ende der Sichtung nicht abgegeben ist, fehlt. Ohne alle Strecken gilt die Klasse nach iRating oder die Einstufung der Rennleitung. Deine Werte siehst nur du und die Rennleitung.</p>
@@ -421,8 +422,7 @@
   function sichtungAnsicht() {
     if (!sichtungDaten || (sichtungDaten.laedt && !sichtungDaten.liste)) return '<p class="fb-leer">Lade deine Runden aus Garage 61 …</p>';
     const liste = sichtungDaten.liste || [];
-    return `${sichtungDaten.fehler ? `<p class="fb-meldung">${esc(sichtungDaten.fehler)}</p>` : ""}${liste.length ? liste.map(sichtungKarte).join("") : '<p class="fb-leer">Du bist in keiner Season mit Sichtung gemeldet.</p>'}
-      <p class="fb-profil-link"><button type="button" class="fb-link" data-sicht-neu="1"${sichtungDaten.laedt ? " disabled" : ""}>${sichtungDaten.laedt ? "Lädt …" : "Runden neu laden"}</button></p>`;
+    return `${sichtungDaten.fehler ? `<p class="fb-meldung">${esc(sichtungDaten.fehler)}</p>` : ""}${liste.length ? liste.map(sichtungKarte).join("") : '<p class="fb-leer">Du bist in keiner Season mit Sichtung gemeldet.</p>'}`;
   }
 
   const gegnerOptionen = (rennen, gewaehlt) => `<option value="">Fahrer wählen</option>${(rennen ? rennen.fahrer : []).map((n) => `<option value="${esc(n)}"${n === gewaehlt ? " selected" : ""}>${esc(n)}</option>`).join("")}`;
