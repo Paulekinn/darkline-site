@@ -100,7 +100,7 @@ function pruefeSerie(e) {
 // Bei Sichtung trennen Pace-Grenzen die Klassen: Abstand zum schnellsten Wert in Prozent, je eine Grenze zwischen zwei Klassen.
 const SICHTUNG_STANDARD = [101.5, 103, 104.5, 106];
 // Diese Felder richtet die Rennleitung im Menüpunkt „Sichtung“ ein. Das Season-Formular schickt sie nicht mit.
-const SICHTUNG_FELDER = ["sichtungGrenzen", "sichtungVon", "sichtungBis", "sichtungStrecken", "sichtungRunden", "sichtungWertung", "sichtungTempMin", "sichtungTempMax", "sichtungSteckbrief"];
+const SICHTUNG_FELDER = ["sichtungGrenzen", "sichtungVon", "sichtungBis", "sichtungStrecken", "sichtungRunden", "sichtungWertung", "sichtungTempMin", "sichtungTempMax", "sichtungTankMin", "sichtungSteckbrief"];
 const STECKBRIEF = ["uhrzeit", "wetter", "zustand", "setup", "temperatur"];
 const MAX_SICHTUNG_STRECKEN = 5;
 const DATUM = /^\d{4}-\d{2}-\d{2}$/;
@@ -147,6 +147,8 @@ function pruefeEinstufung(e, klassen, ohneKlassen) {
     sichtungRunden: ganzzahl(e.sichtungRunden ?? 7, "Saubere Runden am Stück", 1, 50),
     sichtungWertung: e.sichtungWertung === "schnitt" ? "schnitt" : "beste",
     sichtungTempMin: tempMin, sichtungTempMax: tempMax,
+    // Mindest-Tankstand beim Start eines Stints in Litern, leer heißt ohne Vorgabe
+    sichtungTankMin: String(e.sichtungTankMin ?? "").trim() === "" ? null : ganzzahl(String(e.sichtungTankMin).trim(), "Mindest-Tank beim Start", 1, 200),
     sichtungSteckbrief: steckbrief,
   };
 }

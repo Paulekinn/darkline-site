@@ -124,7 +124,7 @@ function gemessen(runden) {
     const f = 10 ** stellen;
     return [Math.round(Math.min(...w) * f) / f, Math.round(Math.max(...w) * f) / f];
   };
-  const b = { strecke: spanne("trackTemp", 1), luft: spanne("airTemp", 1), gummi: spanne("trackUsage", 0) };
+  const b = { strecke: spanne("trackTemp", 1), luft: spanne("airTemp", 1), gummi: spanne("trackUsage", 0), tank: spanne("tankStart", 1) };
   Object.keys(b).forEach((k) => { if (!b[k]) delete b[k]; });
   return Object.keys(b).length ? b : null;
 }
@@ -150,6 +150,7 @@ function zuordner(fahrer, zuordnung = {}) {
 
 // Session und Run kommen als Nummer oder als Objekt mit ID.
 const kennung = (x) => (x && typeof x === "object" ? x.id ?? x.number ?? JSON.stringify(x) : x);
+const stintKennung = (l) => `${(l.driver && (l.driver.id || l.driver.slug)) || ""}|${kennung(l.session)}|${kennung(l.run)}`;
 
 // Wertet Garage-61-Sessions aus. events: [{ id, startedAt, laps }]. fahrer: Season-Fahrer [{ discordId, name, modell }].
 // Liefert { versuche: Map discordId → { <strecke>: Versuch }, unbekannt: [{ slug, name, runden }] }.
@@ -162,6 +163,14 @@ function auswerten(serie, events, fahrer, zuordnung, mitAuto = (serie.modelle ||
   for (const ev of events) {
     const start = new Date(ev.startedAt || ev.start || 0).getTime();
     if (z && (start < z.von || start >= z.bis)) continue;
+    // Tankstand beim Start jedes Stints: fuelLevel der Runde mit der kleinsten Nummer (die Outlap)
+    const stintStart = new Map();
+    for (const l of ev.laps || []) {
+      if (l.fuelLevel === undefined || l.fuelLevel === null || !Number.isFinite(Number(l.fuelLevel))) continue;
+      const k = stintKennung(l);
+      const bisher = stintStart.get(k);
+      if (!bisher || Number(l.lapNumber) < bisher.nr) stintStart.set(k, { nr: Number(l.lapNumber), tank: Number(l.fuelLevel) });
+    }
     for (const l of ev.laps || []) {
       const strecke = streckeVon(l.track || ev.track, serie);
       if (!strecke) continue;
@@ -176,7 +185,10 @@ function auswerten(serie, events, fahrer, zuordnung, mitAuto = (serie.modelle ||
       if (!gesammelt.has(f.discordId)) gesammelt.set(f.discordId, new Map());
       const jeStrecke = gesammelt.get(f.discordId);
       if (!jeStrecke.has(strecke.key)) jeStrecke.set(strecke.key, []);
-      jeStrecke.get(strecke.key).push({ lapTime: l.lapTime, lapNumber: l.lapNumber, session: kennung(l.session), run: kennung(l.run), event: ev.id, zeit: ev.startedAt || null, trackTemp: l.trackTemp, airTemp: l.airTemp, trackUsage: typeof l.trackUsage === "number" ? l.trackUsage : undefined, ok:sauber(l) && bedingungenOk(l, serie) && autoOk });
+      // Mindest-Tank: Startet der Stint mit weniger Sprit, zählt keine Runde daraus. Ohne Tankwert wird nicht geprüft.
+      const tank = (stintStart.get(stintKennung(l)) || {}).tank;
+      const tankOk = !(serie.sichtungTankMin > 0) || tank === undefined || tank >= serie.sichtungTankMin;
+      jeStrecke.get(strecke.key).push({ lapTime: l.lapTime, lapNumber: l.lapNumber, session: kennung(l.session), run: kennung(l.run), event: ev.id, zeit: ev.startedAt || null, trackTemp: l.trackTemp, airTemp: l.airTemp, trackUsage: typeof l.trackUsage === "number" ? l.trackUsage : undefined, tankStart: tank, ok: sauber(l) && bedingungenOk(l, serie) && autoOk && tankOk });
     }
   }
   const versuche = new Map();
@@ -293,7 +305,7 @@ async function seasonFahrer(serie, alle) {
 
 const eckdaten = (serie, jetzt) => ({
   von: serie.sichtungVon || "", bis: serie.sichtungBis || "", laeuft: laeuft(serie, jetzt), vorbei: vorbei(serie, jetzt),
-  runden: serie.sichtungRunden || 7, wertung: serie.sichtungWertung || "beste", tempMin: serie.sichtungTempMin ?? null, tempMax: serie.sichtungTempMax ?? null,
+  runden: serie.sichtungRunden || 7, wertung: serie.sichtungWertung || "beste", tempMin: serie.sichtungTempMin ?? null, tempMax: serie.sichtungTempMax ?? null, tankMin: serie.sichtungTankMin ?? null,
   steckbrief: serie.sichtungSteckbrief || {}, teamLink: teamLink(),
 });
 
@@ -411,7 +423,7 @@ const WERTUNG = { beste: "beste Runde", schnitt: "Durchschnitt der sauberen Rund
 function steckbriefZeilen(serie) {
   const b = serie.sichtungSteckbrief || {};
   const temp = serie.sichtungTempMin !== null && serie.sichtungTempMin !== undefined || serie.sichtungTempMax !== null && serie.sichtungTempMax !== undefined ? `${serie.sichtungTempMin ?? "?"} bis ${serie.sichtungTempMax ?? "?"} °C Strecke` : "";
-  return [["Uhrzeit", b.uhrzeit], ["Wetter", b.wetter], ["Streckenzustand", b.zustand], ["Setup", b.setup], ["Temperatur", b.temperatur || temp]].filter(([, w]) => w);
+  return [["Uhrzeit", b.uhrzeit], ["Wetter", b.wetter], ["Streckenzustand", b.zustand], ["Setup", b.setup], ["Temperatur", b.temperatur || temp], ["Tank beim Start", serie.sichtungTankMin ? `mindestens ${serie.sichtungTankMin} Liter` : ""]].filter(([, w]) => w);
 }
 // Direktnachricht nach der Anmeldung zu einer Season mit Sichtung
 function einladungText(serie, modell) {
