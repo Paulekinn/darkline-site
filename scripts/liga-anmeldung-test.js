@@ -596,6 +596,13 @@ const tests = {
     assert.deepStrictEqual(unbekannt, [{ slug: "max-muster", name: "Max Muster", runden: 3 }], "Doppelter Name in der Season: nicht eindeutig");
     // Von Hand zugeordnet zählt es
     assert.strictEqual(S.auswerten(serie, events, fahrer, { "max-muster": "4" }).versuche.get("4")["ir-239"].wert, 107);
+    // Mindest-Tank: zählt der Stand der Outlap, also des Stint-Starts
+    const tankRunden = (start, run) => [0, 1, 2, 3].map((n) => runde(anna, n, n ? 131 + run : 200, spa, "BMW M4 GT4", { run, pitOut: n === 0, fuelLevel: start - n * 3 }));
+    const tankSerie = { ...serie, sichtungTankMin: 40 };
+    const tankAus = S.auswerten(tankSerie, [{ id: "t", startedAt: "2026-12-05T18:00:00Z", laps: [...tankRunden(30, 1), ...tankRunden(50, 2)] }], fahrer, {}).versuche.get("1").spa;
+    assert.deepStrictEqual([tankAus.wert, tankAus.bedingungen.tank], [133, [50, 50]], "Der schnellere Stint mit 30 Litern zählt nicht");
+    assert.strictEqual(S.auswerten(serie, [{ id: "t", startedAt: "2026-12-05T18:00:00Z", laps: tankRunden(30, 1) }], fahrer, {}).versuche.get("1").spa.wert, 132, "Ohne Vorgabe zählt jeder Tank");
+    assert.strictEqual(D.pruefeSerie({ name: "GT4", rennenGesamt: 1, gewerteteRennen: 1, punkte: "1", punkteDanach: 0, bonusPole: 0, bonusSchnellsteRunde: 0, mindestRundenProzent: 0, anmeldeschlussMinuten: 0, klassen: [{ name: "Pro", min: 2500, max: "" }, { name: "Am", min: 0, max: 2499 }], einstufungArt: "sichtung", sichtungTankMin: "60" }).sichtungTankMin, 60);
     // Ohne Fahrzeugliste in der Season zählt jedes Auto
     assert.strictEqual(S.auswerten({ ...serie, modelle: [] }, events, fahrer, {}).versuche.get("2").spa.wert, 139);
   },
