@@ -13,6 +13,7 @@ const Regeln = require("./liga-regeln");
 const Dc = require("./liga-discord");
 const F = require("./liga-fahrzeuge");
 const G61 = require("./g61");
+const Sichtung = require("./liga-sichtung");
 const { leseErgebnis, berechneTabelle, klasseFuer } = require("../../assets/liga-wertung.js");
 
 const eintraege = async () => (await blobList(A.PREFIX)).map(A.leseEintrag).filter(Boolean);
@@ -60,7 +61,6 @@ async function serienDetails(kat, id) {
   return {
     serie: id, fahrer,
     rennen: A.baueRennen(kat.rennen.filter((r) => r.serie === id), alle, opt).map(({ id: rid, titel, start, status, plaetze, starter, warteliste }) => ({ id: rid, titel, start, status, plaetze, starter, warteliste })),
-    sichtung: serie.einstufungArt === "sichtung" ? D.sichtungVorschlag(serie, ergebnisse, kat.rennen, privat.einstufung) : null,
     ergebnisse: ergebnisse.map((e) => ({ id: e.id, start: e.start, strecke: e.strecke, variante: e.variante, verkuerzt: !!e.verkuerzt, sichtung: D.istSichtung(e, kat.rennen, id), stand: R.ergebnisStand(e.start, standCtx), fahrer: e.fahrer.map((f) => ({ cust: f.cust, name: f.name })) })).sort((a, b) => String(a.start).localeCompare(String(b.start))),
     strafen: [
       ...privat.strafen.map((s) => ({ ...s, typ: "punkte" })),
@@ -140,6 +140,9 @@ async function protokollText(b, kat) {
     "fahrzeug-setzen": () => `Fahrzeug gesetzt in ${serie(b.serie)}: ${b.modell}`,
     "fahrzeug-streichen": () => `Ergebnis wegen Fahrzeug gestrichen in ${serie(b.serie)}`,
     "sichtung-uebernehmen": () => `Klassen aus der Sichtung übernommen: ${serie(b.serie)}`,
+    "sichtung-einrichten": () => `Sichtung eingerichtet: ${serie(b.serie)}`,
+    "sichtung-zuruecksetzen": () => `Sichtungs-Abgabe zurückgesetzt in ${serie(b.serie)}: ${b.name || b.discordId}, ${b.streckeName || b.strecke}`,
+    "sichtung-zuordnen": () => `Garage-61-Fahrer ${b.discordId ? "zugeordnet" : "Zuordnung gelöst"} in ${serie(b.serie)}: ${b.slug}`,
     "report-status": async () => `Report-Status geändert: ${await report()}`,
     "report-urteil": async () => `Urteil gesprochen (${(b.urteil || {}).art}): ${await report()}`,
   };
@@ -165,7 +168,7 @@ async function protokollLesen() {
 
 // Hinweise für das Cockpit, kurz zwischengespeichert. Nach jeder Änderung der Rennleitung wird neu gerechnet.
 let fehlendCache = { bis: 0, wert: null };
-const COCKPIT_LEER = { fehlendeErgebnisse: [], pruefungen: [], strafkonten: [] };
+const COCKPIT_LEER = { fehlendeErgebnisse: [], pruefungen: [], strafkonten: [], sichtungen: [] };
 async function cockpitHinweise(kat) {
   if (fehlendCache.wert && fehlendCache.bis > Date.now()) return fehlendCache.wert;
   const serien = kat.serien.filter((s) => s.status !== "beendet");
@@ -173,7 +176,9 @@ async function cockpitHinweise(kat) {
   const ergebnisse = new Map(await Promise.all(serien.map(async (s) => [s.id, await D.ergebnisseLesen(s.id)])));
   const pruefungen = serien.flatMap((s) => ergebnisse.get(s.id).filter((e) => e.pruefung && !e.pruefung.erledigt).map((e) => ({ serie: s.id, serieName: s.name, id: e.id, strecke: e.strecke, start: e.start, noShows: e.pruefung.noShows, incidents: e.pruefung.incidents, fahrzeuge: e.pruefung.fahrzeuge || [] })));
   const strafkonten = (await Promise.all(serien.map(async (s) => D.strafkonten(s, await D.privatLesen(s.id))))).flat();
-  const wert = { fehlendeErgebnisse: D.rennenOhneErgebnis(rennen, ergebnisse, Date.now()), pruefungen, strafkonten };
+  const mitSichtung = serien.filter((s) => s.einstufungArt === "sichtung");
+  const sichtungen = mitSichtung.length ? await eintraege().then((alle) => Promise.all(mitSichtung.map((s) => Sichtung.fortschritt(s, alle)))).catch(() => []) : [];
+  const wert = { fehlendeErgebnisse: D.rennenOhneErgebnis(rennen, ergebnisse, Date.now()), pruefungen, strafkonten, sichtungen };
   fehlendCache = { bis: Date.now() + 60000, wert };
   return wert;
 }
@@ -217,7 +222,10 @@ function keinePunkteBeiEvents(kat, serieId, art) {
 
 const aktionen = {
   async "serie-speichern"(b, kat) {
-    const daten = D.pruefeSerie(b.serie || {});
+    // Die Einrichtung der Sichtung steht im eigenen Menüpunkt. Das Season-Formular schickt sie nicht mit, sie bleibt erhalten.
+    const gespeichert = b.id && D.istId(b.id) ? JSON.parse((await blobGet(`liga/daten/serien/${b.id}.json`)) || "{}") : {};
+    const sichtung = Object.fromEntries(D.SICHTUNG_FELDER.filter((k) => gespeichert[k] !== undefined && (b.serie || {})[k] === undefined).map((k) => [k, gespeichert[k]]));
+    const daten = D.pruefeSerie({ ...sichtung, ...(b.serie || {}) });
     let id = b.id;
     if (id) {
       const bisher = serieFinden(kat, D.brauchtId(id));
@@ -245,6 +253,7 @@ const aktionen = {
     await Promise.all(rennen.map((r) => D.rennenLoeschen(r.id)));
     await R.derSerieLoeschen(b.id);
     await D.serieDatenLoeschen(b.id);
+    await Sichtung.derSerieLoeschen(b.id).catch(() => {});
     await D.serieLoeschen(b.id);
     if (serie.bildVersion) await D.bildLoeschen(`serie-${b.id}`);
     return {};
@@ -635,13 +644,51 @@ const aktionen = {
     await neuBerechnen(kat, b.serie);
     return {};
   },
-  // Übernimmt den Klassenvorschlag aus den Sichtungsrennen für alle Fahrer mit Rundenzeit. Einzelne lassen sich danach von Hand ändern.
+  // Einrichtung der Sichtung einer Season: Zeitraum, Strecken, Runden, Wertung, Grenzen und Steckbrief.
+  async "sichtung-einrichten"(b, kat) {
+    const bisher = serieFinden(kat, D.brauchtId(b.serie));
+    D.nichtUeberschreiben(b.vorher, bisher, ["bildVersion"], "Diese Season");
+    const gespeichert = JSON.parse((await blobGet(`liga/daten/serien/${b.serie}.json`)) || "null");
+    if (!gespeichert) throw new Hinweis("Diese Season gibt es nicht.");
+    const e = b.einrichtung || {};
+    const daten = D.pruefeSerie({ ...gespeichert, ...Object.fromEntries(D.SICHTUNG_FELDER.map((k) => [k, e[k]])), einstufungArt: "sichtung" });
+    if (daten.einstufungArt !== "sichtung") throw new Hinweis("Eine Season ohne Klassen braucht keine Sichtung.");
+    if (gespeichert.bildVersion) daten.bildVersion = gespeichert.bildVersion;
+    await D.serieSpeichern(b.serie, daten);
+    return {};
+  },
+  // Stand für den Menüpunkt „Sichtung“. Liest Garage 61, speichert nichts.
+  async "sichtung-stand"(b, kat) {
+    const serie = serieFinden(kat, b.serie);
+    if (serie.einstufungArt !== "sichtung") throw new Hinweis("Diese Season wird nach iRating eingestuft.");
+    return { sichtung: await Sichtung.adminStand(serie, await eintraege(), await D.privatLesen(serie.id)) };
+  },
+  async "sichtung-zuruecksetzen"(b, kat) {
+    const serie = serieFinden(kat, b.serie);
+    await Sichtung.zuruecksetzen(serie.id, D.brauchtId(String(b.discordId || "")), String(b.strecke || ""));
+    return {};
+  },
+  // Garage-61-Fahrer, deren Name nicht eindeutig passt, ordnet die Rennleitung von Hand zu. Leere Discord-ID löst die Zuordnung.
+  async "sichtung-zuordnen"(b, kat) {
+    serieFinden(kat, b.serie);
+    const slug = String(b.slug || "").trim().slice(0, 100);
+    if (!slug) throw new Hinweis("Unbekannter Garage-61-Fahrer.");
+    const discordId = b.discordId ? D.brauchtId(String(b.discordId)) : "";
+    await D.privatAendern(b.serie, (privat) => {
+      const zuordnung = { ...(privat.sichtungZuordnung || {}) };
+      if (discordId) zuordnung[slug] = discordId; else delete zuordnung[slug];
+      return { ...privat, sichtungZuordnung: zuordnung };
+    });
+    return {};
+  },
+  // Übernimmt den Klassenvorschlag aus der Sichtung für alle Fahrer, die jede Strecke abgegeben haben. Einzelne lassen sich danach von Hand ändern.
   async "sichtung-uebernehmen"(b, kat) {
     const serie = serieFinden(kat, b.serie);
     if (serie.einstufungArt !== "sichtung") throw new Hinweis("Diese Season wird nach iRating eingestuft. Stelle sie zuerst auf Sichtung um.");
-    const { fahrer } = D.sichtungVorschlag(serie, await D.ergebnisseLesen(b.serie), kat.rennen);
-    const mitVorschlag = fahrer.filter((f) => f.vorschlag);
-    if (!mitVorschlag.length) throw new Hinweis("Es gibt noch keine Rundenzeiten aus einem Sichtungsrennen.");
+    const fahrer = await Sichtung.seasonFahrer(serie, await eintraege());
+    const { fahrer: liste } = Sichtung.vorschlag(serie, fahrer, await Sichtung.lesenAlle(serie.id));
+    const mitVorschlag = liste.filter((f) => f.vorschlag && f.cust);
+    if (!mitVorschlag.length) throw new Hinweis("Noch hat kein Fahrer für jede Strecke ein Ergebnis abgegeben.");
     await D.privatAendern(b.serie, (privat) => ({ ...privat, einstufung: { ...privat.einstufung, ...Object.fromEntries(mitVorschlag.map((f) => [f.cust, f.vorschlag])) } }));
     await neuBerechnen(kat, b.serie);
     return { anzahl: mitVorschlag.length };

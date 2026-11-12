@@ -30,6 +30,7 @@
   let filter = null;       // "meine", "alle" oder eine Serienkennung
   let auswahl = null;      // Kennung des Rennens im großen Block
   let karteWahl = 0;       // gezeigte Fahrerkarte, falls jemand in mehreren Serien fährt
+  let sichtungDaten = null; // eigene Sichtung: { laedt, liste, fehler }
 
   $("year").textContent = new Date().getFullYear();
 
@@ -368,7 +369,50 @@
 
   function ansichtWahl() {
     const offen = stand.reports.meine.filter((r) => r.kannEinspruch).length;
-    return `<div class="fb-ansicht" role="group" aria-label="Ansicht wählen"><button type="button" data-ansicht="rennen" aria-pressed="${ansicht === "rennen"}">Rennen</button><button type="button" data-ansicht="reports" aria-pressed="${ansicht === "reports"}">Reports${offen ? ` (${offen})` : ""}</button></div>`;
+    return `<div class="fb-ansicht" role="group" aria-label="Ansicht wählen"><button type="button" data-ansicht="rennen" aria-pressed="${ansicht === "rennen"}">Rennen</button><button type="button" data-ansicht="reports" aria-pressed="${ansicht === "reports"}">Reports${offen ? ` (${offen})` : ""}</button>${(stand.sichtung || []).length ? `<button type="button" data-ansicht="sichtung" aria-pressed="${ansicht === "sichtung"}">Sichtung</button>` : ""}</div>`;
+  }
+
+  /* ---------- Sichtung: nur die eigenen Werte, erst beim Öffnen aus Garage 61 geladen ---------- */
+  const rundenzeit = (s) => (s > 0 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(3).padStart(6, "0").replace(".", ",")}` : "–");
+  const tagText = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || ""); return m ? `${m[3]}.${m[2]}.${m[1]}` : ""; };
+  const WERTUNG = { beste: "beste Runde", schnitt: "Durchschnitt der sauberen Runden" };
+  async function sichtungLaden() {
+    sichtungDaten = { laedt: true, liste: sichtungDaten ? sichtungDaten.liste : null };
+    zeichne();
+    try {
+      const r = await fetch(`${API}&nur=sichtung`, { cache: "no-store" });
+      if (!r.ok) throw new Error();
+      sichtungDaten = { laedt: false, liste: (await r.json()).sichtung || [] };
+    } catch (e) {
+      sichtungDaten = { laedt: false, liste: sichtungDaten.liste, fehler: "Die Sichtung konnte nicht geladen werden. Bitte versuche es gleich noch einmal." };
+    }
+    zeichne();
+  }
+  function sichtungKarte(x) {
+    const b = x.steckbrief || {};
+    const temp = x.tempMin !== null || x.tempMax !== null ? `Strecke ${x.tempMin ?? "?"} bis ${x.tempMax ?? "?"} °C` : "";
+    const fakten = [["Zeitraum", x.von && x.bis ? `${tagText(x.von)} bis ${tagText(x.bis)}` : "wird noch bekannt gegeben"], ["Gültig", `${x.runden} saubere Runden am Stück`], ["Gewertet", WERTUNG[x.wertung] || WERTUNG.beste], ["Dein Auto", x.mitAuto ? x.modell || "noch nicht gewählt" : ""], ["Uhrzeit", b.uhrzeit], ["Wetter", b.wetter], ["Streckenzustand", b.zustand], ["Setup", b.setup], ["Temperatur", [b.temperatur, temp].filter(Boolean).join(", ")]];
+    const status = x.laeuft ? '<span class="fb-status starter">Läuft</span>' : x.vorbei ? '<span class="fb-status geschlossen">Vorbei</span>' : '<span class="fb-status warteliste">Noch nicht begonnen</span>';
+    const zeile = (s) => {
+      if (s.abgabe) return `<li class="fb-sicht-zeile fertig"><div><b>${esc(s.name)}</b><small>Abgegeben: ${rundenzeit(s.abgabe.wert)}${s.abgabe.wertung === "schnitt" ? " im Schnitt" : ""} · Runden ${s.abgabe.runden.map(rundenzeit).join(", ")}</small></div><span class="fb-status starter">Eingefroren</span></li>`;
+      if (x.vorbei) return `<li class="fb-sicht-zeile"><div><b>${esc(s.name)}</b><small>Nicht abgegeben, zählt als fehlend.</small></div><span class="fb-status abgesagt">Fehlt</span></li>`;
+      if (s.versuch) return `<li class="fb-sicht-zeile"><div><b>${esc(s.name)}</b><small>Bester gültiger Versuch: <b>${rundenzeit(s.versuch.wert)}</b>${x.wertung === "schnitt" ? " im Schnitt" : ""} · Runden ${s.versuch.runden.map(rundenzeit).join(", ")}</small></div>${x.laeuft ? `<button type="button" class="fb-knopf fb-melden" data-sicht-abgeben="${esc(s.key)}" data-serie="${esc(x.id)}" data-name="${esc(s.name)}" data-zeit="${esc(rundenzeit(s.versuch.wert))}">Ergebnis für ${esc(s.name)} abgeben</button>` : ""}</li>`;
+      return `<li class="fb-sicht-zeile"><div><b>${esc(s.name)}</b><small>${x.laeuft ? `Noch kein gültiger Versuch mit ${x.runden} sauberen Runden am Stück.` : "Noch keine Runden."}</small></div><span class="fb-status">Offen</span></li>`;
+    };
+    return `<section class="fb-panel"><div class="fb-fall-kopf"><h3>${esc(x.name)}: Sichtung</h3>${status}</div>
+      <p class="fb-klein">Deine Klasse bestimmt die Sichtung. Bau den Server aus dem Steckbrief als Offline-Testfahrt in iRacing nach und fahr ${x.runden} saubere Runden am Stück${x.mitAuto && x.modell ? ` mit deinem ${esc(x.modell)}` : ""}. In- und Outlaps zählen nicht. Garage 61 sammelt deine Runden, wenn du im Team der Liga bist.</p>
+      <p class="fb-klein"><a href="${esc(x.teamLink)}" target="_blank" rel="noopener">Dem Garage-61-Team der Liga beitreten</a> · Beitritt mit Freigabe durch die Rennleitung. Dein Name in Garage 61 muss zu deinem iRacing-Namen im Profil passen (${esc(x.iracingName || "–")}).</p>
+      <dl class="fb-fakten">${fakten.filter(([, w]) => w).map(([t, w]) => `<div><dt>${esc(t)}</dt><dd>${esc(w)}</dd></div>`).join("")}</dl>
+      ${x.fehler ? `<p class="fb-meldung">${esc(x.fehler)}</p>` : ""}
+      <ul class="fb-sicht-liste">${x.strecken.map(zeile).join("")}</ul>
+      <p class="fb-klein">Nach der Abgabe ist der Wert eingefroren, spätere Runden zählen dafür nicht mehr. Zurücksetzen kann nur die Rennleitung. Was bis zum Ende der Sichtung nicht abgegeben ist, fehlt. Ohne alle Strecken gilt die Klasse nach iRating oder die Einstufung der Rennleitung. Deine Werte siehst nur du und die Rennleitung.</p>
+    </section>`;
+  }
+  function sichtungAnsicht() {
+    if (!sichtungDaten || (sichtungDaten.laedt && !sichtungDaten.liste)) return '<p class="fb-leer">Lade deine Runden aus Garage 61 …</p>';
+    const liste = sichtungDaten.liste || [];
+    return `${sichtungDaten.fehler ? `<p class="fb-meldung">${esc(sichtungDaten.fehler)}</p>` : ""}${liste.length ? liste.map(sichtungKarte).join("") : '<p class="fb-leer">Du bist in keiner Season mit Sichtung gemeldet.</p>'}
+      <p class="fb-profil-link"><button type="button" class="fb-link" data-sicht-neu="1"${sichtungDaten.laedt ? " disabled" : ""}>${sichtungDaten.laedt ? "Lädt …" : "Runden neu laden"}</button></p>`;
   }
 
   const gegnerOptionen = (rennen, gewaehlt) => `<option value="">Fahrer wählen</option>${(rennen ? rennen.fahrer : []).map((n) => `<option value="${esc(n)}"${n === gewaehlt ? " selected" : ""}>${esc(n)}</option>`).join("")}`;
@@ -436,8 +480,8 @@
     if (starterBox) starterOffen = starterBox.open;
     const leerText = filter === "meine" ? "Du bist noch für kein Rennen gemeldet. Melde dich rechts für eine Serie an oder schau unter „Alle“." : "Hier ist gerade kein Rennen geplant. Neue Termine erscheinen hier und im Discord.";
     const kopf = kopfbereich(f, haupt);
-    if (ansicht === "reports") {
-      main.innerHTML = `${kopf}<section class="sheet"><div class="wrap"><div class="fb-leiste">${ansichtWahl()}</div><p class="fb-meldung" id="fb-meldung" role="alert" hidden></p>${reportsAnsicht()}</div></section>`;
+    if (ansicht === "reports" || ansicht === "sichtung") {
+      main.innerHTML = `${kopf}<section class="sheet"><div class="wrap"><div class="fb-leiste">${ansichtWahl()}</div><p class="fb-meldung" id="fb-meldung" role="alert" hidden></p>${ansicht === "reports" ? reportsAnsicht() : sichtungAnsicht()}</div></section>`;
       return;
     }
     main.innerHTML = `${kopf}<section class="sheet"><div class="wrap">
@@ -504,7 +548,12 @@
     }
     if (b.id === "fb-nummer-gelesen") return sende({ aktion: "nummer-gelesen" });
     if (b.id === "p-abbrechen") { profilOffen = false; return zeichne(); }
-    if (b.dataset.ansicht) { ansicht = b.dataset.ansicht; return zeichne(); }
+    if (b.dataset.ansicht) { ansicht = b.dataset.ansicht; if (ansicht === "sichtung") return sichtungLaden(); return zeichne(); }
+    if (b.dataset.sichtNeu) return sichtungLaden();
+    if (b.dataset.sichtAbgeben) {
+      if (!window.confirm(`Ergebnis für ${b.dataset.name} abgeben (${b.dataset.zeit})? Danach ist der Wert eingefroren, spätere Runden zählen dafür nicht mehr. Ändern kann es nur die Rennleitung.`)) return;
+      return sende({ aktion: "sichtung-abgeben", serie: b.dataset.serie, strecke: b.dataset.sichtAbgeben }).then((ok) => { if (ok) { sichtungLaden().then(() => meldung(`Dein Ergebnis für ${b.dataset.name} ist abgegeben.`, true)); } });
+    }
     if (b.dataset.starterOeffnen) {
       const liste = main.querySelector(".fb-starter-box");
       if (liste) { liste.open = true; liste.scrollIntoView({ block: "start" }); }

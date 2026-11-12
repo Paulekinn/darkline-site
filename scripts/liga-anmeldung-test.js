@@ -520,61 +520,128 @@ const tests = {
     assert.throws(() => D.pruefeSerie({ ...basis, einstufungArt: "sichtung", sichtungGrenzen: "102" }), /2 Pace-Grenzen/);
     assert.throws(() => D.pruefeSerie({ ...basis, einstufungArt: "sichtung", sichtungGrenzen: "103 / 101" }), /steigen/);
     assert.strictEqual(D.pruefeSerie({ ...basis, einstufungArt: "sichtung", ohneKlassen: true }).einstufungArt, "irating", "Ohne Klassen gibt es nichts einzustufen");
-    assert.strictEqual(D.pruefeRennen({ titel: "Sichtung", serie: "gt3", datum: "2026-12-01", startzeit: "20:00", plaetze: 30, sichtung: true }, ["gt3"]).sichtung, true);
-    assert.strictEqual(D.pruefeRennen({ titel: "Runde 1", serie: "gt3", datum: "2026-12-01", startzeit: "20:00", plaetze: 30 }, ["gt3"]).sichtung, false);
   },
-  "Sichtung: Rennen zählt nicht für die Tabelle und liefert den Klassenvorschlag": () => {
-    const rennen = [{ id: "s", serie: "gt3", sichtung: true, status: "geplant", datum: "2026-12-01", startzeit: "20:00" }, { id: "r1", serie: "gt3", status: "geplant", datum: "2026-12-08", startzeit: "20:00" }];
-    const f = (cust, name, irating, besteRunde, fz = "1") => ({ cust, name, irating, besteRunde, fahrzeugklasseId: fz, fahrzeugklasseName: fz === "1" ? "GT3" : "GT4" });
-    const sichtung = { id: "100", start: "2026-12-01T19:00:00.000Z", fahrer: [f("1", "Anna", 1200, 1000000), f("2", "Ben", 3000, 1012000), f("3", "Cem", 2000, 1025000), f("4", "Dia", 1800, null), f("5", "Eva", 900, 1100000, "2")] };
-    const lauf = { id: "200", start: "2026-12-08T19:00:00.000Z", fahrer: [] };
-    assert.strictEqual(D.istSichtung(sichtung, rennen, "gt3"), true);
-    assert.strictEqual(D.istSichtung(lauf, rennen, "gt3"), false);
-    assert.strictEqual(D.istSichtung(sichtung, rennen, "gt4"), false, "Nur Sichtungsrennen derselben Serie");
-    assert.deepStrictEqual(D.wertungsErgebnisse([sichtung, lauf], rennen, "gt3").map((e) => e.id), ["200"]);
-    assert.strictEqual(D.istSichtung(sichtung, [{ ...rennen[0], status: "abgesagt" }], "gt3"), false);
-    const serie = { id: "gt3", klassen: [{ id: "am", name: "Am", min: 0, max: 1499 }, { id: "pro", name: "Pro", min: 2500, max: null }, { id: "proam", name: "Pro-Am", min: 1500, max: 2499 }], sichtungGrenzen: [101.5, 103] };
-    const v = D.sichtungVorschlag(serie, [{ ...sichtung, strecke: "Spa" }, lauf], rennen, { 2: "proam" });
-    const je = Object.fromEntries(v.fahrer.map((x) => [x.name, x]));
-    assert.deepStrictEqual(v.strecken, ["Spa"]);
-    assert.deepStrictEqual(v.klassen.map((k) => k.id), ["pro", "proam", "am"], "Stärkste Klasse zuerst");
-    assert.deepStrictEqual([je.Anna.prozent, je.Anna.vorschlag, je.Anna.nachIrating], [100, "pro", "am"], "Schnell trotz niedrigem iRating: Pro");
-    assert.deepStrictEqual([je.Ben.prozent, je.Ben.vorschlag, je.Ben.fest], [101.2, "pro", "proam"]);
-    assert.deepStrictEqual([je.Cem.prozent, je.Cem.vorschlag], [102.5, "proam"]);
-    assert.deepStrictEqual([je.Dia.prozent, je.Dia.vorschlag, je.Dia.nachIrating], [null, "", "proam"], "Ohne Rundenzeit kein Vorschlag");
-    assert.deepStrictEqual([je.Eva.prozent, je.Eva.vorschlag], [100, "pro"], "Verglichen wird innerhalb der eigenen Fahrzeugklasse");
-    assert.deepStrictEqual(v.fahrer.map((x) => x.name).slice(-1), ["Dia"], "Ohne Zeit ganz unten");
+  "Sichtung: Einrichtung mit Zeitraum, Strecken, Runden, Wertung, Temperatur und Steckbrief": () => {
+    const basis = { name: "GT3", rennenGesamt: 8, gewerteteRennen: 8, punkte: "25 18", punkteDanach: 0, bonusPole: 0, bonusSchnellsteRunde: 0, mindestRundenProzent: 75, anmeldeschlussMinuten: 60, klassen: [{ name: "Pro", min: 2500, max: "" }, { name: "Am", min: 0, max: 2499 }], einstufungArt: "sichtung" };
+    const leer = D.pruefeSerie(basis);
+    assert.deepStrictEqual([leer.sichtungRunden, leer.sichtungWertung, leer.sichtungStrecken, leer.sichtungVon, leer.sichtungTempMin], [7, "beste", [], "", null], "Standardwerte");
+    const s = D.pruefeSerie({ ...basis, sichtungVon: "2026-12-01", sichtungBis: "2026-12-14", sichtungRunden: "5", sichtungWertung: "schnitt", sichtungTempMin: "20", sichtungTempMax: "35",
+      sichtungStrecken: [{ bib: "spa-gp", name: "Spa", g61: "12" }, { name: "Monza", iracing: "239" }, { name: "", g61: "" }], sichtungSteckbrief: { uhrzeit: "14:00", wetter: "Klar", unsinn: "weg" } });
+    assert.deepStrictEqual(s.sichtungStrecken, [{ key: "spa-gp", bib: "spa-gp", name: "Spa", g61: 12, iracing: null }, { key: "ir-239", bib: "", name: "Monza", g61: null, iracing: 239 }], "Leere Zeilen fallen weg");
+    assert.deepStrictEqual([s.sichtungRunden, s.sichtungWertung, s.sichtungTempMin, s.sichtungTempMax], [5, "schnitt", 20, 35]);
+    assert.deepStrictEqual(s.sichtungSteckbrief, { uhrzeit: "14:00", wetter: "Klar", zustand: "", setup: "", temperatur: "" });
+    assert.throws(() => D.pruefeSerie({ ...basis, sichtungVon: "2026-12-10", sichtungBis: "2026-12-01" }), /vor ihrem Beginn/);
+    assert.throws(() => D.pruefeSerie({ ...basis, sichtungStrecken: [{ name: "Spa" }] }), /iRacing-Strecken-ID/);
+    assert.throws(() => D.pruefeSerie({ ...basis, sichtungStrecken: [{ name: "Spa", iracing: 1 }, { name: "Spa 2", iracing: 1 }] }), /nur einmal/);
+    assert.throws(() => D.pruefeSerie({ ...basis, sichtungTempMin: 40, sichtungTempMax: 20 }), /größer/);
+    assert.throws(() => D.pruefeSerie({ ...basis, sichtungRunden: 0 }), /Saubere Runden/);
   },
-  "Sichtung: Drei Strecken, je Strecke Abstand zur Bestzeit, Mindestrunden, Mittelwert entscheidet": () => {
-    const rennen = ["2026-12-01", "2026-12-02", "2026-12-03"].map((datum, i) => ({ id: `s${i}`, serie: "gt3", sichtung: true, status: "geplant", datum, startzeit: "20:00" }));
-    const f = (cust, besteRunde, runden = 10) => ({ cust, name: `Fahrer ${cust}`, irating: 2000, besteRunde, runden, fahrzeugklasseId: "1", fahrzeugklasseName: "GT3" });
-    // Spa ~2:17, Monza ~1:47, Imola ~1:41: absolute Zeiten sind nicht vergleichbar, nur der Abstand je Strecke.
-    const e = (id, tag, strecke, fahrer) => ({ id, start: `2026-12-0${tag}T19:00:00.000Z`, strecke, fahrer });
-    const ergebnisse = [
-      e("1", 1, "Spa", [f("a", 1370000), f("b", 1384000), f("c", 1410000), f("d", 1375000, 4)]),
-      e("2", 2, "Monza", [f("a", 1075000), f("b", 1070000), f("c", 1100000), f("d", 1071000)]),
-      e("3", 3, "Imola", [f("a", 1010000), f("b", 1020000), f("c", 1040000)]),
-      // Zweite Gruppe in Imola: zählt als dieselbe Strecke, die bessere Runde gilt
-      e("4", 3, "Imola", [f("c", 1030000)]),
+  "Sichtung: Rundenserie, nur N saubere Runden am Stück in derselben Session und demselben Run": () => {
+    const S = require("../api/_lib/liga-sichtung");
+    const r = (lapNumber, lapTime, ok = true, extra) => ({ lapNumber, lapTime, ok, session: 1, run: 1, event: "e1", ...extra });
+    // Runde 3 hat einen Fehler: 1–2 und 4–6 sind zu kurz für 3 am Stück, 4–7 reicht
+    const runden = [r(1, 100), r(2, 99), r(3, 90, false), r(4, 101), r(5, 100.5), r(6, 100.2), r(7, 100.4)];
+    assert.deepStrictEqual(S.besterVersuch(runden, 3, "beste"), { wert: 100.2, beste: 100.2, schnitt: 100.367, runden: [100.5, 100.2, 100.4], event: "e1", zeit: null }, "Bei gleicher bester Runde gewinnt der bessere Schnitt");
+    assert.strictEqual(S.besterVersuch(runden, 3, "schnitt").wert, 100.367);
+    assert.strictEqual(S.besterVersuch(runden, 5, "beste"), null, "Zu wenig Runden am Stück");
+    // Lücke in den Rundennummern unterbricht die Serie, ebenso ein anderer Run
+    assert.strictEqual(S.besterVersuch([r(1, 100), r(2, 100), r(4, 100)], 3, "beste"), null);
+    assert.strictEqual(S.besterVersuch([r(1, 100), r(2, 100), r(3, 100, true, { run: 2 })], 3, "beste"), null);
+    assert.strictEqual(S.besterVersuch([r(3, 100), r(1, 100), r(2, 99)], 3, "beste").wert, 99, "Reihenfolge der Lieferung egal");
+    // Saubere Runde: In- und Outlap, Offtrack und unvollständige zählen nicht
+    const l = { clean: true, lapTime: 100 };
+    assert.strictEqual(S.sauber(l), true);
+    ["pitIn", "pitOut", "offtrack", "incomplete"].forEach((k) => assert.strictEqual(S.sauber({ ...l, [k]: true }), false, k));
+    assert.strictEqual(S.sauber({ ...l, clean: false }), false);
+    const serie = { sichtungTempMin: 20, sichtungTempMax: 30 };
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, precipitation: 0, trackWetness: 1 }, serie), true);
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 31 }, serie), false, "Zu heiß");
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, precipitation: 0.2 }, serie), false, "Regen");
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackWetness: 3 }, serie), false, "Nasse Strecke");
+  },
+  "Sichtung: Auswertung aus Garage 61 nach Strecke, Zeitraum, Auto und Name": () => {
+    const S = require("../api/_lib/liga-sichtung");
+    const serie = { id: "gt4", modelle: ["BMW M4 GT4", "Porsche 718 Cayman GT4"], sichtungVon: "2026-12-01", sichtungBis: "2026-12-07", sichtungRunden: 3, sichtungWertung: "beste",
+      sichtungStrecken: [{ key: "spa", name: "Spa", g61: 12, iracing: null }, { key: "ir-239", name: "Monza", g61: null, iracing: 239 }] };
+    const fahrer = [{ discordId: "1", name: "Anna Weber", modell: "BMW M4 GT4" }, { discordId: "2", name: "Ben Ott", modell: "Porsche 718 Cayman GT4" }, { discordId: "3", name: "Max Muster", modell: "BMW M4 GT4" }, { discordId: "4", name: "Max Muster", modell: "BMW M4 GT4" }];
+    const runde = (driver, n, t, track, car = "BMW M4 GT4", extra) => ({ driver, lapNumber: n, lapTime: t, clean: true, session: 1, run: 1, track, car: { name: car }, trackTemp: 25, ...extra });
+    const anna = { slug: "anna-weber", firstName: "Anna", lastName: "Weber" };
+    const ben = { slug: "ben-ott", firstName: "Ben", lastName: "Ott" };
+    const max = { slug: "max-muster", firstName: "Max", lastName: "Muster" };
+    const spa = { id: 12, platform_id: 163 };
+    const monza = { id: 99, platform_id: 239 };
+    const events = [
+      { id: "a", startedAt: "2026-12-02T18:00:00Z", laps: [1, 2, 3].map((n) => runde(anna, n, 140 - n, spa)).concat([1, 2, 3, 4].map((n) => runde(ben, n, 139, spa, "BMW M4 GT4"))) },
+      { id: "b", startedAt: "2026-12-03T18:00:00Z", laps: [1, 2, 3].map((n) => runde(anna, n, 108, monza)).concat([1, 2, 3].map((n) => runde(max, n, 107, monza))) },
+      // Außerhalb des Zeitraums (8.12. 0 Uhr Berliner Zeit ist schon vorbei) und auf einer fremden Strecke
+      { id: "c", startedAt: "2026-12-07T23:30:00Z", laps: [1, 2, 3].map((n) => runde(anna, n, 130, spa)) },
+      { id: "d", startedAt: "2026-12-04T18:00:00Z", laps: [1, 2, 3].map((n) => runde(anna, n, 90, { id: 5, platform_id: 5 })) },
     ];
-    const serie = { id: "gt3", klassen: [{ id: "pro", name: "Pro", min: 2500, max: null }, { id: "proam", name: "Pro-Am", min: 1500, max: 2499 }, { id: "am", name: "Am", min: 0, max: 1499 }], sichtungGrenzen: [101.5, 103], sichtungMindestRunden: 8 };
-    const v = D.sichtungVorschlag(serie, ergebnisse, rennen);
+    const { versuche, unbekannt } = S.auswerten(serie, events, fahrer, {});
+    assert.deepStrictEqual(versuche.get("1"), { spa: { wert: 137, beste: 137, schnitt: 138, runden: [139, 138, 137], event: "a", zeit: "2026-12-02T18:00:00Z" }, "ir-239": { wert: 108, beste: 108, schnitt: 108, runden: [108, 108, 108], event: "b", zeit: "2026-12-03T18:00:00Z" } });
+    assert.deepStrictEqual(versuche.get("2"), {}, "Ben fuhr den BMW statt seines gemeldeten Porsche");
+    assert.deepStrictEqual(unbekannt, [{ slug: "max-muster", name: "Max Muster", runden: 3 }], "Doppelter Name in der Season: nicht eindeutig");
+    // Von Hand zugeordnet zählt es
+    assert.strictEqual(S.auswerten(serie, events, fahrer, { "max-muster": "4" }).versuche.get("4")["ir-239"].wert, 107);
+    // Ohne Fahrzeugliste in der Season zählt jedes Auto
+    assert.strictEqual(S.auswerten({ ...serie, modelle: [] }, events, fahrer, {}).versuche.get("2").spa.wert, 139);
+  },
+  "Sichtung: Klassenvorschlag aus den Abgaben, nur mit allen Strecken": () => {
+    const serie = { id: "gt3", klassen: [{ id: "am", name: "Am", min: 0, max: 1499 }, { id: "pro", name: "Pro", min: 2500, max: null }, { id: "proam", name: "Pro-Am", min: 1500, max: 2499 }], sichtungGrenzen: [101.5, 103], sichtungRunden: 7,
+      sichtungStrecken: [{ key: "spa", name: "Spa" }, { key: "monza", name: "Monza" }, { key: "imola", name: "Imola" }] };
+    const e = (cust, irating, spa, monza, imola) => ({ cust, discordId: `d${cust}`, name: `Fahrer ${cust}`, irating, werte: { spa, monza, imola } });
+    // Spa ~2:17, Monza ~1:47, Imola ~1:41: absolute Zeiten sind nicht vergleichbar, nur der Abstand je Strecke.
+    const v = D.sichtungVorschlag(serie, [e("a", 1200, 137.0, 107.5, 101.0), e("b", 3000, 138.4, 107.0, 102.0), e("c", 2000, 141.0, 110.0, 103.0), e("d", 1800, 137.5, 107.1, undefined), e("e", 0)], { b: "proam" });
     const je = Object.fromEntries(v.fahrer.map((x) => [x.cust, x]));
     assert.deepStrictEqual(v.strecken, ["Spa", "Monza", "Imola"]);
-    assert.strictEqual(v.mindestRunden, 8);
-    // a: Spa 100, Monza 100,5, Imola 100 → 100,2
+    assert.deepStrictEqual(v.klassen.map((k) => k.id), ["pro", "proam", "am"], "Stärkste Klasse zuerst");
     assert.deepStrictEqual(je.a.zeiten.map((z) => z.prozent), [100, 100.5, 100]);
-    assert.deepStrictEqual([je.a.prozent, je.a.vorschlag, je.a.vollstaendig], [100.2, "pro", true]);
-    // b: Spa 101, Monza 100 (Bestzeit), Imola 101 → 100,7
-    assert.deepStrictEqual([je.b.prozent, je.b.vorschlag], [100.7, "pro"]);
-    // c: Spa 102,9, Monza 102,8, Imola 102 (zweite Gruppe) → 102,6
-    assert.deepStrictEqual(je.c.zeiten[2].prozent, 102);
+    assert.deepStrictEqual([je.a.prozent, je.a.vorschlag, je.a.nachIrating, je.a.vollstaendig], [100.2, "pro", "am", true], "Schnell trotz niedrigem iRating: Pro");
+    assert.deepStrictEqual([je.b.prozent, je.b.vorschlag, je.b.fest], [100.7, "pro", "proam"]);
     assert.deepStrictEqual([je.c.prozent, je.c.vorschlag], [102.6, "proam"]);
-    // d: Spa mit nur 4 Runden ungültig und setzt auch keine Bestzeit, Imola nicht gefahren → kein Vorschlag
-    assert.strictEqual(je.d.zeiten[0].gueltig, false);
-    assert.strictEqual(je.d.zeiten[2], null);
-    assert.deepStrictEqual([je.d.gewertet, je.d.vollstaendig, je.d.vorschlag], [1, false, ""]);
-    assert.deepStrictEqual(v.fahrer.map((x) => x.cust), ["a", "b", "c", "d"], "Vollständige zuerst, nach Schnitt");
+    assert.deepStrictEqual([je.d.gewertet, je.d.vollstaendig, je.d.vorschlag, je.d.zeiten[2], je.d.nachIrating], [2, false, "", null, "proam"], "Fehlende Strecke: kein Vorschlag, dann gilt iRating");
+    assert.deepStrictEqual([je.e.prozent, je.e.vorschlag, je.e.nachIrating], [null, "", ""]);
+    assert.deepStrictEqual(v.fahrer.map((x) => x.cust), ["a", "b", "c", "d", "e"], "Vollständige zuerst, nach Schnitt");
+  },
+  "Sichtung: Abgabe friert den Wert ein, nur im Zeitraum, Zurücksetzen durch die Rennleitung": async () => {
+    const a = supabaseAttrappe();
+    try {
+      const S = require("../api/_lib/liga-sichtung");
+      const serie = { id: "gt3", name: "GT3", sichtungVon: "2026-12-01", sichtungBis: "2026-12-07", sichtungRunden: 7, sichtungWertung: "beste", sichtungStrecken: [{ key: "spa", name: "Spa" }, { key: "monza", name: "Monza" }] };
+      const mitte = Date.UTC(2026, 11, 3, 12);
+      const versuch = { wert: 137.5, beste: 137.5, schnitt: 138, runden: [138, 137.5], event: "e1", zeit: "2026-12-02T18:00:00Z" };
+      await assert.rejects(() => S.abgeben(serie, "11", "spa", versuch, "Anna", Date.UTC(2026, 10, 30, 12)), /noch nicht begonnen/);
+      await assert.rejects(() => S.abgeben(serie, "11", "spa", versuch, "Anna", Date.UTC(2026, 11, 7, 23, 30)), /vorbei/, "Ende des letzten Tages ist Mitternacht Berliner Zeit");
+      await assert.rejects(() => S.abgeben(serie, "11", "spa", null, "Anna", mitte), /7 sauberen Runden/);
+      await assert.rejects(() => S.abgeben(serie, "11", "nurburgring", versuch, "Anna", mitte), /gehört nicht/);
+      const gespeichert = await S.abgeben(serie, "11", "spa", versuch, "Anna", mitte);
+      assert.deepStrictEqual(gespeichert.abgaben.spa, { ...versuch, wertung: "beste", abgegeben: new Date(mitte).toISOString() });
+      // Ein schnellerer Versuch später ändert nichts mehr
+      await assert.rejects(() => S.abgeben(serie, "11", "spa", { ...versuch, wert: 130 }, "Anna", mitte + 1000), /schon abgegeben/);
+      await S.abgeben(serie, "11", "monza", { ...versuch, wert: 107 }, "Anna", mitte);
+      const alle = await S.lesenAlle("gt3");
+      assert.deepStrictEqual(Object.keys(alle.get("11").abgaben).sort(), ["monza", "spa"]);
+      assert.strictEqual(alle.get("11").abgaben.spa.wert, 137.5, "Eingefroren");
+      // Fortschritt fürs Cockpit
+      const meldung = (id) => A.leseEintrag({ pathname: A.mitgliedPfad("gt3", id, "", `M${id}`), uploadedAt: iso(0) });
+      const fs = await S.fortschritt(serie, [meldung("11"), meldung("12")], mitte);
+      assert.deepStrictEqual([fs.fahrer, fs.komplett, fs.teil, fs.laeuft, fs.eingerichtet], [2, 1, 0, true, true]);
+      // Rennleitung setzt zurück, danach ist eine neue Abgabe möglich
+      await S.zuruecksetzen("gt3", "11", "spa");
+      await assert.rejects(() => S.zuruecksetzen("gt3", "11", "spa"), /gibt es nicht mehr/);
+      assert.strictEqual((await S.abgeben(serie, "11", "spa", { ...versuch, wert: 130 }, "Anna", mitte)).abgaben.spa.wert, 130);
+      // Vorschlag nur aus Abgaben
+      const v = S.vorschlag({ ...serie, klassen: [{ id: "pro", name: "Pro", min: 2500, max: null }, { id: "am", name: "Am", min: 0, max: 2499 }], sichtungGrenzen: [102] }, [{ discordId: "11", cust: "501", name: "Anna", irating: 1000 }, { discordId: "12", cust: "502", name: "Ben", irating: 3000 }], await S.lesenAlle("gt3"));
+      assert.deepStrictEqual(v.fahrer.map((f) => [f.cust, f.vorschlag, f.nachIrating]), [["501", "pro", "am"], ["502", "", "pro"]]);
+      await S.derSerieLoeschen("gt3");
+      assert.strictEqual((await S.lesenAlle("gt3")).size, 0);
+    } finally { a.ende(); }
+  },
+  "Sichtung: Direktnachricht nennt Team-Link, Strecken, Auto und Steckbrief": () => {
+    const S = require("../api/_lib/liga-sichtung");
+    const t = S.einladungText({ name: "GT4 Cup", sichtungVon: "2026-12-01", sichtungBis: "2026-12-07", sichtungRunden: 7, sichtungWertung: "schnitt", sichtungStrecken: [{ name: "Spa" }, { name: "Monza" }], sichtungSteckbrief: { uhrzeit: "14:00", wetter: "Klar" }, sichtungTempMin: 20, sichtungTempMax: 30 }, "BMW M4 GT4");
+    ["vom 01.12.2026 bis 07.12.2026", "garage61.net/app/teams/darkline-simracing-series", "7 saubere Runden am Stück mit deinem **BMW M4 GT4**", "Durchschnitt der sauberen Runden", "**Strecken:** Spa, Monza", "**Uhrzeit:** 14:00", "**Temperatur:** 20 bis 30 °C Strecke"].forEach((teil) => assert.ok(t.includes(teil), teil));
+    assert.ok(!t.includes("\n\n\n"));
   },
   "Gleichzeitig: Formular erkennt fremde Änderungen, Reihenfolge und Nebenfelder zählen nicht": () => {
     const s = { id: "gt3", name: "GT3", punkte: [25, 18], bildVersion: 1 };
