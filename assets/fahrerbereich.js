@@ -369,7 +369,10 @@
 
   function ansichtWahl() {
     const offen = stand.reports.meine.filter((r) => r.kannEinspruch).length;
-    return `<div class="fb-ansicht" role="group" aria-label="Ansicht wählen"><button type="button" data-ansicht="rennen" aria-pressed="${ansicht === "rennen"}">Rennen</button><button type="button" data-ansicht="reports" aria-pressed="${ansicht === "reports"}">Reports${offen ? ` (${offen})` : ""}</button>${(stand.sichtung || []).length ? `<button type="button" data-ansicht="sichtung" aria-pressed="${ansicht === "sichtung"}">Sichtung</button>` : ""}</div>`;
+    const sichtungOffen = stand.sichtungOffen || 0;
+    // Reiter mit offener Aufgabe leuchten und zeigen eine Zahl, bis sie erledigt ist.
+    const reiter = (id, text, zahl, hinweis) => `<button type="button" data-ansicht="${id}" aria-pressed="${ansicht === id}" class="${zahl && ansicht !== id ? "wichtig" : ""}"${zahl ? ` title="${esc(hinweis)}"` : ""}><span>${text}</span>${zahl ? `<em aria-label="${esc(hinweis)}">${zahl}</em>` : ""}</button>`;
+    return `<div class="fb-ansicht" role="group" aria-label="Ansicht wählen">${reiter("rennen", "Rennen", 0)}${reiter("reports", "Reports", offen, `${offen} ${offen === 1 ? "Urteil" : "Urteile"} mit möglichem Einspruch`)}${(stand.sichtung || []).length ? reiter("sichtung", "Sichtung", sichtungOffen, `${sichtungOffen} ${sichtungOffen === 1 ? "Strecke" : "Strecken"} noch abzugeben`) : ""}</div>`;
   }
 
   /* ---------- Sichtung: nur die eigenen Werte, erst beim Öffnen aus Garage 61 geladen ---------- */

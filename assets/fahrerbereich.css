@@ -42,10 +42,16 @@
 
 /* Rennen oder Reports, daneben die Filter */
 .fb-leiste{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 20px;padding-bottom:12px;border-bottom:2px solid var(--ink)}
-.fb-ansicht{display:flex;gap:4px}
-.fb-ansicht button{all:unset;cursor:pointer;padding:10px 18px;background:var(--paper);color:var(--muted);font:900 .86rem/1 var(--f-wide);font-variation-settings:"wdth" 114;text-transform:uppercase;transform:skewX(-10deg)}
-.fb-ansicht button:hover{color:var(--ink)}
-.fb-ansicht button[aria-pressed="true"]{background:var(--red);color:#fff}
+.fb-ansicht{display:flex;flex-wrap:wrap;gap:6px}
+.fb-ansicht button{all:unset;cursor:pointer;position:relative;display:inline-flex;align-items:center;gap:9px;padding:11px 20px;background:var(--paper);border:1px solid rgba(255,255,255,.22);color:var(--ink);font:900 .9rem/1 var(--f-wide);font-variation-settings:"wdth" 114;text-transform:uppercase;transform:skewX(-10deg);transition:border-color .2s,background .2s}
+.fb-ansicht button:hover{border-color:var(--red);background:rgba(211,18,27,.14)}
+.fb-ansicht button[aria-pressed="true"]{background:var(--red);border-color:var(--red);color:#fff}
+.fb-ansicht em{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;box-sizing:border-box;border-radius:10px;background:var(--red);color:#fff;font:700 .72rem/1 var(--f-mono);font-style:normal;transform:skewX(10deg)}
+.fb-ansicht button[aria-pressed="true"] em{background:#fff;color:var(--red)}
+/* Offene Aufgabe: der Reiter leuchtet ruhig auf und ab */
+.fb-ansicht button.wichtig{border-color:var(--red);animation:fb-glow 2.4s ease-in-out infinite}
+@keyframes fb-glow{0%,100%{box-shadow:0 0 0 rgba(211,18,27,0);background:var(--paper)}50%{box-shadow:0 0 18px 2px rgba(211,18,27,.65);background:rgba(211,18,27,.22)}}
+@media (prefers-reduced-motion:reduce){.fb-ansicht button.wichtig{animation:none;box-shadow:0 0 12px 1px rgba(211,18,27,.55)}}
 .fb-ansicht button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 
 /* Reports */
