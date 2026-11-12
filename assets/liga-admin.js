@@ -912,6 +912,7 @@
     const zelle = (z, s, f) => {
       if (z.status === "abgegeben") return `<td class="rechts"><span class="a-chip gruen">abgegeben</span><b class="a-unter">${prozentText(z.prozent)}</b><small class="a-unter">${rundenzeit(z.wert)}</small>${messung(z.bedingungen)}<button type="button" class="a-weg" data-sicht-zurueck="${esc(s.key)}" data-discord="${esc(f.discordId)}" data-name="${esc(f.name)}" data-strecke-name="${esc(s.name)}" title="Abgabe zurücksetzen" aria-label="Abgabe von ${esc(f.name)} für ${esc(s.name)} zurücksetzen">×</button></td>`;
       if (z.status === "gefahren") return `<td class="rechts"><span class="a-chip gelb">gefahren</span><small class="a-unter">${rundenzeit(z.wert)}</small>${messung(z.bedingungen)}</td>`;
+      if ((z.warum || []).length) return `<td class="rechts"><span class="a-chip rot" title="${esc(z.warum.join("\n"))}">ungültig</span><small class="a-unter">${esc(z.warum[0])}</small></td>`;
       return `<td class="rechts"><span class="a-chip">${v.vorbei ? "fehlt" : "offen"}</span></td>`;
     };
     const team = (f) => (f.imTeam === null ? "?" : f.imTeam ? '<span class="a-chip gruen">ja</span>' : f.teamAnfrage ? `<span class="a-chip gelb" title="Hat am ${esc(zeit(f.teamAnfrage))} auf „Team beitreten“ geklickt. Bitte in Garage 61 freigeben.">angefragt</span>` : '<span class="a-chip rot">nein</span>');

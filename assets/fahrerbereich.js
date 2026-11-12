@@ -403,7 +403,9 @@
       if (s.abgabe) return `<li class="fb-sicht-zeile fertig"><div><b>${esc(s.name)}</b><small>Abgegeben: ${rundenzeit(s.abgabe.wert)}${s.abgabe.wertung === "schnitt" ? " im Schnitt" : ""} · Runden ${s.abgabe.runden.map(rundenzeit).join(", ")}${esc(messText(s.abgabe.bedingungen))}</small></div><span class="fb-status starter">Eingefroren</span></li>`;
       if (x.vorbei) return `<li class="fb-sicht-zeile"><div><b>${esc(s.name)}</b><small>Nicht abgegeben, zählt als fehlend.</small></div><span class="fb-status abgesagt">Fehlt</span></li>`;
       if (s.versuch) return `<li class="fb-sicht-zeile"><div><b>${esc(s.name)}</b><small>Bester gültiger Versuch: <b>${rundenzeit(s.versuch.wert)}</b>${x.wertung === "schnitt" ? " im Schnitt" : ""} · Runden ${s.versuch.runden.map(rundenzeit).join(", ")}${esc(messText(s.versuch.bedingungen))}</small></div>${x.laeuft ? `<button type="button" class="fb-knopf fb-melden" data-sicht-abgeben="${esc(s.key)}" data-serie="${esc(x.id)}" data-name="${esc(s.name)}" data-zeit="${esc(rundenzeit(s.versuch.wert))}">Ergebnis für ${esc(s.name)} abgeben</button>` : ""}</li>`;
-      return `<li class="fb-sicht-zeile"><div><b>${esc(s.name)}</b><small>${x.laeuft ? `Noch kein gültiger Versuch mit ${x.runden} sauberen Runden am Stück.` : "Noch keine Runden."}</small></div><span class="fb-status">Offen</span></li>`;
+      // Ohne gültigen Versuch: was gefunden wurde und warum es nicht zählt
+      const warum = (s.warum || []).length ? `<ul class="fb-sicht-warum">${s.warum.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : "";
+      return `<li class="fb-sicht-zeile"><div><b>${esc(s.name)}</b><small>${x.laeuft ? `Noch kein gültiger Versuch mit ${x.runden} sauberen Runden am Stück.` : "Noch keine Runden."}</small>${warum}</div><span class="fb-status">Offen</span></li>`;
     };
     return `<section class="fb-panel"><div class="fb-fall-kopf"><h3>${esc(x.name)}: Sichtung</h3>${status}</div>
       <p class="fb-klein">Deine Klasse in dieser Season bestimmt die Sichtung. So gehst du vor:</p>

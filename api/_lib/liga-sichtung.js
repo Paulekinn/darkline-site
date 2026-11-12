@@ -54,19 +54,20 @@ const LUFT_SPIELRAUM = 1;
 // Bedingungen wie im Steckbrief: trocken, kein Regen, Streckentemperatur im Bereich, Lufttemperatur wie vorgegeben.
 // trackWetness kommt als Stufe von iRacing (0 unbekannt, 1 trocken, ab 2 feucht). Fehlt ein Wert, wird er nicht geprüft.
 // Den Streckenzustand prüft auswerten() je Session, weil der Gummi während der Fahrt steigt.
-function bedingungenOk(l, serie) {
-  if (Number(l.precipitation) > 0) return false;
-  if (Number(l.trackWetness) > 1) return false;
+// Liefert den Grund, warum eine Runde die Bedingungen nicht erfüllt ("regen", "luft", "strecke"), sonst "".
+function bedingungenGrund(l, serie) {
+  if (Number(l.precipitation) > 0 || Number(l.trackWetness) > 1) return "regen";
   const luft = luftVorgabe(serie);
   const lt = l.airTemp === undefined || l.airTemp === null || l.airTemp === "" ? null : Number(l.airTemp);
-  if (luft !== null && lt !== null && Number.isFinite(lt) && Math.abs(lt - luft) > LUFT_SPIELRAUM) return false;
+  if (luft !== null && lt !== null && Number.isFinite(lt) && Math.abs(lt - luft) > LUFT_SPIELRAUM) return "luft";
   const t = l.trackTemp === undefined || l.trackTemp === null || l.trackTemp === "" ? null : Number(l.trackTemp);
   if (t !== null && Number.isFinite(t)) {
-    if (serie.sichtungTempMin !== null && serie.sichtungTempMin !== undefined && t < serie.sichtungTempMin) return false;
-    if (serie.sichtungTempMax !== null && serie.sichtungTempMax !== undefined && t > serie.sichtungTempMax) return false;
+    if (serie.sichtungTempMin !== null && serie.sichtungTempMin !== undefined && t < serie.sichtungTempMin) return "strecke";
+    if (serie.sichtungTempMax !== null && serie.sichtungTempMax !== undefined && t > serie.sichtungTempMax) return "strecke";
   }
-  return true;
+  return "";
 }
+const bedingungenOk = (l, serie) => !bedingungenGrund(l, serie);
 
 const rund3 = (x) => Math.round(x * 1000) / 1000;
 
@@ -195,16 +196,68 @@ function auswerten(serie, events, fahrer, zuordnung, mitAuto = (serie.modelle ||
       // Streckenzustand: Gummi beim Start der Session höchstens 3 Prozentpunkte neben der Vorgabe. Ohne Messwert wird nicht geprüft.
       const gummiStart = (sessionStart.get(kennung(l.session)) || {}).gummi;
       const gummiOk = gummiVorgabe === null || gummiStart === undefined || Math.abs(gummiStart - gummiVorgabe) <= GUMMI_SPIELRAUM;
-      jeStrecke.get(strecke.key).push({ lapTime: l.lapTime, lapNumber: l.lapNumber, session: kennung(l.session), run: kennung(l.run), event: ev.id, zeit: ev.startedAt || null, trackTemp: l.trackTemp, airTemp: l.airTemp, trackUsage: typeof l.trackUsage === "number" ? l.trackUsage : undefined, gummiStart, tankStart: tank, ok: sauber(l) && bedingungenOk(l, serie) && autoOk && tankOk && gummiOk });
+      // Erster Grund, warum die Runde nicht zählt. In- und Outlap sind normal und bekommen keinen eigenen Grund.
+      const box = !!(l.pitIn || l.pitOut);
+      const grund = box ? "box" : !autoOk ? "auto" : !tankOk ? "tank" : !gummiOk ? "gummi" : bedingungenGrund(l, serie) || (!sauber(l) ? "unsauber" : "");
+      jeStrecke.get(strecke.key).push({ lapTime: l.lapTime, lapNumber: l.lapNumber, session: kennung(l.session), run: kennung(l.run), event: ev.id, zeit: ev.startedAt || null, trackTemp: l.trackTemp, airTemp: l.airTemp, trackUsage: typeof l.trackUsage === "number" ? l.trackUsage : undefined, gummiStart, tankStart: tank, auto, grund, ok: !grund });
     }
   }
   const versuche = new Map();
+  const hinweise = new Map();
   gesammelt.forEach((jeStrecke, discordId) => {
     const beste = {};
-    jeStrecke.forEach((runden, key) => { const v = besterVersuch(runden, n, serie.sichtungWertung); if (v) beste[key] = v; });
+    const warum = {};
+    jeStrecke.forEach((runden, key) => {
+      const v = besterVersuch(runden, n, serie.sichtungWertung);
+      if (v) beste[key] = v; else warum[key] = rundenDiagnose(runden);
+    });
     versuche.set(discordId, beste);
+    hinweise.set(discordId, warum);
   });
-  return { versuche, unbekannt: [...unbekannt.values()].sort((a, b) => b.runden - a.runden) };
+  return { versuche, hinweise, unbekannt: [...unbekannt.values()].sort((a, b) => b.runden - a.runden) };
+}
+
+// Warum es auf einer Strecke keinen gültigen Versuch gibt: gefundene Runden, längste saubere Folge und je Grund Anzahl und Messwerte.
+function rundenDiagnose(runden) {
+  const gruppen = new Map();
+  runden.forEach((r) => { const k = `${r.event}|${r.session}|${r.run}`; if (!gruppen.has(k)) gruppen.set(k, []); gruppen.get(k).push(r); });
+  let laengste = 0;
+  gruppen.forEach((liste) => {
+    liste.sort((a, b) => Number(a.lapNumber) - Number(b.lapNumber));
+    let lauf = 0;
+    liste.forEach((r, i) => { lauf = r.ok && (!lauf || Number(r.lapNumber) === Number(liste[i - 1].lapNumber) + 1) ? lauf + 1 : r.ok ? 1 : 0; laengste = Math.max(laengste, lauf); });
+  });
+  const gruende = {};
+  runden.filter((r) => r.grund && r.grund !== "box").forEach((r) => {
+    const g = gruende[r.grund] || { runden: 0, werte: [] };
+    g.runden++;
+    const wert = { luft: r.airTemp, strecke: r.trackTemp, gummi: r.gummiStart, tank: r.tankStart, auto: r.auto }[r.grund];
+    if (wert !== undefined && wert !== null && !g.werte.includes(wert)) g.werte.push(wert);
+    gruende[r.grund] = g;
+  });
+  Object.values(gruende).forEach((g) => {
+    if (g.werte.length && typeof g.werte[0] === "number") { const w = g.werte.map(Number); g.werte = [Math.round(Math.min(...w) * 10) / 10, Math.round(Math.max(...w) * 10) / 10]; } else g.werte = g.werte.slice(0, 3);
+  });
+  return { runden: runden.filter((r) => r.grund !== "box").length, laengste, gruende };
+}
+
+// Hinweise als Sätze für Fahrer und Rennleitung. h: rundenDiagnose oder undefined, wenn auf der Strecke keine Runde gefunden wurde.
+function hinweisTexte(h, serie) {
+  const n = serie.sichtungRunden || 7;
+  if (!h || !h.runden) return ["Garage 61 hat auf dieser Strecke im Zeitraum keine Runden von dir. Bist du im Team der Liga, und passt dein Name in Garage 61 zu deinem Profil? Nach der Fahrt dauert es ein paar Minuten."];
+  const zahl = (x) => String(x).replace(".", ",");
+  const rundenText = (r) => `${r} ${r === 1 ? "Runde" : "Runden"}`;
+  const von = (w, e) => (w.length === 2 && w[0] !== w[1] ? `${zahl(w[0])} bis ${zahl(w[1])} ${e}` : `${zahl(w[0])} ${e}`);
+  const g = h.gruende;
+  const texte = [`${h.runden} ${h.runden === 1 ? "Runde" : "Runden"} gefunden, längste gültige Folge: ${h.laengste} von ${n} am Stück.`];
+  if (g.auto) texte.push(`${rundenText(g.auto.runden)} mit einem anderen Auto als gemeldet${g.auto.werte.length ? ` (${g.auto.werte.join(", ")})` : ""}.`);
+  if (g.tank) texte.push(`${rundenText(g.tank.runden)} aus Stints mit zu wenig Sprit beim Start${g.tank.werte.length ? ` (${von(g.tank.werte, "Liter")})` : ""}, verlangt sind mindestens ${serie.sichtungTankMin} Liter.`);
+  if (g.gummi) texte.push(`${rundenText(g.gummi.runden)} aus Sessions mit falschem Streckenzustand${g.gummi.werte.length ? ` (${von(g.gummi.werte, "%")} Gummi beim Start)` : ""}, vorgegeben ist ${zustandVorgabe(serie)} %.`);
+  if (g.luft) texte.push(`${rundenText(g.luft.runden)} mit falscher Lufttemperatur${g.luft.werte.length ? ` (${von(g.luft.werte, "°C")})` : ""}, vorgegeben ist ${luftVorgabe(serie)} °C.`);
+  if (g.strecke) texte.push(`${rundenText(g.strecke.runden)} mit Streckentemperatur außerhalb ${serie.sichtungTempMin ?? "?"} bis ${serie.sichtungTempMax ?? "?"} °C${g.strecke.werte.length ? ` (${von(g.strecke.werte, "°C")})` : ""}.`);
+  if (g.regen) texte.push(`${rundenText(g.regen.runden)} mit Regen oder nasser Strecke.`);
+  if (g.unsauber) texte.push(`${rundenText(g.unsauber.runden)} mit Zwischenfall (Offtrack, Incident oder unvollständig).`);
+  return texte;
 }
 
 // Klassenvorschlag aus den abgegebenen Werten. fahrer: [{ discordId, cust, name, irating }], abgaben: Map discordId → Datei.
@@ -343,7 +396,7 @@ function standZusammen(serie, fahrer, abgaben, auswertung, mitglieder, privat = 
     const versuche = auswertung ? auswertung.versuche.get(f.discordId) || {} : {};
     return {
       discordId: f.discordId, name: f.name, cust: f.cust, irating: f.irating, modell: f.modell, imTeam: mitglieder ? imTeam.has(f.discordId) : null, teamAnfrage: (abgaben.get(f.discordId) || {}).teamAnfrage || "",
-      strecken: (serie.sichtungStrecken || []).map((s, i) => (eigene[s.key] ? { status: "abgegeben", wert: eigene[s.key].wert, prozent: vf.zeiten[i] ? vf.zeiten[i].prozent : null, abgegeben: eigene[s.key].abgegeben, gefahren: versuche[s.key] ? versuche[s.key].wert : null, bedingungen: eigene[s.key].bedingungen || null } : versuche[s.key] ? { status: "gefahren", wert: versuche[s.key].wert, bedingungen: versuche[s.key].bedingungen || null } : { status: "fehlt" })),
+      strecken: (serie.sichtungStrecken || []).map((s, i) => (eigene[s.key] ? { status: "abgegeben", wert: eigene[s.key].wert, prozent: vf.zeiten[i] ? vf.zeiten[i].prozent : null, abgegeben: eigene[s.key].abgegeben, gefahren: versuche[s.key] ? versuche[s.key].wert : null, bedingungen: eigene[s.key].bedingungen || null } : versuche[s.key] ? { status: "gefahren", wert: versuche[s.key].wert, bedingungen: versuche[s.key].bedingungen || null } : { status: "fehlt", warum: auswertung && auswertung.hinweise && (auswertung.hinweise.get(f.discordId) || {})[s.key] ? hinweisTexte(auswertung.hinweise.get(f.discordId)[s.key], serie) : null })),
       prozent: vf.prozent, vollstaendig: vf.vollstaendig, vorschlag: vf.vorschlag, nachIrating: vf.nachIrating, fest: vf.fest,
     };
   });
@@ -363,13 +416,16 @@ async function fahrerStand(serien, alle, discordId, jetzt = Date.now()) {
     const eigene = ((await lesenAlle(serie.id).catch(() => new Map())).get(discordId) || {}).abgaben || {};
     const strecken = serie.sichtungStrecken || [];
     let versuche = {};
+    let hinweise = null;
     let fehler = "";
     if (laeuft(serie, jetzt) && strecken.some((s) => !eigene[s.key])) {
-      try { versuche = auswerten(serie, await eventsLaden(serie), fahrer, privat.sichtungZuordnung || {}).versuche.get(discordId) || {}; } catch (e) { fehler = g61Fehlertext(e); }
+      try { const a = auswerten(serie, await eventsLaden(serie), fahrer, privat.sichtungZuordnung || {}); versuche = a.versuche.get(discordId) || {}; hinweise = a.hinweise.get(discordId) || {}; } catch (e) { fehler = g61Fehlertext(e); }
     }
+    // Ohne gültigen Versuch sagt die Seite, was gefunden wurde und warum es nicht zählt.
+    const warum = (s) => (eigene[s.key] || versuche[s.key] || !hinweise ? null : hinweisTexte(hinweise[s.key], serie));
     return {
       id: serie.id, name: serie.name, ...eckdaten(serie, jetzt), modell: ich.modell, mitAuto: (serie.modelle || []).length > 0, iracingName: ich.name,
-      strecken: strecken.map((s) => ({ key: s.key, name: s.name, abgabe: eigene[s.key] || null, versuch: eigene[s.key] ? null : versuche[s.key] || null })), fehler,
+      strecken: strecken.map((s) => ({ key: s.key, name: s.name, abgabe: eigene[s.key] || null, versuch: eigene[s.key] ? null : versuche[s.key] || null, warum: warum(s) })), fehler,
     };
   }));
 }
@@ -448,4 +504,4 @@ function einladungText(serie, modell) {
   ].filter((z, i, a) => z !== "" || (a[i - 1] !== "" && i > 0)).join("\n");
 }
 
-module.exports = { teamAnfrageMerken, teamAnfrageKarte, offeneStrecken, standZusammen, einladungText, steckbriefZeilen, seasonFahrer, adminStand, fahrerStand, abgebenAusGarage, fortschritt, WURZEL, teamSlug, teamLink, zeitraum, laeuft, vorbei, streckeVon, sauber, bedingungenOk, besterVersuch, namensKern, g61Name, zuordner, auswerten, vorschlag, lesenAlle, abgeben, zuruecksetzen, derSerieLoeschen, eventsLaden, teamMitglieder, g61Fehlertext };
+module.exports = { hinweisTexte, rundenDiagnose, teamAnfrageMerken, teamAnfrageKarte, offeneStrecken, standZusammen, einladungText, steckbriefZeilen, seasonFahrer, adminStand, fahrerStand, abgebenAusGarage, fortschritt, WURZEL, teamSlug, teamLink, zeitraum, laeuft, vorbei, streckeVon, sauber, bedingungenOk, besterVersuch, namensKern, g61Name, zuordner, auswerten, vorschlag, lesenAlle, abgeben, zuruecksetzen, derSerieLoeschen, eventsLaden, teamMitglieder, g61Fehlertext };
