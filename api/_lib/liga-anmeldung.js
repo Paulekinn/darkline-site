@@ -102,6 +102,8 @@ function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, ser
         offen: !abgesagt && serie.status !== "beendet" && jetzt < schlussMs,
         anmeldungZu: serie.anmeldungOffen === false || serie.status === "geplant",
         anmeldungFolgt: serie.status === "geplant",
+        // Private Season: nur freigegebene Fahrer, keine Gäste für einzelne Rennen
+        nurFreigegeben: !!serie.aufAnfrage && serie.typ !== "event" && !inSerie.has(discordId),
         // Ligen laufen über die iRacing-Liga. Eigene Zugangsdaten braucht es nur bei Events und Serien mit ein oder zwei Rennen.
         zugangNoetig: serie.typ === "event" || !(serie.rennenGesamt > 2),
         strecke: r.strecke || "", streckenBild: r.streckenBild || null, fahrzeuge: r.fahrzeuge || "", fahrzeugklassen: serie.fahrzeugklassen || [], plaetze: r.plaetze || 0,
@@ -128,14 +130,14 @@ function kollisionen(kalender, rennenId, eintraege, optionen) {
 }
 
 // Serien für Übersicht und Fahrerbereich, mit Status des angemeldeten Fahrers
-function baueSerien(serienListe, eintraege, { discordId, profil, klasseFuer }) {
+function baueSerien(serienListe, eintraege, { discordId, profil, klasseFuer, anfragen = new Set() }) {
   return serienListe.map((s) => {
     const mitglieder = eintraege.filter((e) => e.typ === "serie" && e.serieId === s.id);
     const eigen = mitglieder.find((e) => e.discordId === discordId);
     const sportsCar = !s.kategorie || s.kategorie === "Sports_Car";
     // Bei Sichtung steht die Klasse erst nach dem Sichtungsrennen fest, eine Vorhersage aus dem iRating wäre irreführend.
     const klasse = s.einstufungArt === "sichtung" && !s.ohneKlassen ? "Einstufung nach Sichtung" : profil && sportsCar && !s.ohneKlassen ? (klasseFuer(profil.irating, s.klassen || []) || {}).name || "" : "";
-    return { id: s.id, name: s.name, typ: s.typ || "liga", saison: s.saison || "", status: s.status || "anmeldung", anmeldungOffen: s.anmeldungOffen !== false && s.status !== "beendet" && s.status !== "geplant", farbe: s.farbe || "rot", bildVersion: s.bildVersion || 0, fahrzeugklassen: s.fahrzeugklassen || [], fahrer: mitglieder.length, ich: !!eigen, fahrzeugklasse: eigen ? eigen.fahrzeugklasse : "", klasse, einstufungDurchRennleitung: !sportsCar && !s.ohneKlassen, modelle: s.modelle || [], freieWechsel: s.freieWechsel || 0 };
+    return { id: s.id, name: s.name, typ: s.typ || "liga", saison: s.saison || "", status: s.status || "anmeldung", anmeldungOffen: s.anmeldungOffen !== false && s.status !== "beendet" && s.status !== "geplant", farbe: s.farbe || "rot", bildVersion: s.bildVersion || 0, fahrzeugklassen: s.fahrzeugklassen || [], fahrer: mitglieder.length, ich: !!eigen, fahrzeugklasse: eigen ? eigen.fahrzeugklasse : "", klasse, einstufungDurchRennleitung: !sportsCar && !s.ohneKlassen, modelle: s.modelle || [], freieWechsel: s.freieWechsel || 0, aufAnfrage: !!s.aufAnfrage, voraussetzungen: s.voraussetzungen || "", anfrage: !eigen && anfragen.has(s.id) };
   });
 }
 

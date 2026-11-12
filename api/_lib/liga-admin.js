@@ -14,6 +14,7 @@ const Dc = require("./liga-discord");
 const F = require("./liga-fahrzeuge");
 const G61 = require("./g61");
 const Sichtung = require("./liga-sichtung");
+const Anfragen = require("./liga-anfragen");
 const { leseErgebnis, berechneTabelle, klasseFuer } = require("../../assets/liga-wertung.js");
 
 const eintraege = async () => (await blobList(A.PREFIX)).map(A.leseEintrag).filter(Boolean);
@@ -136,6 +137,7 @@ async function protokollText(b, kat) {
     "nummer-bestaetigen": () => `Startnummer bestätigt: ${b.name}, neu #${b.nummer}`,
     "nummer-ablehnen": () => `Startnummer abgelehnt: ${b.name}, gewünscht #${b.nummer}`,
     "g61-sichtung-test": () => "",
+    "anfrage-entscheiden": () => `Beitrittsanfrage ${b.ja === true ? "freigegeben" : "abgelehnt"} in ${serie(b.serie)}: ${b.name || b.discordId}`,
     "fahrzeug-entscheiden": () => `Fahrzeugwechsel ${b.ja === true ? "bestätigt" : "abgelehnt"} in ${serie(b.serie)}`,
     "fahrzeug-setzen": () => `Fahrzeug gesetzt in ${serie(b.serie)}: ${b.modell}`,
     "fahrzeug-streichen": () => `Ergebnis wegen Fahrzeug gestrichen in ${serie(b.serie)}`,
@@ -254,6 +256,7 @@ const aktionen = {
     await R.derSerieLoeschen(b.id);
     await D.serieDatenLoeschen(b.id);
     await Sichtung.derSerieLoeschen(b.id).catch(() => {});
+    await Anfragen.derSerieLoeschen(b.id).catch(() => {});
     await D.serieLoeschen(b.id);
     if (serie.bildVersion) await D.bildLoeschen(`serie-${b.id}`);
     return {};
@@ -366,6 +369,33 @@ const aktionen = {
     await F.entscheiden(serie, discordId, ja);
     const nach = vorher && vorher.antrag ? vorher.antrag.nach : "";
     await Dc.nachricht(discordId, ja ? `✅ Dein Fahrzeugwechsel in **${serie.name}** ist bestätigt: Ab dem nächsten Rennen fährst du den **${nach}**.` : `❌ Dein Fahrzeugwechsel in **${serie.name}** auf den ${nach} wurde abgelehnt. Du fährst weiter den **${vorher ? vorher.modell : ""}**.${grund ? `\nGrund: ${grund}` : ""}`);
+    return {};
+  },
+  // Beitrittsanfrage einer privaten Season: Freigabe macht daraus eine normale Season-Anmeldung, der Fahrer bekommt in beiden Fällen eine Direktnachricht.
+  async "anfrage-entscheiden"(b, kat) {
+    const serie = serieFinden(kat, b.serie);
+    const discordId = D.brauchtId(b.discordId);
+    const anfrage = await Anfragen.lesen(serie.id, discordId);
+    if (!anfrage) throw new Hinweis("Diese Anfrage liegt nicht mehr vor.");
+    if (b.ja !== true) {
+      await Anfragen.loeschen(serie.id, discordId);
+      await Dc.nachricht(discordId, Anfragen.ablehnungText(serie, String(b.grund || "").trim().slice(0, 300)));
+      return {};
+    }
+    if (serie.status === "beendet") throw new Hinweis("Diese Season ist beendet.");
+    const alle = await eintraege();
+    if (!alle.some((e) => e.typ === "serie" && e.serieId === serie.id && e.discordId === discordId)) {
+      // Das Fahrzeug aus der Anfrage. Hat die Rennleitung die Liste inzwischen geändert, wird es ohne Fahrzeug übernommen und lässt sich im Fahrerbereich wählen.
+      let modell = "";
+      try { modell = F.modellPruefen(serie, anfrage.modell || ""); } catch (e) { modell = ""; }
+      if (modell) await F.waehlen(serie, discordId, modell, anfrage.name);
+      await blobPut(A.mitgliedPfad(serie.id, discordId, anfrage.fahrzeugklasse || "", anfrage.name || "Fahrer"), "1", "text/plain");
+      if (serie.einstufungArt === "sichtung" && !serie.ohneKlassen) await Dc.nachricht(discordId, Sichtung.einladungText(serie, modell)).catch(() => {});
+    }
+    await Anfragen.loeschen(serie.id, discordId);
+    const profilText = await blobGet(A.profilPfad(discordId));
+    if (profilText) await Dc.abgleichen(discordId, JSON.parse(profilText), await eintraege(), kat.serien).catch(() => {});
+    await Dc.nachricht(discordId, Anfragen.freigabeText(serie));
     return {};
   },
   // Die Rennleitung setzt das Fahrzeug direkt, etwa nach einem im Rennen festgestellten Wechsel.
@@ -784,7 +814,7 @@ module.exports = async (req, res) => {
     const alleReports = await R.alleReports(true);
     const ergebnisseJe = new Map(await Promise.all([...new Set(alleReports.map((r) => r.serie))].filter((x) => D.istId(x)).map(async (id) => [id, await D.ergebnisseLesen(id).catch(() => [])])));
     const reports = alleReports.map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id), stimmen: R.stimmenSicht(r, s.id), kontext: R.rennKontext(r, ergebnisseJe.get(r.serie) || []) }));
-    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), nummernWuensche: await P.wuenscheLesen().catch(() => []), fahrzeugAntraege: (await F.offeneAntraege().catch(() => [])).map((a) => ({ ...a, serieName: (kat.serien.find((x) => x.id === a.serie) || {}).name || a.serie })), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), nummernWuensche: await P.wuenscheLesen().catch(() => []), fahrzeugAntraege: (await F.offeneAntraege().catch(() => [])).map((a) => ({ ...a, serieName: (kat.serien.find((x) => x.id === a.serie) || {}).name || a.serie })), beitrittsAnfragen: (await Anfragen.alle().catch(() => [])).filter((a) => kat.serien.some((x) => x.id === a.serie)).map((a) => ({ ...a, serieName: kat.serien.find((x) => x.id === a.serie).name })), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });

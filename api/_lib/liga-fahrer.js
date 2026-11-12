@@ -1,4 +1,4 @@
-// Fahrerbereich der Liga. GET: Dashboard · POST { aktion }: profil, anmelden, abmelden, serie-anmelden, serie-abmelden, logout
+// Fahrerbereich der Liga. GET: Dashboard · POST { aktion }: profil, anmelden, abmelden, serie-anmelden, serie-abmelden, serie-anfragen, serie-anfrage-zurueck, logout
 // Ligafahrer haben ein eigenes Cookie (dpm_liga) und damit keinen Zugang zum Teambereich.
 const { getLigaSession, clearLigaSession, fahrerKennung, kalenderSchluessel } = require("./session");
 const P = require("./liga-profil");
@@ -10,6 +10,7 @@ const R = require("./liga-reports");
 const Dc = require("./liga-discord");
 const F = require("./liga-fahrzeuge");
 const Sichtung = require("./liga-sichtung");
+const Anfragen = require("./liga-anfragen");
 const { klasseFuer } = require("../../assets/liga-wertung.js");
 
 const SCHLUSS_MINUTEN = 60;
@@ -68,7 +69,7 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
   // Fahrzeug je Season mit Fahrzeugwahl, in der der Fahrer gemeldet ist
   const mitWahl = kat.serien.filter((x) => (x.modelle || []).length && x.status !== "beendet" && alle.some((e) => e.typ === "serie" && e.serieId === x.id && e.discordId === s.id));
   // Die Abfragen hängen nicht voneinander ab und laufen deshalb gleichzeitig.
-  const [oeffentlich, wunsch, tabellen, reports, fahrzeuge, sichtungOffen] = await Promise.all([
+  const [oeffentlich, wunsch, tabellen, reports, fahrzeuge, sichtungOffen, anfragen] = await Promise.all([
     pid ? P.angabenVon(pid).catch(() => null) : null,
     P.wunschLesen(s.id).catch(() => null),
     profil ? laufendeTabellen(kat) : null,
@@ -76,6 +77,7 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
     Promise.all(mitWahl.map(async (x) => { const f = await F.lesen(x.id, s.id).catch(() => null); return [x.id, f ? { modell: f.modell, antrag: f.antrag ? f.antrag.nach : "", freiUebrig: F.freiUebrig(x, f), wechsel: (f.wechsel || []).length } : null]; })),
     // Offene Strecken in laufenden Sichtungen, damit der Reiter auffällt. Ein Fehler hier blendet nur den Hinweis aus.
     Promise.all(sichtungSerien(kat, alle, s.id).map((x) => Sichtung.offeneStrecken(x, s.id).catch(() => 0))).then((n) => n.reduce((a, b) => a + b, 0)),
+    Anfragen.eigene(kat.serien, s.id).catch(() => new Set()),
   ]);
   return res.status(200).json({
     ...extra,
@@ -86,7 +88,7 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
     kalender: `/liga-kalender/${kalenderSchluessel(s.id)}`,
     fahrer: { name: s.name, profil, pid, oeffentlich, nummerWunsch: (wunsch || {}).nach || null },
     meineKarten: profil ? A.eigeneKarten(kat.serien, tabellen, profil.iracingName, pid) : [],
-    serien: A.baueSerien(kat.serien, alle, { discordId: s.id, profil, klasseFuer }),
+    serien: A.baueSerien(kat.serien, alle, { discordId: s.id, profil, klasseFuer, anfragen }),
     // Termine beendeter Serien gehören nicht mehr in den Fahrerbereich.
     rennen: A.baueRennen(kat.rennen, alle, optionen(s, kat)).filter((r) => (serienMap(kat.serien)[r.serie] || {}).status !== "beendet"),
     reports,
@@ -161,6 +163,7 @@ async function anmelden(s, profil, body, alle, kat) {
   if (stand.ich) return alle;
   if (stand.anmeldungFolgt) throw new Hinweis("Die Anmeldung für diese Serie ist noch nicht geöffnet.");
   if (stand.anmeldungZu) throw new Hinweis("Die Anmeldung für diese Serie ist geschlossen.");
+  if (stand.nurFreigegeben) throw new Hinweis("Diese Season ist privat. Bitte stelle zuerst eine Beitrittsanfrage.");
   const parallel = A.kollisionen(kat.rennen, rennen.id, alle, optionen(s, kat));
   if (parallel.length) throw new Hinweis(`Dieses Rennen überschneidet sich mit: ${parallel.join(", ")}. Melde dich dort zuerst ab.`);
   // Wer sich abgemeldet hatte und zurückkommt, wird als neue Meldung hinten eingereiht und verdrängt keinen Nachrücker. Die Abmeldung bleibt bestehen.
@@ -191,6 +194,7 @@ async function serieAnmelden(s, profil, body, alle, kat) {
   if (serie.status === "geplant") throw new Hinweis("Die Anmeldung für diese Serie ist noch nicht geöffnet.");
   if (serie.anmeldungOffen === false || serie.status === "beendet") throw new Hinweis("Die Anmeldung für diese Serie ist geschlossen.");
   if (alle.some((e) => e.typ === "serie" && e.serieId === serie.id && e.discordId === s.id)) return alle;
+  if (serie.aufAnfrage) throw new Hinweis("Diese Season ist privat. Bitte stelle eine Beitrittsanfrage, die Rennleitung gibt dich dann frei.");
   // Das Fahrzeug wird vor der Anmeldung geprüft, damit niemand ohne Auto in der Season steht.
   F.modellPruefen(serie, String(body.modell || ""));
   const pfad = A.mitgliedPfad(serie.id, s.id, fahrzeugklasseWaehlen(serie.fahrzeugklassen || [], String(body.fahrzeugklasse || "")), profil.iracingName);
@@ -199,6 +203,25 @@ async function serieAnmelden(s, profil, body, alle, kat) {
   // Bei Sichtung: Direktnachricht mit Team-Link und Steckbrief. Scheitert sie, bleibt die Anmeldung gültig.
   if (serie.einstufungArt === "sichtung" && !serie.ohneKlassen) await Dc.nachricht(s.id, Sichtung.einladungText(serie, F.modellPruefen(serie, String(body.modell || "")))).catch(() => {});
   return merke([...alle, jetztEintrag(pfad)]);
+}
+
+// Private Season: Anfrage mit denselben Angaben wie eine Anmeldung. Die Rennleitung bekommt eine Meldung im Discord.
+async function serieAnfragen(s, profil, body, alle, kat) {
+  profilVollstaendig(profil);
+  const serie = kat.serien.find((x) => x.id === body.serie);
+  if (!serie || !serie.aufAnfrage) throw new Hinweis("Für diese Serie gibt es keine Beitrittsanfrage.");
+  if (serie.status === "geplant") throw new Hinweis("Die Anmeldung für diese Serie ist noch nicht geöffnet.");
+  if (serie.anmeldungOffen === false || serie.status === "beendet") throw new Hinweis("Die Anmeldung für diese Serie ist geschlossen.");
+  if (alle.some((e) => e.typ === "serie" && e.serieId === serie.id && e.discordId === s.id)) return;
+  if (await Anfragen.lesen(serie.id, s.id)) return;
+  const anfrage = {
+    name: profil.iracingName, custId: profil.custId || "", irating: profil.irating || null,
+    fahrzeugklasse: fahrzeugklasseWaehlen(serie.fahrzeugklassen || [], String(body.fahrzeugklasse || "")),
+    modell: F.modellPruefen(serie, String(body.modell || "")),
+    nachricht: String(body.nachricht || "").trim().replace(/\s+/g, " ").slice(0, 300),
+  };
+  await Anfragen.speichern(serie.id, s.id, anfrage);
+  await R.teamMelden(Anfragen.meldungKarte(serie, anfrage)).catch(() => {});
 }
 
 async function serieAbmelden(s, body, alle, kat) {
@@ -300,6 +323,10 @@ module.exports = async (req, res) => {
     alle = await serieAnmelden(s, profil, body, alle, kat);
   } else if (body.aktion === "serie-abmelden") {
     alle = await serieAbmelden(s, body, alle, kat);
+  } else if (body.aktion === "serie-anfragen") {
+    await serieAnfragen(s, profil, body, alle, kat);
+  } else if (body.aktion === "serie-anfrage-zurueck") {
+    if (kat.serien.some((x) => x.id === body.serie)) await Anfragen.loeschen(body.serie, s.id);
   } else if (body.aktion === "fahrzeug-wechseln") {
     const serie = kat.serien.find((x) => x.id === body.serie);
     if (!serie || serie.status === "beendet") throw new Hinweis("Diese Season gibt es nicht oder sie ist beendet.");

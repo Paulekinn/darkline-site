@@ -279,6 +279,26 @@
 .liga-melden:hover{background:#ee1a24}
 .liga-melden:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .liga-melden[disabled]{opacity:.55;cursor:progress}
+/* Private Season */
+.liga-pill-privat{display:inline-flex;align-items:center;gap:5px;color:#f2c94c;box-shadow:inset 0 0 0 1px #f2c94c66}
+.liga-pill-privat svg{width:11px;height:11px}
+.liga-privat{margin-top:8px;padding:14px 16px;background:var(--scan);box-shadow:inset 3px 0 0 #f2c94c}
+.liga-privat h3{margin:0 0 6px;font:900 .9rem/1.1 var(--f-wide);text-transform:uppercase;color:#f2c94c}
+.liga-privat p{margin:4px 0 0}
+/* Vorschau einer Serie vor dem ersten Ergebnis */
+.liga-vorschau{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:8px;margin:0}
+.liga-vorschau>div{padding:14px 16px;background:var(--scan);box-shadow:inset 3px 0 0 var(--red)}
+.liga-vorschau dt{font:500 .62rem/1.2 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:#aeb6b3}
+.liga-vorschau dd{margin:6px 0 0;font-weight:700}
+.liga-modelle{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none}
+.liga-modelle li{padding:7px 11px;box-shadow:inset 0 0 0 1px #3a4144;font-size:.86rem}
+.liga-sichtung{display:grid;gap:14px;padding:18px;background:var(--scan)}
+.liga-sichtung.laeuft{box-shadow:inset 3px 0 0 #2fbf71}
+.liga-sichtung p{margin:0}
+.liga-sichtung .liga-hinweis{padding:0;font-size:.88rem}
+.liga-sichtung-strecken{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:8px;margin:0;padding:0;list-style:none;counter-reset:strecke}
+.liga-sichtung-strecken li{counter-increment:strecke;display:flex;gap:10px;align-items:center;padding:12px 14px;background:#0b0d0e;font-weight:700}
+.liga-sichtung-strecken li::before{content:counter(strecke);font:900 1.1rem/1 var(--f-wide);color:var(--red)}
 .liga-melden.zweit{background:none;box-shadow:inset 0 0 0 1.5px #3a4144;color:var(--ink)}
 .liga-melden.zweit:hover{background:var(--scan)}
 .liga-folgt{flex:1 1 100%;padding-top:2px;font:500 .68rem/1.2 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:#aeb6b3;text-align:center}

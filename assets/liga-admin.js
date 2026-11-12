@@ -415,6 +415,12 @@
       const daten = `data-serie="${esc(a.serie)}" data-discord="${esc(a.discordId)}"`;
       return `<div class="a-abschluss ${serienFarbe(a.serie)}"><span><b>${esc(a.name || "Fahrer")}</b><small>${esc(a.serieName)}: ${esc(a.modell)} → ${esc(a.antrag.nach)}, beantragt ${esc(zeit(a.antrag.seit))}${(a.wechsel || []).length ? ` · bisher ${a.wechsel.length} Wechsel` : ""}</small></span><div class="a-leiste"><button type="button" class="a-knopf klein" data-fahrzeug-entscheid="ja" ${daten}>Bestätigen</button><button type="button" class="a-knopf zweit klein" data-fahrzeug-entscheid="nein" ${daten}>Ablehnen</button></div></div>`;
     }).join("")}</div></section>` : "";
+    const anfragen = d.beitrittsAnfragen || [];
+    const anfragenHtml = anfragen.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Beitrittsanfragen</h2><span class="a-chip gelb">${anfragen.length}</span></div><div class="a-liste">${anfragen.map((a) => {
+      const daten = `data-serie="${esc(a.serie)}" data-discord="${esc(a.discordId)}" data-name="${esc(a.name || "")}"`;
+      const infos = [a.serieName, a.irating ? `iRating ${a.irating}` : "", a.modell, a.fahrzeugklasse, `angefragt ${zeit(a.seit)}`].filter(Boolean).join(" · ");
+      return `<div class="a-abschluss ${serienFarbe(a.serie)}"><span><b>${esc(a.name || "Fahrer")}</b><small>${esc(infos)}</small>${a.nachricht ? `<small>„${esc(a.nachricht)}“</small>` : ""}</span><div class="a-leiste"><button type="button" class="a-knopf klein" data-anfrage-entscheid="ja" ${daten}>Freigeben</button><button type="button" class="a-knopf zweit klein" data-anfrage-entscheid="nein" ${daten}>Ablehnen</button></div></div>`;
+    }).join("")}</div></section>` : "";
     const kachel = (wert, text, art, ziel) => `<button type="button" class="a-kennzahl ${art}" data-tab="${ziel}"><b>${wert}</b><span>${esc(text)}</span></button>`;
     const reportsHtml = offene.slice(0, 5).map(reportZeile).join("");
     const termine = kommend.slice(0, 5).map(terminZeile).join("");
@@ -427,7 +433,7 @@
         ${kachel(unfertig.length, "Rennen unvollständig", unfertig.length ? "warnung" : "", "rennen")}
       </div>
       ${(d.fehlendeErgebnisse || []).length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Ergebnis fehlt</h2><span class="a-chip gelb">${d.fehlendeErgebnisse.length}</span></div><div class="a-liste">${d.fehlendeErgebnisse.slice(0, 6).map((r) => `<div class="a-abschluss ${serienFarbe(r.serie)}"><span><b>${esc(r.titel)}</b><small>${esc([(serieVon(r.serie) || {}).name, datumKurz(r.datum)].filter(Boolean).join(" · "))}</small></span><button type="button" class="a-knopf zweit klein" data-ergebnis-import="${esc(r.serie)}">Importieren</button></div>`).join("")}</div></section>` : ""}
-      ${nummernHtml}${fahrzeugHtml}
+      ${anfragenHtml}${nummernHtml}${fahrzeugHtml}
       ${cockpitSichtung()}
       ${anmeldungFaellig}
       ${cockpitPruefungen()}
@@ -483,6 +489,9 @@
         ${eingabe("einspruchStunden", w.einspruchStunden ?? 48, 'type="hidden"')}
         ${feld("Strafpunkte-Grenze (0 = aus)", eingabe("strafpunkteGrenze", w.strafpunkteGrenze ?? 0, 'type="number" min="0"'))}
       </div><label class="a-check"><input type="checkbox" name="anmeldungOffen"${w.anmeldungOffen !== false ? " checked" : ""}> Fahrer können sich anmelden</label><p class="a-hinweis">Solange der Status „Geplant“ ist, bleibt die Anmeldung immer geschlossen.</p>
+      <div data-nur-liga${w.typ === "event" ? " hidden" : ""}><label class="a-check"><input type="checkbox" name="aufAnfrage" id="s-auf-anfrage"${w.aufAnfrage ? " checked" : ""}> Private Season: Anmeldung nur auf Anfrage, ihr gebt jeden Fahrer frei</label>
+      <div class="a-felder" id="s-voraussetzungen"${w.aufAnfrage ? "" : " hidden"}>${feld("Voraussetzungen (öffentlich sichtbar, leer lassen ohne)", `<textarea name="voraussetzungen" maxlength="400" style="min-height:60px" placeholder="z. B. iRating ab 1.500, Teilnahme am Pre-Test">${esc(w.voraussetzungen || "")}</textarea>`, true)}</div>
+      <p class="a-hinweis">Anfragen erscheinen im Cockpit und im Rennleitungs-Kanal. Gäste für einzelne Rennen gibt es in einer privaten Season nicht.</p></div>
       <div class="a-felder">
         ${feld("Erlaubte Fahrzeuge (eins pro Zeile, leer = keine Fahrzeugwahl)", `<textarea name="modelle" id="s-modelle" style="min-height:90px" placeholder="BMW M4 GT3&#10;Porsche 911 GT3 R (992)">${esc(Array.isArray(w.modelle) ? w.modelle.join("\n") : w.modelle || "")}</textarea>`, true)}
         <div class="a-feld breit"><label>Fahrzeug hinzufügen</label><div class="a-leiste"><input id="s-modell-neu" list="a-modelle" autocomplete="off" placeholder="Name aus iRacing"><datalist id="a-modelle">${(fahrzeugListe || []).map((n) => `<option value="${esc(n)}"></option>`).join("")}</datalist><button type="button" class="a-knopf zweit klein" data-modell-neu="1">Hinzufügen</button>${fahrzeugListe ? "" : '<button type="button" class="a-knopf zweit klein" data-modelle-laden="1">Liste aus Garage 61 laden</button>'}</div><div class="a-leiste"><span class="a-beschriftung">Ganze Klasse</span>${FAHRZEUGKLASSEN.map(([k]) => `<button type="button" class="a-knopf zweit klein" data-modell-klasse="${k}">${k}</button>`).join("")}</div><small class="a-hinweis" id="s-modelle-status" role="status">${fahrzeugListe ? `${fahrzeugListe.length} Fahrzeuge aus Garage 61 geladen. Tippe einen Teil des Namens, etwa „GT3“, und wähle aus den Vorschlägen.` : ""}</small></div>
@@ -525,7 +534,7 @@
     return `<article class="a-serie s-${esc(s.farbe || "rot")}${s.status === "beendet" ? " beendet" : ""}">
       <div class="a-serie-bild" style="background-image:url('${esc(window.LigaKarte.bildVon(s.id, s.bildVersion))}')" aria-hidden="true"></div>
       <div class="a-serie-inhalt">
-        <div class="a-leiste">${istEvent ? '<span class="a-chip gold">★ Event</span>' : '<span class="a-chip hell">Season</span>'}${s.status === "geplant" ? '<span class="a-chip">Geplant</span>' : statusChip(s.status)}${s.anmeldungOffen === false && s.status !== "geplant" ? '<span class="a-chip">Anmeldung zu</span>' : ""}</div>
+        <div class="a-leiste">${istEvent ? '<span class="a-chip gold">★ Event</span>' : '<span class="a-chip hell">Season</span>'}${s.status === "geplant" ? '<span class="a-chip">Geplant</span>' : statusChip(s.status)}${s.anmeldungOffen === false && s.status !== "geplant" ? '<span class="a-chip">Anmeldung zu</span>' : ""}${s.aufAnfrage ? '<span class="a-chip">Privat</span>' : ""}</div>
         <h3>${esc(s.name)}</h3>
         <p class="a-hinweis">${esc([istEvent ? "" : s.saison, s.ohneKlassen ? "Ohne iRating-Klassen" : `${(s.klassen || []).length} Klassen`, istEvent ? "" : `${s.gewerteteRennen} von ${s.rennenGesamt} Rennen gewertet`].filter(Boolean).join(" · "))}</p>
         ${info}
@@ -1513,6 +1522,13 @@
       feldNeu.value = "";
       return feldNeu.focus();
     }
+    if (b.dataset.anfrageEntscheid) {
+      const ja = b.dataset.anfrageEntscheid === "ja";
+      if (ja && !window.confirm(`${b.dataset.name || "Diesen Fahrer"} für die Season freigeben? Er ist danach angemeldet und bekommt eine Direktnachricht.`)) return;
+      const grund = ja ? "" : window.prompt("Grund für die Ablehnung (freiwillig). Der Fahrer bekommt ihn per Direktnachricht.", "");
+      if (grund === null) return;
+      return aktion({ aktion: "anfrage-entscheiden", serie: b.dataset.serie, discordId: b.dataset.discord, name: b.dataset.name, ja, grund }, ja ? "Freigegeben, der Fahrer ist angemeldet und wird informiert." : "Abgelehnt, der Fahrer wird informiert.");
+    }
     if (b.dataset.fahrzeugEntscheid) {
       const ja = b.dataset.fahrzeugEntscheid === "ja";
       const grund = ja ? "" : window.prompt("Grund für die Ablehnung (freiwillig). Der Fahrer bekommt ihn zu sehen.", "");
@@ -1595,6 +1611,7 @@
       const namen = fd.getAll("k_name"), min = fd.getAll("k_min"), max = fd.getAll("k_max");
       w.klassen = namen.map((name, i) => ({ name, min: min[i], max: max[i] }));
       w.anmeldungOffen = f.elements.anmeldungOffen.checked;
+      w.aufAnfrage = f.elements.aufAnfrage.checked;
       w.ohneKlassen = f.elements.ohneKlassen.checked;
       // Eingaben merken, damit sie bei einem Fehler im Formular stehen bleiben
       form.werte = { ...w, punkte: String(w.punkte).split(/[\s,;]+/).filter(Boolean), fahrzeugklassen: String(w.fahrzeugklassen).split(",").map((x) => x.trim()).filter(Boolean) };
@@ -1637,6 +1654,7 @@
       return;
     }
     if (t.id === "s-ohne-klassen") { document.getElementById("a-klassen-bereich").hidden = t.checked; return; }
+    if (t.id === "s-auf-anfrage") { document.getElementById("s-voraussetzungen").hidden = !t.checked; return; }
     if (t.name === "einstufungArt" && t.closest("#f-serie")) {
       t.closest("#f-serie").querySelectorAll("[data-nur-sichtung]").forEach((el) => { el.hidden = t.value !== "sichtung"; });
       return;

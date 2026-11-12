@@ -352,6 +352,22 @@ const tests = {
     assert.strictEqual(offen.anmeldungZu, false);
     assert.strictEqual(offen.anmeldungFolgt, false);
   },
+  "Private Season: Anfrage statt Anmeldung, keine Gäste, Voraussetzungen nur mit Haken": () => {
+    const basis = { name: "GT3", rennenGesamt: 8, gewerteteRennen: 8, punkte: "25 18", punkteDanach: 0, bonusPole: 0, bonusSchnellsteRunde: 0, mindestRundenProzent: 75, anmeldeschlussMinuten: 60, klassen: [{ name: "Alle", min: 0, max: "" }] };
+    assert.deepStrictEqual([D.pruefeSerie(basis).aufAnfrage, D.pruefeSerie(basis).voraussetzungen], [false, ""]);
+    assert.deepStrictEqual([D.pruefeSerie({ ...basis, aufAnfrage: true, voraussetzungen: " iRating ab 1500 " }).aufAnfrage, D.pruefeSerie({ ...basis, aufAnfrage: true, voraussetzungen: " iRating ab 1500 " }).voraussetzungen], [true, "iRating ab 1500"]);
+    assert.strictEqual(D.pruefeSerie({ ...basis, voraussetzungen: "x" }).voraussetzungen, "", "Ohne Haken keine Voraussetzungen");
+    assert.strictEqual(D.pruefeSerie({ ...basis, typ: "event", aufAnfrage: true }).aufAnfrage, false, "Events sind nie privat");
+    const serien = { gt3: { status: "anmeldung", name: "GT3", aufAnfrage: true } };
+    assert.strictEqual(A.baueRennen([SERIENRENNEN], [], { ...OPT, discordId: "2", serien })[0].nurFreigegeben, true, "Ohne Freigabe kein Gaststart");
+    assert.strictEqual(A.baueRennen([SERIENRENNEN], [mitglied("gt3", "2", 100)], { ...OPT, discordId: "2", serien })[0].nurFreigegeben, false, "Freigegebene Fahrer sind normal dabei");
+    assert.strictEqual(A.baueRennen([SERIENRENNEN], [], { ...OPT, discordId: "2", serien: { gt3: { status: "anmeldung", name: "GT3" } } })[0].nurFreigegeben, false);
+    const liste = [{ id: "gt3", name: "GT3", status: "anmeldung", aufAnfrage: true, voraussetzungen: "Pre-Test", klassen: [] }];
+    const [mitAnfrage] = A.baueSerien(liste, [], { discordId: "2", profil: null, klasseFuer: () => null, anfragen: new Set(["gt3"]) });
+    assert.deepStrictEqual([mitAnfrage.aufAnfrage, mitAnfrage.voraussetzungen, mitAnfrage.anfrage], [true, "Pre-Test", true]);
+    const [dabei] = A.baueSerien(liste, [mitglied("gt3", "2", 100)], { discordId: "2", profil: null, klasseFuer: () => null, anfragen: new Set(["gt3"]) });
+    assert.strictEqual(dabei.anfrage, false, "Wer schon dabei ist, hat keine offene Anfrage mehr");
+  },
   "Season: Wer für die Season gemeldet ist, steht in allen Runden": () => {
     const runden = Array.from({ length: 8 }, (_, i) => ({ ...SERIENRENNEN, id: `r${i + 1}`, titel: `Runde ${i + 1}`, datum: `2026-12-${String(10 + i).padStart(2, "0")}`, plaetze: 40 }));
     const stand = A.baueRennen(runden, [mitglied("gt3", "2", 100)], { ...OPT, discordId: "2" });

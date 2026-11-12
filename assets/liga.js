@@ -511,6 +511,46 @@
     regelnAnhaengen(regeln);
   }
 
+  /* ---------- Vorschau: was vor dem ersten Ergebnis schon feststeht ---------- */
+  const tagMonat = (t) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t || ""); return m ? `${m[3]}.${m[2]}.` : ""; };
+  function vorschau(s, rennen) {
+    const event = s.typ === "event";
+    const klassen = s.ohneKlassen ? "" : (s.klassen || []).map((k) => `<span class="liga-klassenchip ${farbe(k)}">${esc(k.name)}</span>`).join("");
+    const fzKlassen = (s.fahrzeugklassen || []).map((k) => `<span class="liga-klassenchip" style="--k:${window.LigaKarte.fahrzeugFarbe(k)}">${esc(k)}</span>`).join("");
+    const anmeldung = s.status === "geplant" ? (s.aufAnfrage ? "Folgt, nur auf Anfrage" : "Folgt") : s.status === "beendet" ? "Beendet" : s.anmeldungOffen === false ? "Geschlossen" : s.aufAnfrage ? "Auf Anfrage" : "Offen";
+    const daten = [
+      ["Anmeldung", esc(anmeldung)],
+      ["Umfang", esc(event ? "Einzelrennen" : `${s.rennenGesamt} Rennen${s.gewerteteRennen < s.rennenGesamt ? `, beste ${s.gewerteteRennen} zählen` : ""}`)],
+      fzKlassen ? [(s.fahrzeugklassen || []).length > 1 ? "Fahrzeugklassen" : "Fahrzeugklasse", `<span class="liga-poster-klassen">${fzKlassen}</span>`] : null,
+      klassen ? ["Fahrerklassen", `<span class="liga-poster-klassen">${klassen}</span>`] : null,
+    ].filter(Boolean);
+    const modelle = (s.modelle || []).length ? `<h3 class="liga-regel-titel">Fahrzeuge zur Wahl (${s.modelle.length})</h3><ul class="liga-modelle">${s.modelle.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>` : "";
+    const privat = s.aufAnfrage ? `<div class="liga-privat"><h3>Private Season</h3><p>Die Teilnahme ist nur nach Freigabe durch die Rennleitung möglich. Stelle eine Beitrittsanfrage, du bekommst die Entscheidung per Discord-Nachricht.</p>${s.voraussetzungen ? `<p><b>Voraussetzungen:</b> ${esc(s.voraussetzungen)}</p>` : ""}</div>` : "";
+    einfuegen(abschnitt(event ? "Das Event" : "Die Season", STATUS[s.status] || "", "", `<dl class="liga-vorschau">${daten.map(([t, d]) => `<div><dt>${t}</dt><dd>${d}</dd></div>`).join("")}</dl>${privat}${modelle}`));
+
+    // Sichtung: Zeitraum und Strecken sind öffentlich, die Werte der Fahrer nicht.
+    if (s.einstufungArt === "sichtung" && !s.ohneKlassen && s.sichtungVon && (s.sichtungStrecken || []).length) {
+      const phase = heute < s.sichtungVon ? `Startet am ${tagMonat(s.sichtungVon)}` : s.sichtungBis && heute > s.sichtungBis ? "Abgeschlossen" : `Läuft bis ${tagMonat(s.sichtungBis)}`;
+      const laeuft = phase.startsWith("Läuft");
+      const wertung = s.sichtungWertung === "schnitt" ? "der Schnitt" : "die beste Runde";
+      einfuegen(abschnitt("Sichtung", phase, "", `<div class="liga-sichtung${laeuft ? " laeuft" : ""}">
+        <p>Die Sichtung entscheidet, in welcher Klasse du fährst. Gefahren wird offline mit festen Bedingungen, gewertet ${s.sichtungRunden ? `wird ${wertung} aus ${s.sichtungRunden} sauberen Runden am Stück` : `wird ${wertung}`}. Zeitraum: ${esc(tagMonat(s.sichtungVon))} bis ${esc(tagMonat(s.sichtungBis))}</p>
+        <ol class="liga-sichtung-strecken">${s.sichtungStrecken.map((x) => `<li>${esc(x.name)}</li>`).join("")}</ol>
+        <p class="liga-hinweis">Die genauen Vorgaben und deine eigenen Werte findest du nach der Anmeldung im Fahrerbereich unter „Sichtung“. Die Werte siehst nur du und die Rennleitung.</p>
+        ${laeuft && s.status !== "geplant" ? '<div class="liga-serie-aktion"><a class="liga-mini" href="/fahrerbereich">Zur Sichtung</a></div>' : ""}
+      </div>`));
+    }
+
+    // Kalender: alle eingetragenen Rennen der Serie, auch ohne Datum
+    const eigene = rennen.filter((r) => r.serie === s.id && r.status !== "abgesagt").sort((a, b) => `${a.datum || "9"} ${a.startzeit || ""}`.localeCompare(`${b.datum || "9"} ${b.startzeit || ""}`));
+    einfuegen(abschnitt(event ? "Termin" : "Kalender", eigene.length ? `${eigene.length} ${eigene.length === 1 ? "Termin" : "Termine"}` : "Termine folgen", "", eigene.length
+      ? `<div class="liga-termine">${eigene.map((r) => terminZeile(r, s)).join("")}</div>`
+      : `<p class="liga-hinweis">Die Termine werden hier und im Discord angekündigt.</p>`));
+
+    if (s.status === "laeuft") einfuegen(abschnitt("Ergebnisse", "In Vorbereitung", "", '<p class="liga-hinweis">Nach dem ersten Rennen stehen hier Tabellen, Rennberichte und Fahrerkarten.</p>'));
+    regelnAnhaengen(s);
+  }
+
   /* ---------- Serien: Anmeldung, Karten und Übersicht ---------- */
   let fahrerStand = null;
   const FARBEN = ["rot", "blau", "lila", "gruen", "gelb", "tuerkis"];
@@ -535,6 +575,8 @@
     const p = plattform(s);
     return `<a class="liga-band ${p}" href="${esc(s.uebertragung)}" target="_blank" rel="noopener" title="Die Rennen dieser Serie werden übertragen">${plattformLogo(p)}${p === "youtube" ? "YouTube" : "Twitch"}</a>`;
   };
+  // Private Season: Teilnahme nur nach Freigabe durch die Rennleitung
+  const privatPill = (s) => (s.aufAnfrage ? '<span class="liga-pill liga-pill-privat" title="Teilnahme nur nach Freigabe durch die Rennleitung"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3z"/></svg>Privat · Auf Anfrage</span>' : "");
   const artBadge = (typ, klein) => `<span class="liga-art ${typ === "event" ? "event" : "liga"}${klein ? " klein" : ""}">${typ === "event" ? "Event" : "Liga"}</span>`;
   const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
   const terminText = (r) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.datum || ""); return `${m ? `${m[3]}.${m[2]}.` : ""}${r.startzeit ? ` · ${r.startzeit}` : ""}`; };
@@ -545,17 +587,20 @@
     if (s.status === "geplant") return '<span class="liga-folgt">Anmeldung folgt</span>';
     const offen = s.anmeldungOffen !== false;
     const geschlossen = '<span class="liga-zu">Anmeldung geschlossen</span>';
-    if (!fahrerStand || !fahrerStand.angemeldet) return offen ? '<a class="liga-melden" href="/api/discord-login?ziel=liga">Jetzt anmelden</a>' : geschlossen;
+    if (!fahrerStand || !fahrerStand.angemeldet) return offen ? `<a class="liga-melden" href="/api/discord-login?ziel=liga">${s.aufAnfrage ? "Beitritt anfragen" : "Jetzt anmelden"}</a>` : geschlossen;
     const eigen = (fahrerStand.serien || []).find((x) => x.id === s.id);
     if (eigen && eigen.ich) return `<span class="liga-dabei"><i aria-hidden="true">✓</i>Du bist dabei</span><button type="button" class="liga-abmelden" data-serie-aktion="serie-abmelden" data-serie="${esc(s.id)}">Abmelden</button>`;
+    if (eigen && eigen.anfrage) return `<span class="liga-folgt">Anfrage gestellt, die Rennleitung entscheidet</span><button type="button" class="liga-abmelden" data-serie-aktion="serie-anfrage-zurueck" data-serie="${esc(s.id)}">Anfrage zurückziehen</button>`;
     if (!offen) return geschlossen;
-    if (!fahrerStand.fahrer.profil) return '<a class="liga-melden" href="/fahrerbereich">Jetzt anmelden</a>';
+    if (!fahrerStand.fahrer.profil) return `<a class="liga-melden" href="/fahrerbereich">${s.aufAnfrage ? "Beitritt anfragen" : "Jetzt anmelden"}</a>`;
     const klassen = s.fahrzeugklassen || [];
     const auswahl = klassen.length > 1 ? `<select id="fz-${esc(s.id)}" class="liga-auswahl" aria-label="Fahrzeugklasse wählen"><option value="">Klasse</option>${klassen.map((k) => `<option value="${esc(k)}">${esc(k)}</option>`).join("")}</select>` : "";
     // Fahrzeugwahl der Season: Die erlaubten Modelle kommen mit dem Fahrerstand.
     const modelle = (eigen && eigen.modelle) || [];
     const modell = modelle.length ? `<select data-modell class="liga-auswahl" aria-label="Fahrzeug wählen"><option value="">Fahrzeug wählen</option>${modelle.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("")}</select>` : "";
-    return `${auswahl}${modell}<button type="button" class="liga-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Jetzt anmelden</button>`;
+    return s.aufAnfrage
+      ? `${auswahl}${modell}<button type="button" class="liga-melden" data-serie-aktion="serie-anfragen" data-serie="${esc(s.id)}">Beitritt anfragen</button>`
+      : `${auswahl}${modell}<button type="button" class="liga-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Jetzt anmelden</button>`;
   }
 
   // Eure Livery-Bilder als Motiv der Karten. Je Serie immer dasselbe Bild.
@@ -595,7 +640,7 @@
       ${streamBand(s)}
       <div class="liga-poster-bild" style="background-image:url('${esc(kartenBild(s))}')" aria-hidden="true"></div>
       <div class="liga-poster-inhalt">
-        <div class="liga-poster-kopf">${artBadge(s.typ)}${s.saison ? `<span class="liga-pill">${esc(s.saison)}</span>` : ""}<span class="liga-pill farbig">${esc(s.status === "anmeldung" && s.anmeldungOffen === false ? "Anmeldung geschlossen" : STATUS[s.status] || "")}</span></div>
+        <div class="liga-poster-kopf">${artBadge(s.typ)}${s.saison ? `<span class="liga-pill">${esc(s.saison)}</span>` : ""}${privatPill(s)}<span class="liga-pill farbig">${esc(s.status === "anmeldung" && s.anmeldungOffen === false ? "Anmeldung geschlossen" : STATUS[s.status] || "")}</span></div>
         <h3><a href="${serienLink(s)}">${esc(s.name)}</a></h3>
         ${s.beschreibung ? `<p>${esc(s.beschreibung)}</p>` : ""}
         <div class="liga-poster-klassen">${klassen}</div>
@@ -673,13 +718,18 @@
     const b = e.target.closest("[data-serie-aktion]");
     if (!b) return;
     if (b.dataset.serieAktion === "serie-abmelden" && !window.confirm("Wirklich aus dieser Serie abmelden? Du wirst dann auch aus allen kommenden Rennen der Serie genommen.")) return;
+    if (b.dataset.serieAktion === "serie-anfrage-zurueck" && !window.confirm("Beitrittsanfrage zurückziehen?")) return;
     const auswahl = $("fz-" + b.dataset.serie);
-    const modell = b.dataset.serieAktion === "serie-anmelden" ? b.parentElement.querySelector("select[data-modell]") : null;
+    const anfrage = b.dataset.serieAktion === "serie-anfragen";
+    const modell = b.dataset.serieAktion === "serie-anmelden" || anfrage ? b.parentElement.querySelector("select[data-modell]") : null;
     if (modell && !modell.value) { modell.focus(); return window.alert("Bitte wähle zuerst dein Fahrzeug für diese Season. Ein späterer Wechsel ist nur nach den Regeln der Season möglich."); }
-    if (modell && !window.confirm(`Mit dem ${modell.value} für die Season anmelden? Ein späterer Fahrzeugwechsel ist nur eingeschränkt möglich.`)) return;
+    if (!anfrage && modell && !window.confirm(`Mit dem ${modell.value} für die Season anmelden? Ein späterer Fahrzeugwechsel ist nur eingeschränkt möglich.`)) return;
+    // Bei einer Anfrage kann der Fahrer der Rennleitung kurz schreiben, warum er dabei sein möchte.
+    const nachricht = anfrage ? window.prompt(`Beitrittsanfrage${modell ? ` mit dem ${modell.value}` : ""}. Möchtest du der Rennleitung etwas dazu schreiben? (freiwillig)`, "") : "";
+    if (nachricht === null) return;
     b.disabled = true;
     try {
-      const r = await fetch("api/liga?r=fahrer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ aktion: b.dataset.serieAktion, serie: b.dataset.serie, fahrzeugklasse: auswahl ? auswahl.value : "", modell: modell ? modell.value : "" }) });
+      const r = await fetch("api/liga?r=fahrer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ aktion: b.dataset.serieAktion, serie: b.dataset.serie, fahrzeugklasse: auswahl ? auswahl.value : "", modell: modell ? modell.value : "", nachricht }) });
       if (r.ok) return location.reload();
       window.alert((await r.json().catch(() => ({}))).error || "Das hat nicht geklappt. Bitte versuche es noch einmal.");
     } catch (err) {
@@ -783,12 +833,12 @@
 
     document.title = `${s.name} · Darkline Simracing Series`;
     $("liga-titel").innerHTML = esc(s.name);
-    document.querySelector(".liga-kicker").innerHTML = `${artBadge(s.typ)}${streamBadge(s)}`;
+    document.querySelector(".liga-kicker").innerHTML = `${artBadge(s.typ)}${privatPill(s)}${streamBadge(s)}`;
     $("liga-saison").textContent = [s.saison, s.beschreibung].filter(Boolean).join(" · ");
     $("liga-cta").innerHTML = `${serienAktion(s)}<a class="liga-mini zweit" href="/liga">Alle Serien</a>`;
     const d = daten.tabelle;
     if (d && Array.isArray(d.rennen) && d.rennen.length && Array.isArray(d.klassen)) zeige(d, s);
-    else leer(s);
+    else vorschau(s, rennen);
     if (daten.eventreihe) eventreiheZeigen(daten.eventreihe);
   });
 })();

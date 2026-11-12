@@ -66,7 +66,12 @@
   const GESCHLOSSEN = '<span class="fb-zu">Anmeldung geschlossen</span>';
   const FOLGT = '<span class="fb-zu">Anmeldung folgt</span>';
   // Die Season, in der dieser Fahrer noch fehlt. Bei Events gibt es keine Gäste, dort zählt die Anmeldung zum Rennen.
-  const offeneSeason = (r) => { const s = stand.serien.find((x) => x.id === r.serie); return s && s.typ !== "event" && !s.ich && s.anmeldungOffen ? s : null; };
+  const offeneSeason = (r) => { const s = stand.serien.find((x) => x.id === r.serie); return s && s.typ !== "event" && !s.ich && !s.aufAnfrage && s.anmeldungOffen ? s : null; };
+  const NUR_FREIGABE = '<span class="fb-zu">Nur nach Freigabe</span>';
+  // Private Season: Anfrage statt Anmeldung, bei offener Anfrage der Stand
+  const anfrageAktion = (s) => (s.anfrage
+    ? `<span class="fb-zu">Anfrage gestellt</span><button type="button" class="fb-abmelden" data-serie-aktion="serie-anfrage-zurueck" data-serie="${esc(s.id)}">Zurückziehen</button>`
+    : `${klassenAuswahl("s-" + s.id, s.fahrzeugklassen)}${modellAuswahl(s)}<button type="button" class="fb-knopf fb-melden" data-serie-aktion="serie-anfragen" data-serie="${esc(s.id)}">Beitritt anfragen</button>`);
   // Fahrzeug für die Season: Pflicht, wenn die Season eine Liste erlaubter Modelle hat. Ein Wechsel später nur nach den Regeln der Season.
   const modellAuswahl = (s, wert = "") => ((s.modelle || []).length ? `<select data-modell aria-label="Fahrzeug wählen"><option value="">Fahrzeug wählen</option>${s.modelle.map((m) => `<option value="${esc(m)}"${m === wert ? " selected" : ""}>${esc(m)}</option>`).join("")}</select>` : "");
   const seasonKnopf = (s) => `${modellAuswahl(s)}<button type="button" class="fb-knopf fb-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Für die Season anmelden</button>`;
@@ -91,6 +96,7 @@
     const season = profilFertig() ? offeneSeason(r) : null;
     if (r.ich) return `${dabeiStatus(r)}${season ? `${klassenAuswahl("h-" + r.id, r.fahrzeugklassen)}${seasonKnopf(season)}` : ""}<button type="button" class="fb-abmelden" data-aktion="abmelden" data-rennen="${esc(r.id)}" data-quelle="${esc(r.ich.quelle)}">Abmelden</button>`;
     if (r.anmeldungZu) return r.anmeldungFolgt ? FOLGT : GESCHLOSSEN;
+    if (r.nurFreigegeben) return NUR_FREIGABE;
     if (!profilFertig()) return '<button type="button" class="fb-knopf fb-melden" data-profil="1">Erst Profil ausfüllen</button>';
     const voll = r.plaetze && r.starter.length >= r.plaetze;
     // In einer Season ist die Anmeldung für alle Runden der Normalfall, ein einzelnes Rennen die Ausnahme für Gäste.
@@ -227,9 +233,11 @@
     const zeilen = offene.map((s) => {
       let aktion = "";
       if (s.ich) aktion = `<span class="fb-dabei"><i aria-hidden="true">✓</i>Dabei</span><button type="button" class="fb-abmelden" data-serie-aktion="serie-abmelden" data-serie="${esc(s.id)}">Abmelden</button>`;
+      else if (s.anfrage) aktion = anfrageAktion(s);
+      else if (s.aufAnfrage && s.anmeldungOffen && profilFertig()) aktion = anfrageAktion(s);
       else if (s.anmeldungOffen && profilFertig()) aktion = `${klassenAuswahl("s-" + s.id, s.fahrzeugklassen)}${modellAuswahl(s)}<button type="button" class="fb-knopf fb-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Jetzt anmelden</button>`;
       else if (!s.anmeldungOffen) aktion = s.status === "geplant" ? FOLGT : GESCHLOSSEN;
-      const info = [s.ich ? `Dabei${s.fahrzeugklasse ? ` · ${s.fahrzeugklasse}` : ""}` : "", s.einstufungDurchRennleitung ? "Einstufung durch Rennleitung" : s.klasse].filter(Boolean).join(" · ");
+      const info = [s.aufAnfrage && !s.ich ? `Privat${s.voraussetzungen ? `: ${s.voraussetzungen}` : ""}` : "", s.ich ? `Dabei${s.fahrzeugklasse ? ` · ${s.fahrzeugklasse}` : ""}` : "", s.einstufungDurchRennleitung ? "Einstufung durch Rennleitung" : s.klasse].filter(Boolean).join(" · ");
       return `<li class="${farbe(s.farbe)}${s.ich ? " dabei" : ""}"><span class="fb-serie-bild" ${motiv(bildVon(s.id, s.bildVersion))} aria-hidden="true"></span><div>${artBadge(s.typ)} <a href="/liga?serie=${encodeURIComponent(s.id)}">${esc(s.name)}</a>${info ? `<small>${esc(info)}</small>` : ""}</div><div class="fb-serie-aktion">${aktion}</div>${s.ich ? fahrzeugZeile(s) : ""}</li>`;
     }).join("");
     return `<section class="fb-panel"><h3>Serien und Events</h3><ul class="fb-serien">${zeilen}</ul></section>`;
@@ -607,6 +615,18 @@
       if (modell && !modell.value) { modell.focus(); return window.alert("Bitte wähle zuerst dein Fahrzeug für diese Season. Ein späterer Wechsel ist nur nach den Regeln der Season möglich."); }
       if (modell && !window.confirm(`Mit dem ${modell.value} für die Season anmelden? Ein späterer Fahrzeugwechsel ist nur eingeschränkt möglich.`)) return;
       return sende({ aktion: "serie-anmelden", serie: b.dataset.serie, fahrzeugklasse: select ? select.value : "", modell: modell ? modell.value : "" });
+    }
+    if (b.dataset.serieAktion === "serie-anfragen") {
+      const select = b.parentElement.querySelector("select:not([data-modell])");
+      const modell = b.parentElement.querySelector("select[data-modell]");
+      if (modell && !modell.value) { modell.focus(); return window.alert("Bitte wähle zuerst dein Fahrzeug für diese Season."); }
+      const nachricht = window.prompt(`Beitrittsanfrage${modell ? ` mit dem ${modell.value}` : ""}. Möchtest du der Rennleitung etwas dazu schreiben? (freiwillig)`, "");
+      if (nachricht === null) return;
+      return sende({ aktion: "serie-anfragen", serie: b.dataset.serie, fahrzeugklasse: select ? select.value : "", modell: modell ? modell.value : "", nachricht });
+    }
+    if (b.dataset.serieAktion === "serie-anfrage-zurueck") {
+      if (window.confirm("Beitrittsanfrage zurückziehen?")) sende({ aktion: "serie-anfrage-zurueck", serie: b.dataset.serie });
+      return;
     }
     if (b.dataset.fahrzeugWechsel) {
       const modell = b.parentElement.querySelector("select[data-modell]");

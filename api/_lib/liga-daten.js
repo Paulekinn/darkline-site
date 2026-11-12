@@ -65,6 +65,9 @@ function pruefeSerie(e) {
     saison: text(e.saison, 40),
     status: ["geplant", "anmeldung", "laeuft", "beendet"].includes(e.status) ? e.status : "anmeldung",
     anmeldungOffen: e.anmeldungOffen !== false && e.anmeldungOffen !== "false",
+    // Private Season: Fahrer stellen eine Beitrittsanfrage, die Rennleitung gibt frei. Bei Events gibt es das nicht.
+    aufAnfrage: e.typ !== "event" && (e.aufAnfrage === true || e.aufAnfrage === "true"),
+    voraussetzungen: e.typ !== "event" && (e.aufAnfrage === true || e.aufAnfrage === "true") ? text(e.voraussetzungen, 400) : "",
     farbe: FARBEN.includes(e.farbe) ? e.farbe : "rot",
     beschreibung: text(e.beschreibung, 400),
     uebertragung: pruefeUebertragung(e.uebertragung),
