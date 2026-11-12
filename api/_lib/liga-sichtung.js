@@ -37,11 +37,34 @@ function streckeVon(track, serie) {
 // Eine Runde ohne Zwischenfall. In- und Outlap zählen nicht.
 const sauber = (l) => !!l.clean && !l.pitIn && !l.pitOut && !l.incomplete && !l.offtrack && Number(l.lapTime) > 0;
 
-// Bedingungen wie im Steckbrief: trocken, kein Regen, Streckentemperatur im Bereich.
+// Streckenzustand wie in iRacing, vom saubersten zum meisten Gummi. Der Steckbrief nennt den Begriff in Klammern, etwa „Mittel (Moderate Usage)“.
+const ZUSTAENDE = ["clean", "lowusage", "moderatelylowusage", "moderateusage", "moderatelyhighusage", "highusage", "maximumusage"];
+const zustandKern = (s) => String(s || "").toLowerCase().replace(/[^a-z]/g, "");
+function zustandVorgabe(serie) {
+  const m = /\(([^)]+)\)/.exec(((serie.sichtungSteckbrief || {}).zustand) || "");
+  return m && ZUSTAENDE.includes(zustandKern(m[1])) ? zustandKern(m[1]) : null;
+}
+// Lufttemperatur aus dem Steckbrief, etwa „22 °C“. Garage 61 liefert Zehntel, iRacing rechnet intern in Fahrenheit: ein Grad Spielraum.
+function luftVorgabe(serie) {
+  const m = /(-?\d+)\s*°?\s*C/.exec(((serie.sichtungSteckbrief || {}).temperatur) || "");
+  return m ? Number(m[1]) : null;
+}
+const LUFT_SPIELRAUM = 1;
+
+// Bedingungen wie im Steckbrief: trocken, kein Regen, Streckentemperatur im Bereich, Streckenzustand und Lufttemperatur wie vorgegeben.
 // trackWetness kommt als Stufe von iRacing (0 unbekannt, 1 trocken, ab 2 feucht). Fehlt ein Wert, wird er nicht geprüft.
+// trackUsage: Als Text wird er mit der Vorgabe verglichen, als Zahl 0 bis 6 als Stufe in derselben Reihenfolge. Jedes andere Format wird nicht geprüft.
 function bedingungenOk(l, serie) {
   if (Number(l.precipitation) > 0) return false;
   if (Number(l.trackWetness) > 1) return false;
+  const zustand = zustandVorgabe(serie);
+  if (zustand && l.trackUsage !== undefined && l.trackUsage !== null && l.trackUsage !== "") {
+    const wert = typeof l.trackUsage === "number" ? (Number.isInteger(l.trackUsage) && l.trackUsage >= 0 && l.trackUsage <= 6 ? ZUSTAENDE[l.trackUsage] : null) : zustandKern(l.trackUsage);
+    if (wert && ZUSTAENDE.includes(wert) && wert !== zustand) return false;
+  }
+  const luft = luftVorgabe(serie);
+  const lt = l.airTemp === undefined || l.airTemp === null || l.airTemp === "" ? null : Number(l.airTemp);
+  if (luft !== null && lt !== null && Number.isFinite(lt) && Math.abs(lt - luft) > LUFT_SPIELRAUM) return false;
   const t = l.trackTemp === undefined || l.trackTemp === null || l.trackTemp === "" ? null : Number(l.trackTemp);
   if (t !== null && Number.isFinite(t)) {
     if (serie.sichtungTempMin !== null && serie.sichtungTempMin !== undefined && t < serie.sichtungTempMin) return false;

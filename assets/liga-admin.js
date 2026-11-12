@@ -825,9 +825,9 @@
   const STECKBRIEF = [
     ["uhrzeit", "Uhrzeit", "Tageszeit in der Testfahrt", Array.from({ length: 13 }, (_, i) => `${String(8 + i).padStart(2, "0")}:00 Uhr`)],
     ["wetter", "Wetter", "Himmel bei statischem Wetter, ohne Regen", ["Klar (Clear), statisch", "Leicht bewölkt (Partly Cloudy), statisch", "Überwiegend bewölkt (Mostly Cloudy), statisch", "Bedeckt (Overcast), statisch"]],
-    ["zustand", "Streckenzustand", "Gummi auf der Strecke zu Beginn", ["Sauber (Clean)", "Wenig Gummi (Low Usage)", "Etwas Gummi (Moderately Low Usage)", "Mittel (Moderate Usage)", "Viel Gummi (Moderately High Usage)", "Sehr viel Gummi (High Usage)", "Maximum (Maximum Usage)"]],
+    ["zustand", "Streckenzustand", "Gummi auf der Strecke, wird geprüft",["Sauber (Clean)", "Wenig Gummi (Low Usage)", "Etwas Gummi (Moderately Low Usage)", "Mittel (Moderate Usage)", "Viel Gummi (Moderately High Usage)", "Sehr viel Gummi (High Usage)", "Maximum (Maximum Usage)"]],
     ["setup", "Setup", "Welches Setup gefahren wird", ["iRacing-Baseline-Setup", "Freies Setup"]],
-    ["temperatur", "Lufttemperatur", "Als Vorgabe, geprüft wird die Streckentemperatur unten", Array.from({ length: 26 }, (_, i) => `${10 + i} °C`)],
+    ["temperatur", "Lufttemperatur", "Wird geprüft, ein Grad Spielraum",Array.from({ length: 26 }, (_, i) => `${10 + i} °C`)],
   ];
   // Auswahlfeld eines Steckbrief-Punkts. Ein älterer Freitext bleibt als eigene Option sichtbar, bis er ersetzt wird.
   const steckbriefAuswahl = (k, liste, wert) => `<select name="sb_${k}" id="sb-${k}"><option value="">– keine Vorgabe –</option>${wert && !liste.includes(wert) ? `<option value="${esc(wert)}" selected>${esc(wert)} (bisher, bitte neu wählen)</option>` : ""}${liste.map((o) => `<option value="${esc(o)}"${o === wert ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
@@ -877,7 +877,7 @@
         ${STECKBRIEF.map(([k, t, hilfe, liste]) => `<div class="a-feld"><label for="sb-${k}">${esc(t)}</label>${steckbriefAuswahl(k, liste, (w.sichtungSteckbrief || {})[k] || "")}<small class="a-hinweis">${esc(hilfe)}</small></div>`).join("")}
       </div>`, "Die Fahrer sehen diese Vorgaben im Fahrerbereich und stellen damit in iRacing ihre Testfahrt ein. „Keine Vorgabe“ heißt: frei wählbar.")}
       ${abschnittForm(4, "Automatische Prüfung der Runden", `<div class="a-feld"><label for="sb-temp-von">Streckentemperatur in °C</label><div class="a-bereich">${eingabe("sichtungTempMin", w.sichtungTempMin ?? "", 'id="sb-temp-von" type="number" min="-20" max="80" placeholder="von" aria-label="Streckentemperatur von"')}<span>bis</span>${eingabe("sichtungTempMax", w.sichtungTempMax ?? "", 'type="number" min="-20" max="80" placeholder="bis" aria-label="Streckentemperatur bis"')}</div></div>
-        <ul class="a-regeln"><li>Runden außerhalb dieses Bereichs zählen nicht. Leer lassen, wenn die Temperatur egal ist.</li><li>Runden mit Regen oder nasser Strecke zählen nie.</li><li>Nur Runden mit dem in der Season gemeldeten Auto und auf den Strecken oben zählen.</li><li>Das Setup lässt sich nicht prüfen.</li></ul>`, "Diese Regeln wendet die Website selbst auf die Runden aus Garage 61 an.")}
+        <ul class="a-regeln"><li>Runden außerhalb dieses Bereichs zählen nicht. Leer lassen, wenn die Temperatur egal ist.</li><li>Runden mit Regen oder nasser Strecke zählen nie.</li><li>Sind oben Streckenzustand oder Lufttemperatur vorgegeben, zählen nur Runden mit genau diesem Gummi-Stand und höchstens einem Grad Abweichung bei der Luft.</li><li>Nur Runden mit dem in der Season gemeldeten Auto und auf den Strecken oben zählen.</li><li>Das Setup lässt sich nicht prüfen.</li></ul>`, "Diese Regeln wendet die Website selbst auf die Runden aus Garage 61 an.")}
       ${formLeiste("Einrichtung speichern")}
     </form>`;
   }

@@ -400,7 +400,7 @@
       return `<li class="fb-sicht-zeile"><div><b>${esc(s.name)}</b><small>${x.laeuft ? `Noch kein gültiger Versuch mit ${x.runden} sauberen Runden am Stück.` : "Noch keine Runden."}</small></div><span class="fb-status">Offen</span></li>`;
     };
     return `<section class="fb-panel"><div class="fb-fall-kopf"><h3>${esc(x.name)}: Sichtung</h3>${status}</div>
-      <p class="fb-klein">Deine Klasse bestimmt die Sichtung. Bau den Server aus dem Steckbrief als Offline-Testfahrt in iRacing nach und fahr ${x.runden} saubere Runden am Stück${x.mitAuto && x.modell ? ` mit deinem ${esc(x.modell)}` : ""}. In- und Outlaps zählen nicht. Garage 61 sammelt deine Runden, wenn du im Team der Liga bist.</p>
+      <p class="fb-klein">Deine Klasse bestimmt die Sichtung. Bau den Server aus dem Steckbrief als Offline-Testfahrt in iRacing nach und fahr ${x.runden} saubere Runden am Stück${x.mitAuto && x.modell ? ` mit deinem ${esc(x.modell)}` : ""}. In- und Outlaps zählen nicht, ebenso Runden mit anderem Streckenzustand, anderer Temperatur oder Regen. Garage 61 sammelt deine Runden, wenn du im Team der Liga bist.</p>
       <p class="fb-klein"><a href="${esc(x.teamLink)}" target="_blank" rel="noopener">Dem Garage-61-Team der Liga beitreten</a> · Beitritt mit Freigabe durch die Rennleitung. Dein Name in Garage 61 muss zu deinem iRacing-Namen im Profil passen (${esc(x.iracingName || "–")}).</p>
       <dl class="fb-fakten">${fakten.filter(([, w]) => w).map(([t, w]) => `<div><dt>${esc(t)}</dt><dd>${esc(w)}</dd></div>`).join("")}</dl>
       ${x.fehler ? `<p class="fb-meldung">${esc(x.fehler)}</p>` : ""}
