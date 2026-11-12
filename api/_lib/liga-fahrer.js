@@ -273,6 +273,15 @@ module.exports = async (req, res) => {
   let profil = profilVorher;
   let alle = alleVorher;
   const extra = {};
+  // Klick auf „Team beitreten“ in der Sichtung: Meldung an die Rennleitung, die Seite wird dafür nicht neu aufgebaut.
+  if (body.aktion === "sichtung-team") {
+    const serie = sichtungSerien(kat, alle, s.id).find((x) => x.id === body.serie);
+    if (!serie) return res.status(200).json({ ok: false });
+    const name = (profil && profil.iracingName) || s.name;
+    const imTeam = await Sichtung.teamMitglieder().then((m) => m.some((x) => Sichtung.namensKern(x.name) === Sichtung.namensKern(name)), () => false);
+    if (!imTeam && (await Sichtung.teamAnfrageMerken(serie, s.id, name))) await R.teamMelden(Sichtung.teamAnfrageKarte(serie, name)).catch(() => {});
+    return res.status(200).json({ ok: true });
+  }
   if (body.aktion === "profil") {
     profil = await profilSpeichern(s, profil, body.profil);
   } else if (body.aktion === "nummer-gelesen") {

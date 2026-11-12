@@ -643,6 +643,13 @@ const tests = {
       // Vorschlag nur aus Abgaben
       const v = S.vorschlag({ ...serie, klassen: [{ id: "pro", name: "Pro", min: 2500, max: null }, { id: "am", name: "Am", min: 0, max: 2499 }], sichtungGrenzen: [102] }, [{ discordId: "11", cust: "501", name: "Anna", irating: 1000 }, { discordId: "12", cust: "502", name: "Ben", irating: 3000 }], await S.lesenAlle("gt3"));
       assert.deepStrictEqual(v.fahrer.map((f) => [f.cust, f.vorschlag, f.nachIrating]), [["501", "pro", "am"], ["502", "", "pro"]]);
+      // Klick auf „Team beitreten“ wird nur einmal gemeldet und lässt die Abgaben stehen
+      assert.strictEqual(await S.teamAnfrageMerken(serie, "11", "Anna", mitte), true);
+      assert.strictEqual(await S.teamAnfrageMerken(serie, "11", "Anna", mitte + 1000), false);
+      assert.strictEqual(await S.teamAnfrageMerken(serie, "13", "Cem", mitte), true, "Auch ohne bisherige Datei");
+      const nachher = await S.lesenAlle("gt3");
+      assert.deepStrictEqual([nachher.get("11").teamAnfrage, nachher.get("11").abgaben.spa.wert], [new Date(mitte).toISOString(), 130]);
+      assert.deepStrictEqual(S.teamAnfrageKarte(serie, "Anna").fields.map((f) => f.value), ["Anna", "GT3", "Anna"]);
       await S.derSerieLoeschen("gt3");
       assert.strictEqual((await S.lesenAlle("gt3")).size, 0);
     } finally { a.ende(); }
