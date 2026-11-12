@@ -13,7 +13,7 @@
   const eintrag = (href, text, aktiv, klasse) => `<a href="${esc(href)}" class="${klasse || ""}"${aktiv ? ' aria-current="page"' : ""}>${esc(text)}</a>`;
 
   const STATUS = { anmeldung: "Anmeldung offen", laeuft: "Läuft", geplant: "Geplant", beendet: "Beendet" };
-  // Seasons und Events stehen je in einem Aufklappmenü, damit die Leiste auch mit vielen Serien übersichtlich bleibt.
+  // Ligen (Seasons) und Events stehen je in einem Aufklappmenü, damit die Leiste auch mit vielen Serien übersichtlich bleibt.
   function menue(titel, liste, event) {
     if (!liste.length) return "";
     const aktiv = liste.find((s) => s.id === aktuelleSerie);
@@ -27,7 +27,7 @@
     nav.innerHTML = `<div class="wrap">
       ${eintrag("/liga", "Übersicht", pfad === "/liga" && !aktuelleSerie)}
       ${eintrag("/regelwerk", "Regelwerk", pfad === "/regelwerk", "liga-nav-regeln")}
-      ${menue("Seasons", sichtbar.filter((s) => s.typ !== "event"), false)}
+      ${menue("Ligen",sichtbar.filter((s) => s.typ !== "event"), false)}
       ${menue("Events", sichtbar.filter((s) => s.typ === "event"), true)}
     </div>`;
     konto.innerHTML = `${eintrag("/fahrerbereich", "Fahrerbereich", pfad === "/fahrerbereich", "haupt")}
