@@ -550,10 +550,6 @@ a.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--paper
 .liga-band:focus-visible{outline:2px solid #fff;outline-offset:-4px}
 /* Streifen über dem Inhalt: Übertragung am Renntag oder Aufruf für Broadcaster */
 .liga-stream{display:block;position:relative;z-index:2;border-bottom:1px solid var(--scan);background:linear-gradient(90deg,rgba(211,18,27,.16),rgba(21,25,28,.55) 65%);color:var(--ink);text-decoration:none;font-size:.9rem}
-/* Beispiel-Liga (?demo): fester Hinweis ganz oben */
-.liga-demo-streifen{position:relative;z-index:60;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 14px;padding:8px 16px;background:repeating-linear-gradient(135deg,#f2b705 0 14px,#e0a800 14px 28px);color:#111;font-size:.88rem;text-align:center}
-.liga-demo-streifen b{text-transform:uppercase;letter-spacing:.08em}
-.liga-demo-streifen a{color:#111;font-weight:700;text-decoration:underline}
 .liga-stream .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding-block:10px}
 .liga-stream b{font:800 .78rem/1 var(--f-wide);font-variation-settings:"wdth" 110;text-transform:uppercase;letter-spacing:.04em}
 .liga-stream span{color:#c4cbc8}
