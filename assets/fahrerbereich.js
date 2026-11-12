@@ -381,7 +381,7 @@
   const WERTUNG = { beste: "beste Runde", schnitt: "Durchschnitt der sauberen Runden" };
   // Gemessene Bedingungen eines Versuchs, etwa „Strecke 21,6–23,6 °C · Luft 18,9 °C · Gummi 56–58 %“
   const spanne = (w, e) => `${String(w[0]).replace(".", ",")}${w[1] !== w[0] ? `–${String(w[1]).replace(".", ",")}` : ""} ${e}`;
-  const messText = (b) => (b ? ` · Gemessen: ${[b.strecke && `Strecke ${spanne(b.strecke, "°C")}`, b.luft && `Luft ${spanne(b.luft, "°C")}`, b.gummiStart ? `Gummi beim Start ${spanne(b.gummiStart, "%")}` : b.gummi && `Gummi ${spanne(b.gummi, "%")}`, b.tank && `Tank beim Start ${spanne(b.tank, "l")}`].filter(Boolean).join(", ")}` : "");
+  const messText = (b) => (b ? ` · Gemessen: ${[b.strecke && `Strecke ${spanne(b.strecke, "°C")}`, b.luft && `Luft ${spanne(b.luft, "°C")}`, b.gummiStart ? `Track State beim Start ${spanne(b.gummiStart, "%")}` : b.gummi && `Track State ${spanne(b.gummi, "%")}`, b.tank && `Tank beim Start ${spanne(b.tank, "l")}`].filter(Boolean).join(", ")}` : "");
   async function sichtungLaden() {
     sichtungDaten = { laedt: true, liste: sichtungDaten ? sichtungDaten.liste : null };
     zeichne();
@@ -397,7 +397,7 @@
   function sichtungKarte(x) {
     const b = x.steckbrief || {};
     const temp = x.tempMin !== null || x.tempMax !== null ? `Strecke ${x.tempMin ?? "?"} bis ${x.tempMax ?? "?"} °C` : "";
-    const fakten = [["Zeitraum", x.von && x.bis ? `${tagText(x.von)} bis ${tagText(x.bis)}` : "wird noch bekannt gegeben"], ["Gültig", `${x.runden} saubere Runden am Stück`], ["Gewertet", WERTUNG[x.wertung] || WERTUNG.beste], ["Dein Auto", x.mitAuto ? x.modell || "noch nicht gewählt" : ""], ["Uhrzeit", b.uhrzeit], ["Wetter", b.wetter], ["Streckenzustand", b.zustand], ["Setup", b.setup], ["Temperatur", [b.temperatur, temp].filter(Boolean).join(", ")], ["Tank beim Start", x.tankMin ? `mindestens ${x.tankMin} Liter` : ""]];
+    const fakten = [["Zeitraum", x.von && x.bis ? `${tagText(x.von)} bis ${tagText(x.bis)}` : "wird noch bekannt gegeben"], ["Gültig", `${x.runden} saubere Runden am Stück`], ["Gewertet", WERTUNG[x.wertung] || WERTUNG.beste], ["Dein Auto", x.mitAuto ? x.modell || "noch nicht gewählt" : ""], ["Uhrzeit", b.uhrzeit], ["Wetter", b.wetter], ["Track State (freiwillig)", b.zustand], ["Setup", b.setup], ["Temperatur", [b.temperatur, temp].filter(Boolean).join(", ")], ["Tank beim Start", x.tankMin ? `mindestens ${x.tankMin} Liter` : ""]];
     const status = x.laeuft ? '<span class="fb-status starter">Läuft</span>' : x.vorbei ? '<span class="fb-status geschlossen">Vorbei</span>' : '<span class="fb-status warteliste">Noch nicht begonnen</span>';
     const zeile = (s) => {
       if (s.abgabe) return `<li class="fb-sicht-zeile fertig"><div><b>${esc(s.name)}</b><small>Abgegeben: ${rundenzeit(s.abgabe.wert)}${s.abgabe.wertung === "schnitt" ? " im Schnitt" : ""} · Runden ${s.abgabe.runden.map(rundenzeit).join(", ")}${esc(messText(s.abgabe.bedingungen))}</small></div><span class="fb-status starter">Eingefroren</span></li>`;
