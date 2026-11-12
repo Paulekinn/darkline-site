@@ -22,14 +22,22 @@ const reportStunden = (serie) => (serie && Number.isFinite(serie.reportStunden) 
 const einspruchStunden = (serie) => (serie && Number.isFinite(serie.einspruchStunden) ? serie.einspruchStunden : EINSPRUCH_STUNDEN);
 
 /* ---------- Prüfungen ---------- */
+// In welcher Session der Vorfall war. Fahrer sollen sich in jeder Phase des Events fair verhalten.
+const SESSIONEN = { training: "Training", qualifying: "Qualifying", rennen: "Rennen" };
+// Ort eines Vorfalls als eine Zeile, auch für ältere Reports ohne Session und Zeitstempel
+const vorfallOrt = (r) => [SESSIONEN[r.session], r.zeitstempel && `Replay ${r.zeitstempel}`, r.stelle].filter(Boolean).join(" · ");
 function pruefeMeldung(e) {
   const beschreibung = text(e.beschreibung, 2000);
   const stelle = text(e.stelle, 120);
   const clip = text(e.clip, 300);
-  if (stelle.length < 2) throw new Hinweis("Bitte gib an, wann und wo es passiert ist, zum Beispiel Runde 5, Kurve 3.");
+  // Zeit im Replay, damit die Rennleitung die Stelle direkt findet: 12:34 oder 1:12:34
+  const zeitstempel = text(e.zeitstempel, 10).replace(/\./g, ":");
+  if (!SESSIONEN[e.session]) throw new Hinweis("Bitte wähle, ob es im Training, im Qualifying oder im Rennen passiert ist.");
+  if (!/^\d{1,2}:\d{2}(:\d{2})?$/.test(zeitstempel)) throw new Hinweis("Bitte gib die Zeit im Replay an, zum Beispiel 12:34 oder 1:12:34.");
+  if (stelle.length < 2) throw new Hinweis("Bitte gib an, wo es passiert ist, zum Beispiel Runde 5, Kurve 3.");
   if (beschreibung.length < 10) throw new Hinweis("Bitte beschreibe den Vorfall in mindestens einem Satz.");
   if (clip && !/^https:\/\/[^\s]+$/.test(clip)) throw new Hinweis("Bitte gib beim Clip einen vollständigen Link an, der mit https:// beginnt.");
-  return { stelle, beschreibung, clip };
+  return { session: e.session, zeitstempel, stelle, beschreibung, clip };
 }
 
 function pruefeUrteil(e) {
@@ -160,7 +168,7 @@ function sichtFahrer(report, einsprueche, discordId, jetzt, serie) {
   const urteil = report.urteil ? { art: report.urteil.art, punkte: report.urteil.punkte, sekunden: report.urteil.sekunden, begruendung: report.urteil.begruendung, zeit: report.urteil.zeit } : null;
   return {
     id: report.id, rennenTitel: report.rennenTitel, serieName: report.serieName, serieFarbe: report.serieFarbe, start: report.start, erstellt: report.erstellt,
-    von: report.von.name, gegen: report.gegen.name, stelle: report.stelle, beschreibung: report.beschreibung, clip: report.clip, status: report.status, urteil,
+    von: report.von.name, gegen: report.gegen.name, stelle: report.stelle, session: report.session || "", zeitstempel: report.zeitstempel || "", ort: vorfallOrt(report), beschreibung: report.beschreibung, clip: report.clip, status: report.status, urteil,
     endgueltig: !!report.endgueltig, beteiligt: beteiligt(report, discordId), rolle: report.von.discordId === discordId ? "melder" : report.gegen.discordId === discordId ? "gemeldet" : "",
     meinEinspruch: eigene[0] ? eigene[0].text : "",
     einspruchFrist: report.urteil ? new Date(frist).toISOString() : "",
@@ -240,7 +248,7 @@ const kuerzen = (t, max) => { const s = String(t || "").trim(); return s.length 
 
 // Karte für den internen Kanal. beispiel kennzeichnet eine Testnachricht deutlich.
 function reportKarte(d, beispiel) {
-  const felder = [["Serie", d.serie], ["Rennen", d.rennen], ["Stelle", d.stelle], ["Melder", d.von], ["Gemeldet", d.gegen]].map(([name, wert]) => ({ name, value: feldWert(wert), inline: true }));
+  const felder = [["Serie", d.serie], ["Rennen", d.rennen], ["Session", SESSIONEN[d.session] || ""], ["Zeit im Replay", d.zeitstempel], ["Stelle", d.stelle], ["Melder", d.von], ["Gemeldet", d.gegen]].filter(([name, wert]) => wert || !["Session", "Zeit im Replay"].includes(name)).map(([name, wert]) => ({ name, value: feldWert(wert), inline: true }));
   if (d.clip) felder.push({ name: "Clip", value: feldWert(d.clip), inline: false });
   return { title: beispiel ? "Beispiel: Neuer Report" : "Neuer Report", url: ADMIN_LINK, color: FARBE_REPORT, description: kuerzen(d.beschreibung, 500), fields: felder, ...(beispiel ? { footer: { text: "Nur ein Test der Rennleitung, kein echter Report." } } : {}) };
 }
@@ -336,4 +344,4 @@ async function discordMelden(report, urteil, vorher) {
   }
 }
 
-module.exports = { cooldownBis, ergebnisStand, staendeSetzen, pruefeStimme, stimmeSetzen, mehrheit, stimmenSicht, rennKontext, reportKarte, einspruchKarte, teamMelden, webhooksTesten, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, aendern, einspruchSpeichern, neueId, discordMelden, urteilKarte };
+module.exports = { SESSIONEN, vorfallOrt, cooldownBis, ergebnisStand, staendeSetzen, pruefeStimme, stimmeSetzen, mehrheit, stimmenSicht, rennKontext, reportKarte, einspruchKarte, teamMelden, webhooksTesten, fahrerAkte, stand, derSerieLoeschen, MAX_JE_RENNEN, pruefeMeldung, pruefeUrteil, istStrafend, urteilAnwenden, beteiligt, meldbareRennen, sichtFahrer, einspruchStunden, alleReports, lesen, speichern, aendern, einspruchSpeichern, neueId, discordMelden, urteilKarte };

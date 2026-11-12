@@ -396,7 +396,7 @@ const aktionen = {
   },
   // Testet alle drei Webhooks: Reports, Renntag und Urteile.
   async "discord-test"(b, kat, s) {
-    const beispiel = R.reportKarte({ serie: "GT3 Sprint", rennen: "Runde 3 · Spa", stelle: "Runde 5, Kurve 3", von: "Max Beispiel", gegen: "Tom Muster", beschreibung: `Beim Anbremsen auf Kurve 3 wurde ich von hinten getroffen und habe mich gedreht. Ausgelöst von ${s.name} über den Knopf „Discord testen“.`, clip: "https://www.twitch.tv/videos/beispiel" }, true);
+    const beispiel = R.reportKarte({ serie: "GT3 Sprint", rennen: "Runde 3 · Spa", session: "rennen", zeitstempel: "24:17", stelle: "Runde 5, Kurve 3", von: "Max Beispiel", gegen: "Tom Muster", beschreibung: `Beim Anbremsen auf Kurve 3 wurde ich von hinten getroffen und habe mich gedreht. Ausgelöst von ${s.name} über den Knopf „Discord testen“.`, clip: "https://www.twitch.tv/videos/beispiel" }, true);
     // Beispiel wie ein normaler Renntag: Serverstart heute 18:00 Uhr nach Berliner Zeit.
     const start = A.berlinNachUtc(new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" }).format(new Date()), "18:00");
     const renntag = Renntag.erinnerungKarte({

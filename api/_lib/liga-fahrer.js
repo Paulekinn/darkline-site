@@ -111,7 +111,7 @@ async function reportMelden(s, profil, body, alle, kat) {
     gegen: { discordId: gegner.discordId, name: gegner.name, cust: gegnerProfil ? gegnerProfil.custId : "" },
     ...daten, status: "offen", notizen: "", urteil: null, endgueltig: false,
   });
-  await R.teamMelden(R.reportKarte({ serie: stand.serieName, rennen: stand.titel, stelle: daten.stelle, von: profil.iracingName, gegen: gegner.name, beschreibung: daten.beschreibung, clip: daten.clip }));
+  await R.teamMelden(R.reportKarte({ serie: stand.serieName, rennen: stand.titel, session: daten.session, zeitstempel: daten.zeitstempel, stelle: daten.stelle, von: profil.iracingName, gegen: gegner.name, beschreibung: daten.beschreibung, clip: daten.clip }));
 }
 
 async function reportEinspruch(s, profil, body, kat) {

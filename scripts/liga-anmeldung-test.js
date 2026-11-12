@@ -1378,10 +1378,18 @@ const tests = {
     assert.throws(() => D.pruefeBild(`data:image/jpeg;base64,${gross.toString("base64")}`), /zu groß/);
   },
   "Report wird geprüft": () => {
-    assert.deepStrictEqual(R.pruefeMeldung({ stelle: "Runde 5, T3", beschreibung: "Er hat mich gedreht.", clip: "" }), { stelle: "Runde 5, T3", beschreibung: "Er hat mich gedreht.", clip: "" });
-    assert.throws(() => R.pruefeMeldung({ stelle: "", beschreibung: "Er hat mich gedreht." }), /wann und wo/);
-    assert.throws(() => R.pruefeMeldung({ stelle: "R5", beschreibung: "kurz" }), /Satz/);
-    assert.throws(() => R.pruefeMeldung({ stelle: "R5", beschreibung: "Er hat mich gedreht.", clip: "javascript:alert(1)" }), /https/);
+    const m = { session: "rennen", zeitstempel: "12:34", stelle: "Runde 5, T3", beschreibung: "Er hat mich gedreht." };
+    assert.deepStrictEqual(R.pruefeMeldung({ ...m, clip: "" }), { ...m, clip: "" }, "Clip ist freiwillig");
+    assert.strictEqual(R.pruefeMeldung({ ...m, session: "qualifying", zeitstempel: "1.12.34" }).zeitstempel, "1:12:34", "Punkt statt Doppelpunkt geht auch");
+    assert.throws(() => R.pruefeMeldung({ ...m, session: "" }), /Training, im Qualifying oder im Rennen/);
+    assert.throws(() => R.pruefeMeldung({ ...m, zeitstempel: "" }), /Zeit im Replay/);
+    assert.throws(() => R.pruefeMeldung({ ...m, zeitstempel: "Runde 5" }), /Zeit im Replay/);
+    assert.throws(() => R.pruefeMeldung({ ...m, stelle: "" }), /wo es passiert/);
+    assert.throws(() => R.pruefeMeldung({ ...m, beschreibung: "kurz" }), /Satz/);
+    assert.throws(() => R.pruefeMeldung({ ...m, clip: "javascript:alert(1)" }), /https/);
+    assert.strictEqual(R.vorfallOrt({ ...m }), "Rennen · Replay 12:34 · Runde 5, T3");
+    assert.strictEqual(R.vorfallOrt({ stelle: "Runde 5" }), "Runde 5", "Ältere Reports ohne Session");
+    assert.deepStrictEqual(R.reportKarte({ serie: "GT3", rennen: "R1", ...m, von: "A", gegen: "B" }).fields.map((f) => f.name), ["Serie", "Rennen", "Session", "Zeit im Replay", "Stelle", "Melder", "Gemeldet"]);
   },
   "Urteil wird geprüft": () => {
     assert.strictEqual(R.pruefeUrteil({ art: "zeitstrafe", sekunden: "5", begruendung: "Kollision" }).sekunden, 5);
