@@ -73,7 +73,7 @@
 .fb-schritte li::before{content:counter(schritt);position:absolute;left:14px;top:12px;display:grid;place-items:center;width:28px;height:28px;background:var(--red);color:#fff;font:900 .95rem/1 var(--f-wide);transform:skewX(-8deg)}
 .fb-schritte b{font:900 .9rem/1.2 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase}
 .fb-schritte span{font-size:.84rem;line-height:1.45;color:var(--muted)}
-.fb-schritte .fb-knopf{align-self:flex-start;margin-top:4px;padding:11px 16px;font-size:.78rem;text-decoration:none}
+.fb-schritte .fb-team-knopf{align-self:flex-start;margin-top:auto;padding:8px 14px;font-size:.7rem;white-space:nowrap;text-decoration:none}
 .fb-schritte li:first-child{border-color:rgba(211,18,27,.6);box-shadow:0 0 16px rgba(211,18,27,.25)}
 .fb-sicht-kopf{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 16px;margin-top:8px}
 .fb-sicht-kopf .fb-zwischen{margin:0}
