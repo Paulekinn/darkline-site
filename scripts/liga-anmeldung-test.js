@@ -604,7 +604,7 @@ const tests = {
     const gummiRunden = (session, start) => [0, 1, 2, 3].map((n) => runde(anna, n, n ? 129 + session : 200, spa, "BMW M4 GT4", { session, pitOut: n === 0, trackUsage: start + n * 4, startTime: `2026-12-05T18:0${n}:00Z` }));
     const gummiSerie = { ...serie, sichtungSteckbrief: { zustand: "60 %" } };
     const gummiAus = S.auswerten(gummiSerie, [{ id: "g", startedAt: "2026-12-05T18:00:00Z", laps: [...gummiRunden(1, 45), ...gummiRunden(2, 58)] }], fahrer, {}).versuche.get("1").spa;
-    assert.deepStrictEqual([gummiAus.wert, gummiAus.bedingungen.gummiStart], [131, [58, 58]], "Session mit 45 % Gummi zählt nicht, 58 % liegt im Spielraum");
+    assert.deepStrictEqual([gummiAus.wert, gummiAus.bedingungen.gummiStart], [130, [45, 45]], "Gummi wird nur gemessen, nicht geprüft: die schnellere Session mit 45 % zählt");
     // Ohne gültigen Versuch sagt die Auswertung warum
     const kurz = [0, 1, 2, 3, 4].map((n) => runde(ben, n, 140, spa, "BMW M4 GT4", { pitOut: n === 0, offtrack: n === 2, airTemp: 25 }));
     const diag = S.auswerten({ ...serie, sichtungRunden: 3, sichtungSteckbrief: { temperatur: "22 °C" } }, [{ id: "k", startedAt: "2026-12-05T18:00:00Z", laps: kurz }], fahrer, {}).hinweise.get("2").spa;

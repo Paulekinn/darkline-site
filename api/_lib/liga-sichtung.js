@@ -44,6 +44,7 @@ function zustandVorgabe(serie) {
   return m ? Number(m[1]) : null;
 }
 const GUMMI_SPIELRAUM = 3;
+const GUMMI_PRUEFEN = false; // abgeschaltet, siehe auswerten()
 // Lufttemperatur aus dem Steckbrief, etwa „22 °C“. Garage 61 liefert Zehntel, iRacing rechnet intern in Fahrenheit: ein Grad Spielraum.
 function luftVorgabe(serie) {
   const m = /(-?\d+)\s*°?\s*C/.exec(((serie.sichtungSteckbrief || {}).temperatur) || "");
@@ -193,9 +194,10 @@ function auswerten(serie, events, fahrer, zuordnung, mitAuto = (serie.modelle ||
       // Mindest-Tank: Startet der Stint mit weniger Sprit, zählt keine Runde daraus. Ohne Tankwert wird nicht geprüft.
       const tank = (stintStart.get(stintKennung(l)) || {}).tank;
       const tankOk = !(serie.sichtungTankMin > 0) || tank === undefined || tank >= serie.sichtungTankMin;
-      // Streckenzustand: Gummi beim Start der Session höchstens 3 Prozentpunkte neben der Vorgabe. Ohne Messwert wird nicht geprüft.
+// Streckenzustand: Garage 61 meldet den Gummi nicht im Maßstab der iRacing-Einstellung (12.11.2026: eingestellt 50 %, gemeldet 57 % in der ersten Runde).
+      // Bis das geklärt ist, wird nur der gemessene Wert beim Start gezeigt und nicht geprüft.
       const gummiStart = (sessionStart.get(kennung(l.session)) || {}).gummi;
-      const gummiOk = gummiVorgabe === null || gummiStart === undefined || Math.abs(gummiStart - gummiVorgabe) <= GUMMI_SPIELRAUM;
+      const gummiOk = !GUMMI_PRUEFEN || gummiVorgabe === null || gummiStart === undefined || Math.abs(gummiStart - gummiVorgabe) <= GUMMI_SPIELRAUM;
       // Erster Grund, warum die Runde nicht zählt. In- und Outlap sind normal und bekommen keinen eigenen Grund.
       const box = !!(l.pitIn || l.pitOut);
       const grund = box ? "box" : !autoOk ? "auto" : !tankOk ? "tank" : !gummiOk ? "gummi" : bedingungenGrund(l, serie) || (!sauber(l) ? "unsauber" : "");
