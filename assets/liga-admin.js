@@ -821,7 +821,13 @@
   // „Circuit de Spa-Francorchamps · Grand Prix“ → „Spa-Francorchamps“, damit drei Strecken nebeneinander passen
   const kurzerStreckenname = (s) => { const n = s.split(" · ")[0].replace(/^(Circuit de |Circuit |Autodromo Nazionale |Autodromo Internazionale |Autodromo |Autódromo |Circuito de |Circuito )/i, "").replace(/ (Circuit|Raceway|Speedway|Motorsport Park)$/i, ""); return n.length > 16 ? `${n.slice(0, 15)}…` : n; };
   const WERTUNG = { beste: "Beste Runde", schnitt: "Durchschnitt der sauberen Runden" };
-  const STECKBRIEF = [["uhrzeit", "Uhrzeit", "z. B. 14:00 Uhr"], ["wetter", "Wetter", "z. B. klar, statisch"], ["zustand", "Streckenzustand", "z. B. 50 % Gummi, keine Murmeln"], ["setup", "Setup", "z. B. iRacing-Standard (fest)"], ["temperatur", "Temperaturbereich", "z. B. Luft 22 °C"]];
+  const STECKBRIEF = [
+    ["uhrzeit", "Uhrzeit", "z. B. 14:00 Uhr", "Tageszeit in der Testfahrt"],
+    ["wetter", "Wetter", "z. B. klar, statisch", "Wetter-Einstellung, am besten statisch"],
+    ["zustand", "Streckenzustand", "z. B. Gummi automatisch", "Gummi und Murmeln auf der Strecke"],
+    ["setup", "Setup", "z. B. iRacing-Standard", "Welches Setup gefahren wird"],
+    ["temperatur", "Lufttemperatur", "z. B. 22 °C", "Als Hinweis, geprüft wird die Streckentemperatur unten"],
+  ];
 
   // Liest das Einrichtungsformular. Leere Streckenzeilen bleiben für die Anzeige stehen, der Server ignoriert sie.
   function sichtungAusFormular(f) {
@@ -856,19 +862,19 @@
     const zeile = (s) => `<div class="a-sicht-strecke"><select name="sb_bib" aria-label="Strecke aus der Bibliothek"><option value="">– aus der Bibliothek –</option>${bib.map((x) => `<option value="${esc(x.id)}"${x.id === s.bib ? " selected" : ""}>${esc(streckeLabel(x))}</option>`).join("")}</select><input name="sb_ir" type="number" min="1" value="${esc(s.iracing ?? "")}" placeholder="iRacing-ID" aria-label="iRacing-Strecken-ID"><input name="sb_name" value="${esc(s.bib ? "" : s.name || "")}" maxlength="80" placeholder="Name (nur ohne Bibliothek)" aria-label="Name der Strecke"></div>`;
     return `<form class="a-karte a-form" id="f-sichtung" novalidate>
       <div class="a-kartenkopf"><h2>Sichtung einrichten: ${esc(serie.name)}</h2></div>
-      ${abschnittForm(1, "Zeitraum und Wertung", `<div class="a-felder">
-        ${feld("Sichtung ab", eingabe("sichtungVon", w.sichtungVon || "", 'type="date"'))}
-        ${feld("Sichtung bis (einschließlich)", eingabe("sichtungBis", w.sichtungBis || "", 'type="date"'))}
-        ${feld("Saubere Runden am Stück", eingabe("sichtungRunden", w.sichtungRunden ?? 7, 'type="number" min="1" max="50"'))}
+      ${abschnittForm(1, "Zeitraum und Wertung", `<div class="a-felder unten">
+        ${feld("Von", eingabe("sichtungVon", w.sichtungVon || "", 'type="date"'))}
+        ${feld("Bis (letzter Tag)", eingabe("sichtungBis", w.sichtungBis || "", 'type="date"'))}
+        ${feld("Runden am Stück", eingabe("sichtungRunden", w.sichtungRunden ?? 7, 'type="number" min="1" max="50"'))}
         ${feld("Wertung", auswahl("sichtungWertung", w.sichtungWertung || "beste", Object.entries(WERTUNG)))}
-        ${feld("Pace-Grenzen in % zum Schnellsten", eingabe("sichtungGrenzen", Array.isArray(w.sichtungGrenzen) ? w.sichtungGrenzen.join(" / ").replace(/\./g, ",") : w.sichtungGrenzen || "", 'placeholder="101,5 / 103" autocomplete="off"'))}
+        ${feld("Pace-Grenzen (%)", eingabe("sichtungGrenzen", Array.isArray(w.sichtungGrenzen) ? w.sichtungGrenzen.join(" / ").replace(/\./g, ",") : w.sichtungGrenzen || "", 'placeholder="101,5 / 103" autocomplete="off"'))}
       </div><p class="a-hinweis">Je eine Grenze zwischen zwei Klassen, von oben nach unten (${esc(serie.klassen.map((k) => k.name).join(", "))}). „101,5 / 103“ heißt: bis 101,5 % die oberste Klasse, bis 103 % die zweite, darüber die nächste. Leer lassen für die Standardwerte. Es zählt der Mittelwert über alle Strecken.</p>`)}
       ${abschnittForm(2, "Strecken", `<div class="a-spalte">${zeilen.map(zeile).join("")}</div><button type="button" class="a-knopf zweit klein" data-sicht-strecke-neu="1"${zeilen.length >= 5 ? " hidden" : ""}>Strecke hinzufügen</button>`, "Wähle die Strecke aus der Bibliothek (Import aus Garage 61). Fehlt sie dort, trag die iRacing-Strecken-ID und einen Namen ein. Leere Zeilen werden ignoriert.")}
-      ${abschnittForm(3, "Steckbrief für den Server", `<div class="a-felder">
-        ${STECKBRIEF.map(([k, t, p]) => feld(t, eingabe(`sb_${k}`, (w.sichtungSteckbrief || {})[k] || "", `maxlength="300" placeholder="${esc(p)}"`))).join("")}
-        ${feld("Streckentemperatur von (°C, leer = egal)", eingabe("sichtungTempMin", w.sichtungTempMin ?? "", 'type="number" min="-20" max="80"'))}
-        ${feld("Streckentemperatur bis (°C, leer = egal)", eingabe("sichtungTempMax", w.sichtungTempMax ?? "", 'type="number" min="-20" max="80"'))}
-      </div>`, "Die Fahrer sehen den Steckbrief im Fahrerbereich und bauen den Server als Offline-Testfahrt nach. Runden mit Regen, nasser Strecke oder einer Streckentemperatur außerhalb des Bereichs zählen nicht. Das Setup lässt sich nicht prüfen.")}
+      ${abschnittForm(3, "Server-Vorgaben für die Fahrer", `<div class="a-felder zwei">
+        ${STECKBRIEF.map(([k, t, p, hilfe]) => `<div class="a-feld"><label for="sb-${k}">${esc(t)}</label>${eingabe(`sb_${k}`, (w.sichtungSteckbrief || {})[k] || "", `id="sb-${k}" maxlength="300" placeholder="${esc(p)}"`)}<small class="a-hinweis">${esc(hilfe)}</small></div>`).join("")}
+      </div>`, "Diese Angaben sind nur Text: Die Fahrer lesen sie im Fahrerbereich und stellen damit in iRacing ihre Testfahrt ein. Alles leer lassen, was egal ist.")}
+      ${abschnittForm(4, "Automatische Prüfung der Runden", `<div class="a-feld"><label for="sb-temp-von">Streckentemperatur in °C</label><div class="a-bereich">${eingabe("sichtungTempMin", w.sichtungTempMin ?? "", 'id="sb-temp-von" type="number" min="-20" max="80" placeholder="von" aria-label="Streckentemperatur von"')}<span>bis</span>${eingabe("sichtungTempMax", w.sichtungTempMax ?? "", 'type="number" min="-20" max="80" placeholder="bis" aria-label="Streckentemperatur bis"')}</div></div>
+        <ul class="a-regeln"><li>Runden außerhalb dieses Bereichs zählen nicht. Leer lassen, wenn die Temperatur egal ist.</li><li>Runden mit Regen oder nasser Strecke zählen nie.</li><li>Nur Runden mit dem in der Season gemeldeten Auto und auf den Strecken oben zählen.</li><li>Das Setup lässt sich nicht prüfen.</li></ul>`, "Diese Regeln wendet die Website selbst auf die Runden aus Garage 61 an.")}
       ${formLeiste("Einrichtung speichern")}
     </form>`;
   }
