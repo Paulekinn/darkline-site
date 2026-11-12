@@ -558,6 +558,16 @@ const tests = {
     assert.strictEqual(S.bedingungenOk({ trackTemp: 31 }, serie), false, "Zu heiß");
     assert.strictEqual(S.bedingungenOk({ trackTemp: 25, precipitation: 0.2 }, serie), false, "Regen");
     assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackWetness: 3 }, serie), false, "Nasse Strecke");
+    // Streckenzustand und Lufttemperatur aus den Vorgaben
+    const vorgabe = { ...serie, sichtungSteckbrief: { zustand: "Mittel (Moderate Usage)", temperatur: "22 °C" } };
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: "Moderate Usage", airTemp: 22.4 }, vorgabe), true);
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: "MODERATE_USAGE", airTemp: 21.1 }, vorgabe), true, "Schreibweise und ein Grad Spielraum");
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: "high usage" }, vorgabe), false, "Anderer Gummi-Stand");
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: 3 }, vorgabe), true, "Als Zahl: Stufe 3 ist Moderate Usage");
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: 5 }, vorgabe), false);
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: 47.5 }, vorgabe), true, "Unbekanntes Format wird nicht geprüft");
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, airTemp: 25 }, vorgabe), false, "Zu warme Luft");
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: "high usage", airTemp: 30 }, serie), true, "Ohne Vorgabe keine Prüfung");
   },
   "Sichtung: Auswertung aus Garage 61 nach Strecke, Zeitraum, Auto und Name": () => {
     const S = require("../api/_lib/liga-sichtung");
