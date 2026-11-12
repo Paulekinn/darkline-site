@@ -442,9 +442,11 @@
     return `<form class="fb-profil" id="fb-report" novalidate>
       <div class="fb-feld"><label for="r-rennen">Rennen</label><select id="r-rennen" name="rennen">${liste.map((r) => `<option value="${esc(r.id)}"${r === rennen ? " selected" : ""}>${esc(r.titel)}</option>`).join("")}</select></div>
       <div class="fb-feld"><label for="r-gegen">Beteiligter Fahrer</label><select id="r-gegen" name="gegen">${gegnerOptionen(rennen, w.gegen)}</select></div>
-      <div class="fb-feld"><label for="r-stelle">Wann und wo</label><input id="r-stelle" name="stelle" maxlength="120" placeholder="Runde 5, Kurve 3" value="${esc(w.stelle || "")}"></div>
+      <div class="fb-feld"><label for="r-session">Session</label><select id="r-session" name="session"><option value="">Wann ist es passiert?</option>${[["training", "Training"], ["qualifying", "Qualifying"], ["rennen", "Rennen"]].map(([v, t]) => `<option value="${v}"${w.session === v ? " selected" : ""}>${t}</option>`).join("")}</select></div>
+      <div class="fb-feld"><label for="r-zeit">Zeit im Replay</label><input id="r-zeit" name="zeitstempel" maxlength="10" inputmode="numeric" placeholder="z. B. 12:34 oder 1:12:34" value="${esc(w.zeitstempel || "")}"></div>
+      <div class="fb-feld"><label for="r-stelle">Wo genau</label><input id="r-stelle" name="stelle" maxlength="120" placeholder="Runde 5, Kurve 3" value="${esc(w.stelle || "")}"></div>
       <div class="fb-feld"><label for="r-text">Was ist passiert?</label><textarea id="r-text" name="beschreibung" maxlength="2000" rows="4">${esc(w.beschreibung || "")}</textarea></div>
-      <div class="fb-feld"><label for="r-clip">Clip-Link (optional)</label><input id="r-clip" name="clip" maxlength="300" placeholder="https://" value="${esc(w.clip || "")}"></div>
+      <div class="fb-feld"><label for="r-clip">Clip-Link (freiwillig)</label><input id="r-clip" name="clip" maxlength="300" placeholder="https://" value="${esc(w.clip || "")}"><small class="fb-klein">Kein Clip? Kein Problem, die Rennleitung schaut mit Session und Zeit im Replay nach.</small></div>
       <div class="fb-profil-fuss"><button type="submit" class="fb-knopf">Report einreichen</button><p>Melden kannst du bis ${esc(datum(rennen.frist))}, ${esc(uhr(rennen.frist))}. Der gemeldete Fahrer sieht, dass der Report von dir kommt.</p></div>
     </form>`;
   }
@@ -457,7 +459,7 @@
       ? `<p class="fb-klein">${r.endgueltig ? "Dein Einspruch wurde geprüft." : "Dein Einspruch liegt der Rennleitung vor."}</p>`
       : r.kannEinspruch ? `<details class="fb-einspruch-box"><summary>Einspruch einlegen</summary><form class="fb-einspruch" data-id="${esc(r.id)}"><label for="e-${esc(r.id)}" class="fb-klein">Einmal möglich, bis ${esc(datum(r.einspruchFrist))}, ${esc(uhr(r.einspruchFrist))}.</label><textarea id="e-${esc(r.id)}" name="text" maxlength="2000" rows="3"></textarea><button type="submit" class="fb-knopf">Einspruch senden</button></form></details>` : "";
     return `<article class="fb-fall ${farbe(r.serieFarbe)}">
-      <div class="fb-fall-kopf"><div><h3>${esc(r.rennenTitel)}</h3><p class="fb-klein">${esc(r.von)} meldet ${esc(r.gegen)} · ${esc(r.stelle)}</p></div>${status}</div>
+      <div class="fb-fall-kopf"><div><h3>${esc(r.rennenTitel)}</h3><p class="fb-klein">${esc(r.von)} meldet ${esc(r.gegen)} · ${esc(r.ort || r.stelle)}</p></div>${status}</div>
       <p class="fb-fall-text">${esc(r.beschreibung)}</p>${clip}${urteil}${einspruch}
     </article>`;
   }

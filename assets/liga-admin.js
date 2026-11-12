@@ -820,6 +820,9 @@
   const prozentText = (p) => (p === null || p === undefined ? "–" : `${String(Number(p).toFixed(1)).replace(".", ",")} %`);
   // „Circuit de Spa-Francorchamps · Grand Prix“ → „Spa-Francorchamps“, damit drei Strecken nebeneinander passen
   const kurzerStreckenname = (s) => { const n = s.split(" · ")[0].replace(/^(Circuit de |Circuit |Autodromo Nazionale |Autodromo Internazionale |Autodromo |Autódromo |Circuito de |Circuito )/i, "").replace(/ (Circuit|Raceway|Speedway|Motorsport Park)$/i, ""); return n.length > 16 ? `${n.slice(0, 15)}…` : n; };
+  // Ort eines Vorfalls: Session, Zeit im Replay und Stelle. Ältere Reports haben nur die Stelle.
+  const SESSIONEN = { training: "Training", qualifying: "Qualifying", rennen: "Rennen" };
+  const vorfallOrt = (r) => [SESSIONEN[r.session], r.zeitstempel && `Replay ${r.zeitstempel}`, r.stelle].filter(Boolean).join(" · ");
   const WERTUNG = { beste: "Beste Runde", schnitt: "Durchschnitt der sauberen Runden" };
   // Feste Auswahl statt Freitext, damit alle Fahrer dasselbe einstellen. In Klammern der Begriff aus iRacing.
   const STECKBRIEF = [
@@ -1032,7 +1035,7 @@
     return `<button type="button" class="a-fall ${serienFarbe(r.serie)}${einspruchOffen(r) ? " einspruch" : ""}" data-report="${esc(r.id)}">
       <span class="a-fall-kopf">${neu ? '<span class="a-chip neu">Neu</span>' : ""}${reportChip(r)}<time>${esc(zeit(r.erstellt))}</time></span>
       <b>${esc(r.von.name)} <span>meldet</span> ${esc(r.gegen.name)}</b>
-      <small>${esc([r.serieName, r.rennenTitel, r.stelle].filter(Boolean).join(" · "))}</small>
+      <small>${esc([r.serieName, r.rennenTitel, vorfallOrt(r)].filter(Boolean).join(" · "))}</small>
     </button>`;
   }
 
@@ -1192,7 +1195,7 @@
     const notizen = r.ichBeteiligt ? "" : `<form id="f-notiz" class="a-karte" novalidate><h2>Interne Notizen</h2><textarea name="notizen" maxlength="5000" aria-label="Interne Notizen">${esc(entwurf ? entwurf.text : r.notizen)}</textarea>${entwurf && entwurf.konflikt ? `<p class="a-hinweis">Neuer Stand von jemand anderem:</p><pre class="a-notiz-stand">${esc(r.notizen || "(leer)")}</pre>` : ""}<div><button type="submit" class="a-knopf zweit">Notizen speichern</button></div></form>`;
     return `<section class="a-karte"><div class="a-kartenkopf"><div class="a-leiste"><button type="button" class="a-knopf zweit klein" data-report-zurueck="1">Zurück</button><h2>${esc(r.rennenTitel)}</h2>${reportChip(r)}</div>${status}</div>
       <p class="a-hinweis">${esc(r.serieName)} · Eingang ${esc(zeit(r.erstellt))}</p>
-      <p><b>${esc(r.von.name)}</b> meldet <b>${esc(r.gegen.name)}</b> · ${esc(r.stelle)}</p>
+      <p><b>${esc(r.von.name)}</b> meldet <b>${esc(r.gegen.name)}</b> · ${esc(vorfallOrt(r))}</p>
       <div class="a-leiste"><span class="a-beschriftung">Akte</span>${akteKnopf(r.von.name, r.von.cust, r.von.discordId).replace(">Akte<", `>${esc(r.von.name)}<`)}${akteKnopf(r.gegen.name, r.gegen.cust, r.gegen.discordId).replace(">Akte<", `>${esc(r.gegen.name)}<`)}</div>
       <p class="a-text">${esc(r.beschreibung)}</p>${clip}${rennKontextHtml(r)}${urteil}${einsprueche}</section>
       ${abstimmung(r)}${urteilForm(r)}${notizen}`;
