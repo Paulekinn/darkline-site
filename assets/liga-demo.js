@@ -41,6 +41,12 @@
     }
     // Rennleitung: alles ansehen und durchklicken, gespeichert wird nichts.
     if (r === "admin") {
+      // Der Stand der Sichtung wird in der echten Rennleitung per POST gelesen, ohne etwas zu speichern.
+      if (post) {
+        const b = (() => { try { return JSON.parse((optionen && optionen.body) || "{}"); } catch (e) { return {}; } })();
+        const stand = b.aktion === "sichtung-stand" && ((await laden()).sichtungStand || {})[b.serie];
+        if (stand) return antwort({ ok: true, sichtung: stand });
+      }
       if (post) return antwort({ error: "Beispiel-Rennleitung: Hier wird nichts gespeichert. In der echten Rennleitung würde diese Aktion jetzt ausgeführt." }, 400);
       const d = await laden();
       const nur = url.searchParams.get("nur");

@@ -18,7 +18,7 @@
     "keine-rolle": "Dein Discord-Konto hat keine Rolle für die Rennleitung.",
     technik: "Technischer Fehler. Bitte versuche es gleich noch einmal.",
   };
-  const TABS = [["cockpit", "Cockpit"], ["reports", "Reports"], ["serien", "Seasons &amp; Events"], ["rennen", "Rennen"], ["strecken", "Strecken"], ["katalog", "Strafenkatalog"], ["reglement", "Reglement"], ["fahrer", "Fahrer"], ["ergebnisse", "Ergebnisse"], ["protokoll", "Protokoll"]];
+  const TABS = [["cockpit", "Cockpit"], ["reports", "Reports"], ["serien", "Seasons &amp; Events"], ["rennen", "Rennen"], ["strecken", "Strecken"], ["katalog", "Strafenkatalog"], ["reglement", "Reglement"], ["fahrer", "Fahrer"], ["sichtung", "Sichtung"], ["ergebnisse", "Ergebnisse"], ["protokoll", "Protokoll"]];
   const URTEILE = [["kein-vergehen", "Kein Vergehen"], ["verwarnung", "Verwarnung"], ["strafpunkte", "Strafpunkte"], ["zeitstrafe", "Zeitstrafe"], ["dsq", "Disqualifikation"]];
   const NEUE_SERIE = { name: "", typ: "liga", saison: "", status: "geplant", anmeldungOffen: true, farbe: "rot", beschreibung: "", uebertragung: "", kategorie: "Sports_Car", fahrzeugklassen: [], rennenGesamt: 8, gewerteteRennen: 7, anmeldeschlussMinuten: 60,
     klassen: [{ name: "Pro", min: 2500, max: null }, { name: "Pro-Am", min: 1500, max: 2499 }, { name: "Am", min: 0, max: 1499 }],
@@ -58,6 +58,8 @@
   let akte = null;        // geöffnete Fahrer-Akte: { name, daten }
   let neuSeit = null;     // Zeitpunkt, bis zu dem Reports beim Öffnen des Bereichs schon bekannt waren
   let zugelassen = [];    // iRacing-IDs nicht gemeldeter Fahrer, die als Gast gewertet werden sollen
+  let sichtung = null;    // Stand der Sichtung aus Garage 61: { serie, laedt, daten }, erst beim Öffnen des Menüpunkts geladen
+  let sichtungForm = null; // Einrichtung der Sichtung, solange sie offen ist: { serie, werte, vorher }
 
   async function vorschauRechnen() {
     const a = await sende({ aktion: "ergebnis-vorschau", serie: serieId, datei, zugelassen });
@@ -426,6 +428,7 @@
       </div>
       ${(d.fehlendeErgebnisse || []).length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Ergebnis fehlt</h2><span class="a-chip gelb">${d.fehlendeErgebnisse.length}</span></div><div class="a-liste">${d.fehlendeErgebnisse.slice(0, 6).map((r) => `<div class="a-abschluss ${serienFarbe(r.serie)}"><span><b>${esc(r.titel)}</b><small>${esc([(serieVon(r.serie) || {}).name, datumKurz(r.datum)].filter(Boolean).join(" · "))}</small></span><button type="button" class="a-knopf zweit klein" data-ergebnis-import="${esc(r.serie)}">Importieren</button></div>`).join("")}</div></section>` : ""}
       ${nummernHtml}${fahrzeugHtml}
+      ${cockpitSichtung()}
       ${anmeldungFaellig}
       ${cockpitPruefungen()}
       ${cockpitStrafkonten()}
@@ -488,11 +491,9 @@
       ${abschnittForm(3, "Klassen", `<label class="a-check"><input type="checkbox" name="ohneKlassen" id="s-ohne-klassen"${w.ohneKlassen ? " checked" : ""}> Keine Klassen nach iRating: alle fahren in einer gemeinsamen Wertung, bei Multiclass je Fahrzeugklasse</label>
         <div class="a-spalte" id="a-klassen-bereich"${w.ohneKlassen ? " hidden" : ""}><div class="a-klassen-kopf"><span>Name</span><span>Von</span><span>Bis</span><span></span></div><div class="a-klassen" id="a-klassen">${w.klassen.map(klasseZeile).join("")}</div><div><button type="button" class="a-knopf zweit klein" data-klasse-neu="1">Klasse hinzufügen</button></div><div id="a-klassen-check"></div>
           <div class="a-felder">
-            ${feld("Einstufung der Fahrer", auswahl("einstufungArt", w.einstufungArt || "irating", [["irating", "Nach iRating"], ["sichtung", "Nach Sichtungsrennen"]]))}
-            <div class="a-feld" data-nur-sichtung${w.einstufungArt === "sichtung" ? "" : " hidden"}><label>Pace-Grenzen in % zur schnellsten Runde</label>${eingabe("sichtungGrenzen", (w.sichtungGrenzen || []).join(" / ").replace(/\./g, ","), 'placeholder="101,5 / 103" autocomplete="off"')}</div>
-            <div class="a-feld" data-nur-sichtung${w.einstufungArt === "sichtung" ? "" : " hidden"}><label>Mindestrunden je Sichtungsstrecke (0 = keine)</label>${eingabe("sichtungMindestRunden", w.sichtungMindestRunden ?? 0, 'type="number" min="0"')}</div>
+            ${feld("Einstufung der Fahrer", auswahl("einstufungArt", w.einstufungArt || "irating", [["irating", "Nach iRating"], ["sichtung", "Nach Sichtung (Garage 61)"]]))}
           </div>
-          <p class="a-hinweis" data-nur-sichtung${w.einstufungArt === "sichtung" ? "" : " hidden"}>Je eine Grenze zwischen zwei Klassen, von oben nach unten. Beispiel bei Pro, Pro-Am und Am: „101,5 / 103“ heißt bis 101,5 % Pro, bis 103 % Pro-Am, darüber Am. Leer lassen für die Standardwerte. Besteht die Sichtung aus mehreren Strecken (je ein Rennen als Sichtungsrennen markieren), zählt der Mittelwert der Strecken. Eine Strecke zählt nur mit den Mindestrunden. Wer keine Sichtung gefahren ist, wird nach den iRating-Grenzen oben eingestuft.</p></div>`)}
+          <p class="a-hinweis" data-nur-sichtung${w.einstufungArt === "sichtung" ? "" : " hidden"}>Zeitraum, Strecken, Runden, Wertung, Pace-Grenzen und Steckbrief richtest du nach dem Speichern im Menüpunkt „Sichtung“ ein. Wer nicht alle Strecken abgibt, wird nach den iRating-Grenzen oben eingestuft.</p></div>`)}
       <div data-nur-liga${w.typ === "event" ? " hidden" : ""}>${abschnittForm(4, "Punkte", `<div class="a-leiste"><span class="a-beschriftung">Vorlage</span>${PUNKTE_VORLAGEN.map(([t], i) => `<button type="button" class="a-knopf zweit klein" data-punkte-vorlage="${i}">${esc(t)}</button>`).join("")}</div><div class="a-felder">
         ${feld("Punkte nach Platz", eingabe("punkte", w.punkte.join(", ")), true)}
         ${feld("Punkte für alle danach", eingabe("punkteDanach", w.punkteDanach, 'type="number" min="0"'))}
@@ -567,7 +568,7 @@
             ${feld("Datum", eingabe("datum", w.datum, 'type="date"'))}
             ${feld("Rennstart (deutsche Zeit)", eingabe("startzeit", w.startzeit, 'type="time"'))}
             ${feld("Startplätze", eingabe("plaetze", w.plaetze, 'type="number" min="1"'))}
-          </div><label class="a-check"><input type="checkbox" name="sichtung"${w.sichtung ? " checked" : ""}> Sichtungsrennen: zählt nicht für die Tabelle, die Rundenzeiten bestimmen die Klassen</label>`)}
+          </div>${w.sichtung ? '<label class="a-check"><input type="checkbox" name="sichtung" checked> Altes Sichtungsrennen: zählt nicht für die Tabelle. Die Sichtung läuft inzwischen über Garage 61.</label>' : ""}`)}
           ${abschnittForm(2, "Ablauf", `<div class="a-felder">
             ${feld("Fahrzeuge", eingabe("fahrzeuge", w.fahrzeuge, 'maxlength="80"'))}
             ${feld("Training", eingabe("training", w.training, 'placeholder="30 min"'))}
@@ -813,27 +814,116 @@
     </tr>`;
   }
 
-  // Klassenvorschlag aus den Sichtungsrennen. Übernommen wird erst auf Knopfdruck, danach lässt sich jede Klasse oben einzeln ändern.
-  const rundenzeit = (t) => { if (!t) return "–"; const s = t / 10000; return `${Math.floor(s / 60)}:${(s % 60).toFixed(3).padStart(6, "0")}`; };
+  /* ---------- Sichtung über Garage 61 ---------- */
+  // Rundenzeit in Sekunden → 2:17,345
+  const rundenzeit = (s) => { if (!(s > 0)) return "–"; return `${Math.floor(s / 60)}:${(s % 60).toFixed(3).padStart(6, "0").replace(".", ",")}`; };
+  const prozentText = (p) => (p === null || p === undefined ? "–" : `${String(Number(p).toFixed(1)).replace(".", ",")} %`);
   // „Circuit de Spa-Francorchamps · Grand Prix“ → „Spa-Francorchamps“, damit drei Strecken nebeneinander passen
   const kurzerStreckenname = (s) => { const n = s.split(" · ")[0].replace(/^(Circuit de |Circuit |Autodromo Nazionale |Autodromo Internazionale |Autodromo |Autódromo |Circuito de |Circuito )/i, "").replace(/ (Circuit|Raceway|Speedway|Motorsport Park)$/i, ""); return n.length > 16 ? `${n.slice(0, 15)}…` : n; };
-  function sichtungKarte(serie, det) {
-    const v = det.sichtung;
-    if (!v || !serie || serie.ohneKlassen) return "";
+  const WERTUNG = { beste: "Beste Runde", schnitt: "Durchschnitt der sauberen Runden" };
+  const STECKBRIEF = [["uhrzeit", "Uhrzeit", "z. B. 14:00 Uhr"], ["wetter", "Wetter", "z. B. klar, statisch"], ["zustand", "Streckenzustand", "z. B. 50 % Gummi, keine Murmeln"], ["setup", "Setup", "z. B. iRacing-Standard (fest)"], ["temperatur", "Temperaturbereich", "z. B. Luft 22 °C"]];
+
+  // Liest das Einrichtungsformular. Leere Streckenzeilen bleiben für die Anzeige stehen, der Server ignoriert sie.
+  function sichtungAusFormular(f) {
+    const fd = new FormData(f);
+    const w = Object.fromEntries(fd.entries());
+    const ir = fd.getAll("sb_ir"), namen = fd.getAll("sb_name");
+    const strecken = fd.getAll("sb_bib").map((bib, i) => {
+      const s = d.strecken.find((x) => x.id === bib);
+      return s ? { bib: s.id, name: streckeLabel(s), g61: s.g61, iracing: ir[i] } : { bib: "", name: String(namen[i] || "").trim(), iracing: ir[i] };
+    });
+    return { sichtungVon: w.sichtungVon, sichtungBis: w.sichtungBis, sichtungRunden: w.sichtungRunden, sichtungWertung: w.sichtungWertung, sichtungGrenzen: w.sichtungGrenzen, sichtungTempMin: w.sichtungTempMin, sichtungTempMax: w.sichtungTempMax, sichtungStrecken: strecken, sichtungSteckbrief: Object.fromEntries(STECKBRIEF.map(([k]) => [k, w[`sb_${k}`] || ""])) };
+  }
+
+  async function sichtungLaden() {
+    const id = serieId;
+    sichtung = { serie: id, laedt: true, daten: sichtung && sichtung.serie === id ? sichtung.daten : null };
+    zeichne();
+    // Eine Erfolgsmeldung der vorigen Aktion bleibt stehen.
+    const vorher = meldung;
+    const a = await sende({ aktion: "sichtung-stand", serie: id }, "");
+    if (a && vorher && !vorher.fehler) meldung = vorher;
+    if (serieId !== id) return;
+    sichtung = { serie: id, laedt: false, daten: a ? a.sichtung : sichtung.daten };
+    zeichne();
+  }
+
+  function sichtungEinrichtung(serie) {
+    const w = sichtungForm.werte;
+    const bib = [...d.strecken].filter((s) => s.g61).sort((a, b) => streckeLabel(a).localeCompare(streckeLabel(b), "de"));
+    const zeilen = [...(w.sichtungStrecken || [])];
+    while (zeilen.length < 3) zeilen.push({});
+    const zeile = (s) => `<div class="a-sicht-strecke"><select name="sb_bib" aria-label="Strecke aus der Bibliothek"><option value="">– aus der Bibliothek –</option>${bib.map((x) => `<option value="${esc(x.id)}"${x.id === s.bib ? " selected" : ""}>${esc(streckeLabel(x))}</option>`).join("")}</select><input name="sb_ir" type="number" min="1" value="${esc(s.iracing ?? "")}" placeholder="iRacing-ID" aria-label="iRacing-Strecken-ID"><input name="sb_name" value="${esc(s.bib ? "" : s.name || "")}" maxlength="80" placeholder="Name (nur ohne Bibliothek)" aria-label="Name der Strecke"></div>`;
+    return `<form class="a-karte a-form" id="f-sichtung" novalidate>
+      <div class="a-kartenkopf"><h2>Sichtung einrichten: ${esc(serie.name)}</h2></div>
+      ${abschnittForm(1, "Zeitraum und Wertung", `<div class="a-felder">
+        ${feld("Sichtung ab", eingabe("sichtungVon", w.sichtungVon || "", 'type="date"'))}
+        ${feld("Sichtung bis (einschließlich)", eingabe("sichtungBis", w.sichtungBis || "", 'type="date"'))}
+        ${feld("Saubere Runden am Stück", eingabe("sichtungRunden", w.sichtungRunden ?? 7, 'type="number" min="1" max="50"'))}
+        ${feld("Wertung", auswahl("sichtungWertung", w.sichtungWertung || "beste", Object.entries(WERTUNG)))}
+        ${feld("Pace-Grenzen in % zum Schnellsten", eingabe("sichtungGrenzen", Array.isArray(w.sichtungGrenzen) ? w.sichtungGrenzen.join(" / ").replace(/\./g, ",") : w.sichtungGrenzen || "", 'placeholder="101,5 / 103" autocomplete="off"'))}
+      </div><p class="a-hinweis">Je eine Grenze zwischen zwei Klassen, von oben nach unten (${esc(serie.klassen.map((k) => k.name).join(", "))}). „101,5 / 103“ heißt: bis 101,5 % die oberste Klasse, bis 103 % die zweite, darüber die nächste. Leer lassen für die Standardwerte. Es zählt der Mittelwert über alle Strecken.</p>`)}
+      ${abschnittForm(2, "Strecken", `<div class="a-spalte">${zeilen.map(zeile).join("")}</div><button type="button" class="a-knopf zweit klein" data-sicht-strecke-neu="1"${zeilen.length >= 5 ? " hidden" : ""}>Strecke hinzufügen</button>`, "Wähle die Strecke aus der Bibliothek (Import aus Garage 61). Fehlt sie dort, trag die iRacing-Strecken-ID und einen Namen ein. Leere Zeilen werden ignoriert.")}
+      ${abschnittForm(3, "Steckbrief für den Server", `<div class="a-felder">
+        ${STECKBRIEF.map(([k, t, p]) => feld(t, eingabe(`sb_${k}`, (w.sichtungSteckbrief || {})[k] || "", `maxlength="300" placeholder="${esc(p)}"`))).join("")}
+        ${feld("Streckentemperatur von (°C, leer = egal)", eingabe("sichtungTempMin", w.sichtungTempMin ?? "", 'type="number" min="-20" max="80"'))}
+        ${feld("Streckentemperatur bis (°C, leer = egal)", eingabe("sichtungTempMax", w.sichtungTempMax ?? "", 'type="number" min="-20" max="80"'))}
+      </div>`, "Die Fahrer sehen den Steckbrief im Fahrerbereich und bauen den Server als Offline-Testfahrt nach. Runden mit Regen, nasser Strecke oder einer Streckentemperatur außerhalb des Bereichs zählen nicht. Das Setup lässt sich nicht prüfen.")}
+      ${formLeiste("Einrichtung speichern")}
+    </form>`;
+  }
+
+  function sichtungTab() {
+    const serie = d.serien.find((s) => s.id === serieId);
+    const kopf = (inhalt) => `<section class="a-karte"><div class="a-kartenkopf"><h2>Sichtung</h2>${serienAuswahl()}</div>${inhalt}</section>`;
+    if (!serie) return kopf('<p class="a-leer">Leg zuerst eine Season an.</p>');
+    if (serie.typ === "event" || serie.ohneKlassen) return kopf('<p class="a-leer">Diese Serie hat keine Klassen, eine Sichtung braucht sie nicht.</p>');
+    if (sichtungForm && sichtungForm.serie === serie.id) return sichtungEinrichtung(serie);
+    if (serie.einstufungArt !== "sichtung") return kopf(`<p class="a-leer">${esc(serie.name)} wird nach iRating eingestuft.</p><div class="a-leiste"><button type="button" class="a-knopf" data-sichtung-einrichten="1">Sichtung einrichten</button></div><p class="a-hinweis">Mit Sichtung bestimmen Trainingsrunden aus Garage 61 die Klassen: Die Fahrer bauen einen festen Server als Offline-Testfahrt nach und geben je Strecke ihr bestes Ergebnis ab.</p>`);
+    if (!sichtung || sichtung.serie !== serie.id) setTimeout(sichtungLaden);
+    const v = sichtung && sichtung.serie === serie.id ? sichtung.daten : null;
+    const laedt = !v || (sichtung && sichtung.laedt);
+    const strecken = serie.sichtungStrecken || [];
+    const b = serie.sichtungSteckbrief || {};
+    const temp = serie.sichtungTempMin !== null && serie.sichtungTempMin !== undefined || serie.sichtungTempMax !== null && serie.sichtungTempMax !== undefined ? `${serie.sichtungTempMin ?? "?"} bis ${serie.sichtungTempMax ?? "?"} °C` : "egal";
+    const fakten = [["Zeitraum", serie.sichtungVon && serie.sichtungBis ? `${datumKurz(serie.sichtungVon)} bis ${datumKurz(serie.sichtungBis)}` : "noch offen"], ["Strecken", strecken.map((s) => s.name).join(", ") || "noch keine"], ["Gültig", `${serie.sichtungRunden || 7} saubere Runden am Stück`], ["Wertung", WERTUNG[serie.sichtungWertung] || WERTUNG.beste], ["Grenzen", serie.klassen.map((k, i) => (i < (serie.sichtungGrenzen || []).length ? `${k.name} bis ${String(serie.sichtungGrenzen[i]).replace(".", ",")} %` : `${k.name} darüber`)).join(" · ")], ["Streckentemperatur", temp], ...STECKBRIEF.map(([k, t]) => [t, b[k]]).filter(([, x]) => x)];
+    const fehltEinrichtung = !(serie.sichtungVon && serie.sichtungBis && strecken.length);
+    const einrichtung = `<section class="a-karte"><div class="a-kartenkopf"><h2>Sichtung: ${esc(serie.name)}</h2><div class="a-leiste">${serienAuswahl()}<button type="button" class="a-knopf zweit klein" data-sichtung-einrichten="1">Einrichtung ändern</button></div></div>
+      ${fehltEinrichtung ? '<p class="a-meldung fehler">Die Sichtung ist noch nicht fertig eingerichtet: Es fehlen Zeitraum oder Strecken.</p>' : ""}
+      <dl class="a-fakten">${fakten.map(([t, x]) => `<div><dt>${esc(t)}</dt><dd>${esc(x)}</dd></div>`).join("")}</dl>
+      <p class="a-hinweis">Garage-61-Team: <a href="${esc((v && v.teamLink) || "https://garage61.net")}" target="_blank" rel="noopener">${esc((v && v.teamLink) || "wird geladen")}</a> · Beitritt nur mit Freigabe. Die Sichtung ist intern, Fahrer sehen nur ihre eigenen Werte.</p></section>`;
+    if (laedt && !v) return `${einrichtung}<section class="a-karte"><h2>Stand</h2><p class="a-leer">Lade Runden aus Garage 61 …</p></section>`;
+    if (!v) return einrichtung;
     const name = (id) => (v.klassen.find((k) => k.id === id) || {}).name || "–";
-    const grenzen = v.klassen.map((k, i) => (i < v.grenzen.length ? `${esc(k.name)} bis ${String(v.grenzen[i]).replace(".", ",")} %` : `${esc(k.name)} darüber`)).join(" · ");
-    if (!v.fahrer.length) return `<section class="a-karte"><h2>Sichtung</h2><p class="a-leer">Noch kein Sichtungsrennen eingelesen. Hak beim Rennen „Sichtungsrennen“ an und lies danach das Ergebnis ein. Bis dahin gilt die Klasse nach iRating.</p><p class="a-hinweis">Grenzen: ${grenzen}</p></section>`;
     const offen = v.fahrer.filter((f) => f.vorschlag && f.vorschlag !== f.fest).length;
-    const prozent = (p) => `${String(p.toFixed(1)).replace(".", ",")} %`;
-    // Je Strecke: Abstand und darunter die Rundenzeit. Ungültig heißt: zu wenige Runden oder keine Rundenzeit.
-    const zelle = (z) => (!z ? '<td class="rechts">–</td>' : z.gueltig ? `<td class="rechts">${prozent(z.prozent)}<small class="a-unter">${rundenzeit(z.zeit)}</small></td>` : `<td class="rechts"><span class="a-chip rot" title="${esc(`${z.runden} Runden${v.mindestRunden ? `, nötig ${v.mindestRunden}` : ""}`)}">ungültig</span></td>`);
-    const zeile = (f) => `<tr><td>${esc(f.name)}${f.fahrzeugklasse && v.fahrer.some((x) => x.fahrzeugklasse !== f.fahrzeugklasse) ? ` ${fahrzeugChip(f.fahrzeugklasse)}` : ""}</td>${f.zeiten.map(zelle).join("")}<td class="rechts"><b>${f.prozent === null ? "–" : prozent(f.prozent)}</b></td><td>${f.vollstaendig ? `<b>${esc(name(f.vorschlag))}</b>` : `<span class="a-chip gelb" title="Nicht jede Strecke gültig gefahren, bitte von Hand einstufen">${f.gewertet} von ${v.strecken.length} Strecken</span>`}</td><td>${esc(name(f.nachIrating))}</td><td>${f.fest ? (f.fest === f.vorschlag ? '<span class="a-chip gruen">Übernommen</span>' : `<span class="a-chip gelb">${esc(name(f.fest))}</span>`) : '<span class="a-chip">nach iRating</span>'}</td></tr>`;
-    return `<section class="a-karte"><div class="a-kartenkopf"><h2>Sichtung</h2><span class="a-chip">${v.strecken.length} ${v.strecken.length === 1 ? "Strecke" : "Strecken"} · ${v.fahrer.length} Fahrer</span></div>
-      <p class="a-hinweis">Je Strecke zählt die beste Runde im Vergleich zur schnellsten der Fahrzeugklasse${v.mindestRunden ? `, aber nur mit mindestens ${v.mindestRunden} Runden` : ""}. Entscheidend ist der Mittelwert aller Strecken. Grenzen: ${grenzen}</p>
-      <div class="a-scroll"><table><thead><tr><th>Fahrer</th>${v.strecken.map((s) => `<th class="rechts" title="${esc(s)}">${esc(kurzerStreckenname(s))}</th>`).join("")}<th class="rechts">Schnitt</th><th>Vorschlag</th><th>Nach iRating</th><th>Aktuell</th></tr></thead><tbody>${v.fahrer.map(zeile).join("")}</tbody></table></div>
-      <div class="a-leiste"><button type="button" class="a-knopf${offen ? "" : " zweit"}" data-sichtung-uebernehmen="1">${offen ? `Vorschläge übernehmen (${offen} ${offen === 1 ? "Änderung" : "Änderungen"})` : "Vorschläge erneut übernehmen"}</button></div>
-      <p class="a-hinweis">Übernommen werden nur Fahrer, die jede Strecke gültig gefahren sind. Alle anderen bleiben nach iRating eingestuft, bis du sie oben in der Spalte „Klasse“ von Hand setzt.</p>
-    </section>`;
+    const zelle = (z, s, f) => {
+      if (z.status === "abgegeben") return `<td class="rechts"><span class="a-chip gruen">abgegeben</span><b class="a-unter">${prozentText(z.prozent)}</b><small class="a-unter">${rundenzeit(z.wert)}</small><button type="button" class="a-weg" data-sicht-zurueck="${esc(s.key)}" data-discord="${esc(f.discordId)}" data-name="${esc(f.name)}" data-strecke-name="${esc(s.name)}" title="Abgabe zurücksetzen" aria-label="Abgabe von ${esc(f.name)} für ${esc(s.name)} zurücksetzen">×</button></td>`;
+      if (z.status === "gefahren") return `<td class="rechts"><span class="a-chip gelb">gefahren</span><small class="a-unter">${rundenzeit(z.wert)}</small></td>`;
+      return `<td class="rechts"><span class="a-chip">${v.vorbei ? "fehlt" : "offen"}</span></td>`;
+    };
+    const team = (f) => (f.imTeam === null ? "?" : f.imTeam ? '<span class="a-chip gruen">ja</span>' : '<span class="a-chip rot">nein</span>');
+    const zeile = (f) => `<tr><td><b>${esc(f.name)}</b>${f.modell ? `<small class="a-unter">${esc(f.modell)}</small>` : (serie.modelle || []).length ? '<small class="a-unter a-abweichung">kein Auto gemeldet</small>' : ""}</td><td>${team(f)}</td>${f.strecken.map((z, i) => zelle(z, v.strecken[i], f)).join("")}<td class="rechts"><b>${prozentText(f.prozent)}</b></td><td>${f.vollstaendig ? `<b>${esc(name(f.vorschlag))}</b>` : `<span class="a-chip gelb" title="Nicht jede Strecke abgegeben, es gilt iRating oder deine Einstufung">${f.strecken.filter((z) => z.status === "abgegeben").length} von ${v.strecken.length}</span>`}</td><td>${esc(name(f.nachIrating))}<small class="a-unter">${zahl(f.irating)}</small></td><td>${f.fest ? (f.fest === f.vorschlag ? '<span class="a-chip gruen">Übernommen</span>' : `<span class="a-chip gelb">${esc(name(f.fest))}</span>`) : '<span class="a-chip">nach iRating</span>'}</td></tr>`;
+    const zaehlen = (st) => v.fahrer.reduce((n, f) => n + f.strecken.filter((z) => z.status === st).length, 0);
+    const kachel = (w, t, art) => `<div class="a-kennzahl ${w && art ? art : ""}"><b>${w}</b><span>${esc(t)}</span></div>`;
+    const auswahlFahrer = `<option value="">Fahrer wählen</option>${v.fahrer.map((f) => `<option value="${esc(f.discordId)}">${esc(f.name)}</option>`).join("")}`;
+    const unbekannt = v.unbekannt.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Nicht zugeordnet</h2><span class="a-chip gelb">${v.unbekannt.length}</span></div><p class="a-hinweis">Diese Garage-61-Fahrer sind auf den Sichtungsstrecken gefahren, ihr Name passt aber zu keinem oder zu mehreren Fahrern der Season. Ordne sie von Hand zu.</p><div class="a-liste">${v.unbekannt.map((u) => `<div class="a-abschluss"><span><b>${esc(u.name || u.slug)}</b><small>${esc(u.slug)} · ${u.runden} Runden</small></span><div class="a-leiste"><select data-sicht-fahrer="${esc(u.slug)}" aria-label="Season-Fahrer für ${esc(u.name || u.slug)}">${auswahlFahrer}</select><button type="button" class="a-knopf klein" data-sicht-zuordnen="${esc(u.slug)}">Zuordnen</button></div></div>`).join("")}</div></section>` : "";
+    const zuordnung = v.zuordnung.length ? `<details class="a-rennen"><summary>Von Hand zugeordnet (${v.zuordnung.length})</summary><ol class="a-namen">${v.zuordnung.map((z) => `<li><span>${esc(z.slug)} → ${esc(z.name || z.discordId)}</span><button type="button" class="a-weg" data-sicht-loesen="${esc(z.slug)}" aria-label="Zuordnung lösen">×</button></li>`).join("")}</ol></details>` : "";
+    return `${einrichtung}
+      <section class="a-karte"><div class="a-kartenkopf"><h2>Stand</h2><div class="a-leiste">${v.laeuft ? '<span class="a-chip gruen">Läuft</span>' : v.vorbei ? '<span class="a-chip">Vorbei</span>' : '<span class="a-chip gelb">Noch nicht begonnen</span>'}<button type="button" class="a-knopf zweit klein" data-sichtung-neu="1"${laedt ? " disabled" : ""}>${laedt ? "Lädt …" : "Neu laden"}</button></div></div>
+        ${v.fehler ? `<p class="a-meldung fehler">${esc(v.fehler)}</p>` : ""}
+        <div class="a-kennzahlen">${kachel(v.fahrer.length, "Fahrer")}${kachel(v.fahrer.filter((f) => f.vollstaendig).length, "Alle Strecken abgegeben")}${kachel(zaehlen("abgegeben"), "Abgaben")}${kachel(zaehlen("gefahren"), "Gefahren, nicht abgegeben", "warnung")}${kachel(v.fahrer.filter((f) => f.imTeam === false).length, "Nicht im Garage-61-Team", "alarm")}</div>
+        ${v.fahrer.length ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>Team</th>${v.strecken.map((s) => `<th class="rechts" title="${esc(s.name)}">${esc(kurzerStreckenname(s.name))}</th>`).join("")}<th class="rechts">Schnitt</th><th>Vorschlag</th><th>Nach iRating</th><th>Aktuell</th></tr></thead><tbody>${v.fahrer.map(zeile).join("")}</tbody></table></div>` : '<p class="a-leer">Noch niemand für die Season gemeldet.</p>'}
+        <div class="a-leiste"><button type="button" class="a-knopf${offen ? "" : " zweit"}" data-sichtung-uebernehmen="1">${offen ? `Vorschläge übernehmen (${offen} ${offen === 1 ? "Änderung" : "Änderungen"})` : "Vorschläge erneut übernehmen"}</button></div>
+        <p class="a-hinweis">„Gefahren“ ist der beste gültige Versuch, den der Fahrer noch nicht abgegeben hat. Gewertet wird nur, was abgegeben ist, Abstand und Schnitt beziehen sich auf den schnellsten abgegebenen Wert je Strecke. Übernommen werden nur Fahrer mit allen Strecken. Alle anderen bleiben nach iRating eingestuft, bis du sie im Reiter „Fahrer“ von Hand setzt. Mit × setzt du eine Abgabe zurück, der Fahrer kann dann neu abgeben.</p>
+        ${zuordnung}
+      </section>${unbekannt}`;
+  }
+
+  // Kurzer Fortschritt im Cockpit
+  function cockpitSichtung() {
+    const liste = (d.sichtungen || []).filter((x) => !x.vorbei || x.komplett < x.fahrer);
+    if (!liste.length) return "";
+    return `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Sichtung</h2></div><div class="a-liste">${liste.map((x) => `<div class="a-abschluss ${serienFarbe(x.serie)}"><span><b>${esc(x.serieName)}</b><small>${x.eingerichtet ? `${x.komplett} von ${x.fahrer} Fahrern mit allen Strecken${x.teil ? `, ${x.teil} teilweise` : ""} · ${x.laeuft ? `läuft bis ${datumKurz(x.bis)}` : x.vorbei ? "vorbei" : `ab ${datumKurz(x.von)}`}` : "Noch nicht fertig eingerichtet"}</small></span><button type="button" class="a-knopf zweit klein" data-sichtung-oeffnen="${esc(x.serie)}">Öffnen</button></div>`).join("")}</div></section>`;
   }
 
   function fahrerTab() {
@@ -855,7 +945,7 @@
       ${filter.length ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>Meldung</th><th>iRacing-ID</th><th class="rechts" title="Vom Fahrer im Profil angegeben">iRating Profil</th><th class="rechts" title="Aus dem zuletzt eingelesenen Rennergebnis">iRating letztes Rennen</th><th>Klasse</th>${(serie.modelle || []).length ? "<th>Fahrzeug</th>" : ""}<th></th></tr></thead><tbody>${filter.map((f) => fahrerZeile(f, serie)).join("")}</tbody></table></div>` : '<p class="a-leer">Keine Fahrer in dieser Ansicht.</p>'}
       <p class="a-hinweis">„iRating Profil“ hat der Fahrer selbst angegeben. „iRating letztes Rennen“ stammt aus dem zuletzt eingelesenen Ergebnis und ist leer, solange kein Ergebnis dieses Fahrers vorliegt. Ein „!“ zeigt mehr als 150 Punkte Unterschied.</p>` : '<p class="a-leer">Noch keine Fahrer gemeldet.</p>'}
     </section>
-    ${sichtungKarte(serie, det)}
+    ${serie.einstufungArt === "sichtung" ? '<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Sichtung</h2><button type="button" class="a-knopf zweit klein" data-tab="sichtung">Zum Stand der Sichtung</button></div><p class="a-hinweis">Einrichtung, Stand je Strecke und Klassenvorschläge stehen im Menüpunkt „Sichtung“.</p></section>' : ""}
     <section class="a-karte"><h2>Starterlisten</h2>${rennen || '<p class="a-leer">Keine kommenden Rennen.</p>'}</section>`;
   }
 
@@ -1153,7 +1243,7 @@
   /* ---------- Rahmen ---------- */
   function zeichne() {
     if (!d || !d.angemeldet) return zeigeLogin();
-    const inhalte = { reglement: reglementTab, katalog: katalogTab, protokoll: protokollTab, cockpit: cockpitTab, serien: serienTab, rennen: rennenTab, strecken: streckenTab, fahrer: fahrerTab, reports: reportsTab, ergebnisse: ergebnisTab };
+    const inhalte = { reglement: reglementTab, katalog: katalogTab, protokoll: protokollTab, cockpit: cockpitTab, serien: serienTab, rennen: rennenTab, strecken: streckenTab, fahrer: fahrerTab, sichtung: sichtungTab, reports: reportsTab, ergebnisse: ergebnisTab };
     const inhalt = inhalte[tab]();
     const offene = d.reports.filter(braucht).length;
     app.innerHTML = `<div class="a-rahmen">
@@ -1225,7 +1315,28 @@
       if (grund === null) return;
       return aktion({ aktion: b.dataset.nummerAktion, discordId: b.dataset.discord, name: b.dataset.name, nummer: b.dataset.nummer, grund }, ablehnen ? "Antrag abgelehnt, der Fahrer wird informiert." : `Startnummer #${b.dataset.nummer} bestätigt, der Fahrer wird informiert.`);
     }
-    if (b.dataset.tab) { tab = b.dataset.tab; protokoll = null; form = null; planer = null; reportId = null; akte = null; setzeMeldung(""); if (tab === "reports") reportsAlsGesehen(); zeichne(); return window.scrollTo(0, 0); }
+    if (b.dataset.sichtungEinrichten) { const s = serieVon(serieId); sichtungForm = { serie: s.id, werte: kopie(s), vorher: kopie(s) }; setzeMeldung(""); return zeigeFormular(); }
+    if (b.dataset.sichtStreckeNeu) { const f = b.closest("form"); sichtungForm.werte = sichtungAusFormular(f); sichtungForm.werte.sichtungStrecken.push({}); return zeichne(); }
+    if (b.dataset.sichtungNeu) return sichtungLaden();
+    if (b.dataset.sichtungOeffnen) {
+      serieId = b.dataset.sichtungOeffnen; tab = "sichtung"; sichtung = null; sichtungForm = null; setzeMeldung("");
+      await lade().catch(() => setzeMeldung("Die Daten konnten nicht geladen werden.", true));
+      zeichne();
+      return window.scrollTo(0, 0);
+    }
+    if (b.dataset.sichtZurueck) {
+      if (!window.confirm(`Abgabe von ${b.dataset.name} für ${b.dataset.streckeName} zurücksetzen? Der Fahrer kann danach neu abgeben, solange die Sichtung läuft.`)) return;
+      if (await aktion({ aktion: "sichtung-zuruecksetzen", serie: serieId, discordId: b.dataset.discord, strecke: b.dataset.sichtZurueck, name: b.dataset.name, streckeName: b.dataset.streckeName }, "Abgabe zurückgesetzt.")) sichtungLaden();
+      return;
+    }
+    if (b.dataset.sichtZuordnen || b.dataset.sichtLoesen) {
+      const slug = b.dataset.sichtZuordnen || b.dataset.sichtLoesen;
+      const wahl = b.dataset.sichtZuordnen ? b.parentElement.querySelector("select").value : "";
+      if (b.dataset.sichtZuordnen && !wahl) return;
+      if (await aktion({ aktion: "sichtung-zuordnen", serie: serieId, slug, discordId: wahl }, wahl ? "Zugeordnet." : "Zuordnung gelöst.")) sichtungLaden();
+      return;
+    }
+    if (b.dataset.tab) { tab = b.dataset.tab; protokoll = null; sichtung = null; sichtungForm = null; form = null; planer = null; reportId = null; akte = null; setzeMeldung(""); if (tab === "reports") reportsAlsGesehen(); zeichne(); return window.scrollTo(0, 0); }
     if (b.dataset.report) {
       const r = d.reports.find((x) => x.id === b.dataset.report);
       tab = "reports"; reportId = r.id; setzeMeldung("");
@@ -1235,7 +1346,7 @@
     }
     if (b.dataset.reportZurueck) { reportId = null; setzeMeldung(""); return zeichne(); }
     if (b.dataset.reportStatus) return aktion({ aktion: "report-status", id: reportId, status: b.dataset.reportStatus }, "Status geändert.");
-    if (b.dataset.abbrechen) { form = null; planer = null; return zeichne(); }
+    if (b.dataset.abbrechen) { form = null; planer = null; sichtungForm = null; return zeichne(); }
     if (b.dataset.serienReiter) { serienReiter = b.dataset.serienReiter; form = null; setzeMeldung(""); return zeichne(); }
     if (b.dataset.serieNeu) { form = { art: "serie", id: null, werte: b.dataset.serieNeu === "event" ? { ...NEUE_SERIE, typ: "event", rennenGesamt: 1, gewerteteRennen: 1 } : NEUE_SERIE }; planer = null; return zeigeFormular(); }
     if (b.dataset.terminNeu) { const s = serieVon(b.dataset.terminNeu); rennenFilter = s.id; tab = "rennen"; planer = null; form = { art: "rennen", id: null, werte: { ...NEUES_RENNEN, serie: s.id, titel: s.name, briefing: s.briefingVorlage || "" } }; return zeigeFormular(); }
@@ -1397,8 +1508,9 @@
       return aktion({ aktion: "fahrzeug-streichen", serie: b.dataset.serie, rennen: b.dataset.rennen, cust: b.dataset.cust }, "Ergebnis gestrichen, die Tabelle ist aktualisiert.");
     }
     if (b.dataset.sichtungUebernehmen) {
-      if (!window.confirm("Alle Fahrer mit Sichtungszeit bekommen die vorgeschlagene Klasse. Von Hand gesetzte Klassen dieser Fahrer werden überschrieben. Fortfahren?")) return;
-      return aktion({ aktion: "sichtung-uebernehmen", serie: serieId }, "Klassen aus der Sichtung übernommen, die Tabelle ist aktualisiert.");
+      if (!window.confirm("Alle Fahrer, die jede Strecke abgegeben haben, bekommen die vorgeschlagene Klasse. Von Hand gesetzte Klassen dieser Fahrer werden überschrieben. Fortfahren?")) return;
+      if (await aktion({ aktion: "sichtung-uebernehmen", serie: serieId }, "Klassen aus der Sichtung übernommen, die Tabelle ist aktualisiert.") && tab === "sichtung") sichtungLaden();
+      return;
     }
     if (b.dataset.ergebnisEndgueltig) {
       if (!window.confirm("Ergebnis jetzt endgültig freigeben? Sonst geschieht das automatisch 72 Stunden nach Rennende.")) return;
@@ -1451,6 +1563,13 @@
       if (a && a.warnungen && a.warnungen.length) { setzeMeldung(a.warnungen.join(" "), true); zeichne(); }
       return;
     }
+    if (f.id === "f-sichtung") {
+      const einrichtung = sichtungAusFormular(f);
+      sichtungForm.werte = einrichtung; // Bei einem Fehler bleibt alles Eingetippte stehen.
+      const a = await aktion({ aktion: "sichtung-einrichten", serie: sichtungForm.serie, einrichtung, vorher: sichtungForm.vorher }, "Sichtung gespeichert.");
+      if (a) { sichtungForm = null; sichtung = null; zeichne(); } else if (konflikt && sichtungForm) sichtungForm.vorher = kopie(serieVon(sichtungForm.serie));
+      return;
+    }
     if (f.id === "f-serie") {
       const fd = new FormData(f);
       const namen = fd.getAll("k_name"), min = fd.getAll("k_min"), max = fd.getAll("k_max");
@@ -1462,7 +1581,7 @@
       // Nach dem Speichern steht man im Reiter, in den die Serie jetzt gehört.
       if (await aktion({ aktion: "serie-speichern", id: form.id, serie: w, vorher: form.vorher }, w.typ === "event" ? "Event gespeichert." : "Season gespeichert.")) { serienReiter = w.status === "beendet" ? "archiv" : w.typ === "event" ? "event" : "liga"; zeichne(); }
     } else if (f.id === "f-rennen") {
-      w.sichtung = f.elements.sichtung.checked;
+      w.sichtung = f.elements.sichtung ? f.elements.sichtung.checked : false;
       form.werte = w;
       aktion({ aktion: "rennen-speichern", id: form.id, rennen: { ...w, streckeId: (streckeAus(w.strecke) || {}).id || "" }, vorher: form.vorher },"Rennen gespeichert.");
     } else if (f.id === "f-strecke") {
@@ -1486,7 +1605,7 @@
   app.addEventListener("change", async (e) => {
     const t = e.target;
     if (t.id === "a-serie") {
-      serieId = t.value; vorschau = null; datei = null; zugelassen = []; setzeMeldung("");
+      serieId = t.value; vorschau = null; datei = null; zugelassen = []; sichtungForm = null; setzeMeldung("");
       await lade().catch(() => setzeMeldung("Die Daten konnten nicht geladen werden.", true));
       return zeichne();
     }

@@ -9,6 +9,7 @@ const { Hinweis } = D;
 const R = require("./liga-reports");
 const Dc = require("./liga-discord");
 const F = require("./liga-fahrzeuge");
+const Sichtung = require("./liga-sichtung");
 const { klasseFuer } = require("../../assets/liga-wertung.js");
 
 const SCHLUSS_MINUTEN = 60;
@@ -59,6 +60,9 @@ async function laufendeTabellen(kat) {
   return wert;
 }
 
+// Seasons mit Sichtung, in denen der Fahrer gemeldet ist
+const sichtungSerien = (kat, alle, discordId) => kat.serien.filter((x) => x.einstufungArt === "sichtung" && x.status !== "beendet" && alle.some((e) => e.typ === "serie" && e.serieId === x.id && e.discordId === discordId));
+
 async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
   const pid = profil ? fahrerKennung(profil.custId) : "";
   // Fahrzeug je Season mit Fahrzeugwahl, in der der Fahrer gemeldet ist
@@ -73,6 +77,7 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
   ]);
   return res.status(200).json({
     ...extra,
+    sichtung: sichtungSerien(kat, alle, s.id).map((x) => x.id),
     fahrzeuge: Object.fromEntries(fahrzeuge.filter(([, f]) => f)),
     angemeldet: true,
     kalender: `/liga-kalender/${kalenderSchluessel(s.id)}`,
@@ -188,6 +193,8 @@ async function serieAnmelden(s, profil, body, alle, kat) {
   const pfad = A.mitgliedPfad(serie.id, s.id, fahrzeugklasseWaehlen(serie.fahrzeugklassen || [], String(body.fahrzeugklasse || "")), profil.iracingName);
   await F.waehlen(serie, s.id, String(body.modell || ""), profil.iracingName);
   await blobPut(pfad, "1", "text/plain");
+  // Bei Sichtung: Direktnachricht mit Team-Link und Steckbrief. Scheitert sie, bleibt die Anmeldung gültig.
+  if (serie.einstufungArt === "sichtung" && !serie.ohneKlassen) await Dc.nachricht(s.id, Sichtung.einladungText(serie, F.modellPruefen(serie, String(body.modell || "")))).catch(() => {});
   return merke([...alle, jetztEintrag(pfad)]);
 }
 
@@ -236,6 +243,11 @@ module.exports = async (req, res) => {
   if (req.method === "GET") {
     if (!s) return res.status(200).json({ angemeldet: false });
     if ((req.query || {}).nur === "status") return res.status(200).json({ angemeldet: true, leitung: !!s.leitung });
+    // Sichtung: nur die eigenen Werte, erst beim Öffnen der Ansicht, weil dafür Garage 61 gelesen wird.
+    if ((req.query || {}).nur === "sichtung") {
+      const [alle, kat] = await Promise.all([eintraege(false), D.katalog(false)]);
+      return res.status(200).json({ angemeldet: true, sichtung: await Sichtung.fahrerStand(sichtungSerien(kat, alle, s.id), alle, s.id) });
+    }
     // Mit Discord-Abgleich wird frisch gelesen: Eine veraltete Liste würde einem gerade gemeldeten Fahrer die Rolle wieder nehmen.
     const [gespeichert, gelesen, katalog] = await Promise.all([profilLesen(s.id), eintraege(Dc.aktiv()), D.katalog(false)]);
     // Profilbild (öffentliches Profil) und Discord-Stand (privates Profil) schreiben in verschiedene Einträge und dürfen gleichzeitig laufen.
@@ -282,6 +294,11 @@ module.exports = async (req, res) => {
     const { art, eintrag } = await F.wechseln(serie, s.id, String(body.modell || ""));
     if (art === "antrag") await R.teamMelden({ title: "Fahrzeugwechsel beantragt", url: "https://darklineperformance.de/liga-admin", color: 0xd3121b, fields: [{ name: "Fahrer", value: (profil && profil.iracingName) || s.name, inline: true }, { name: "Season", value: serie.name, inline: true }, { name: "Von → Nach", value: `${eintrag.modell} → ${eintrag.antrag.nach}` }] }).catch(() => {});
     extra.fahrzeugWechsel = art;
+  } else if (body.aktion === "sichtung-abgeben") {
+    const serie = sichtungSerien(kat, alle, s.id).find((x) => x.id === body.serie);
+    if (!serie) throw new Hinweis("Du bist für keine Season mit dieser Sichtung angemeldet.");
+    await Sichtung.abgebenAusGarage(serie, alle, s.id, String(body.strecke || ""));
+    extra.sichtungAbgegeben = true;
   } else if (body.aktion === "report-melden") {
     await reportMelden(s, profil, body, alle, kat);
   } else if (body.aktion === "report-einspruch") {
