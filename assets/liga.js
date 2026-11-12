@@ -542,7 +542,7 @@
 
   function serienAktion(s) {
     if (s.status === "beendet") return "";
-    if (s.status === "geplant") return '<span class="liga-zu">Anmeldung folgt</span>';
+    if (s.status === "geplant") return '<span class="liga-folgt">Anmeldung folgt</span>';
     const offen = s.anmeldungOffen !== false;
     const geschlossen = '<span class="liga-zu">Anmeldung geschlossen</span>';
     if (!fahrerStand || !fahrerStand.angemeldet) return offen ? '<a class="liga-melden" href="/api/discord-login?ziel=liga">Jetzt anmelden</a>' : geschlossen;
@@ -600,7 +600,10 @@
         ${s.beschreibung ? `<p>${esc(s.beschreibung)}</p>` : ""}
         <div class="liga-poster-klassen">${klassen}</div>
         <dl class="liga-poster-daten"><div><dt>Umfang</dt><dd>${esc(umfang)}</dd></div><div><dt>Nächstes Rennen</dt><dd>${naechstes ? `${esc(terminText(naechstes))} · ${esc(naechstes.strecke || naechstes.titel)}` : "Termine folgen"}</dd></div></dl>
-        <div class="liga-serie-aktion">${serienAktion(s)}<a class="liga-mini zweit" href="${serienLink(s)}">${s.typ === "event" ? "Infos" : "Tabelle"}</a></div>
+        <div class="liga-serie-aktion">${s.status === "geplant"
+          // Geplante Serien haben noch keine Tabelle: der Link zur Serie wird der Hauptknopf.
+          ? `<a class="liga-melden zweit" href="${serienLink(s)}">${s.typ === "event" ? "Infos" : "Details"}</a>${serienAktion(s)}`
+          : `${serienAktion(s)}<a class="liga-mini zweit" href="${serienLink(s)}">${s.typ === "event" ? "Infos" : "Tabelle"}</a>`}</div>
       </div>
     </article>`;
   }
@@ -638,7 +641,16 @@
     const kopfBereich = document.querySelector(".liga-kopf");
     kopfBereich.classList.add("gross");
     const imBetrieb = (l) => l.filter((s) => s.status !== "geplant").length;
-    $("liga-fortschritt").innerHTML = `<div class="liga-fakten"><div><b>${imBetrieb(aktiv)}</b><span>${imBetrieb(aktiv) === 1 ? "Aktive Serie" : "Aktive Serien"}</span></div><div><b>${termine.length}</b><span>Geplante Rennen</span></div>${aktiv.some((s) => !s.ohneKlassen) ? `<div><b>${Math.max(0, ...aktiv.filter((s) => !s.ohneKlassen).map((s) => (s.klassen || []).length))}</b><span>Klassen</span></div>` : ""}</div>`;
+    // Nur Zahlen über null zeigen, sonst wirkt die Liga zwischen den Saisons leer.
+    const inPlanung = aktiv.length - imBetrieb(aktiv);
+    const klassenMax = Math.max(0, ...aktiv.filter((s) => !s.ohneKlassen).map((s) => (s.klassen || []).length));
+    const fakten = [
+      [imBetrieb(aktiv), imBetrieb(aktiv) === 1 ? "Aktive Serie" : "Aktive Serien"],
+      [inPlanung, inPlanung === 1 ? "Serie in Planung" : "Serien in Planung"],
+      [termine.length, termine.length === 1 ? "Geplantes Rennen" : "Geplante Rennen"],
+      [klassenMax, "iRating-Klassen"],
+    ].filter(([n]) => n > 0);
+    $("liga-fortschritt").innerHTML = fakten.length ? `<div class="liga-fakten">${fakten.map(([n, l]) => `<div><b>${n}</b><span>${l}</span></div>`).join("")}</div>` : "";
     if (termine[0]) { kopfBereich.querySelector(".wrap").insertAdjacentHTML("beforeend", feature(termine[0].r, termine[0].s)); countdown(); setInterval(countdown, 30000); }
 
     const liste = (l) => `<div class="liga-poster-raster">${l.map((s) => serienKarte(s, rennen)).join("")}</div>`;
