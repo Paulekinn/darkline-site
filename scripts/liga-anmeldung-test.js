@@ -605,6 +605,17 @@ const tests = {
     const gummiSerie = { ...serie, sichtungSteckbrief: { zustand: "60 %" } };
     const gummiAus = S.auswerten(gummiSerie, [{ id: "g", startedAt: "2026-12-05T18:00:00Z", laps: [...gummiRunden(1, 45), ...gummiRunden(2, 58)] }], fahrer, {}).versuche.get("1").spa;
     assert.deepStrictEqual([gummiAus.wert, gummiAus.bedingungen.gummiStart], [131, [58, 58]], "Session mit 45 % Gummi zählt nicht, 58 % liegt im Spielraum");
+    // Ohne gültigen Versuch sagt die Auswertung warum
+    const kurz = [0, 1, 2, 3, 4].map((n) => runde(ben, n, 140, spa, "BMW M4 GT4", { pitOut: n === 0, offtrack: n === 2, airTemp: 25 }));
+    const diag = S.auswerten({ ...serie, sichtungRunden: 3, sichtungSteckbrief: { temperatur: "22 °C" } }, [{ id: "k", startedAt: "2026-12-05T18:00:00Z", laps: kurz }], fahrer, {}).hinweise.get("2").spa;
+    assert.deepStrictEqual([diag.runden, diag.laengste, Object.keys(diag.gruende)], [4, 0, ["auto"]], "Ben fuhr den BMW, Auto ist der erste Grund");
+    const texte = S.hinweisTexte(diag, { ...serie, sichtungRunden: 3 });
+    assert.ok(texte[0].includes("4 Runden gefunden") && texte[0].includes("0 von 3"), texte[0]);
+    assert.ok(texte[1].includes("anderen Auto") && texte[1].includes("BMW M4 GT4"), texte[1]);
+    const anna2 = [0, 1, 2, 3, 4].map((n) => runde(anna, n, 140, spa, "BMW M4 GT4", { pitOut: n === 0, offtrack: n === 2, airTemp: n === 4 ? 25 : 22 }));
+    const t2 = S.hinweisTexte(S.auswerten({ ...serie, sichtungRunden: 3, sichtungSteckbrief: { temperatur: "22 °C" } }, [{ id: "k", startedAt: "2026-12-05T18:00:00Z", laps: anna2 }], fahrer, {}).hinweise.get("1").spa, { ...serie, sichtungRunden: 3, sichtungSteckbrief: { temperatur: "22 °C" } });
+    assert.deepStrictEqual(t2, ["4 Runden gefunden, längste gültige Folge: 1 von 3 am Stück.", "1 Runde mit falscher Lufttemperatur (25 °C), vorgegeben ist 22 °C.", "1 Runde mit Zwischenfall (Offtrack, Incident oder unvollständig)."]);
+    assert.ok(S.hinweisTexte(undefined, serie)[0].includes("keine Runden"));
     // Ohne Fahrzeugliste in der Season zählt jedes Auto
     assert.strictEqual(S.auswerten({ ...serie, modelle: [] }, events, fahrer, {}).versuche.get("2").spa.wert, 139);
   },
