@@ -37,13 +37,13 @@ function streckeVon(track, serie) {
 // Eine Runde ohne Zwischenfall. In- und Outlap zählen nicht.
 const sauber = (l) => !!l.clean && !l.pitIn && !l.pitOut && !l.incomplete && !l.offtrack && Number(l.lapTime) > 0;
 
-// Streckenzustand wie in iRacing, vom saubersten zum meisten Gummi. Der Steckbrief nennt den Begriff in Klammern, etwa „Mittel (Moderate Usage)“.
-const ZUSTAENDE = ["clean", "lowusage", "moderatelylowusage", "moderateusage", "moderatelyhighusage", "highusage", "maximumusage"];
-const zustandKern = (s) => String(s || "").toLowerCase().replace(/[^a-z]/g, "");
+// Streckenzustand als Gummi in Prozent, etwa „60 %“. Garage 61 liefert ihn je Runde (trackUsage), er steigt während der Fahrt.
+// Geprüft wird deshalb der Wert zu Beginn der Testfahrt-Session, mit etwas Spielraum.
 function zustandVorgabe(serie) {
-  const m = /\(([^)]+)\)/.exec(((serie.sichtungSteckbrief || {}).zustand) || "");
-  return m && ZUSTAENDE.includes(zustandKern(m[1])) ? zustandKern(m[1]) : null;
+  const m = /(\d+)\s*%/.exec(((serie.sichtungSteckbrief || {}).zustand) || "");
+  return m ? Number(m[1]) : null;
 }
+const GUMMI_SPIELRAUM = 3;
 // Lufttemperatur aus dem Steckbrief, etwa „22 °C“. Garage 61 liefert Zehntel, iRacing rechnet intern in Fahrenheit: ein Grad Spielraum.
 function luftVorgabe(serie) {
   const m = /(-?\d+)\s*°?\s*C/.exec(((serie.sichtungSteckbrief || {}).temperatur) || "");
@@ -51,18 +51,12 @@ function luftVorgabe(serie) {
 }
 const LUFT_SPIELRAUM = 1;
 
-// Bedingungen wie im Steckbrief: trocken, kein Regen, Streckentemperatur im Bereich, Streckenzustand und Lufttemperatur wie vorgegeben.
+// Bedingungen wie im Steckbrief: trocken, kein Regen, Streckentemperatur im Bereich, Lufttemperatur wie vorgegeben.
 // trackWetness kommt als Stufe von iRacing (0 unbekannt, 1 trocken, ab 2 feucht). Fehlt ein Wert, wird er nicht geprüft.
-// trackUsage liefert Garage 61 als Gummi in Prozent (Test vom 12.11.2026: 57), der während der Fahrt steigt. Eine Zahl lässt sich keiner Stufe zuordnen
-// und wird deshalb nicht geprüft, nur als gemessener Wert gezeigt. Käme er als Text wie „Moderate Usage“, wird er mit der Vorgabe verglichen.
+// Den Streckenzustand prüft auswerten() je Session, weil der Gummi während der Fahrt steigt.
 function bedingungenOk(l, serie) {
   if (Number(l.precipitation) > 0) return false;
   if (Number(l.trackWetness) > 1) return false;
-  const zustand = zustandVorgabe(serie);
-  if (zustand && typeof l.trackUsage === "string" && l.trackUsage.trim()) {
-    const wert = zustandKern(l.trackUsage);
-    if (ZUSTAENDE.includes(wert) && wert !== zustand) return false;
-  }
   const luft = luftVorgabe(serie);
   const lt = l.airTemp === undefined || l.airTemp === null || l.airTemp === "" ? null : Number(l.airTemp);
   if (luft !== null && lt !== null && Number.isFinite(lt) && Math.abs(lt - luft) > LUFT_SPIELRAUM) return false;
@@ -124,7 +118,7 @@ function gemessen(runden) {
     const f = 10 ** stellen;
     return [Math.round(Math.min(...w) * f) / f, Math.round(Math.max(...w) * f) / f];
   };
-  const b = { strecke: spanne("trackTemp", 1), luft: spanne("airTemp", 1), gummi: spanne("trackUsage", 0), tank: spanne("tankStart", 1) };
+  const b = { strecke: spanne("trackTemp", 1), luft: spanne("airTemp", 1), gummi: spanne("trackUsage", 0), gummiStart: spanne("gummiStart", 0), tank: spanne("tankStart", 1) };
   Object.keys(b).forEach((k) => { if (!b[k]) delete b[k]; });
   return Object.keys(b).length ? b : null;
 }
@@ -171,6 +165,16 @@ function auswerten(serie, events, fahrer, zuordnung, mitAuto = (serie.modelle ||
       const bisher = stintStart.get(k);
       if (!bisher || Number(l.lapNumber) < bisher.nr) stintStart.set(k, { nr: Number(l.lapNumber), tank: Number(l.fuelLevel) });
     }
+    // Gummi beim Start der Session: trackUsage der frühesten Runde je Session (nach Startzeit, sonst Rundennummer)
+    const sessionStart = new Map();
+    for (const l of ev.laps || []) {
+      if (typeof l.trackUsage !== "number") continue;
+      const k = kennung(l.session);
+      const wann = l.startTime ? new Date(l.startTime).getTime() : Number(l.lapNumber);
+      const bisher = sessionStart.get(k);
+      if (!bisher || wann < bisher.wann) sessionStart.set(k, { wann, gummi: l.trackUsage });
+    }
+    const gummiVorgabe = zustandVorgabe(serie);
     for (const l of ev.laps || []) {
       const strecke = streckeVon(l.track || ev.track, serie);
       if (!strecke) continue;
@@ -188,7 +192,10 @@ function auswerten(serie, events, fahrer, zuordnung, mitAuto = (serie.modelle ||
       // Mindest-Tank: Startet der Stint mit weniger Sprit, zählt keine Runde daraus. Ohne Tankwert wird nicht geprüft.
       const tank = (stintStart.get(stintKennung(l)) || {}).tank;
       const tankOk = !(serie.sichtungTankMin > 0) || tank === undefined || tank >= serie.sichtungTankMin;
-      jeStrecke.get(strecke.key).push({ lapTime: l.lapTime, lapNumber: l.lapNumber, session: kennung(l.session), run: kennung(l.run), event: ev.id, zeit: ev.startedAt || null, trackTemp: l.trackTemp, airTemp: l.airTemp, trackUsage: typeof l.trackUsage === "number" ? l.trackUsage : undefined, tankStart: tank, ok: sauber(l) && bedingungenOk(l, serie) && autoOk && tankOk });
+      // Streckenzustand: Gummi beim Start der Session höchstens 3 Prozentpunkte neben der Vorgabe. Ohne Messwert wird nicht geprüft.
+      const gummiStart = (sessionStart.get(kennung(l.session)) || {}).gummi;
+      const gummiOk = gummiVorgabe === null || gummiStart === undefined || Math.abs(gummiStart - gummiVorgabe) <= GUMMI_SPIELRAUM;
+      jeStrecke.get(strecke.key).push({ lapTime: l.lapTime, lapNumber: l.lapNumber, session: kennung(l.session), run: kennung(l.run), event: ev.id, zeit: ev.startedAt || null, trackTemp: l.trackTemp, airTemp: l.airTemp, trackUsage: typeof l.trackUsage === "number" ? l.trackUsage : undefined, gummiStart, tankStart: tank, ok: sauber(l) && bedingungenOk(l, serie) && autoOk && tankOk && gummiOk });
     }
   }
   const versuche = new Map();
