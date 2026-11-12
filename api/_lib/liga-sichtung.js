@@ -307,7 +307,7 @@ function standZusammen(serie, fahrer, abgaben, auswertung, mitglieder, privat = 
     const eigene = (abgaben.get(f.discordId) || {}).abgaben || {};
     const versuche = auswertung ? auswertung.versuche.get(f.discordId) || {} : {};
     return {
-      discordId: f.discordId, name: f.name, cust: f.cust, irating: f.irating, modell: f.modell, imTeam: mitglieder ? imTeam.has(f.discordId) : null,
+      discordId: f.discordId, name: f.name, cust: f.cust, irating: f.irating, modell: f.modell, imTeam: mitglieder ? imTeam.has(f.discordId) : null, teamAnfrage: (abgaben.get(f.discordId) || {}).teamAnfrage || "",
       strecken: (serie.sichtungStrecken || []).map((s, i) => (eigene[s.key] ? { status: "abgegeben", wert: eigene[s.key].wert, prozent: vf.zeiten[i] ? vf.zeiten[i].prozent : null, abgegeben: eigene[s.key].abgegeben, gefahren: versuche[s.key] ? versuche[s.key].wert : null } : versuche[s.key] ? { status: "gefahren", wert: versuche[s.key].wert } : { status: "fehlt" })),
       prozent: vf.prozent, vollstaendig: vf.vollstaendig, vorschlag: vf.vorschlag, nachIrating: vf.nachIrating, fest: vf.fest,
     };
@@ -354,6 +354,21 @@ async function abgebenAusGarage(serie, alle, discordId, key) {
   return abgeben(serie, discordId, key, versuch, ich.name);
 }
 
+// Klick auf „Team beitreten“: Garage 61 meldet Beitrittsanfragen nicht über die API, deshalb meldet die Website den Klick an die Rennleitung.
+// Je Fahrer und Season nur einmal. Ist der Fahrer schon im Team, gibt es keine Meldung. Liefert true, wenn gemeldet werden soll.
+async function teamAnfrageMerken(serie, discordId, name, jetzt = Date.now()) {
+  let neu = false;
+  await D.jsonAendern(pfad(serie.id, discordId), (alt) => {
+    if (alt.teamAnfrage) return undefined;
+    neu = true;
+    return { ...alt, name: alt.name || String(name || "").slice(0, 80), teamAnfrage: new Date(jetzt).toISOString() };
+  }, () => ({ name: "", abgaben: {} }));
+  return neu;
+}
+function teamAnfrageKarte(serie, name) {
+  return { title: "Garage 61: Beitritt zum Liga-Team", url: teamLink(), color: 0xd3121b, description: `Bitte die Anfrage in Garage 61 freigeben, wenn der Name passt. Danach erscheint der Fahrer in der Sichtung mit „Team: ja“.`, fields: [{ name: "Fahrer", value: name || "Unbekannt", inline: true }, { name: "Season", value: serie.name, inline: true }, { name: "Name in Garage 61 sollte sein", value: name || "–" }] };
+}
+
 // Für den Hinweis im Fahrerbereich: Wie viele Strecken dieser Fahrer in einer laufenden Sichtung noch abgeben kann. Liest nur die eigene Datei.
 async function offeneStrecken(serie, discordId, jetzt = Date.now()) {
   if (!laeuft(serie, jetzt)) return 0;
@@ -398,4 +413,4 @@ function einladungText(serie, modell) {
   ].filter((z, i, a) => z !== "" || (a[i - 1] !== "" && i > 0)).join("\n");
 }
 
-module.exports = { offeneStrecken, standZusammen, einladungText, steckbriefZeilen, seasonFahrer, adminStand, fahrerStand, abgebenAusGarage, fortschritt, WURZEL, teamSlug, teamLink, zeitraum, laeuft, vorbei, streckeVon, sauber, bedingungenOk, besterVersuch, namensKern, g61Name, zuordner, auswerten, vorschlag, lesenAlle, abgeben, zuruecksetzen, derSerieLoeschen, eventsLaden, teamMitglieder, g61Fehlertext };
+module.exports = { teamAnfrageMerken, teamAnfrageKarte, offeneStrecken, standZusammen, einladungText, steckbriefZeilen, seasonFahrer, adminStand, fahrerStand, abgebenAusGarage, fortschritt, WURZEL, teamSlug, teamLink, zeitraum, laeuft, vorbei, streckeVon, sauber, bedingungenOk, besterVersuch, namensKern, g61Name, zuordner, auswerten, vorschlag, lesenAlle, abgeben, zuruecksetzen, derSerieLoeschen, eventsLaden, teamMitglieder, g61Fehlertext };
