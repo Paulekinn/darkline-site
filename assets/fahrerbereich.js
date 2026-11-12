@@ -408,7 +408,7 @@
     return `<section class="fb-panel"><div class="fb-fall-kopf"><h3>${esc(x.name)}: Sichtung</h3>${status}</div>
       <p class="fb-klein">Deine Klasse in dieser Season bestimmt die Sichtung. So gehst du vor:</p>
       <ol class="fb-schritte">
-        <li><b>Garage-61-Team beitreten</b><span>Ohne Team sehen wir deine Runden nicht. Die Rennleitung gibt den Beitritt frei. Dein Name in Garage 61 muss zu deinem Profil passen: ${esc(x.iracingName || "–")}.</span><a class="fb-knopf fb-melden" href="${esc(x.teamLink)}" target="_blank" rel="noopener" data-team-beitritt="${esc(x.id)}">Team beitreten ↗</a></li>
+        <li><b>Garage-61-Team beitreten</b><span>Ohne Team sehen wir deine Runden nicht. Die Rennleitung gibt den Beitritt frei. Dein Name in Garage 61 muss zu deinem Profil passen: ${esc(x.iracingName || "–")}.</span><a class="fb-knopf fb-team-knopf" href="${esc(x.teamLink)}" target="_blank" rel="noopener" data-team-beitritt="${esc(x.id)}">Team beitreten ↗</a></li>
         <li><b>Testfahrt einstellen</b><span>In iRacing eine Offline-Testfahrt starten und genau so einstellen wie in den Vorgaben unten.</span></li>
         <li><b>${x.runden} saubere Runden am Stück</b><span>${x.mitAuto && x.modell ? `Mit deinem ${esc(x.modell)}. ` : ""}In- und Outlaps zählen nicht, ebenso Runden mit anderer Temperatur oder anderem Streckenzustand als vorgegeben oder Regen.${x.tankMin ? ` Starte jeden Stint mit mindestens ${x.tankMin} Litern im Tank.` : ""}</span></li>
         <li><b>Ergebnis abgeben</b><span>Hier erscheint je Strecke dein bester gültiger Versuch. Mit dem Knopf gibst du ihn ab, danach ist er eingefroren.</span></li>
