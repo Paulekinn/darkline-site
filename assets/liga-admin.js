@@ -821,13 +821,16 @@
   // „Circuit de Spa-Francorchamps · Grand Prix“ → „Spa-Francorchamps“, damit drei Strecken nebeneinander passen
   const kurzerStreckenname = (s) => { const n = s.split(" · ")[0].replace(/^(Circuit de |Circuit |Autodromo Nazionale |Autodromo Internazionale |Autodromo |Autódromo |Circuito de |Circuito )/i, "").replace(/ (Circuit|Raceway|Speedway|Motorsport Park)$/i, ""); return n.length > 16 ? `${n.slice(0, 15)}…` : n; };
   const WERTUNG = { beste: "Beste Runde", schnitt: "Durchschnitt der sauberen Runden" };
+  // Feste Auswahl statt Freitext, damit alle Fahrer dasselbe einstellen. In Klammern der Begriff aus iRacing.
   const STECKBRIEF = [
-    ["uhrzeit", "Uhrzeit", "z. B. 14:00 Uhr", "Tageszeit in der Testfahrt"],
-    ["wetter", "Wetter", "z. B. klar, statisch", "Wetter-Einstellung, am besten statisch"],
-    ["zustand", "Streckenzustand", "z. B. Gummi automatisch", "Gummi und Murmeln auf der Strecke"],
-    ["setup", "Setup", "z. B. iRacing-Standard", "Welches Setup gefahren wird"],
-    ["temperatur", "Lufttemperatur", "z. B. 22 °C", "Als Hinweis, geprüft wird die Streckentemperatur unten"],
+    ["uhrzeit", "Uhrzeit", "Tageszeit in der Testfahrt", Array.from({ length: 13 }, (_, i) => `${String(8 + i).padStart(2, "0")}:00 Uhr`)],
+    ["wetter", "Wetter", "Himmel bei statischem Wetter, ohne Regen", ["Klar (Clear), statisch", "Leicht bewölkt (Partly Cloudy), statisch", "Überwiegend bewölkt (Mostly Cloudy), statisch", "Bedeckt (Overcast), statisch"]],
+    ["zustand", "Streckenzustand", "Gummi auf der Strecke zu Beginn", ["Sauber (Clean)", "Wenig Gummi (Low Usage)", "Etwas Gummi (Moderately Low Usage)", "Mittel (Moderate Usage)", "Viel Gummi (Moderately High Usage)", "Sehr viel Gummi (High Usage)", "Maximum (Maximum Usage)"]],
+    ["setup", "Setup", "Welches Setup gefahren wird", ["iRacing-Baseline-Setup", "Freies Setup"]],
+    ["temperatur", "Lufttemperatur", "Als Vorgabe, geprüft wird die Streckentemperatur unten", Array.from({ length: 26 }, (_, i) => `${10 + i} °C`)],
   ];
+  // Auswahlfeld eines Steckbrief-Punkts. Ein älterer Freitext bleibt als eigene Option sichtbar, bis er ersetzt wird.
+  const steckbriefAuswahl = (k, liste, wert) => `<select name="sb_${k}" id="sb-${k}"><option value="">– keine Vorgabe –</option>${wert && !liste.includes(wert) ? `<option value="${esc(wert)}" selected>${esc(wert)} (bisher, bitte neu wählen)</option>` : ""}${liste.map((o) => `<option value="${esc(o)}"${o === wert ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
 
   // Liest das Einrichtungsformular. Leere Streckenzeilen bleiben für die Anzeige stehen, der Server ignoriert sie.
   function sichtungAusFormular(f) {
@@ -871,8 +874,8 @@
       </div><p class="a-hinweis">Je eine Grenze zwischen zwei Klassen, von oben nach unten (${esc(serie.klassen.map((k) => k.name).join(", "))}). „101,5 / 103“ heißt: bis 101,5 % die oberste Klasse, bis 103 % die zweite, darüber die nächste. Leer lassen für die Standardwerte. Es zählt der Mittelwert über alle Strecken.</p>`)}
       ${abschnittForm(2, "Strecken", `<div class="a-spalte">${zeilen.map(zeile).join("")}</div><button type="button" class="a-knopf zweit klein" data-sicht-strecke-neu="1"${zeilen.length >= 5 ? " hidden" : ""}>Strecke hinzufügen</button>`, "Wähle die Strecke aus der Bibliothek (Import aus Garage 61). Fehlt sie dort, trag die iRacing-Strecken-ID und einen Namen ein. Leere Zeilen werden ignoriert.")}
       ${abschnittForm(3, "Server-Vorgaben für die Fahrer", `<div class="a-felder zwei">
-        ${STECKBRIEF.map(([k, t, p, hilfe]) => `<div class="a-feld"><label for="sb-${k}">${esc(t)}</label>${eingabe(`sb_${k}`, (w.sichtungSteckbrief || {})[k] || "", `id="sb-${k}" maxlength="300" placeholder="${esc(p)}"`)}<small class="a-hinweis">${esc(hilfe)}</small></div>`).join("")}
-      </div>`, "Diese Angaben sind nur Text: Die Fahrer lesen sie im Fahrerbereich und stellen damit in iRacing ihre Testfahrt ein. Alles leer lassen, was egal ist.")}
+        ${STECKBRIEF.map(([k, t, hilfe, liste]) => `<div class="a-feld"><label for="sb-${k}">${esc(t)}</label>${steckbriefAuswahl(k, liste, (w.sichtungSteckbrief || {})[k] || "")}<small class="a-hinweis">${esc(hilfe)}</small></div>`).join("")}
+      </div>`, "Die Fahrer sehen diese Vorgaben im Fahrerbereich und stellen damit in iRacing ihre Testfahrt ein. „Keine Vorgabe“ heißt: frei wählbar.")}
       ${abschnittForm(4, "Automatische Prüfung der Runden", `<div class="a-feld"><label for="sb-temp-von">Streckentemperatur in °C</label><div class="a-bereich">${eingabe("sichtungTempMin", w.sichtungTempMin ?? "", 'id="sb-temp-von" type="number" min="-20" max="80" placeholder="von" aria-label="Streckentemperatur von"')}<span>bis</span>${eingabe("sichtungTempMax", w.sichtungTempMax ?? "", 'type="number" min="-20" max="80" placeholder="bis" aria-label="Streckentemperatur bis"')}</div></div>
         <ul class="a-regeln"><li>Runden außerhalb dieses Bereichs zählen nicht. Leer lassen, wenn die Temperatur egal ist.</li><li>Runden mit Regen oder nasser Strecke zählen nie.</li><li>Nur Runden mit dem in der Season gemeldeten Auto und auf den Strecken oben zählen.</li><li>Das Setup lässt sich nicht prüfen.</li></ul>`, "Diese Regeln wendet die Website selbst auf die Runden aus Garage 61 an.")}
       ${formLeiste("Einrichtung speichern")}
