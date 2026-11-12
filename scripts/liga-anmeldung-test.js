@@ -563,9 +563,8 @@ const tests = {
     assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: "Moderate Usage", airTemp: 22.4 }, vorgabe), true);
     assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: "MODERATE_USAGE", airTemp: 21.1 }, vorgabe), true, "Schreibweise und ein Grad Spielraum");
     assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: "high usage" }, vorgabe), false, "Anderer Gummi-Stand");
-    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: 3 }, vorgabe), true, "Als Zahl: Stufe 3 ist Moderate Usage");
-    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: 5 }, vorgabe), false);
-    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: 47.5 }, vorgabe), true, "Unbekanntes Format wird nicht geprüft");
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: 5 }, vorgabe), true, "Zahl ist Gummi in Prozent und wird nicht geprüft");
+    assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: 57 }, vorgabe), true);
     assert.strictEqual(S.bedingungenOk({ trackTemp: 25, airTemp: 25 }, vorgabe), false, "Zu warme Luft");
     assert.strictEqual(S.bedingungenOk({ trackTemp: 25, trackUsage: "high usage", airTemp: 30 }, serie), true, "Ohne Vorgabe keine Prüfung");
   },
@@ -588,7 +587,11 @@ const tests = {
       { id: "d", startedAt: "2026-12-04T18:00:00Z", laps: [1, 2, 3].map((n) => runde(anna, n, 90, { id: 5, platform_id: 5 })) },
     ];
     const { versuche, unbekannt } = S.auswerten(serie, events, fahrer, {});
-    assert.deepStrictEqual(versuche.get("1"), { spa: { wert: 137, beste: 137, schnitt: 138, runden: [139, 138, 137], event: "a", zeit: "2026-12-02T18:00:00Z" }, "ir-239": { wert: 108, beste: 108, schnitt: 108, runden: [108, 108, 108], event: "b", zeit: "2026-12-03T18:00:00Z" } });
+    const temp = { bedingungen: { strecke: [25, 25] } };
+    assert.deepStrictEqual(versuche.get("1"), { spa: { wert: 137, beste: 137, schnitt: 138, runden: [139, 138, 137], event: "a", zeit: "2026-12-02T18:00:00Z", ...temp }, "ir-239": { wert: 108, beste: 108, schnitt: 108, runden: [108, 108, 108], event: "b", zeit: "2026-12-03T18:00:00Z", ...temp } });
+    // Gemessene Bedingungen wie Garage 61 sie liefert: Gummi als Prozent
+    const mitWerten = [1, 2, 3].map((n) => runde(anna, n, 130, spa, "BMW M4 GT4", { trackTemp: 20.55 + n, airTemp: 18.889, trackUsage: 55 + n }));
+    assert.deepStrictEqual(S.auswerten(serie, [{ id: "w", startedAt: "2026-12-05T18:00:00Z", laps: mitWerten }], fahrer, {}).versuche.get("1").spa.bedingungen, { strecke: [21.6, 23.6], luft: [18.9, 18.9], gummi: [56, 58] });
     assert.deepStrictEqual(versuche.get("2"), {}, "Ben fuhr den BMW statt seines gemeldeten Porsche");
     assert.deepStrictEqual(unbekannt, [{ slug: "max-muster", name: "Max Muster", runden: 3 }], "Doppelter Name in der Season: nicht eindeutig");
     // Von Hand zugeordnet zählt es

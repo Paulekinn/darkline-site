@@ -228,6 +228,8 @@ textarea{min-height:110px;resize:vertical}
 .a-bereich{display:grid;grid-template-columns:minmax(0,110px) max-content minmax(0,110px);justify-content:start;gap:8px;align-items:center}
 .a-bereich span{font-size:.84rem;color:var(--a-leise)}
 .a-regeln{margin:0;padding-left:18px;display:grid;gap:3px;font-size:.84rem;color:var(--a-leise)}
+.a-messung{display:grid;gap:1px;margin-top:4px;padding-top:4px;border-top:1px dashed var(--a-linie)}
+.a-messung small{font-size:.66rem;color:var(--a-leise)}
 .a-fakten{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr));gap:8px 14px;margin:0}
 .a-fakten div{display:grid;gap:2px;min-width:0}
 .a-fakten dt{font:500 .62rem/1.2 var(--a-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--a-leise)}
