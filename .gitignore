@@ -7,3 +7,5 @@ content/news.json
 /fahrer/
 /kalender.ics
 /sitemap.xml
+# Abgeschaltete Beispiel-Liga, soll nicht öffentlich erreichbar sein
+/.demo/

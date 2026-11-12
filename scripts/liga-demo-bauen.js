@@ -187,5 +187,8 @@ const demo = {
   admin, adminDetails, akten, protokoll, sichtungStand: { [GT4.id]: sichtungStand },
   profile: Object.fromEntries(FAHRER.map((f) => [pid(f.cust), P.fahrerAkte(serien, tabellen, pid(f.cust))]).filter(([, a]) => a).map(([p, a]) => [p, { pid: p, ...a, profil: fahrerprofile[p] }])),
 };
-fs.writeFileSync(path.join(__dirname, "..", "assets", "liga-demo.json"), JSON.stringify(demo));
+// Die Demo ist seit 13.11.2026 abgeschaltet: Die Daten landen im Ordner .demo/, der nicht ins Repository und damit nicht auf die Website kommt.
+// Zum Wiedereinschalten .demo/liga-demo.json und .demo/liga-demo.js nach assets/ legen und liga-demo.js in liga.html, fahrer.html und liga-admin.html einbinden.
+fs.mkdirSync(path.join(__dirname, "..", ".demo"), { recursive: true });
+fs.writeFileSync(path.join(__dirname, "..", ".demo", "liga-demo.json"), JSON.stringify(demo));
 console.log(`liga-demo.json: ${serien.length} Serien, ${RENNEN.length} Rennen, ${Object.keys(demo.profile).length} Fahrerprofile`);
