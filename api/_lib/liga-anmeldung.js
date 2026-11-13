@@ -169,7 +169,7 @@ function pruefeExtras(p) {
     try { url = new URL(kanal); } catch (e) { /* unten als Fehler gemeldet */ }
     if (!url || url.protocol !== "https:" || !/^(www\.|m\.)?(twitch\.tv|youtube\.com|youtu\.be)$/.test(url.hostname) || kanal.length > 150) throw new Error("Bitte gib einen Twitch- oder YouTube-Link an, der mit https:// beginnt.");
   }
-  return { nummer: nummerText ? +nummerText : null, land, team, kanal, zeigeBild: !!(p && p.zeigeBild) };
+  return { nummer: nummerText ? +nummerText : null, land, team, kanal, zeigeBild: !!(p && p.zeigeBild), uebersicht: !!(p && p.uebersicht === true) };
 }
 
 // Die Startnummer ist Pflicht, auch wenn die übrigen öffentlichen Angaben freiwillig bleiben.

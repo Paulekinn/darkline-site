@@ -263,10 +263,11 @@
       <div class="fb-feld"><label for="p-team">Team oder Club</label><input id="p-team" autocomplete="off" maxlength="40" value="${esc(p.team || "")}"></div>
       <div class="fb-feld"><label for="p-kanal">Twitch- oder YouTube-Link</label><input id="p-kanal" autocomplete="off" maxlength="150" placeholder="https://www.twitch.tv/…" value="${esc(p.kanal || "")}"></div>
       <label class="fb-haken"><input type="checkbox" id="p-bild"${p.zeigeBild === false ? "" : " checked"}><span>Mein Discord-Profilbild auf dem Profil und der Fahrerkarte zeigen</span></label>
+      <label class="fb-haken"><input type="checkbox" id="p-uebersicht"${p.uebersicht === true ? " checked" : ""}><span>Mich mit iRacing-Name und Startnummer in der öffentlichen Fahrerübersicht zeigen, auch bevor ich ein Rennen gefahren bin</span></label>
       <div class="fb-profil-fuss">
-        <button type="submit" class="fb-knopf">Profil speichern</button>
+        <button type="submit" class="fb-knopf">${stand.fahrer.profil ? "Profil speichern" : "Registrieren"}</button>
         ${stand.fahrer.profil ? '<button type="button" class="fb-knopf zweit" id="p-abbrechen">Abbrechen</button>' : ""}
-        <p>Dein iRacing-Name erscheint in der Starterliste. Startnummer, Land, Team, Link und Profilbild sieht jeder auf deinem öffentlichen Profil. iRacing-ID und iRating sieht nur die Rennleitung. Das iRating prüfen wir vor dem Saisonstart. Mehr dazu in der <a href="/datenschutz">Datenschutzerklärung</a>.</p>
+        <p>Für die Registrierung brauchst du keine Season. Dein iRacing-Name erscheint in der Starterliste und, wenn du zustimmst, in der Fahrerübersicht. Startnummer, Land, Team, Link und Profilbild sieht jeder auf deinem öffentlichen Profil. iRacing-ID und iRating sieht nur die Rennleitung. Das iRating prüfen wir vor dem Saisonstart. Mehr dazu in der <a href="/datenschutz">Datenschutzerklärung</a>.</p>
       </div>
     </form>`;
   }
@@ -281,6 +282,10 @@
         ${p.land || p.team ? `<small class="fb-lizenz-info">${window.LigaKarte.flagge(p.land)}${esc([window.LigaFlaggen.name(p.land), p.team].filter(Boolean).join(" · "))}</small>` : ""}
         <dl><div><dt>iRacing-ID</dt><dd>${esc(p.custId)}</dd></div><div><dt>Sports-Car-iRating</dt><dd>${esc(Number(p.irating).toLocaleString("de-DE"))}</dd></div></dl>
       </div>
+      <ul class="fb-profil-status">
+        <li><span>Fahrerübersicht</span><b>${p.uebersicht === true ? "Sichtbar" : "Nicht sichtbar"}</b></li>
+        ${stand.g61 ? `<li><span>Garage-61-Team</span>${stand.g61.imTeam === true ? "<b>Mitglied</b>" : stand.g61.gemeldet ? "<b>Wartet auf Freigabe</b>" : g61Knopf("Beitreten")}</li>` : ""}
+      </ul>
       ${stand.fahrer.nummerWunsch ? `<p class="fb-klein">Änderung auf #${esc(stand.fahrer.nummerWunsch)} beantragt. Sie gilt, sobald die Rennleitung sie bestätigt.</p>` : ""}
       ${bildFehlt ? '<p class="fb-klein">Dein Discord-Bild ist noch nicht übernommen. Logge dich einmal aus und wieder ein, dann erscheint es hier. Ohne eigenes Bild bei Discord bleibt der Platz leer.</p>' : ""}
       <p class="fb-profil-link"><button type="button" class="fb-link" data-profil="1">Profil ändern</button>${(stand.meineKarten || []).some((k) => k.pid) ? ` <a class="fb-link" href="/fahrer?id=${encodeURIComponent(stand.fahrer.pid)}">Öffentliches Profil</a>` : ""}</p>`;
@@ -313,7 +318,7 @@
   }
 
   function naechsterSchritt(f) {
-    if (!f.profil) return "Fülle einmal dein Profil aus, dann kannst du dich für Serien und Rennen anmelden.";
+    if (!f.profil) return "Registriere dich als Fahrer und sichere dir deine Startnummer. Eine Season oder ein Event brauchst du dafür nicht.";
     if (!f.profil.nummer) return "Trage eine Startnummer in deinem Profil ein, dann kannst du dich für Serien und Rennen anmelden.";
     const r = stand.rennen.find((x) => x.ich && x.status !== "abgesagt");
     if (r) return `Dein nächster Start: ${r.titel}, ${datum(r.start)}, ${uhr(r.start)}.`;
@@ -337,7 +342,7 @@
           <h1>Hallo, <em>${esc(name)}</em></h1>
           <p class="fb-held-satz">${esc(naechsterSchritt(f))}</p>
           <div class="liga-fakten">${zahlen.map(([w, t]) => `<div><b>${esc(w)}</b><span>${esc(t)}</span></div>`).join("")}</div>
-          <div class="fb-held-fuss">${f.profil ? "" : '<button type="button" class="fb-knopf" data-profil="1">Profil ausfüllen</button>'}<span>Angemeldet als ${esc(f.name)}</span><button type="button" class="fb-knopf zweit" id="fb-logout">Ausloggen</button></div>
+          <div class="fb-held-fuss">${f.profil ? "" : '<button type="button" class="fb-knopf" data-profil="1">Jetzt registrieren</button>'}<span>Angemeldet als ${esc(f.name)}</span><button type="button" class="fb-knopf zweit" id="fb-logout">Ausloggen</button></div>
         </div>
         <div class="fb-held-karte">${kartenBereich(name)}</div>
       </div>
@@ -354,6 +359,7 @@
           <h1>Dein <em>Cockpit</em></h1>
           ${fehler ? `<p class="fb-meldung" role="alert">${esc(fehler)}</p>` : ""}
           <ul class="fb-vorteile">
+            <li><b>Registrieren</b><span>Startnummer sichern, auch ohne Season</span></li>
             <li><b>Rennen</b><span>Alle Termine deiner Serien auf einen Blick</span></li>
             <li><b>Anmeldung</b><span>Für Serien und einzelne Rennen mit einem Klick</span></li>
             <li><b>Fahrerkarte</b><span>Dein Rating, deine Werte, deine Abzeichen</span></li>
@@ -498,7 +504,7 @@
     const haupt = sichtbar.find((r) => r.id === auswahl) || sichtbar[0];
     const rest = sichtbar.filter((r) => r !== haupt);
     const profilNoetig = !f.profil || profilOffen;
-    const profilPanel = `<section class="fb-panel${f.profil ? "" : " fb-panel-wichtig"}"><h3>${!f.profil ? "Profil einmalig ausfüllen" : profilOffen ? "Profil ändern" : "Dein Profil"}</h3>${profilNoetig ? profilForm() : profilAnsicht()}</section>`;
+    const profilPanel = `<section class="fb-panel${f.profil ? "" : " fb-panel-wichtig"}"><h3>${!f.profil ? "Als Fahrer registrieren" :profilOffen ? "Profil ändern" : "Dein Profil"}</h3>${profilNoetig ? profilForm() : profilAnsicht()}</section>`;
     const box = main.querySelector(".fb-briefing-box");
     if (box) briefingOffen = box.open;
     const starterBox = main.querySelector(".fb-starter-box");
@@ -512,6 +518,7 @@
     main.innerHTML = `${kopf}<section class="sheet"><div class="wrap">
       <div class="fb-leiste">${ansichtWahl()}${filterChips()}</div>
       <p class="fb-meldung" id="fb-meldung" role="alert" hidden></p>
+      ${erstePanel()}
       ${renntagPanel()}
       ${nummerEntscheidPanel()}
       <div class="fb-raster">
@@ -523,6 +530,28 @@
       </div>
     </div></section>`;
     uhrwerk();
+  }
+
+  /* ---------- Erste Schritte: Registrierung, Garage-61-Team, Season (freiwillig) ---------- */
+  const g61Fertig = () => !!stand.g61 && (stand.g61.imTeam === true || stand.g61.gemeldet);
+  const g61Knopf = (text) => `<a class="fb-knopf fb-team-knopf" href="${esc(stand.g61.link)}" target="_blank" rel="noopener" data-g61-beitritt="1">${esc(text)} ↗</a>`;
+
+  // Verschwindet, sobald Profil und Garage-61-Beitritt erledigt sind. Die Season bleibt freiwillig.
+  function erstePanel() {
+    if (!stand.g61 || (profilFertig() && g61Fertig())) return "";
+    const registriert = profilFertig();
+    const g61 = stand.g61.imTeam === true ? ["fertig", "Du bist im Team."]
+      : stand.g61.gemeldet ? ["warte", "Gemeldet. Die Rennleitung gibt dich in Garage 61 frei."]
+      : ["", registriert ? `Dort sehen wir deine Runden, etwa für die Sichtung. Die Rennleitung gibt den Beitritt frei. Dein Name in Garage 61 muss zu deinem Profil passen: ${stand.fahrer.profil.iracingName}.` : "Geht nach der Registrierung."];
+    const inSeason = stand.serien.some((s) => s.ich);
+    const schritt = (klasse, titel, text, knopf) => `<li class="${klasse}"><b>${esc(titel)}</b><span>${esc(text)}</span>${knopf || ""}</li>`;
+    return `<section class="fb-panel fb-panel-wichtig fb-erste"><h3>Deine ersten Schritte</h3>
+      <ol class="fb-schritte">
+        ${schritt(registriert ? "fertig" : "", "Als Fahrer registrieren", registriert ? `Erledigt. Deine Startnummer: #${stand.fahrer.profil.nummer}.` : "iRacing-Name, iRacing-ID und deine Startnummer. Jede Nummer gibt es nur einmal.", registriert ? "" : '<button type="button" class="fb-knopf fb-team-knopf" data-profil="1">Profil anlegen</button>')}
+        ${schritt(g61[0], "Garage-61-Team beitreten", g61[1], registriert && !g61[0] ? g61Knopf("Team beitreten") : "")}
+        ${schritt(inSeason ? "fertig" : "frei", "Season oder Event wählen", inSeason ? "Du bist in einer Season gemeldet." : "Freiwillig und jederzeit. Deine Startnummer bleibt auch ohne Season reserviert.")}
+      </ol>
+    </section>`;
   }
 
   // Bleibt stehen, bis der Fahrer die Entscheidung der Rennleitung wegklickt.
@@ -554,10 +583,10 @@
     // Bei einem Fehler bleibt alles Eingetippte stehen.
     const felder = fehler && daten.aktion === "profil" ? ["p-name", "p-cust", "p-ir", "p-nr", "p-land", "p-team", "p-kanal"] : [];
     const eingaben = felder.map((id) => $(id).value);
-    const bildHaken = felder.length ? $("p-bild").checked : false;
+    const haken = felder.length ? [$("p-bild").checked, $("p-uebersicht").checked] : [];
     zeichne();
     felder.forEach((id, i) => { $(id).value = eingaben[i]; });
-    if (felder.length) $("p-bild").checked = bildHaken;
+    if (felder.length) { $("p-bild").checked = haken[0]; $("p-uebersicht").checked = haken[1]; }
     if (fehler) meldung(fehler);
     return !fehler;
   }
@@ -566,6 +595,12 @@
   main.addEventListener("click", (e) => {
     const a = e.target.closest("a[data-team-beitritt]");
     if (a) fetch(API, { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ aktion: "sichtung-team", serie: a.dataset.teamBeitritt }) }).catch(() => {});
+    // Dasselbe aus dem Profil, ohne Season. Der Link öffnet sich im neuen Tab, hier gilt der Beitritt danach als gemeldet.
+    const g = e.target.closest("a[data-g61-beitritt]");
+    if (g && stand.g61) {
+      fetch(API, { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ aktion: "g61-team" }) }).catch(() => {});
+      if (stand.g61.imTeam !== true) { stand.g61.gemeldet = true; setTimeout(zeichne, 0); }
+    }
   });
 
   main.addEventListener("click", (e) => {
@@ -674,7 +709,7 @@
     }
     if (e.target.id !== "fb-profil") return;
     e.preventDefault();
-    sende({ aktion: "profil", profil: { iracingName: $("p-name").value, custId: $("p-cust").value, irating: $("p-ir").value, nummer: $("p-nr").value, land: $("p-land").value, team: $("p-team").value, kanal: $("p-kanal").value, zeigeBild: $("p-bild").checked } });
+    sende({ aktion: "profil", profil: { iracingName: $("p-name").value, custId: $("p-cust").value, irating: $("p-ir").value, nummer: $("p-nr").value, land: $("p-land").value, team: $("p-team").value, kanal: $("p-kanal").value, zeigeBild: $("p-bild").checked, uebersicht: $("p-uebersicht").checked } });
   });
 
   // Countdown zum gewählten Rennen

@@ -462,6 +462,21 @@ function teamAnfrageKarte(serie, name) {
   return { title: "Garage 61: Beitritt zum Liga-Team", url: teamLink(), color: 0xd3121b, description: `Bitte die Anfrage in Garage 61 freigeben, wenn der Name passt. Danach erscheint der Fahrer in der Sichtung mit „Team: ja“.`, fields: [{ name: "Fahrer", value: name || "Unbekannt", inline: true }, { name: "Season", value: serie.name, inline: true }, { name: "Name in Garage 61 sollte sein", value: name || "–" }] };
 }
 
+// Beitritt aus dem Fahrerprofil, unabhängig von einer Season
+function teamBeitrittKarte(name, nummer) {
+  return { title: "Garage 61: Beitritt zum Liga-Team", url: teamLink(), color: 0xd3121b, description: "Ein registrierter Fahrer möchte ins Liga-Team. Bitte die Anfrage in Garage 61 freigeben, wenn der Name passt.", fields: [{ name: "Fahrer", value: name || "Unbekannt", inline: true }, { name: "Startnummer", value: nummer ? `#${nummer}` : "–", inline: true }, { name: "Name in Garage 61 sollte sein", value: name || "–" }] };
+}
+
+// Ist der Fahrer schon im Garage-61-Team? null, wenn Garage 61 gerade nicht antwortet.
+async function imTeam(name) {
+  if (!name) return false;
+  try {
+    return (await teamMitglieder()).some((m) => namensKern(m.name) === namensKern(name));
+  } catch (e) {
+    return null;
+  }
+}
+
 // Für den Hinweis im Fahrerbereich: Wie viele Strecken dieser Fahrer in einer laufenden Sichtung noch abgeben kann. Liest nur die eigene Datei.
 async function offeneStrecken(serie, discordId, jetzt = Date.now()) {
   if (!laeuft(serie, jetzt)) return 0;
@@ -506,4 +521,4 @@ function einladungText(serie, modell) {
   ].filter((z, i, a) => z !== "" || (a[i - 1] !== "" && i > 0)).join("\n");
 }
 
-module.exports = { hinweisTexte, rundenDiagnose, teamAnfrageMerken, teamAnfrageKarte, offeneStrecken, standZusammen, einladungText, steckbriefZeilen, seasonFahrer, adminStand, fahrerStand, abgebenAusGarage, fortschritt, WURZEL, teamSlug, teamLink, zeitraum, laeuft, vorbei, streckeVon, sauber, bedingungenOk, besterVersuch, namensKern, g61Name, zuordner, auswerten, vorschlag, lesenAlle, abgeben, zuruecksetzen, derSerieLoeschen, eventsLaden, teamMitglieder, g61Fehlertext };
+module.exports = { hinweisTexte, rundenDiagnose, teamAnfrageMerken, teamAnfrageKarte, teamBeitrittKarte, imTeam,offeneStrecken, standZusammen, einladungText, steckbriefZeilen, seasonFahrer, adminStand, fahrerStand, abgebenAusGarage, fortschritt, WURZEL, teamSlug, teamLink, zeitraum, laeuft, vorbei, streckeVon, sauber, bedingungenOk, besterVersuch, namensKern, g61Name, zuordner, auswerten, vorschlag, lesenAlle, abgeben, zuruecksetzen, derSerieLoeschen, eventsLaden, teamMitglieder, g61Fehlertext };

@@ -310,7 +310,8 @@ const aktionen = {
     const gespeichert = await blobGet(A.profilPfad(discordId));
     if (!gespeichert) throw new Hinweis("Dieser Fahrer hat noch kein Profil.");
     const bisher = JSON.parse(gespeichert);
-    const extras = { ...A.pruefeExtras(b.profil), zeigeBild: !b.bildEntfernen && bisher.zeigeBild !== false };
+    // Die Zustimmung zur Fahrerübersicht gibt nur der Fahrer selbst, die Rennleitung übernimmt sie unverändert.
+    const extras = { ...A.pruefeExtras(b.profil), zeigeBild: !b.bildEntfernen && bisher.zeigeBild !== false, uebersicht: bisher.uebersicht === true };
     A.nummerPflicht(extras);
     const geaendert = extras.nummer !== bisher.nummer;
     const entscheid = geaendert ? P.nummerEntscheid("bestaetigt", extras.nummer) : null;
@@ -331,7 +332,7 @@ const aktionen = {
     const gespeichert = await blobGet(A.profilPfad(discordId));
     if (!gespeichert) throw new Hinweis("Dieser Fahrer hat noch kein Profil.");
     const bisher = JSON.parse(gespeichert);
-    const extras = { nummer: wunsch.nach, land: bisher.land || "", team: bisher.team || "", kanal: bisher.kanal || "", zeigeBild: bisher.zeigeBild !== false };
+    const extras = { nummer: wunsch.nach, land: bisher.land || "", team: bisher.team || "", kanal: bisher.kanal || "", zeigeBild: bisher.zeigeBild !== false, uebersicht: bisher.uebersicht === true };
     const entscheid = P.nummerEntscheid("bestaetigt", wunsch.nach);
     const felder = { nummer: wunsch.nach, nummerEntscheid: entscheid, gespeichert: new Date().toISOString() };
     await P.speichern({ id: discordId, avatar: "" }, { ...bisher, ...felder }, extras);

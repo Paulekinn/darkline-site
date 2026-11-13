@@ -777,10 +777,28 @@ const tests = {
     assert.strictEqual(A.eigeneKarten(serien, t, "Falscher Name", "aaaa").length, 1);
   },
   "Extras: leere Felder sind erlaubt": () => {
-    assert.deepStrictEqual(A.pruefeExtras({}), { nummer: null, land: "", team: "", kanal: "", zeigeBild: false });
+    assert.deepStrictEqual(A.pruefeExtras({}), { nummer: null, land: "", team: "", kanal: "", zeigeBild: false, uebersicht: false });
+  },
+  "Extras: Fahrerübersicht nur mit ausdrücklichem Haken": () => {
+    assert.strictEqual(A.pruefeExtras({ uebersicht: true }).uebersicht, true);
+    assert.strictEqual(A.pruefeExtras({ uebersicht: "true" }).uebersicht, false);
+    assert.strictEqual(A.pruefeExtras({ uebersicht: 1 }).uebersicht, false);
+  },
+  "Öffentliches Profil: Name nur mit Zustimmung zur Fahrerübersicht": () => {
+    const P = require("../api/_lib/liga-profil");
+    assert.strictEqual(P.oeffentlich({ n: 7, o: "x" }).name, undefined);
+    assert.strictEqual(P.oeffentlich({ n: 7, m: "Lena", o: "x" }).name, undefined);
+    assert.deepStrictEqual(P.oeffentlich({ n: 7, v: 1, m: "Lena", o: "x" }), { nummer: 7, land: "", team: "", kanal: "", bild: "", uebersicht: true, name: "Lena" });
+    assert.strictEqual(P.oeffentlich({ n: 7, v: 1, m: "Lena", o: "x" }).o, undefined);
+  },
+  "Sichtung: Garage-61-Beitritt aus dem Profil nennt Name und Startnummer": () => {
+    const S = require("../api/_lib/liga-sichtung");
+    const k = S.teamBeitrittKarte("Lena Test", 46);
+    assert.ok(k.fields.some((f) => f.value === "#46"));
+    assert.ok(k.fields.some((f) => f.value === "Lena Test"));
   },
   "Extras: gültige Angaben werden übernommen": () => {
-    assert.deepStrictEqual(A.pruefeExtras({ nummer: " 46 ", land: "DE", team: " Team X ", kanal: "https://www.twitch.tv/test", zeigeBild: true }), { nummer: 46, land: "DE", team: "Team X", kanal: "https://www.twitch.tv/test", zeigeBild: true });
+    assert.deepStrictEqual(A.pruefeExtras({ nummer: " 46 ", land: "DE", team: " Team X ", kanal: "https://www.twitch.tv/test", zeigeBild: true }), { nummer: 46, land: "DE", team: "Team X", kanal: "https://www.twitch.tv/test", zeigeBild: true, uebersicht: false });
     assert.strictEqual(A.pruefeExtras({ kanal: "https://youtu.be/abc" }).kanal, "https://youtu.be/abc");
   },
   "Länder: alle ISO-Länder mit deutschem Namen und vorhandener Flagge": () => {

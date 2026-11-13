@@ -75,6 +75,20 @@
 .fb-schritte span{font-size:.84rem;line-height:1.45;color:var(--muted)}
 .fb-schritte .fb-team-knopf{align-self:flex-start;margin-top:auto;padding:8px 14px;font-size:.7rem;white-space:nowrap;text-decoration:none}
 .fb-schritte li:first-child{border-color:rgba(211,18,27,.6);box-shadow:0 0 16px rgba(211,18,27,.25)}
+/* Erste Schritte: erledigt grün mit Haken, wartend gelb, freiwillig ruhig */
+.fb-erste .fb-schritte{margin-bottom:4px}
+.fb-erste .fb-schritte li:first-child:not(.fertig){border-color:rgba(211,18,27,.6)}
+.fb-schritte li.fertig{border-color:rgba(255,255,255,.12);border-top-color:#2fbf71;box-shadow:none}
+.fb-schritte li.fertig::before{content:"✓";background:#2fbf71}
+.fb-schritte li.warte{border-color:rgba(255,255,255,.12);border-top-color:#e8b923;box-shadow:none}
+.fb-schritte li.warte::before{background:#e8b923;color:#111}
+.fb-schritte li.frei{border-top-color:rgba(255,255,255,.3);box-shadow:none}
+.fb-schritte li.frei::before{background:rgba(255,255,255,.18)}
+.fb-profil-status{display:grid;gap:6px;margin:12px 0 0;padding:0;list-style:none}
+.fb-profil-status li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid rgba(255,255,255,.1);font-size:.82rem}
+.fb-profil-status span{color:var(--muted)}
+.fb-profil-status b{font-weight:700}
+.fb-profil-status .fb-team-knopf{padding:6px 12px;font-size:.7rem;text-decoration:none;white-space:nowrap}
 .fb-sicht-kopf{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 16px;margin-top:8px}
 .fb-sicht-kopf .fb-zwischen{margin:0}
 .fb-sicht-warum{margin:6px 0 0;padding:7px 10px 7px 24px;display:grid;gap:3px;background:rgba(242,183,5,.08);border-left:2px solid #f2b705;font-size:.8rem;line-height:1.4;color:var(--ink)}

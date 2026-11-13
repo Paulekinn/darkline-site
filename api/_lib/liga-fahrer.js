@@ -69,7 +69,7 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
   // Fahrzeug je Season mit Fahrzeugwahl, in der der Fahrer gemeldet ist
   const mitWahl = kat.serien.filter((x) => (x.modelle || []).length && x.status !== "beendet" && alle.some((e) => e.typ === "serie" && e.serieId === x.id && e.discordId === s.id));
   // Die Abfragen hängen nicht voneinander ab und laufen deshalb gleichzeitig.
-  const [oeffentlich, wunsch, tabellen, reports, fahrzeuge, sichtungOffen, anfragen] = await Promise.all([
+  const [oeffentlich, wunsch, tabellen, reports, fahrzeuge, sichtungOffen, anfragen, imTeam] = await Promise.all([
     pid ? P.angabenVon(pid).catch(() => null) : null,
     P.wunschLesen(s.id).catch(() => null),
     profil ? laufendeTabellen(kat) : null,
@@ -78,6 +78,8 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
     // Offene Strecken in laufenden Sichtungen, damit der Reiter auffällt. Ein Fehler hier blendet nur den Hinweis aus.
     Promise.all(sichtungSerien(kat, alle, s.id).map((x) => Sichtung.offeneStrecken(x, s.id).catch(() => 0))).then((n) => n.reduce((a, b) => a + b, 0)),
     Anfragen.eigene(kat.serien, s.id).catch(() => new Set()),
+    // Garage-61-Team: kurz zwischengespeichert, ohne Antwort bleibt der Stand offen (null).
+    profil ? Sichtung.imTeam(profil.iracingName) : false,
   ]);
   return res.status(200).json({
     ...extra,
@@ -87,6 +89,7 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
     angemeldet: true,
     kalender: `/liga-kalender/${kalenderSchluessel(s.id)}`,
     fahrer: { name: s.name, profil, pid, oeffentlich, nummerWunsch: (wunsch || {}).nach || null },
+    g61: { link: Sichtung.teamLink(), imTeam, gemeldet: !!(profil && profil.g61Anfrage) },
     meineKarten: profil ? A.eigeneKarten(kat.serien, tabellen, profil.iracingName, pid) : [],
     serien: A.baueSerien(kat.serien, alle, { discordId: s.id, profil, klasseFuer, anfragen }),
     // Termine beendeter Serien gehören nicht mehr in den Fahrerbereich.
@@ -248,7 +251,7 @@ async function profilSpeichern(s, bisher, eingaben) {
   const neu = wunsch ? await P.wunschSetzen(s, grunddaten.iracingName, bisher.nummer, wunsch) : false;
   const felder = { ...grunddaten, ...extras, discordId: s.id, gespeichert: new Date().toISOString() };
   // Discord-Stand und Nummernentscheid kommen aus dem aktuellen Profil, sie schreiben der Abgleich und die Rennleitung.
-  const mitStand = (p) => ({ ...felder, ...(p && p.discord ? { discord: p.discord } : {}), ...(p && p.nummerEntscheid ? { nummerEntscheid: p.nummerEntscheid } : {}) });
+  const mitStand = (p) => ({ ...felder, ...(p && p.discord ? { discord: p.discord } : {}), ...(p && p.nummerEntscheid ? { nummerEntscheid: p.nummerEntscheid } : {}), ...(p && p.g61Anfrage ? { g61Anfrage: p.g61Anfrage } : {}) });
   await P.speichern(s, mitStand(bisher), extras).catch(async (e) => {
     if (neu) await P.wunschLoeschen(s.id).catch(() => {});
     throw e;
@@ -303,6 +306,20 @@ module.exports = async (req, res) => {
     const name = (profil && profil.iracingName) || s.name;
     const imTeam = await Sichtung.teamMitglieder().then((m) => m.some((x) => Sichtung.namensKern(x.name) === Sichtung.namensKern(name)), () => false);
     if (!imTeam && (await Sichtung.teamAnfrageMerken(serie, s.id, name))) await R.teamMelden(Sichtung.teamAnfrageKarte(serie, name)).catch(() => {});
+    return res.status(200).json({ ok: true });
+  }
+  // Klick auf „Team beitreten“ im Profil: einmal je Fahrer eine Meldung an die Rennleitung, auch ohne Season.
+  if (body.aktion === "g61-team") {
+    if (!profil) return res.status(200).json({ ok: false });
+    if (!profil.g61Anfrage && (await Sichtung.imTeam(profil.iracingName)) !== true) {
+      let neu = false;
+      await D.jsonAendern(A.profilPfad(s.id), (aktuell) => {
+        if (!aktuell || aktuell.g61Anfrage) return undefined;
+        neu = true;
+        return { ...aktuell, g61Anfrage: new Date().toISOString() };
+      });
+      if (neu) await R.teamMelden(Sichtung.teamBeitrittKarte(profil.iracingName, profil.nummer)).catch(() => {});
+    }
     return res.status(200).json({ ok: true });
   }
   if (body.aktion === "profil") {

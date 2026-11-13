@@ -23,8 +23,8 @@ function leseProfil(blob) {
   }
 }
 
-// Was öffentlich sichtbar ist
-const oeffentlich = (p) => (p ? { nummer: p.n || null, land: p.l || "", team: p.t || "", kanal: p.k || "", bild: p.b || "" } : null);
+// Was öffentlich sichtbar ist. Der Name steht nur bei Fahrern drin, die der Fahrerübersicht zugestimmt haben ("v").
+const oeffentlich = (p) => (p ? { nummer: p.n || null, land: p.l || "", team: p.t || "", kanal: p.k || "", bild: p.b || "", ...(p.v === 1 && p.m ? { uebersicht: true, name: p.m } : {}) } : null);
 
 const avatarUrl = (id, hash) => (/^\d{5,25}$/.test(String(id)) && /^(a_)?[0-9a-f]{32}$/.test(String(hash)) ? `https://cdn.discordapp.com/avatars/${id}/${hash}.webp?size=256` : null);
 
@@ -135,7 +135,8 @@ async function speichern(s, profil, extras) {
     if (bild) await D.bildLoeschen(`fahrer-${pid}`).catch(() => {});
     bild = "";
   }
-  const pfad = profilPfad(pid, { o: besitzer, n: extras.nummer, l: extras.land, t: extras.team, k: extras.kanal, b: bild });
+  const uebersicht = extras.uebersicht === true && !!profil.iracingName;
+  const pfad = profilPfad(pid, { o: besitzer, n: extras.nummer, l: extras.land, t: extras.team, k: extras.kanal, b: bild, ...(uebersicht ? { v: 1, m: String(profil.iracingName).slice(0, 40) } : {}) });
   await blobPut(pfad, "1", "text/plain");
   // Alte Einträge weg, auch wenn sich die iRacing-ID geändert hat
   const veraltet = eigene.filter((p) => p.pfad !== pfad);
