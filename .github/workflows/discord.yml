@@ -34,3 +34,9 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.sha }}
           DRY_RUN: ${{ github.ref == 'refs/heads/main' && '0' || '1' }}
+      # Team-Rennen als Discord-Events: Die Website gleicht ab, sobald der neue Stand live ist. Klappt das nicht, holt es der tägliche Lauf nach.
+      - name: Discord-Events abgleichen
+        if: always() && github.ref == 'refs/heads/main'
+        run: |
+          sleep 120
+          curl -fsS --max-time 60 https://darklineperformance.de/api/wach || echo "Abgleich nicht erreichbar, der tägliche Lauf holt ihn nach."

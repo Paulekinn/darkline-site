@@ -2,11 +2,14 @@
 const { useRequest, blobGet } = require("./_lib/blob");
 const { Hinweis } = require("./_lib/liga-daten");
 // Täglicher Aufruf (vercel.json), damit das kostenlose Supabase-Projekt in ruhigen Wochen nicht pausiert.
-// Derselbe Aufruf postet am Renntag die Erinnerung. Ein Fehler dabei darf das Wachhalten nicht verhindern.
+// Derselbe Aufruf postet am Renntag die Erinnerung und gleicht die Discord-Events ab (auch nach einem Push mit Rennen, siehe .github/workflows/discord.yml).
+// Ein Fehler dabei darf das Wachhalten nicht verhindern.
 const Renntag = require("./_lib/liga-renntag");
+const DiscordEvents = require("./_lib/discord-events");
 const wachhalten = async (req, res) => {
   await blobGet("wachhalten");
   await Renntag.erinnern().catch((e) => console.error("Liga-Erinnerung:", e.message));
+  await DiscordEvents.abgleichen().catch((e) => console.error("Discord-Events:", e.message));
   return res.status(200).json({ ok: true });
 };
 const bereiche = { wach: wachhalten, kalender: Renntag.kalender, regeln: require("./_lib/liga-regeln").regeln, bild: require("./_lib/liga-bild"), oeffentlich: require("./_lib/liga-oeffentlich"), teilen: require("./_lib/liga-teilen"), profil: require("./_lib/liga-profil"), fahrer: require("./_lib/liga-fahrer"), admin: require("./_lib/liga-admin") };

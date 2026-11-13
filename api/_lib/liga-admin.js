@@ -15,6 +15,9 @@ const F = require("./liga-fahrzeuge");
 const G61 = require("./g61");
 const Sichtung = require("./liga-sichtung");
 const Anfragen = require("./liga-anfragen");
+const DiscordEvents = require("./discord-events");
+// Aktionen, nach denen sich Liga-Termine in Discord ändern können
+const TERMIN_AKTIONEN = new Set(["serie-speichern", "serie-loeschen", "rennen-speichern", "rennen-loeschen", "rennen-verschieben", "rennen-duplizieren", "saison-planen"]);
 const { leseErgebnis, berechneTabelle, klasseFuer } = require("../../assets/liga-wertung.js");
 
 const eintraege = async () => (await blobList(A.PREFIX)).map(A.leseEintrag).filter(Boolean);
@@ -830,6 +833,8 @@ module.exports = async (req, res) => {
   const antwort = await aktionen[body.aktion](body, kat, s);
   fehlendCache = { bis: 0, wert: null };
   await protokollieren(s, body, kat);
+  // Gespeichert ist schon. Klappt der Abgleich nicht, holt ihn der tägliche Lauf nach.
+  if (TERMIN_AKTIONEN.has(body.aktion)) await DiscordEvents.abgleichen({ erzwingen: true }).catch((e) => console.warn("Discord-Events:", e.message));
   return res.status(200).json({ ok: true, ...antwort });
 };
 Object.assign(module.exports, { protokollPfad, leseProtokoll, protokollText });
