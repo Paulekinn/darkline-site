@@ -288,7 +288,7 @@
       </ul>
       ${stand.fahrer.nummerWunsch ? `<p class="fb-klein">Änderung auf #${esc(stand.fahrer.nummerWunsch)} beantragt. Sie gilt, sobald die Rennleitung sie bestätigt.</p>` : ""}
       ${bildFehlt ? '<p class="fb-klein">Dein Discord-Bild ist noch nicht übernommen. Logge dich einmal aus und wieder ein, dann erscheint es hier. Ohne eigenes Bild bei Discord bleibt der Platz leer.</p>' : ""}
-      <p class="fb-profil-link"><button type="button" class="fb-link" data-profil="1">Profil ändern</button>${(stand.meineKarten || []).some((k) => k.pid) ? ` <a class="fb-link" href="/fahrer?id=${encodeURIComponent(stand.fahrer.pid)}">Öffentliches Profil</a>` : ""}</p>`;
+      <p class="fb-profil-link"><button type="button" class="fb-link" data-profil="1">Profil ändern</button>${(stand.meineKarten || []).some((k) => k.pid) || (p.uebersicht === true && stand.fahrer.pid) ? ` <a class="fb-link" href="/fahrer?id=${encodeURIComponent(stand.fahrer.pid)}">Öffentliches Profil</a>` : ""}</p>`;
   }
 
   /* ---------- Kopfbereich mit persönlicher Fahrerkarte ---------- */

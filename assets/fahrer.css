@@ -29,6 +29,31 @@
 }
 @media (max-width:620px){.fa-zahlen{grid-template-columns:repeat(3,minmax(0,1fr));width:100%}}
 
+/* Fahrerübersicht (/fahrer ohne Kennung) */
+.fa-l-held>.wrap{grid-template-columns:minmax(0,1fr)}
+.fa-l-zahlen{grid-template-columns:repeat(2,auto)}
+.fa-l-satz{margin:0;font-size:.92rem;color:#d6dcd9}
+.fa-l-satz a{color:var(--ink);font-weight:700;text-underline-offset:3px}
+.fa-l-leiste{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:16px}
+.fa-l-suche{flex:1 1 260px;min-width:0;max-width:420px;padding:10px 12px;background:var(--paper);border:1px solid rgba(255,255,255,.16);color:var(--ink);font:inherit;font-size:.92rem}
+.fa-l-suche:focus{outline:2px solid var(--red);outline-offset:-1px}
+.fa-l-sort{display:flex;gap:4px}
+.fa-l-sort button{padding:8px 12px;background:transparent;border:1px solid rgba(255,255,255,.16);color:var(--muted);font:600 .74rem/1 var(--f-mono);text-transform:uppercase;letter-spacing:.06em;cursor:pointer}
+.fa-l-sort button[aria-pressed="true"]{background:var(--red);border-color:var(--red);color:#fff}
+.fa-l-liste{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:8px;margin:0;padding:0;list-style:none}
+.fa-l-kachel{display:flex;align-items:flex-start;gap:14px;height:100%;padding:14px;background:var(--paper);border-left:3px solid var(--red);color:var(--ink);text-decoration:none;transition:background .15s}
+.fa-l-kachel:hover,.fa-l-kachel:focus-visible{background:color-mix(in srgb,var(--paper) 80%,var(--red))}
+.fa-l-bild{flex:none;width:56px;height:56px;object-fit:cover;clip-path:polygon(12% 0,100% 0,88% 100%,0 100%);background:#1a1d1f}
+.fa-l-ohne{display:grid;place-items:center;font:900 1rem/1 var(--f-wide);color:var(--red)}
+.fa-l-text{display:grid;gap:4px;min-width:0}
+.fa-l-text strong{font:900 1rem/1.15 var(--f-wide);text-transform:uppercase;overflow-wrap:anywhere}
+.fa-l-text strong em{font-style:normal;color:var(--red)}
+.fa-l-text small{font:.78rem/1.3 var(--f-mono);color:var(--muted)}
+.fa-l-text .fa-land{display:flex;flex-wrap:wrap;gap:4px 7px;color:#c4cbc8}
+.fa-l-serien{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+.fa-l-serie{padding:2px 6px;border:1px solid var(--s);color:var(--s);font:600 .66rem/1.2 var(--f-mono);text-transform:uppercase}
+.fa-l-leer{padding:20px;color:var(--muted)}
+
 /* Event-Erfolge */
 .fa-erfolge{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:6px;margin:0;padding:0;list-style:none}
 .fa-erfolge li{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:11px 14px;background:var(--paper);border-left:4px solid var(--scan)}

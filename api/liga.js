@@ -14,7 +14,7 @@ const wachhalten = async (req, res) => {
   await require("./_lib/liga-discord").alleAbgleichen().catch((e) => console.error("Discord-Rollen:", e.message));
   return res.status(200).json({ ok: true });
 };
-const bereiche = { wach: wachhalten, kalender: Renntag.kalender, regeln: require("./_lib/liga-regeln").regeln, bild: require("./_lib/liga-bild"), oeffentlich: require("./_lib/liga-oeffentlich"), teilen: require("./_lib/liga-teilen"), profil: require("./_lib/liga-profil"), fahrer: require("./_lib/liga-fahrer"), admin: require("./_lib/liga-admin") };
+const bereiche = { wach: wachhalten, kalender: Renntag.kalender, regeln: require("./_lib/liga-regeln").regeln, bild: require("./_lib/liga-bild"), oeffentlich: require("./_lib/liga-oeffentlich"), teilen: require("./_lib/liga-teilen"), profil: require("./_lib/liga-profil"), fahrerliste: require("./_lib/liga-profil").liste, fahrer: require("./_lib/liga-fahrer"), admin: require("./_lib/liga-admin") };
 
 // Texte aus Eingabe- und Dateiprüfung sind für den Nutzer gedacht, technische Fehler nicht.
 const FUER_NUTZER = /^(Bitte|Die iRacing|Diese iRacing|Die Startnummer|Regeln:|Einstufung:|Das ist keine|In der Datei|Die Rennsession|Teamrennen|Unerwartete|Ein Rennen)/;

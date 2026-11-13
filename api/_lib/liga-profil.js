@@ -179,6 +179,46 @@ async function alleTabellen(serien) {
   return wert;
 }
 
+// Registrierter Fahrer ohne gewertetes Rennen: nur mit Zustimmung zur Fahrerübersicht öffentlich
+const leereAkte = (p) => ({ name: p.m, bilanz: { starts: 0, siege: 0, podien: 0, poles: 0, schnellste: 0, ausfaelle: 0 }, erfolge: [], karten: [], verlauf: [] });
+const inUebersicht = (p) => !!p && p.v === 1 && !!p.m;
+
+// Fahrerübersicht: alle Fahrer mit gewerteten Rennen (Namen stehen ohnehin in den Tabellen) und alle, die der Übersicht zugestimmt haben.
+function fahrerListe(serien, tabellen, profile) {
+  const je = new Map();
+  const eintrag = (pid, name) => je.get(pid) || je.set(pid, { pid, name, starts: 0, siege: 0, podien: 0, serien: new Map() }).get(pid);
+  for (const s of serien) {
+    const t = tabellen.get(s.id);
+    if (!t || !Array.isArray(t.klassen)) continue;
+    for (const k of t.klassen) for (const f of k.fahrer || []) {
+      if (!PID.test(String(f.pid || "")) || !f.karte) continue;
+      const e = eintrag(f.pid, f.name);
+      for (const r of f.rennen || []) {
+        if (!r) continue;
+        e.starts++;
+        if (r.platz === 1) e.siege++;
+        if (r.platz !== null && r.platz <= 3) e.podien++;
+      }
+      if (s.status !== "beendet") e.serien.set(s.id, { id: s.id, name: s.name, farbe: s.farbe || "rot", typ: s.typ || "liga" });
+    }
+  }
+  const nachPid = new Map(profile.map((p) => [p.pid, p]));
+  for (const p of profile) if (inUebersicht(p)) eintrag(p.pid, p.m);
+  return [...je.values()].map((e) => {
+    const o = oeffentlich(nachPid.get(e.pid)) || {};
+    return { pid: e.pid, name: e.name, nummer: o.nummer || null, land: o.land || "", team: o.team || "", bild: o.bild || "", starts: e.starts, siege: e.siege, podien: e.podien, serien: [...e.serien.values()] };
+  }).sort((a, b) => (a.nummer || 1000) - (b.nummer || 1000) || String(a.name).localeCompare(String(b.name), "de"));
+}
+
+// ?r=fahrerliste
+async function liste(req, res) {
+  if (req.method !== "GET") return res.status(405).json({ error: "Nicht erlaubt" });
+  const { serien } = await D.katalog(false);
+  const [tabellen, profile] = await Promise.all([alleTabellen(serien), alleProfile(false).catch(() => [])]);
+  res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=120");
+  return res.status(200).json({ fahrer: fahrerListe(serien, tabellen, profile) });
+}
+
 // ?r=profil&id=<kennung>
 async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Nicht erlaubt" });
@@ -186,10 +226,15 @@ async function handler(req, res) {
   if (!PID.test(pid)) return res.status(404).json({ error: "Nicht gefunden" });
   const { serien } = await D.katalog(false);
   const akte = fahrerAkte(serien, await alleTabellen(serien), pid);
-  if (!akte) return res.status(404).json({ error: "Nicht gefunden" });
+  if (!akte) {
+    const p = (await alleProfile(false)).find((x) => x.pid === pid);
+    if (!inUebersicht(p)) return res.status(404).json({ error: "Nicht gefunden" });
+    res.setHeader("Cache-Control", "public, s-maxage=30, stale-while-revalidate=60");
+    return res.status(200).json({ pid, ...leereAkte(p), profil: oeffentlich(p) });
+  }
   res.setHeader("Cache-Control", "public, s-maxage=30, stale-while-revalidate=60");
   return res.status(200).json({ pid, ...akte, profil: await angabenVon(pid) });
 }
 
 module.exports = handler;
-Object.assign(module.exports, { bildNachziehen, bildVeraltet, oeffentlicheProfile, speichern, angabenVon, fahrerAkte, leseProfil, profilPfad, oeffentlich, avatarUrl, pruefeKonflikte, wunschLesen, wuenscheLesen, wunschLoeschen, wunschSetzen, istBeantragt, nummerEntscheid });
+Object.assign(module.exports, { liste, fahrerListe, bildNachziehen, bildVeraltet, oeffentlicheProfile, speichern, angabenVon, fahrerAkte, leseProfil, profilPfad, oeffentlich, avatarUrl, pruefeKonflikte, wunschLesen, wuenscheLesen, wunschLoeschen, wunschSetzen, istBeantragt, nummerEntscheid });

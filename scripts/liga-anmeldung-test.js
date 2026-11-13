@@ -791,6 +791,28 @@ const tests = {
     assert.deepStrictEqual(P.oeffentlich({ n: 7, v: 1, m: "Lena", o: "x" }), { nummer: 7, land: "", team: "", kanal: "", bild: "", uebersicht: true, name: "Lena" });
     assert.strictEqual(P.oeffentlich({ n: 7, v: 1, m: "Lena", o: "x" }).o, undefined);
   },
+  "Fahrerübersicht: Fahrer mit Ergebnissen und registrierte mit Zustimmung, sonst niemand": () => {
+    const P = require("../api/_lib/liga-profil");
+    const a = "a".repeat(16), b = "b".repeat(16), c = "c".repeat(16), d = "d".repeat(16);
+    const serien = [{ id: "s1", name: "GT3 Cup", status: "laeuft", farbe: "blau" }, { id: "s0", name: "Alt", status: "beendet" }];
+    const tabellen = new Map([
+      ["s1", { klassen: [{ fahrer: [{ pid: a, name: "Anna Racer", karte: {}, rennen: [{ platz: 1 }, null, { platz: 4 }] }, { pid: "kaputt", name: "X", karte: {}, rennen: [] }] }] }],
+      ["s0", { klassen: [{ fahrer: [{ pid: a, name: "Anna Racer", karte: {}, rennen: [{ platz: 3 }] }] }] }],
+    ]);
+    const profile = [
+      { pid: a, o: "x", n: 12, l: "DE", b: "v1" },
+      { pid: b, o: "y", n: 7, v: 1, m: "Ben Neu" },
+      { pid: c, o: "z", n: 3, m: "Ohne Zustimmung" },
+      { pid: d, o: "w", n: 99 },
+    ];
+    const liste = P.fahrerListe(serien, tabellen, profile);
+    assert.deepStrictEqual(liste.map((f) => f.name), ["Ben Neu", "Anna Racer"]);
+    const anna = liste[1];
+    assert.deepStrictEqual([anna.nummer, anna.land, anna.bild, anna.starts, anna.siege, anna.podien], [12, "DE", "v1", 3, 1, 2]);
+    assert.deepStrictEqual(anna.serien.map((s) => s.id), ["s1"], "Beendete Serien erscheinen nicht als aktiv");
+    assert.strictEqual(liste[0].starts, 0);
+    assert.ok(!JSON.stringify(liste).includes('"o"'), "Der Besitzer-Prüfwert wird nie ausgeliefert");
+  },
   "Sichtung: Garage-61-Beitritt aus dem Profil nennt Name und Startnummer": () => {
     const S = require("../api/_lib/liga-sichtung");
     const k = S.teamBeitrittKarte("Lena Test", 46);
