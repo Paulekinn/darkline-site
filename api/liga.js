@@ -10,6 +10,8 @@ const wachhalten = async (req, res) => {
   await blobGet("wachhalten");
   await Renntag.erinnern().catch((e) => console.error("Liga-Erinnerung:", e.message));
   await DiscordEvents.abgleichen().catch((e) => console.error("Discord-Events:", e.message));
+  // Wer den Discord verlassen hat und zurückkommt, bekommt Rolle und Namen wieder.
+  await require("./_lib/liga-discord").alleAbgleichen().catch((e) => console.error("Discord-Rollen:", e.message));
   return res.status(200).json({ ok: true });
 };
 const bereiche = { wach: wachhalten, kalender: Renntag.kalender, regeln: require("./_lib/liga-regeln").regeln, bild: require("./_lib/liga-bild"), oeffentlich: require("./_lib/liga-oeffentlich"), teilen: require("./_lib/liga-teilen"), profil: require("./_lib/liga-profil"), fahrer: require("./_lib/liga-fahrer"), admin: require("./_lib/liga-admin") };

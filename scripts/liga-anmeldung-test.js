@@ -989,6 +989,59 @@ const tests = {
       for (const k of ["DISCORD_BOT_TOKEN", "DISCORD_GUILD_ID", "LIGA_ROLLE_INTERESSENT", "LIGA_ROLLE_FAHRER", "SUPABASE_URL", "SUPABASE_SECRET_KEY"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
     }
   },
+  "Discord: Wer den Server verlassen hat und zurückkommt, bekommt Rolle und Namen wieder": async () => {
+    const Dc = require("../api/_lib/liga-discord");
+    const alt = { fetch: global.fetch, env: { ...process.env } };
+    Object.assign(process.env, { DISCORD_BOT_TOKEN: "t", DISCORD_GUILD_ID: "100", LIGA_ROLLE_INTERESSENT: "1", LIGA_ROLLE_FAHRER: "2", SUPABASE_URL: "https://speicher.example", SUPABASE_SECRET_KEY: "k" });
+    const aufrufe = [];
+    let seit = "2026-11-14T10:00:00.000000+00:00";
+    let nick = "";
+    let mitglied = true;
+    let zeile = { inhalt: JSON.stringify({ iracingName: "Max Mustermann", custId: "1", nummer: 31 }), binaer: false, geaendert: "2026-11-10T10:00:00.000Z" };
+    global.fetch = async (url, init = {}) => {
+      if (String(url).startsWith("https://speicher.example")) {
+        if (init.method === "PATCH") { zeile = { ...zeile, ...JSON.parse(init.body) }; return { ok: true, json: async () => [{ pfad: "x" }] }; }
+        return { ok: true, json: async () => [zeile] };
+      }
+      aufrufe.push(`${init.method || "GET"} ${url}${init.body ? ` ${init.body}` : ""}`);
+      if (!init.method) return mitglied ? { ok: true, status: 200, json: async () => ({ joined_at: seit, nick, roles: ["1"] }) } : { ok: false, status: 404 };
+      return { ok: true, status: 204 };
+    };
+    const NAME = 'PATCH https://discord.com/api/v10/guilds/100/members/77 {"nick":"Max Mustermann"}';
+    try {
+      const alt = { iracingName: "Max Mustermann", custId: "1", nummer: 31, discord: { i: true, f: false, n: "Max Mustermann" } };
+      // Nicht auf dem Server: nur die Prüfung, nichts wird gesetzt
+      mitglied = false;
+      assert.strictEqual(await Dc.abgleichen("77", alt, [], [], { sofort: true }), alt);
+      assert.deepStrictEqual(aufrufe, ["GET https://discord.com/api/v10/guilds/100/members/77"]);
+      // Älteres Profil ohne Datum, der Name passt: nur das Beitrittsdatum wird gemerkt
+      aufrufe.length = 0;
+      mitglied = true;
+      nick = "Max Mustermann";
+      const gemerkt = await Dc.abgleichen("77", alt, [], [], { sofort: true });
+      assert.deepStrictEqual(aufrufe.length, 1);
+      assert.deepStrictEqual(gemerkt.discord, { i: true, f: false, n: "Max Mustermann", seit });
+      // Gleiches Datum: nichts zu tun, auch ein eigener Spitzname bleibt unangetastet
+      aufrufe.length = 0;
+      nick = "Maxi";
+      assert.strictEqual(await Dc.abgleichen("77", gemerkt, [], [], { sofort: true }), gemerkt);
+      assert.deepStrictEqual(aufrufe.length, 1);
+      // Server verlassen und wieder beigetreten (das Onboarding hat die Rolle schon vergeben): neues Datum, alles neu gesetzt
+      aufrufe.length = 0;
+      seit = "2026-11-15T18:00:00.000000+00:00";
+      nick = "";
+      const danach = await Dc.abgleichen("77", gemerkt, [], [], { sofort: true });
+      assert.deepStrictEqual(aufrufe.slice(1), ["PUT https://discord.com/api/v10/guilds/100/members/77/roles/1", NAME]);
+      assert.deepStrictEqual(danach.discord, { seit, i: true, n: "Max Mustermann" });
+      // Ohne "sofort" fragt der Seitenaufruf höchstens alle 10 Minuten
+      aufrufe.length = 0;
+      await Dc.abgleichen("77", danach, [], []);
+      assert.deepStrictEqual(aufrufe, []);
+    } finally {
+      global.fetch = alt.fetch;
+      for (const k of ["DISCORD_BOT_TOKEN", "DISCORD_GUILD_ID", "LIGA_ROLLE_INTERESSENT", "LIGA_ROLLE_FAHRER", "SUPABASE_URL", "SUPABASE_SECRET_KEY"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
+    }
+  },
   "Profil: Bild wird nur bei eigenem Eintrag und neuer Version nachgezogen": () => {
     assert.strictEqual(P.bildVeraltet({ o: "ich", b: "" }, "ich", "abcd1234"), true);
     assert.strictEqual(P.bildVeraltet({ o: "ich", b: "alt" }, "ich", "abcd1234"), true);
