@@ -184,3 +184,5 @@ node scripts/build-content.js
 python3 -m http.server 8000
 ```
 Dann `http://localhost:8000` öffnen (direkt per Doppelklick funktioniert es nicht, weil die Inhalte nachgeladen werden).
+
+**Liga-Demo zum Testen:** `node scripts/liga-vorschau.js`, dann `http://localhost:8146/liga` öffnen. Die Demo nutzt die echten Liga-Funktionen mit erfundenen Daten: laufende Season mit Tabelle, Seasons in der Anmeldung (mit Fahrzeugwahl, Formula, privat), Events, Teams, Community-Rennen und Reports. Alles liegt nur im Arbeitsspeicher, Discord-Nachrichten erscheinen im Konsolenfenster, ein Neustart setzt alles zurück. Anmelden über `/login?als=anna` (Stammfahrerin), `ben` (ohne Season, Teamchef), `carla`, `neu` (ohne Profil), `steward` oder `leitung` (Cockpit).
