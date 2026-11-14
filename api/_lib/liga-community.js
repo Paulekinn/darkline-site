@@ -109,6 +109,22 @@ function pruefeRahmen(e) {
   return { plaetze, iratingMin, iratingMax };
 }
 
+// Training und Qualifying in Minuten. 0 heißt: gibt es nicht. Ältere Anträge kennen nur den Haken „quali“.
+function pruefeAblauf(e) {
+  const minuten = (v, name, max) => {
+    const t = String(v ?? "").trim();
+    if (!t) return 0;
+    const n = Number(t);
+    if (!Number.isInteger(n) || n < 0 || n > max) throw new Hinweis(`${name}: bitte Minuten von 0 bis ${max} eingeben (0 heißt keins).`);
+    return n;
+  };
+  const training = minuten(e.training, "Training", 240);
+  const qualiDauer = e.qualiDauer === undefined && e.quali === true ? 10 : minuten(e.qualiDauer, "Qualifying", 120);
+  return { training, qualiDauer, quali: qualiDauer > 0 };
+}
+const trainingText = (a) => (a.training ? `${a.training} min` : "");
+const qualiText = (a) => (a.qualiDauer ? `${a.qualiDauer} min` : a.quali ? "Ja" : "");
+
 const pruefeBeschreibung = (v) => {
   const beschreibung = String(v ?? "").trim().replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").slice(0, 1000);
   if (beschreibung.length < 20) throw new Hinweis("Bitte beschreibe dein Rennen in ein, zwei Sätzen (mindestens 20 Zeichen).");
@@ -120,7 +136,7 @@ function pruefe(e, jetzt = Date.now()) {
   if (titel.length < 3) throw new Hinweis("Bitte gib dem Rennen einen Titel mit mindestens 3 Zeichen.");
   return {
     titel, ...pruefeTermin(e, jetzt), ...pruefeRahmen(e),
-    quali: e.quali === true, art: e.art === "team" ? "team" : "einzel", zugang: e.zugang === "freigabe" || e.zugang === "einladung" ? "freigabe" : "offen",
+    ...pruefeAblauf(e), art: e.art === "team" ? "team" : "einzel", zugang: e.zugang === "freigabe" || e.zugang === "einladung" ? "freigabe" : "offen",
     beschreibung: pruefeBeschreibung(e.beschreibung),
   };
 }
@@ -159,7 +175,7 @@ function alsKatalog(liste) {
     serien: relevant.map((a) => ({ id: rennenId(a), name: "Community-Rennen", typ: "community", farbe: "gelb", status: "anmeldung", anmeldungOffen: true, fahrzeugklassen: [] })),
     rennen: relevant.map((a) => ({
       id: rennenId(a), serie: rennenId(a), titel: a.titel, datum: a.datum, startzeit: a.uhrzeit, strecke: a.strecke, plaetze: plaetzeVon(a),
-      status: a.status === "abgesagt" ? "abgesagt" : "geplant", fahrzeuge: a.fahrzeugklasse, renndauer: `${a.dauer} min`, qualifying: a.quali ? "Ja" : "",
+      status: a.status === "abgesagt" ? "abgesagt" : "geplant", fahrzeuge: a.fahrzeugklasse, renndauer: `${a.dauer} min`, training: trainingText(a), qualifying: qualiText(a),
       server: (a.session && a.session.name) || "", passwort: (a.session && a.session.passwort) || "", briefing: a.beschreibung,
     })),
   };
@@ -184,6 +200,7 @@ function eigene(liste, discordId, eintraege = []) {
     ergebnisMoeglich: a.status === "freigegeben" && !vorStart(a) && Date.now() <= Date.parse(a.start) + ERGEBNIS_TAGE * 864e5,
     ergebnis: ergebnis ? { hochgeladen: ergebnis.hochgeladen, team: !!ergebnis.team, zeilen: wertung({ ergebnis, strafen }).slice(0, 3).map((z) => ({ platz: z.platz, name: z.name })), anzahl: ergebnis.zeilen.length } : null,
     ...a, zugang: zugangVon(a), plaetze: plaetzeVon(a), iratingMin: a.iratingMin ?? null, iratingMax: a.iratingMax ?? null,
+    training: a.training || 0, qualiDauer: a.qualiDauer ?? (a.quali ? 10 : 0),
     banner: a.banner || "", bannerAenderbar: bannerAenderbar(a), rennen: rennenId(a),
     bearbeitbar: a.status === "freigegeben" && vorStart(a), gemeldet: gemeldeteIds(a, eintraege).length,
     // Anfragen und Zugangsdaten sieht nur der Veranstalter selbst.
@@ -207,7 +224,7 @@ const kommendeMitBanner = (liste, jetzt = Date.now()) => liste.filter((a) => a.s
 
 // Öffentlich für /liga: kommende freigegebene Rennen ohne Discord-IDs, Anfragen und Zugangsdaten
 const oeffentlich = (liste, jetzt = Date.now()) => liste.filter((a) => (a.status === "freigegeben" || a.status === "abgesagt") && nochAktuell(a, jetzt)).sort(nachStart).map((a) => ({
-  id: a.id, rennen: rennenId(a), titel: a.titel, start: a.start, datum: a.datum, uhrzeit: a.uhrzeit, strecke: a.strecke, fahrzeugklasse: a.fahrzeugklasse, dauer: a.dauer, quali: !!a.quali,
+  id: a.id, rennen: rennenId(a), titel: a.titel, start: a.start, datum: a.datum, uhrzeit: a.uhrzeit, strecke: a.strecke, fahrzeugklasse: a.fahrzeugklasse, dauer: a.dauer, quali: !!a.quali, training: a.training || 0, qualiDauer: a.qualiDauer || 0,
   art: a.art, zugang: zugangVon(a), plaetze: plaetzeVon(a), iratingMin: a.iratingMin ?? null, iratingMax: a.iratingMax ?? null, beschreibung: a.beschreibung, banner: a.banner || "",
   veranstalter: a.name, nummer: a.nummer || null, sponsored: !!(a.entscheid && a.entscheid.sponsored), stewarding: (a.entscheid && a.entscheid.stewarding) || "", abgesagt: a.status === "abgesagt",
 }));
@@ -222,7 +239,7 @@ const aenderungFreigabeText = (a) => `✅ Deine Änderung am Community-Rennen **
 const aenderungAbgelehntText =(a, grund) => `❌ Deine Änderung am Community-Rennen **${a.titel}** wurde abgelehnt. Es bleibt beim bisherigen Termin.${grund ? `\nGrund: ${grund}` : ""}`;
 const bannerEntferntText = (a) => `🖼️ Die Rennleitung hat den Banner deines Community-Rennens **${a.titel}** entfernt. Du kannst im Fahrerbereich einen anderen hochladen. Bitte nur eigene Bilder oder Bilder, die du verwenden darfst, und keine fremden Logos.`;
 
-const formatText = (a) => `${a.dauer} min${a.quali ? ", mit Quali" : ""} · ${a.art === "team" ? "Teamrennen" : "Einzelrennen"} · ${zugangVon(a) === "freigabe" ? "mit Freigabe durch den Veranstalter" : "offen"} · ${plaetzeVon(a)} Plätze`;
+const formatText = (a) => `${[trainingText(a) && `Training ${trainingText(a)}`, qualiText(a) && `Quali ${qualiText(a)}`, `Rennen ${a.dauer} min`].filter(Boolean).join(", ")} · ${a.art === "team" ? "Teamrennen" : "Einzelrennen"} · ${zugangVon(a) === "freigabe" ? "mit Freigabe durch den Veranstalter" : "offen"} · ${plaetzeVon(a)} Plätze`;
 const iratingText = (a) => (a.iratingMin != null && a.iratingMax != null ? `${a.iratingMin} bis ${a.iratingMax}` : a.iratingMin != null ? `ab ${a.iratingMin}` : a.iratingMax != null ? `bis ${a.iratingMax}` : "");
 
 // Karte für den Rennleitungs-Kanal
@@ -361,9 +378,11 @@ async function aktion(art, discordId, profil, body = {}, ctx = {}) {
 
   if (art === "community-bearbeiten") {
     const rahmen = pruefeRahmen(body);
+    // Training und Qualifying ändert der Veranstalter selbst, der Start bleibt dabei gleich.
+    const ablauf = pruefeAblauf({ training: body.training, qualiDauer: body.qualiDauer ?? "" });
     const beschreibung = pruefeBeschreibung(body.beschreibung);
     const session = { name: zeile(body.sessionName, 60), passwort: zeile(body.passwort, 60) };
-    await aendern(a.id, (alt) => ({ ...alt, ...rahmen, beschreibung, session }));
+    await aendern(a.id, (alt) => ({ ...alt, ...rahmen, ...ablauf, beschreibung, session }));
     return null;
   }
 

@@ -1211,6 +1211,21 @@ const tests = {
       for (const k of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
     }
   },
+  "Community-Rennen: Training und Qualifying mit Dauer": () => {
+    const C = require("../api/_lib/liga-community");
+    const jetzt = Date.UTC(2026, 10, 14, 12, 0);
+    const basis = { titel: "Spa Night Sprint", datum: "2026-11-25", uhrzeit: "20:00", strecke: "Spa", fahrzeugklasse: "GT3", dauer: 45, beschreibung: "Lockerer Sprint am Abend für alle Klassen." };
+    const a = C.pruefe({ ...basis, training: "30", qualiDauer: "10" }, jetzt);
+    assert.deepStrictEqual([a.training, a.qualiDauer, a.quali], [30, 10, true]);
+    assert.deepStrictEqual([C.pruefe(basis, jetzt).training, C.pruefe(basis, jetzt).qualiDauer, C.pruefe(basis, jetzt).quali], [0, 0, false], "Leer heißt: kein Training, kein Qualifying");
+    assert.strictEqual(C.pruefe({ ...basis, quali: true }, jetzt).qualiDauer, 10, "Ältere Anträge mit Haken bekommen 10 Minuten");
+    assert.throws(() => C.pruefe({ ...basis, training: 500 }, jetzt), /Training/);
+    // Im Fahrerbereich erscheinen die Zeiten wie bei Liga-Rennen
+    const [r] = C.alsKatalog([{ ...a, id: "abcd0001", status: "freigegeben" }]).rennen;
+    assert.deepStrictEqual([r.training, r.qualifying, r.renndauer], ["30 min", "10 min", "45 min"]);
+    const [alt] = C.alsKatalog([{ ...basis, id: "abcd0002", status: "freigegeben", quali: true }]).rennen;
+    assert.deepStrictEqual([alt.training, alt.qualifying], ["", "Ja"], "Ältere Rennen ohne Dauer zeigen weiter „Ja“");
+  },
   "Community-Rennen: Ergebnisse lesen, abgleichen und werten": () => {
     const C = require("../api/_lib/liga-community");
     const start = "2026-11-20T19:00:00Z";

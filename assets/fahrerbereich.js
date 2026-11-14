@@ -730,6 +730,12 @@
       ${feldText(`${p}-irmin`, "iratingMin", "iRating ab (freiwillig)", w.iratingMin ?? "", 'type="number" min="0" max="20000" step="50" inputmode="numeric" placeholder="keine Grenze"')}
       ${feldText(`${p}-irmax`, "iratingMax", "iRating bis (freiwillig)", w.iratingMax ?? "", 'type="number" min="0" max="20000" step="50" inputmode="numeric" placeholder="keine Grenze"')}`;
 
+  // Ablauf der Session: Training, Qualifying und Rennen in Minuten. 0 heißt: gibt es nicht.
+  const ablaufFelder = (p, w, mitRennen = true) => `
+      ${feldText(`${p}-training`, "training", "Training in Minuten (0 = keins)", w.training ?? "", 'type="number" min="0" max="240" step="5" inputmode="numeric" placeholder="z. B. 30"')}
+      ${feldText(`${p}-quali`, "qualiDauer", "Qualifying in Minuten (0 = keins)", w.qualiDauer ?? "", 'type="number" min="0" max="120" step="5" inputmode="numeric" placeholder="z. B. 10"')}
+      ${mitRennen ? feldText(`${p}-dauer`, "dauer", "Renndauer in Minuten", w.dauer || "45", 'type="number" min="10" max="1440" step="5" inputmode="numeric"') : ""}`;
+
   // Verwaltung eines freigegebenen Rennens: Anfragen, Bearbeiten, Änderung beantragen, Absagen
   function communityVerwaltung(a) {
     const vorlauf = (stand.community || {}).aenderungVorlaufTage || 2;
@@ -749,6 +755,7 @@
       ${anfragenHtml}
       <details class="fb-team-neu"><summary>Rennen bearbeiten</summary><form class="fb-profil" data-community-bearbeiten="${esc(a.id)}" novalidate>
         ${rahmenFelder(`cb-${a.id}`, a)}
+        ${ablaufFelder(`cb-${a.id}`, a, false)}
         ${feldText(`cb-session-${a.id}`, "sessionName", "Session-Name in iRacing", a.session.name, 'maxlength="60" placeholder="z. B. DSRS Community Spa"')}
         ${feldText(`cb-pw-${a.id}`, "passwort", "Session-Passwort", a.session.passwort, 'maxlength="60" autocomplete="off"')}
         <div class="fb-feld"><label for="cb-text-${a.id}">Beschreibung</label><textarea id="cb-text-${a.id}" name="beschreibung" maxlength="1000" rows="4">${esc(a.beschreibung)}</textarea></div>
@@ -771,7 +778,7 @@
   function communityKarte(a) {
     const [klasse, text] = COMMUNITY_STATUS[a.status] || ["", a.status];
     const e = a.entscheid;
-    const format = [`${a.dauer} min`, a.quali ? "mit Quali" : "", a.art === "team" ? "Teamrennen" : "Einzelrennen", a.zugang === "freigabe" ? "mit deiner Freigabe" : "offen für alle", `${a.plaetze} Plätze`, communityIrating(a)].filter(Boolean).join(" · ");
+    const format = [a.training ? `Training ${a.training} min` : "", a.qualiDauer ? `Quali ${a.qualiDauer} min` : "", `Rennen ${a.dauer} min`, a.art === "team" ? "Teamrennen" : "Einzelrennen", a.zugang === "freigabe" ? "mit deiner Freigabe" : "offen für alle", `${a.plaetze} Plätze`, communityIrating(a)].filter(Boolean).join(" · ");
     const entscheid = a.status === "freigegeben" && e ? `<p class="fb-klein">${esc(STEWARDING[e.stewarding] || "")}${e.sponsored ? " · ⭐ Darkline Sponsored" : ""}</p>` : a.status === "abgelehnt" && e && e.grund ? `<p class="fb-klein">Grund: ${esc(e.grund)}</p>` : "";
     const bannerTeil = a.bannerAenderbar
       ? `<div class="fb-kalender"><label class="fb-abmelden fb-datei">${a.banner ? "Anderen Banner hochladen" : "Banner hochladen"}<input type="file" accept="image/png,image/jpeg,image/webp" data-community-banner="${esc(a.id)}" hidden></label>${a.banner ? `<button type="button" class="fb-abmelden" data-community-banner-weg="${esc(a.id)}">Banner entfernen</button>` : ""}</div>${a.status === "freigegeben" ? '<p class="fb-klein">Ein neuer Banner ist sofort sichtbar. Die Rennleitung wird informiert und kann ihn entfernen.</p>' : ""}`
@@ -791,7 +798,7 @@
   // Eingaben sichern, bevor die Seite neu gezeichnet wird (etwa nach der Bildwahl)
   function communityEntwurfMerken() {
     const f = $("fb-community");
-    if (f) communityEntwurf = { ...Object.fromEntries([...new FormData(f).entries()].filter(([, v]) => typeof v === "string")), quali: f.elements.quali.checked };
+    if (f) communityEntwurf = Object.fromEntries([...new FormData(f).entries()].filter(([, v]) => typeof v === "string"));
   }
 
   function communityForm() {
@@ -805,11 +812,10 @@
       <div class="fb-feld"><label for="c-uhr">Startzeit (deutsche Zeit)</label><input id="c-uhr" name="uhrzeit" type="time" value="${esc(w.uhrzeit || "20:00")}"></div>
       <div class="fb-feld"><label for="c-strecke">Strecke</label><input id="c-strecke" name="strecke" maxlength="80" list="c-strecken" autocomplete="off" placeholder="Strecke und Variante" value="${esc(w.strecke || "")}"><datalist id="c-strecken">${(c.strecken || []).map((n) => `<option value="${esc(n)}"></option>`).join("")}</datalist></div>
       <div class="fb-feld"><label for="c-fz">Fahrzeugklasse oder Fahrzeug</label><input id="c-fz" name="fahrzeugklasse" maxlength="80" placeholder="z. B. GT3 oder Mazda MX-5" value="${esc(w.fahrzeugklasse || "")}"></div>
-      <div class="fb-feld"><label for="c-dauer">Renndauer in Minuten</label><input id="c-dauer" name="dauer" type="number" min="10" max="1440" step="5" inputmode="numeric" value="${esc(w.dauer || "45")}"></div>
+      ${ablaufFelder("c", w)}
       <div class="fb-feld"><label for="c-art">Art</label><select id="c-art" name="art">${opt("art", [["einzel", "Einzelrennen"], ["team", "Teamrennen"]])}</select></div>
       <div class="fb-feld"><label for="c-zugang">Teilnahme</label><select id="c-zugang" name="zugang">${opt("zugang", [["offen", "Offen für alle Fahrer"], ["freigabe", "Nur mit meiner Freigabe"]])}</select></div>
       ${rahmenFelder("c", w)}
-      <label class="fb-haken"><input type="checkbox" id="c-quali" name="quali"${w.quali ? " checked" : ""}><span>Mit Qualifying</span></label>
       <div class="fb-feld"><label for="c-text">Beschreibung</label><textarea id="c-text" name="beschreibung" maxlength="1000" rows="4" placeholder="Worum geht es, für wen ist das Rennen gedacht, gibt es Besonderheiten?">${esc(w.beschreibung || "")}</textarea></div>
       <div class="fb-feld"><label>Banner (freiwillig)</label>
         ${communityBanner ? `<img src="${esc(communityBanner)}" alt="Gewählter Banner" style="display:block;width:100%;max-width:480px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:6px;margin-bottom:8px">` : ""}

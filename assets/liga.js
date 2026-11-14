@@ -694,6 +694,7 @@
         <dl class="liga-poster-daten">
           <div><dt>Termin</dt><dd>${esc(wann)} Uhr</dd></div>
           <div><dt>Strecke</dt><dd>${esc(c.strecke)} · ${esc(c.fahrzeugklasse)}</dd></div>
+          <div><dt>Ablauf</dt><dd>${esc([c.training ? `Training ${c.training} min` : "", c.qualiDauer ? `Quali ${c.qualiDauer} min` : c.quali ? "mit Quali" : "", `Rennen ${c.dauer} min`].filter(Boolean).join(" · "))}</dd></div>
           <div><dt>Veranstalter</dt><dd>${esc(c.veranstalter)}${c.nummer ? ` #${esc(c.nummer)}` : ""}</dd></div>
           <div><dt>Teilnahme</dt><dd>${esc(`${c.plaetze} Plätze · ${bedingungen}`)}</dd></div>
         </dl>
