@@ -123,10 +123,10 @@ const basis = { startzeit: "20:00", plaetze: 30, training: "60 Min", qualifying:
   briefing: "**Ablauf:** Training, Qualifying, Rennen.\n\n**Regeln:** Es gilt das Reglement der Darkline Simracing Series." };
 // GT3: fünf Rennen gefahren (wöchentlich, das letzte vor zwei Tagen und damit noch vorläufig), drei folgen
 const RENNEN = {
-  ...Object.fromEntries(STRECKEN.map(([kurz, strecke], i) => [`gt3-r${i + 1}`, { ...basis, serie: "gt3-sprint", titel: `Runde ${i + 1} · ${kurz}`, datum: tag(-2 - 7 * (4 - i)), strecke }])),
-  ...Object.fromEntries([3, 4, 5, 6, 7, 0].map((s, i) => [`gt4-r${i + 1}`, { ...basis, serie: "gt4-cup", titel: `Runde ${i + 1} · ${STRECKEN[s][0]}`, datum: tag(18 + 14 * i), strecke: STRECKEN[s][1], startzeit: "19:30", renndauer: "30 Min", fahrzeuge: "GT4" }])),
-  ...Object.fromEntries([0, 1, 5, 7, 4, 2].map((s, i) => [`formula-r${i + 1}`, { ...basis, serie: "formula-cup", titel: `Runde ${i + 1} · ${STRECKEN[s][0]}`, datum: tag(10 + 7 * i), strecke: STRECKEN[s][1], startzeit: "21:00", renndauer: "30 Min", fahrzeuge: "Super Formula Lights" }])),
-  ...Object.fromEntries([1, 6, 3, 0].map((s, i) => [`pro-r${i + 1}`, { ...basis, serie: "gt3-pro", titel: `Lauf ${i + 1} · ${STRECKEN[s][0]}`, datum: tag(12 + 14 * i), strecke: STRECKEN[s][1] }])),
+  ...Object.fromEntries(STRECKEN.map(([kurz, strecke], i) => [`gt3-r${i + 1}`, { ...basis, serie: "gt3-sprint", titel: `Rennen ${i + 1} · ${kurz}`, datum: tag(-2 - 7 * (4 - i)), strecke }])),
+  ...Object.fromEntries([3, 4, 5, 6, 7, 0].map((s, i) => [`gt4-r${i + 1}`, { ...basis, serie: "gt4-cup", titel: `Rennen ${i + 1} · ${STRECKEN[s][0]}`, datum: tag(18 + 14 * i), strecke: STRECKEN[s][1], startzeit: "19:30", renndauer: "30 Min", fahrzeuge: "GT4" }])),
+  ...Object.fromEntries([0, 1, 5, 7, 4, 2].map((s, i) => [`formula-r${i + 1}`, { ...basis, serie: "formula-cup", titel: `Rennen ${i + 1} · ${STRECKEN[s][0]}`, datum: tag(10 + 7 * i), strecke: STRECKEN[s][1], startzeit: "21:00", renndauer: "30 Min", fahrzeuge: "Super Formula Lights" }])),
+  ...Object.fromEntries([1, 6, 3, 0].map((s, i) => [`pro-r${i + 1}`, { ...basis, serie: "gt3-pro", titel: `Rennen ${i + 1} · ${STRECKEN[s][0]}`, datum: tag(12 + 14 * i), strecke: STRECKEN[s][1] }])),
   "6h-2026": { ...basis, serie: "6h-nuerburgring", titel: "6h Nürburgring", datum: tag(40), strecke: "Nürburgring Kombination", startzeit: "14:00", plaetze: 60, training: "120 Min", qualifying: "30 Min", renndauer: "6 Std", fahrzeuge: "GT3 und GT4" },
   "6h-2025": { ...basis, serie: "6h-nuerburgring-2025", titel: "6h Nürburgring", datum: tag(-330), strecke: "Nürburgring Kombination", startzeit: "14:00", plaetze: 60, renndauer: "6 Std" },
 };

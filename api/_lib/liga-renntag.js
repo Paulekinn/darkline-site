@@ -119,7 +119,7 @@ function berichtDaten(serie, ergebnis, tabelle, kalenderRennen) {
   if (!eintrag || !eintrag.bericht || !eintrag.bericht.length) return null;
   const rennen = rennenZumErgebnis(kalenderRennen, serie.id, ergebnis);
   return {
-    serie: serie.id, bildVersion: serie.bildVersion || 0, serieName: serie.name, titel: rennen ? rennen.titel : `Runde ${eintrag.nr}`, strecke: [ergebnis.strecke, ergebnis.variante].filter(Boolean).join(" · "),
+    serie: serie.id, bildVersion: serie.bildVersion || 0, serieName: serie.name, titel: rennen ? rennen.titel : `Rennen ${eintrag.nr}`, strecke: [ergebnis.strecke, ergebnis.variante].filter(Boolean).join(" · "),
     klassen: eintrag.bericht.map((k) => ({ ...k, schnellste: k.schnellste ? { name: k.schnellste.name, zeit: rundenzeit(k.schnellste.zeit) } : null })),
   };
 }

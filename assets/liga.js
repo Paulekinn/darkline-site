@@ -663,17 +663,31 @@
     </a>`;
   }
 
-  // Das nächste Rennen groß im Kopfbereich
+  // Das nächste Rennen groß im Kopfbereich: Rennen als Überschrift, Termin gut lesbar, Status klein.
+  // Wer schon gemeldet ist, bekommt „Zum Rennen“ als Hauptknopf. Abmelden geht in der Rennansicht und auf der Serienkarte.
+  const WOCHENTAGE = ["So.", "Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa."];
   function feature(r, s) {
     const start = startMs(r);
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.datum || "");
+    const tag = m ? `${WOCHENTAGE[new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay()]}, ${m[3]}.${m[2]}.` : "";
+    const termin = [tag, r.startzeit ? `${r.startzeit} Uhr` : ""].filter(Boolean).join(" · ");
+    // Die Strecke nur nennen, wenn sie nicht schon im Titel steht
+    const kurz = String(r.strecke || "").split(/\s+/).find((w) => w.length > 3) || "";
+    const strecke = r.strecke && !(kurz && String(r.titel || "").toLowerCase().includes(kurz.toLowerCase())) ? r.strecke : "";
+    const ablauf = [r.training && `Training ${r.training}`, r.qualifying && `Quali ${r.qualifying}`, r.renndauer && `Rennen ${r.renndauer}`].filter(Boolean);
+    const eigen = fahrerStand && fahrerStand.angemeldet ? (fahrerStand.serien || []).find((x) => x.id === s.id) : null;
+    const dabei = !!(eigen && eigen.ich);
     return `<aside class="liga-feature ${farbeSerie(s)}">
       <div class="liga-feature-kopf"><span class="lbl">Nächstes Rennen</span><span class="liga-badges">${artBadge(s.typ)}${katBadge(s.kategorie)}</span></div>
-      <p class="liga-feature-serie">${esc(s.name)}</p>
-      <h2>${esc(r.strecke || r.titel)}</h2>
+      <p class="liga-feature-serie"><a href="${serienLink(s)}">${esc(s.name)}</a>${dabei ? '<span class="liga-feature-dabei"><i aria-hidden="true">✓</i>Gemeldet</span>' : ""}</p>
+      <h2>${esc(r.titel || r.strecke).replace(/ · /g, "&nbsp;· ")}</h2>
+      <p class="liga-feature-termin">${esc(termin)}${strecke ? `<small>${esc(strecke)}</small>` : ""}</p>
       ${r.streckenBild ? `<img class="liga-feature-karte" src="api/liga?r=bild&k=${encodeURIComponent(r.streckenBild.k)}&v=${encodeURIComponent(r.streckenBild.v)}" alt="Streckenkarte ${esc(r.strecke)}" loading="lazy">` : ""}
-      <p>${esc(terminText(r))} Uhr${r.strecke && r.titel !== r.strecke ? ` · ${esc(r.titel)}` : ""}</p>
-      ${start ? `<div class="liga-countdown" data-countdown="${start}" aria-hidden="true"></div>` : ""}
-      <div class="liga-serie-aktion">${serienAktion(s)}<a class="liga-mini zweit" href="${serienLink(s)}">Zur Serie</a></div>
+      ${start ? `<div class="liga-countdown${start - Date.now() < 864e5 ? " bald" : ""}" data-countdown="${start}" aria-hidden="true"></div>` : ""}
+      ${ablauf.length ? `<p class="liga-feature-ablauf">${ablauf.map(esc).join("<i aria-hidden=\"true\">·</i>")}</p>` : ""}
+      <div class="liga-serie-aktion">${dabei
+        ? `<a class="liga-melden" href="/fahrerbereich?rennen=${encodeURIComponent(r.id)}">Zum Rennen</a>`
+        : serienAktion(s)}<a class="liga-mini zweit" href="${serienLink(s)}">Zur Serie</a></div>
     </aside>`;
   }
 
@@ -828,7 +842,7 @@
     if (berichte.length) {
       const letzter = berichte[berichte.length - 1];
       const wahl = berichte.length > 1 ? `<div class="liga-bericht-wahl" role="group" aria-label="Rennen wählen">${berichte.map((r) => `<button type="button" data-bericht="${r.nr}" aria-pressed="${r === letzter}" title="${esc(r.strecke)}">R${r.nr}</button>`).join("")}</div>` : "";
-      einfuegen(abschnitt("Rennbericht", `Aus Runde ${letzter.nr}`, "", `${wahl}<div id="liga-bericht">${berichtHtml(letzter, regeln)}</div>`));
+      einfuegen(abschnitt("Rennbericht", `Aus Rennen ${letzter.nr}`, "", `${wahl}<div id="liga-bericht">${berichtHtml(letzter, regeln)}</div>`));
       document.querySelectorAll("[data-bericht]").forEach((b) => b.addEventListener("click", () => {
         document.querySelectorAll("[data-bericht]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
         $("liga-bericht").innerHTML = berichtHtml(berichte.find((r) => String(r.nr) === b.dataset.bericht), regeln);

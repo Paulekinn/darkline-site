@@ -538,23 +538,23 @@ const aktionen = {
   },
   // Testet alle drei Webhooks: Reports, Renntag und Urteile.
   async "discord-test"(b, kat, s) {
-    const beispiel = R.reportKarte({ serie: "GT3 Sprint", rennen: "Runde 3 · Spa", session: "rennen", zeitstempel: "24:17", stelle: "Runde 5, Kurve 3", von: "Max Beispiel", gegen: "Tom Muster", beschreibung: `Beim Anbremsen auf Kurve 3 wurde ich von hinten getroffen und habe mich gedreht. Ausgelöst von ${s.name} über den Knopf „Discord testen“.`, clip: "https://www.twitch.tv/videos/beispiel" }, true);
+    const beispiel = R.reportKarte({ serie: "GT3 Sprint", rennen: "Rennen 3 · Spa", session: "rennen", zeitstempel: "24:17", stelle: "Runde 5, Kurve 3", von: "Max Beispiel", gegen: "Tom Muster", beschreibung: `Beim Anbremsen auf Kurve 3 wurde ich von hinten getroffen und habe mich gedreht. Ausgelöst von ${s.name} über den Knopf „Discord testen“.`, clip: "https://www.twitch.tv/videos/beispiel" }, true);
     // Beispiel wie ein normaler Renntag: Serverstart heute 18:00 Uhr nach Berliner Zeit.
     const start = A.berlinNachUtc(new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" }).format(new Date()), "18:00");
     const renntag = Renntag.erinnerungKarte({
-      titel: "Runde 3 · Spa", serieName: "GT3 Sprint", strecke: "Circuit de Spa-Francorchamps", start: new Date(start).toISOString(), schluss: new Date(start - 3600e3).toISOString(),
+      titel: "Rennen 3 · Spa", serieName: "GT3 Sprint", strecke: "Circuit de Spa-Francorchamps", start: new Date(start).toISOString(), schluss: new Date(start - 3600e3).toISOString(),
       plaetze: 24, starter: Array.from({ length: 18 }, () => ({})), warteliste: [{}, {}], training: "70 Min", qualifying: "40 Min", renndauer: "65 Min", fahrzeuge: "GT3 und GT4", zugangNoetig: false,
     });
     // Der echte Rennbericht hängt zusätzlich die im Admin-Bereich gezeichnete Grafik an, der Test kommt ohne aus.
     // Platz 1 in GT3 erwähnt den Auslöser selbst, damit man die Verlinkung im Test sieht.
     const bericht = Renntag.berichtKarte({
-      serie: "", serieName: "GT3 Sprint", titel: "Runde 3 · Spa", strecke: "Circuit de Spa-Francorchamps · Grand Prix", vorlaeufig: true, erwaehnungen: { "Max Beispiel": s.id },
+      serie: "", serieName: "GT3 Sprint", titel: "Rennen 3 · Spa", strecke: "Circuit de Spa-Francorchamps · Grand Prix", vorlaeufig: true, erwaehnungen: { "Max Beispiel": s.id },
       klassen: [
         { fahrzeugklasse: "GT3", podium: ["Max Beispiel", "Tom Muster", "Lena Probe"], schnellste: { name: "Tom Muster", zeit: "2:18.452" }, aufholer: { name: "Lena Probe", plaetze: 6 } },
         { fahrzeugklasse: "GT4", podium: ["Jonas Test", "Mia Muster", "Paul Probe"], schnellste: { name: "Mia Muster", zeit: "2:31.907" }, aufholer: { name: "Paul Probe", plaetze: 4 } },
       ],
     }, false);
-    const urteil = R.urteilKarte({ serieName: "GT3 Sprint", rennenTitel: "Runde 3 · Spa", gegen: { name: "Max Beispiel", discordId: s.id } }, { art: "strafpunkte", punkte: 3 });
+    const urteil = R.urteilKarte({ serieName: "GT3 Sprint", rennenTitel: "Rennen 3 · Spa", gegen: { name: "Max Beispiel", discordId: s.id } }, { art: "strafpunkte", punkte: 3 });
     const ergebnis = await R.webhooksTesten(s.name, { Reports: beispiel, Renntag: [renntag, bericht], Urteile: urteil });
     if (ergebnis.every((x) => x.stand === "fehlt")) throw new Hinweis("Es ist noch kein Discord-Webhook eingerichtet.");
     return { discord: ergebnis };

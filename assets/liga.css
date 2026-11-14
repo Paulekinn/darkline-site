@@ -221,12 +221,20 @@
 .liga-kopf.gross .lead{font-size:1.05rem}
 .liga-feature{display:grid;gap:11px;padding:18px 20px 20px;background:color-mix(in srgb,#07090a 84%,transparent);border-top:4px solid var(--s);backdrop-filter:blur(5px);min-width:0}
 .liga-feature-kopf{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 10px}
-.liga-feature p.liga-feature-serie{margin:0;font:900 clamp(1.3rem,2.1vw,1.7rem)/1.05 var(--f-wide);font-variation-settings:"wdth" 116;text-transform:uppercase;color:var(--s);overflow-wrap:anywhere}
-.liga-feature h2{margin:0;font:800 clamp(1rem,1.4vw,1.15rem)/1.2 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase;overflow-wrap:anywhere}
+.liga-feature p.liga-feature-serie{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px;margin:0;font:600 .72rem/1.2 var(--f-mono);letter-spacing:.12em;text-transform:uppercase}
+.liga-feature-serie a{color:var(--s);text-decoration:none}.liga-feature-serie a:hover{text-decoration:underline;text-underline-offset:3px}
+.liga-feature-dabei{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:color-mix(in srgb,var(--liga-gruen) 15%,#07090a);box-shadow:inset 0 0 0 1px var(--liga-gruen);color:var(--liga-gruen);letter-spacing:.08em}
+.liga-feature-dabei i{font-style:normal}
+.liga-feature h2{margin:0;font:900 clamp(1.3rem,2.1vw,1.7rem)/1.05 var(--f-wide);font-variation-settings:"wdth" 116;text-transform:uppercase;overflow-wrap:anywhere}
 .liga-feature p{margin:0;font-size:.9rem;color:#c4cbc8}
+.liga-feature p.liga-feature-termin{display:grid;gap:3px;font:700 1.02rem/1.25 var(--f-wide);color:var(--ink)}
+.liga-feature-termin small{font:400 .85rem/1.3 var(--f-body,inherit);color:#aeb6b3}
+.liga-feature p.liga-feature-ablauf{display:flex;flex-wrap:wrap;gap:4px 8px;font:500 .72rem/1.3 var(--f-mono);letter-spacing:.04em;color:#aeb6b3}
+.liga-feature-ablauf i{font-style:normal;color:#5d6669}
 .liga-countdown{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
-.liga-countdown span{display:grid;justify-items:center;gap:4px;padding:11px 4px;background:#020303}
-.liga-countdown b{font:900 clamp(1.5rem,2.6vw,2rem)/1 var(--f-wide);font-variant-numeric:tabular-nums;color:var(--s)}
+.liga-countdown span{display:grid;justify-items:center;gap:4px;padding:9px 4px;background:#020303}
+.liga-countdown b{font:900 clamp(1.3rem,2.2vw,1.7rem)/1 var(--f-wide);font-variant-numeric:tabular-nums;color:var(--ink)}
+.liga-countdown.bald b{color:var(--s)}
 .liga-countdown small{font:500 .6rem/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .liga-countdown .liga-live{grid-column:1/-1;font:800 .9rem/1.2 var(--f-wide);color:var(--s)}
 .liga-pill{display:inline-block;padding:3px 8px;font:700 .62rem/1.3 var(--f-mono);letter-spacing:.05em;text-transform:uppercase;background:rgba(5,6,6,.72);color:#c4cbc8}

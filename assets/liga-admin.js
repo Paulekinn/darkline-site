@@ -765,7 +765,7 @@
       <div class="a-rennen-form">
         <div class="a-spalte">
           ${abschnittForm(1, "Termin", `<div class="a-felder unten">
-            ${feld("Titel", eingabe("titel", w.titel, 'maxlength="80" placeholder="Runde 1 · Spa"'))}
+            ${feld("Titel", eingabe("titel", w.titel, 'maxlength="80" placeholder="Rennen 1 · Spa"'))}
             ${feld("Serie oder Event", auswahl("serie", w.serie || serieId, d.serien.map((s) => [s.id, s.name])))}
             ${feld("Status", auswahl("status", w.status, [["geplant", "Geplant"], ["abgesagt", "Abgesagt"]]))}
             ${feld("Datum", eingabe("datum", w.datum, 'type="date"'))}
@@ -807,7 +807,7 @@
 
   const planerZeilenHtml = () => {
     const vorhanden = d.rennen.filter((r) => r.serie === planer.serie).length;
-    return planer.zeilen.map((z, i) => `<div class="a-plan-zeile"><b>R${vorhanden + i + 1}</b><input type="date" name="p_datum" value="${esc(z.datum)}" aria-label="Datum Runde ${vorhanden + i + 1}"><input name="p_strecke" value="${esc(z.strecke)}" list="a-strecken" autocomplete="off" placeholder="Strecke" aria-label="Strecke Runde ${vorhanden + i + 1}"></div>`).join("");
+    return planer.zeilen.map((z, i) => `<div class="a-plan-zeile"><b>R${vorhanden + i + 1}</b><input type="date" name="p_datum" value="${esc(z.datum)}" aria-label="Datum Rennen ${vorhanden + i + 1}"><input name="p_strecke" value="${esc(z.strecke)}" list="a-strecken" autocomplete="off" placeholder="Strecke" aria-label="Strecke Rennen ${vorhanden + i + 1}"></div>`).join("");
   };
 
   function planerForm() {
@@ -1994,7 +1994,7 @@
       planerLesen();
       const vorhanden = d.rennen.filter((r) => r.serie === planer.serie).length;
       const gemeinsam = { status: "geplant", briefing: serieVon(planer.serie).briefingVorlage || "", startzeit: planer.startzeit, plaetze: planer.plaetze, fahrzeuge: planer.fahrzeuge, training: alsDauer(planer.training), qualifying: alsDauer(planer.qualifying), renndauer: alsDauer(planer.renndauer), wetter: planer.wetter };
-      const rennen = planer.zeilen.map((z, i) => ({ ...gemeinsam, datum: z.datum, strecke: z.strecke.trim(), streckeId: (streckeAus(z.strecke) || {}).id || "", titel: `Runde ${vorhanden + i + 1}${z.strecke.trim() ? ` · ${z.strecke.trim()}` : ""}` }));
+      const rennen = planer.zeilen.map((z, i) => ({ ...gemeinsam, datum: z.datum, strecke: z.strecke.trim(), streckeId: (streckeAus(z.strecke) || {}).id || "", titel: `Rennen ${vorhanden + i + 1}${z.strecke.trim() ? ` · ${z.strecke.trim()}` : ""}` }));
       const a = await aktion({ aktion: "saison-planen", serie: planer.serie, rennen }, `${rennen.length} ${rennen.length === 1 ? "Rennen" : "Rennen"} angelegt.`);
       if (a) { planer = null; zeichne(); }
     } else if (f.id === "f-strafe") {
