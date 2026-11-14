@@ -279,12 +279,28 @@ textarea{min-height:110px;resize:vertical}
 .a-klassen-balken .am{--k:var(--a-ok)} .a-klassen-balken .mid{--k:var(--a-gelb)} .a-klassen-balken .pro{--k:var(--a-rot-hell)}
 .a-klassen-balken b{font-size:.84rem;font-weight:800;overflow-wrap:anywhere}
 .a-klassen-balken small{font:.66rem var(--a-mono);color:var(--a-leise)}
-.a-farben{display:flex;gap:5px;padding-block:4px}
-.a-farben label{cursor:pointer;position:relative;width:32px;height:32px}
+.a-farben{display:flex;flex-wrap:wrap;gap:5px;padding-block:4px;min-width:0}
+.a-farben label{cursor:pointer;position:relative;width:26px;height:30px;flex:0 0 auto}
 .a-farben input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
 .a-farben i{display:block;width:100%;height:100%;background:var(--s);transform:skewX(-8deg)}
 .a-farben input:checked+i{outline:2px solid var(--a-text);outline-offset:2px}
 .a-farben input:focus-visible+i{outline:2px solid var(--a-rot-hell);outline-offset:2px}
+/* Fahrzeugklassen als Auswahl-Chips */
+.a-chips{display:flex;flex-wrap:wrap;gap:5px}
+.a-chip-wahl{position:relative;cursor:pointer}
+.a-chip-wahl input{position:absolute;opacity:0;width:1px;height:1px}
+.a-chip-wahl span{display:inline-block;padding:6px 11px;font:700 .72rem/1 var(--a-mono);letter-spacing:.04em;border:1px solid rgba(255,255,255,.18);background:var(--a-seite);color:var(--a-leise)}
+.a-chip-wahl input:checked+span{border-color:var(--a-rot-hell);color:var(--a-text);background:rgba(211,18,27,.18)}
+.a-chip-wahl input:focus-visible+span{outline:2px solid var(--a-rot-hell);outline-offset:2px}
+/* Checkliste vor dem Speichern */
+.a-checkliste{margin-top:14px;padding:12px 14px;background:var(--a-seite);border-left:3px solid var(--a-rot-hell)}
+.a-checkliste h3{margin:0 0 8px;font:800 .8rem/1.2 var(--a-mono);letter-spacing:.06em;text-transform:uppercase}
+.a-checkliste ul{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:6px 14px;margin:0;padding:0;list-style:none}
+.a-checkliste li{display:flex;gap:8px;align-items:baseline;font-size:.82rem;color:var(--a-leise)}
+.a-checkliste li strong{color:var(--a-text);font-weight:700}
+.a-checkliste li b{flex:0 0 18px;display:inline-grid;place-items:center;width:18px;height:18px;font:900 .7rem/1 var(--a-mono);color:#08090a}
+.a-checkliste li.ok b{background:var(--a-ok)} .a-checkliste li.fehlt b{background:var(--a-rot-hell)} .a-checkliste li.frei b{background:var(--a-leise)} .a-checkliste li.info b{background:var(--a-gelb)}
+.a-checkliste li.fehlt strong{color:var(--a-rot-hell)}
 .a-klebeleiste{position:sticky;bottom:0;z-index:4;padding:11px 0 4px;background:linear-gradient(0deg,var(--a-flaeche) 76%,transparent)}
 .a-auswahl{max-width:320px}
 .a-rennen-form{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,1fr);gap:10px;align-items:start}

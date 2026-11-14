@@ -539,6 +539,54 @@
     ziel.innerHTML = `<div class="a-klassen-balken">${zeilen.map((k, i) => `<span class="${i === zeilen.length - 1 ? "pro" : i === 0 ? "am" : "mid"}"${farbwert(k) ? ` style="--k:${farbwert(k)}"` : ""}><b>${esc(k.name || "?")}</b><small>${k.min ?? "?"} bis ${k.max ?? "offen"}</small></span>`).join("")}</div><p class="a-hinweis ${fehler ? "a-bild-fehler" : "a-gut"}">${esc(fehler || "Die Klassen sind lückenlos.")}</p>`;
   }
 
+  // Fahrzeugklassen für Multiclass: Auswahl der gängigen iRacing-Klassen, passend zur Kategorie, dazu freie Eingabe für Seltenes.
+  const KLASSEN_AUSWAHL = {
+    Sports_Car: ["GTP", "LMP2", "LMP3", "GT3", "GT4", "TCR", "Porsche Cup", "MX-5"],
+    Formula: ["F1", "Super Formula", "IR-18", "F3", "Super Formula Lights", "FR2.0", "F4", "FF1600", "Formula Vee"],
+    Oval: ["Cup", "Xfinity", "Trucks", "Late Model", "Modified", "IndyCar"],
+    Dirt_Road: ["Pro 4", "Pro 2", "Rallycross", "Rally"],
+    Dirt_Oval: ["Sprint Car", "Late Model", "Modified", "Street Stock", "Midget"],
+  };
+  function fahrzeugklassenFeld(w) {
+    const gewaehlt = w.fahrzeugklassen || [];
+    const liste = KLASSEN_AUSWAHL[w.kategorie] || KLASSEN_AUSWAHL.Sports_Car;
+    const weitere = gewaehlt.filter((k) => !liste.includes(k));
+    return `<div class="a-feld breit"><label>Fahrzeugklassen (nur bei Multiclass, sonst nichts anklicken)</label>
+      <div class="a-chips" id="s-fk">${liste.map((k) => `<label class="a-chip-wahl"><input type="checkbox" name="fk" value="${esc(k)}"${gewaehlt.includes(k) ? " checked" : ""}><span>${esc(k)}</span></label>`).join("")}</div>
+      <input name="fkWeitere" value="${esc(weitere.join(", "))}" placeholder="Weitere Klassen, mit Komma getrennt" autocomplete="off">
+      <small class="a-hinweis">Bei mehreren Klassen wählt jeder Fahrer bei der Anmeldung seine Klasse, und es gibt eine Wertung je Klasse. Die Auswahl richtet sich nach der iRacing-Kategorie.</small></div>`;
+  }
+
+  // Checkliste unter dem Season-Formular: was fehlt (rot), was freiwillig ist (gelb), was passt (grün)
+  function serienCheck() {
+    const f = document.getElementById("f-serie");
+    const ziel = document.getElementById("a-serie-check");
+    if (!f || !ziel) return;
+    const el = f.elements;
+    const wert = (n) => (el[n] ? String(el[n].value || "").trim() : "");
+    const event = wert("typ") === "event";
+    const ohneKlassen = el.ohneKlassen && el.ohneKlassen.checked;
+    const klassenText = (document.querySelector("#a-klassen-check .a-hinweis") || {}).textContent || "";
+    const fk = [...f.querySelectorAll('input[name="fk"]:checked')].length + wert("fkWeitere").split(",").filter((x) => x.trim()).length;
+    const modelle = wert("modelle").split("\n").filter((x) => x.trim()).length;
+    const gesamt = Number(wert("rennenGesamt")), gewertet = Number(wert("gewerteteRennen"));
+    const punkte = wert("punkte").split(/[\s,;]+/).filter(Boolean).length;
+    const pruefungen = [
+      ["Name", wert("name") ? "ok" : "fehlt", wert("name") || "Bitte einen Namen eintragen"],
+      ["Kategorie", "ok", (window.LigaKarte.KATEGORIEN[wert("kategorie")] || "Sports Car")],
+      ...(event ? [] : [["Rennen", gesamt >= 1 && gewertet >= 1 && gewertet <= gesamt ? "ok" : "fehlt", gesamt >= 1 && gewertet >= 1 && gewertet <= gesamt ? `${gewertet} von ${gesamt} gewertet` : "Gewertete Rennen müssen zwischen 1 und Rennen gesamt liegen"]]),
+      ["Klassen", ohneKlassen ? "ok" : /lückenlos/.test(klassenText) ? "ok" : "fehlt", ohneKlassen ? "Eine gemeinsame Wertung ohne iRating-Klassen" : klassenText || "Bitte Klassen prüfen"],
+      ...(wert("kategorie") === "Formula" && !ohneKlassen && wert("einstufungArt") !== "sichtung" ? [["Formula-iRating", "info", "Fahrer brauchen für die Anmeldung ihr Formula-iRating im Profil"]] : []),
+      ["Fahrzeugklassen", "ok", fk > 1 ? `${fk} Klassen, Multiclass` : fk === 1 ? "Eine Klasse" : "Keine Multiclass"],
+      ["Fahrzeuge", modelle ? "ok" : "frei", modelle ? `${modelle} erlaubte Fahrzeuge` : "Keine Fahrzeugliste, jeder fährt, was erlaubt ist"],
+      ...(event ? [] : [["Punkte", punkte ? "ok" : "fehlt", punkte ? `${punkte} Plätze mit Punkten` : "Bitte eine Punktetabelle eintragen oder eine Vorlage wählen"]]),
+      ["Briefing-Vorlage", wert("briefingVorlage") ? "ok" : "frei", wert("briefingVorlage") ? "Wird in jedes neue Rennen übernommen" : "Leer, Briefings schreibt ihr je Rennen"],
+      ["Status", wert("status") === "geplant" ? "info" : "ok", wert("status") === "geplant" ? "Geplant: Die Anmeldung bleibt geschlossen, bis ihr sie öffnet" : ({ anmeldung: "Anmeldung offen", laeuft: "Läuft", beendet: "Beendet" })[wert("status")] || wert("status")],
+    ];
+    const zeichen = { ok: "✓", fehlt: "!", frei: "○", info: "i" };
+    ziel.innerHTML = pruefungen.map(([t, art, text]) => `<li class="${art}"><b aria-hidden="true">${zeichen[art]}</b><span><strong>${esc(t)}</strong> ${esc(text)}</span></li>`).join("");
+  }
+
   function serienForm() {
     const w = form.werte;
     const farbe = w.farbe || "rot";
@@ -546,7 +594,7 @@
     const loeschen = form.id ? '<button type="button" class="a-knopf gefahr" data-serie-loeschen="1">Löschen</button>' : "";
     return `<form class="a-karte a-form" id="f-serie" novalidate>
       <div class="a-kartenkopf"><h2>${form.id ? `${esc(w.name)} bearbeiten` : w.typ === "event" ? "Neues Event" : "Neue Season"}</h2>${form.id ? statusChip(w.status) : ""}</div>
-      ${abschnittForm(1, "Grundlagen", `<div class="a-felder">
+      ${abschnittForm(1, "Grundlagen", `<div class="a-felder unten">
         ${feld("Name", eingabe("name", w.name, 'maxlength="60"'))}
         ${feld("Art", auswahl("typ", w.typ, [["liga", "Liga"], ["event", "Event"]]))}
         <div class="a-feld" data-nur-event${w.typ === "event" ? "" : " hidden"}><label>Eventreihe</label>${eingabe("eventReihe", w.eventReihe || "", 'maxlength="60" list="a-eventreihen" autocomplete="off" placeholder="z. B. 6h Nürburgring"')}<datalist id="a-eventreihen">${[...new Set(d.serien.map((s) => s.eventReihe).filter(Boolean))].map((n) => `<option value="${esc(n)}"></option>`).join("")}</datalist></div>
@@ -557,14 +605,14 @@
         ${feld("Beschreibung", `<textarea name="beschreibung" maxlength="400" style="min-height:60px">${esc(w.beschreibung)}</textarea>`, true)}
         ${feld("Übertragung (Twitch- oder YouTube-Link, leer lassen ohne Stream)", eingabe("uebertragung", w.uebertragung || "", 'maxlength="150" placeholder="https://www.twitch.tv/…" autocomplete="off"'), true)}
       </div>`)}
-      ${abschnittForm(2, "Umfang und Fristen", `<div class="a-felder">
+      ${abschnittForm(2, "Umfang und Fristen", `<div class="a-felder unten">
         <div class="a-feld" data-nur-liga${w.typ === "event" ? " hidden" : ""}><label>Rennen gesamt</label>${eingabe("rennenGesamt", w.rennenGesamt, 'type="number" min="1"')}</div>
         <div class="a-feld" data-nur-liga${w.typ === "event" ? " hidden" : ""}><label>Gewertete Rennen</label>${eingabe("gewerteteRennen", w.gewerteteRennen, 'type="number" min="1"')}</div>
-        ${feld("Fahrzeugklassen (bei Multiclass)", eingabe("fahrzeugklassen", (w.fahrzeugklassen || []).join(", "), 'placeholder="GTP, GT3"'))}
-        ${feld("Anmeldeschluss (Minuten vor Start)", eingabe("anmeldeschlussMinuten", w.anmeldeschlussMinuten, 'type="number" min="0"'))}
+        ${feld("Anmeldeschluss (Min. vor Start)", eingabe("anmeldeschlussMinuten", w.anmeldeschlussMinuten, 'type="number" min="0"'))}
         ${feld("Report-Frist (Stunden)", eingabe("reportStunden", w.reportStunden ?? 24, 'type="number" min="1"'))}
         ${eingabe("einspruchStunden", w.einspruchStunden ?? 48, 'type="hidden"')}
         ${feld("Strafpunkte-Grenze (0 = aus)", eingabe("strafpunkteGrenze", w.strafpunkteGrenze ?? 0, 'type="number" min="0"'))}
+        ${fahrzeugklassenFeld(w)}
       </div><label class="a-check"><input type="checkbox" name="anmeldungOffen"${w.anmeldungOffen !== false ? " checked" : ""}> Fahrer können sich anmelden</label><p class="a-hinweis">Solange der Status „Geplant“ ist, bleibt die Anmeldung immer geschlossen.</p>
       <div data-nur-liga${w.typ === "event" ? " hidden" : ""}><label class="a-check"><input type="checkbox" name="aufAnfrage" id="s-auf-anfrage"${w.aufAnfrage ? " checked" : ""}> Private Season: Anmeldung nur auf Anfrage, ihr gebt jeden Fahrer frei</label>
       <div class="a-felder" id="s-voraussetzungen"${w.aufAnfrage ? "" : " hidden"}>${feld("Voraussetzungen (öffentlich sichtbar, leer lassen ohne)", `<textarea name="voraussetzungen" maxlength="400" style="min-height:60px" placeholder="z. B. iRating ab 1.500, Teilnahme am Pre-Test">${esc(w.voraussetzungen || "")}</textarea>`, true)}</div>
@@ -580,7 +628,7 @@
             ${feld("Einstufung der Fahrer", auswahl("einstufungArt", w.einstufungArt || "irating", [["irating", "Nach iRating"], ["sichtung", "Nach Sichtung (Garage 61)"]]))}
           </div>
           <p class="a-hinweis" data-nur-sichtung${w.einstufungArt === "sichtung" ? "" : " hidden"}>Zeitraum, Strecken, Runden, Wertung, Pace-Grenzen und Steckbrief richtest du nach dem Speichern im Menüpunkt „Sichtung“ ein. Wer nicht alle Strecken abgibt, wird nach den iRating-Grenzen oben eingestuft.</p></div>`)}
-      <div data-nur-liga${w.typ === "event" ? " hidden" : ""}>${abschnittForm(4, "Punkte", `<div class="a-leiste"><span class="a-beschriftung">Vorlage</span>${PUNKTE_VORLAGEN.map(([t], i) => `<button type="button" class="a-knopf zweit klein" data-punkte-vorlage="${i}">${esc(t)}</button>`).join("")}</div><div class="a-felder">
+      <div data-nur-liga${w.typ === "event" ? " hidden" : ""}>${abschnittForm(4, "Punkte", `<div class="a-leiste"><span class="a-beschriftung">Vorlage</span>${PUNKTE_VORLAGEN.map(([t], i) => `<button type="button" class="a-knopf zweit klein" data-punkte-vorlage="${i}">${esc(t)}</button>`).join("")}</div><div class="a-felder unten">
         ${feld("Punkte nach Platz", eingabe("punkte", w.punkte.join(", ")), true)}
         ${feld("Punkte für alle danach", eingabe("punkteDanach", w.punkteDanach, 'type="number" min="0"'))}
         ${feld("Bonus Pole", eingabe("bonusPole", w.bonusPole, 'type="number" min="0"'))}
@@ -591,6 +639,7 @@
       </div>`)}</div>
       ${abschnittForm(5, "Briefing-Vorlage", `<textarea name="briefingVorlage" maxlength="10000" placeholder="Wird bei jedem neuen Rennen automatisch eingefügt">${esc(w.briefingVorlage || "")}</textarea>`, "Markdown ist möglich. Bereits angelegte Rennen bleiben unverändert.")}
       ${abschnittForm(6, "Bild der Serie", form.id ? bildFeld(form.id) : '<p class="a-hinweis">Ein eigenes Bild kannst du hinzufügen, sobald die Serie gespeichert ist.</p>')}
+      <section class="a-checkliste" aria-live="polite"><h3>Vor dem Speichern</h3><ul id="a-serie-check"></ul></section>
       ${formLeiste("Serie speichern", loeschen)}
     </form>`;
   }
@@ -1473,6 +1522,7 @@
     </div>`;
     document.title = `${offene ? `(${offene}) ` : ""}Rennleitung · Darkline Simracing Series`;
     klassenKontrolle();
+    serienCheck();
   }
 
   // Öffnet ein Formular oder den Planer und bringt es in den sichtbaren Bereich.
@@ -1483,6 +1533,9 @@
   }
 
   const werte = (f) => Object.fromEntries(new FormData(f).entries());
+
+  // Knöpfe im Season-Formular (Punkte-Vorlage, Fahrzeuge, Klassen) setzen Werte ohne Eingabe-Ereignis: Checkliste danach neu prüfen.
+  app.addEventListener("click", (e) => { if (e.target.closest && e.target.closest("#f-serie")) setTimeout(serienCheck, 0); });
 
   app.addEventListener("click", async (e) => {
     const b = e.target.closest("button");
@@ -1852,8 +1905,11 @@
       w.anmeldungOffen = f.elements.anmeldungOffen.checked;
       w.aufAnfrage = f.elements.aufAnfrage.checked;
       w.ohneKlassen = f.elements.ohneKlassen.checked;
+      // Fahrzeugklassen aus der Auswahl und der freien Eingabe, ohne doppelte
+      w.fahrzeugklassen = [...new Set([...fd.getAll("fk"), ...String(w.fkWeitere || "").split(",")].map((x) => x.trim()).filter(Boolean))];
+      delete w.fk; delete w.fkWeitere;
       // Eingaben merken, damit sie bei einem Fehler im Formular stehen bleiben
-      form.werte = { ...w, punkte: String(w.punkte).split(/[\s,;]+/).filter(Boolean), fahrzeugklassen: String(w.fahrzeugklassen).split(",").map((x) => x.trim()).filter(Boolean) };
+      form.werte = { ...w, punkte: String(w.punkte).split(/[\s,;]+/).filter(Boolean) };
       // Nach dem Speichern steht man im Reiter, in den die Serie jetzt gehört.
       if (await aktion({ aktion: "serie-speichern", id: form.id, serie: w, vorher: form.vorher }, w.typ === "event" ? "Event gespeichert." : "Season gespeichert.")) { serienReiter = w.status === "beendet" ? "archiv" : w.typ === "event" ? "event" : "liga"; zeichne(); }
     } else if (f.id === "f-rennen") {
@@ -1979,7 +2035,16 @@
   app.addEventListener("input", (e) => {
     const t = e.target;
     if (t.name === "k_farbe") { const feld = t.parentElement.querySelector(".a-farbfeld"); if (feld) feld.style.background = window.LigaKarte.klassenFarbwert(t.value) || ""; }
-    if (t.closest && t.closest("#a-klassen")) return klassenKontrolle();
+    // Andere Kategorie: passende Fahrzeugklassen anbieten, Gewähltes bleibt erhalten (Unbekanntes wandert in „Weitere“)
+    if (t.name === "kategorie" && document.getElementById("s-fk")) {
+      const f = t.form;
+      const gewaehlt = [...new Set([...[...f.querySelectorAll('input[name="fk"]:checked')].map((x) => x.value), ...String(f.elements.fkWeitere.value || "").split(",").map((x) => x.trim()).filter(Boolean)])];
+      const neu = document.createElement("div");
+      neu.innerHTML = fahrzeugklassenFeld({ kategorie: t.value, fahrzeugklassen: gewaehlt });
+      document.getElementById("s-fk").closest(".a-feld").replaceWith(neu.firstElementChild);
+    }
+    if (t.closest && t.closest("#a-klassen")) { klassenKontrolle(); return serienCheck(); }
+    if (t.closest && t.closest("#f-serie")) serienCheck();
     if (t.id === "a-strecken-suche") { streckenSuche = t.value; streckenAlle = false; return streckenListeNeu(); }
     if (t.id === "a-fahrer-suche") {
       const q = t.value.trim().toLowerCase();
