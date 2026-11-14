@@ -87,43 +87,36 @@ h3{margin:0}
 .grid-sec{background:var(--monitor);color:var(--phos)}
 .grid-sec .doc-head{border-color:var(--phos)}
 .grid-sec .doc-head p,.grid-sec .lbl{color:var(--phos-dim)}
-.startgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:clamp(24px,5vw,72px);row-gap:36px;padding-top:44px;
-  background:linear-gradient(90deg,transparent calc(50% - 1px),var(--scan) calc(50% - 1px) calc(50% + 1px),transparent calc(50% + 1px))}
-.startgrid > :nth-child(even){transform:translateY(clamp(60px,9vw,110px))}
-.startgrid{padding-bottom:clamp(60px,9vw,110px)}
-.slot{position:relative;padding:22px 0 0}
-.slot::before{content:"";position:absolute;left:0;right:30%;top:0;height:14px;border:3px solid var(--phos);border-bottom:0}
-.slot .gp{position:absolute;right:0;top:-6px;font:900 1.6rem/1 var(--f-wide);font-variation-settings:"wdth" 125;color:var(--scan)}
-.card{display:grid;grid-template-columns:minmax(0,150px) minmax(0,1fr);gap:20px;background:#15181a;padding:16px;border-left:4px solid var(--red)}
-.card .ph{position:relative;aspect-ratio:1;overflow:hidden;background:#000}
+/* kompakte Fahrerkarten: kleines Porträt, Name, Rolle, Klassen */
+.startgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;padding-top:32px}
+.slot{position:relative;display:grid}
+.card{display:grid;grid-template-columns:64px minmax(0,1fr);gap:14px;align-items:center;background:#15181a;padding:12px;border-left:3px solid var(--red)}
+.card .ph{position:relative;aspect-ratio:1;overflow:hidden;background:#000;display:grid;place-items:center}
+.card .ph span{font:900 1rem/1 var(--f-wide);color:var(--phos-dim)}
+.lineup-off{grid-column:1/-1;margin:4px 0 0;font-size:.85rem;color:var(--phos-dim)}
+.lineup-off .lbl{margin-right:8px}
+.lineup-off a{color:var(--phos-dim)}.lineup-off a:hover{color:var(--phos)}
 .sash{position:absolute;top:20px;left:-40px;width:150px;padding:6px 0;transform:rotate(-45deg);text-align:center;background:var(--red);color:#fff;font:900 .64rem/1 var(--f-wide);font-variation-settings:"wdth" 120;text-transform:uppercase;letter-spacing:.06em;box-shadow:0 2px 10px rgba(0,0,0,.55);pointer-events:none;z-index:2}
 .sash.trial{background:#ffb020;color:#08090a}
 .dh-photo .sash{top:36px;left:-58px;width:240px;padding:9px 0;font-size:.9rem}
 .card .ph img{width:100%;height:100%;object-fit:cover;object-position:center 20%}
-.card .bd{display:grid;gap:9px;align-content:start;min-width:0}
+.card .bd{display:grid;gap:5px;align-content:center;min-width:0}
 .st{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
 .pill{display:inline-flex;align-items:center;gap:7px;font:500 .66rem/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase}
 .pill::before{content:"";width:8px;height:8px;border-radius:50%;background:#2fbf63;box-shadow:0 0 8px #2fbf63}
-.card h3{font-size:clamp(1.35rem,2.4vw,1.85rem);overflow-wrap:break-word}
-.card .role{font:500 .7rem/1.4 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--red)}
-.card blockquote{margin:0;color:#c4cbc8;font-size:.95rem;line-height:1.45}
-.card blockquote::before{content:"„"}.card blockquote::after{content:"“"}
+.card h3{font-size:1.05rem;line-height:1.15;overflow-wrap:break-word}
+.card .role{font:500 .62rem/1.4 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--red)}
+.card .st{justify-content:flex-start;margin-top:2px}
+.card .chips i{padding:3px 6px;font-size:.6rem}
 .chips{display:flex;flex-wrap:wrap;gap:5px}
 .chips i{font:600 .66rem/1 var(--f-mono);font-style:normal;padding:5px 7px;border:1px solid var(--phos-dim);color:var(--phos)}
 .chips i.gtp{background:var(--red);border-color:var(--red);color:#fff}
-.nums{display:flex;gap:22px;padding-top:10px;margin-top:2px;border-top:1px solid var(--scan)}
-.nums b{display:block;font:600 1.25rem/1.1 var(--f-mono);font-variant-numeric:tabular-nums;color:var(--phos);margin-top:3px}
-.slot.off .card{border-left-color:var(--phos-dim)}
-.slot.off .ph img{filter:grayscale(1) brightness(.7)}
-.slot.off .pill::before{background:var(--phos-dim);box-shadow:none}
-.slot.off h3,.slot.off blockquote,.slot.off .role{color:var(--phos-dim)}
+.slot.open .pill{color:var(--red)}
 .slot.open .pill::before{background:var(--red);box-shadow:0 0 8px var(--red)}
-.slot.open .card{background:transparent;border:2px dashed var(--scan);border-left:4px solid var(--red);grid-template-columns:1fr;min-height:182px;align-content:center}
+.slot.open .card{background:transparent;border:2px dashed var(--scan);border-left:3px solid var(--red);grid-template-columns:1fr;gap:6px;align-content:center}
 .slot.open h3{color:var(--phos)}
-.slot.open a{justify-self:start;margin-top:4px;display:inline-flex;padding:12px 16px;background:var(--red);color:#fff;text-decoration:none;font:900 .8rem/1 var(--f-wide);font-variation-settings:"wdth" 120;text-transform:uppercase}
-.slot.open a:hover{background:var(--phos);color:var(--black)}
-@media (max-width:900px){.card{grid-template-columns:minmax(0,110px) minmax(0,1fr);gap:14px}}
-@media (max-width:760px){.startgrid{grid-template-columns:1fr;background:none;padding-bottom:0}.startgrid > :nth-child(even){transform:none}}
+.slot.open a{justify-self:start;color:var(--phos);font:600 .7rem/1.4 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;text-decoration:none}
+.slot.open a:hover{color:var(--red)}
 
 
 /* KLASSEMENT */
@@ -503,11 +496,6 @@ main > section + section{border-top:1px solid var(--scan)}
 @media (max-width:420px){
   .grid-hero h1{font-size:clamp(2.2rem,12.4vw,3rem)}
   .hero-cta{flex-direction:column;align-items:stretch}.hero-cta .hbtn{justify-content:center}
-  .card{grid-template-columns:96px minmax(0,1fr);gap:12px;padding:12px}
-  .card .ph{aspect-ratio:1}
-  .card h3{font-size:1.25rem}
-  .card blockquote{font-size:.88rem}
-  .nums{gap:16px}
   .become .cbtn b{font-size:.85rem}
 }
 @media (max-width:820px){
@@ -536,8 +524,6 @@ footer nav a{display:inline-block;min-height:0;line-height:40px}
 .slot .card:has(a.stretch:focus-visible){outline:2px solid var(--red);outline-offset:2px}
 .slot:not(.open) .card{transition:background .2s,transform .2s}
 .slot:not(.open) .card:hover{background:#1a1e20}
-.nums .profile-go{margin-left:auto;align-self:end;font:600 .7rem/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--phos-dim);transition:color .2s}
-.slot .card:hover .profile-go{color:var(--red)}
 
 /* FAHRERSEITE */
 .driver-hero .wrap{align-items:center}
