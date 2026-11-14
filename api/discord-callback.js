@@ -43,19 +43,22 @@ module.exports = async (req, res) => {
     const member = await memberRes.json();
 
     if (ligaAdmin) {
-      // Ohne eingetragene Rollen kommt niemand hinein.
+      // Ohne eingetragene Rollen kommt niemand hinein. Stewards (LIGA_STEWARD_ROLE_IDS) bekommen nur Reports und Leserechte.
       const rollen = (process.env.LIGA_ADMIN_ROLE_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const stewardRollen = (process.env.LIGA_STEWARD_ROLE_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
       if (!rollen.length) return fail("konfiguration");
-      if (!(member.roles || []).some((r) => rollen.includes(r))) return fail("keine-rolle");
+      const leitung = (member.roles || []).some((r) => rollen.includes(r));
+      const steward = !leitung && (member.roles || []).some((r) => stewardRollen.includes(r));
+      if (!leitung && !steward) return fail("keine-rolle");
       const admin = member.user || {};
-      createLigaAdminSession(res, { id: admin.id, name: member.nick || admin.global_name || admin.username || "Rennleitung" });
+      createLigaAdminSession(res, { id: admin.id, name: member.nick || admin.global_name || admin.username || "Rennleitung", ...(steward ? { rolle: "steward" } : {}) });
       return res.redirect(302, ziel);
     }
 
     if (liga) {
       const fahrer = member.user || {};
       // Nur für die Navigation: Mitglieder der Rennleitung sehen den Weg zu /liga-admin. Zugang gibt das nicht, dort wird die Rolle erneut geprüft.
-      const leitungsRollen = (process.env.LIGA_ADMIN_ROLE_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const leitungsRollen = [process.env.LIGA_ADMIN_ROLE_IDS, process.env.LIGA_STEWARD_ROLE_IDS].join(",").split(",").map((s) => s.trim()).filter(Boolean);
       const leitung = (member.roles || []).some((r) => leitungsRollen.includes(r));
       createLigaSession(res, { id: fahrer.id, name: member.nick || fahrer.global_name || fahrer.username || "Fahrer", avatar: fahrer.avatar || "", ...(leitung ? { leitung: true } : {}) });
       return res.redirect(302, ziel);

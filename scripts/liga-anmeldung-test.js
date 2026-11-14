@@ -813,6 +813,51 @@ const tests = {
     assert.strictEqual(liste[0].starts, 0);
     assert.ok(!JSON.stringify(liste).includes('"o"'), "Der Besitzer-Prüfwert wird nie ausgeliefert");
   },
+  "Stewards: der Server lässt nur Report-Aktionen zu und sperrt Protokoll und Teams": async () => {
+    const S = require("../api/_lib/session");
+    const Admin = require("../api/_lib/liga-admin");
+    const alt = process.env.SESSION_SECRET;
+    process.env.SESSION_SECRET = "x".repeat(40);
+    try {
+      // Sitzungs-Cookie wie beim Login erzeugen
+      const cookieFuer = (nutzer) => { let c = ""; S.createLigaAdminSession({ getHeader: () => null, setHeader: (k, v) => { c = String(v).split(";")[0]; } }, nutzer); return c; };
+      const antwort = () => { const r = { code: 0, body: null, headers: {} }; return Object.assign(r, { setHeader: (k, v) => { r.headers[k] = v; }, status: (c) => { r.code = c; return r; }, json: (b) => { r.body = b; return r; } }); };
+      const anfrage = (cookie, method, extra) => ({ method, headers: { cookie, origin: "https://darklineperformance.de", host: "darklineperformance.de" }, query: {}, ...extra });
+      const steward = cookieFuer({ id: "111111", name: "Steward", rolle: "steward" });
+      assert.strictEqual(Admin.istSteward(S.getLigaAdminSession({ headers: { cookie: steward } })), true);
+      assert.strictEqual(Admin.istSteward(S.getLigaAdminSession({ headers: { cookie: cookieFuer({ id: "1", name: "Alt" }) } })), false, "Alte Sitzungen ohne Rolle sind volle Rennleitung");
+      for (const aktion of ["serie-loeschen", "profil-bearbeiten", "ergebnis-veroeffentlichen", "team-admin-loeschen", "reglement-speichern", "strafe-hinzufuegen"]) {
+        const r = antwort();
+        await Admin(anfrage(steward, "POST", { body: { aktion } }), r);
+        assert.strictEqual(r.code, 403, `${aktion} muss für Stewards gesperrt sein`);
+      }
+      for (const nur of ["protokoll", "teams"]) {
+        const r = antwort();
+        await Admin(anfrage(steward, "GET", { query: { nur } }), r);
+        assert.strictEqual(r.code, 403, `nur=${nur} muss für Stewards gesperrt sein`);
+      }
+      assert.deepStrictEqual([...Admin.STEWARD_AKTIONEN].sort(), ["report-notiz", "report-status", "report-stimme", "report-urteil"]);
+    } finally {
+      if (alt === undefined) delete process.env.SESSION_SECRET; else process.env.SESSION_SECRET = alt;
+    }
+  },
+  "Stewards: werden nur bei Reports und Einsprüchen im internen Kanal gepingt": async () => {
+    const R = require("../api/_lib/liga-reports");
+    const alt = { fetch: global.fetch, env: { ...process.env } };
+    Object.assign(process.env, { LIGA_DISCORD_WEBHOOK_TEAM: "https://discord.example/hook", LIGA_ADMIN_ROLE_IDS: "100", LIGA_STEWARD_ROLE_IDS: "200" });
+    const gesendet = [];
+    global.fetch = async (url, init) => { gesendet.push(JSON.parse(init.body)); return { ok: true }; };
+    try {
+      await R.teamMelden({ title: "Nummernwunsch" });
+      await R.teamMelden({ title: "Report" }, { stewards: true });
+      assert.deepStrictEqual(gesendet[0].allowed_mentions.roles, ["100"]);
+      assert.deepStrictEqual(gesendet[1].allowed_mentions.roles, ["100", "200"]);
+      assert.strictEqual(gesendet[1].content, "<@&100> <@&200>");
+    } finally {
+      global.fetch = alt.fetch;
+      for (const k of ["LIGA_DISCORD_WEBHOOK_TEAM", "LIGA_ADMIN_ROLE_IDS", "LIGA_STEWARD_ROLE_IDS"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
+    }
+  },
   "Admin: Liste aller registrierten Fahrer, auch ohne Season": async () => {
     const Admin = require("../api/_lib/liga-admin");
     const alt = { fetch: global.fetch, env: { ...process.env } };

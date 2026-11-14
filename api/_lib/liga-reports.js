@@ -258,12 +258,14 @@ function einspruchKarte(d) {
 }
 
 // Meldung in den internen Kanal der Rennleitung, mit Ping der Rolle. Ohne eingetragenen Webhook passiert nichts.
-async function teamMelden(karte) {
+// Bei Reports und Einsprüchen ({ stewards: true }) wird zusätzlich die Steward-Rolle gepingt.
+const ersteRolle = (wert) => String(wert || "").split(",").map((s) => s.trim()).find((s) => /^\d+$/.test(s));
+async function teamMelden(karte, { stewards = false } = {}) {
   const url = process.env.LIGA_DISCORD_WEBHOOK_TEAM;
   if (!url) return false;
-  const rolle = (process.env.LIGA_ADMIN_ROLE_IDS || "").split(",").map((s) => s.trim()).find((s) => /^\d+$/.test(s));
+  const rollen = [ersteRolle(process.env.LIGA_ADMIN_ROLE_IDS), stewards ? ersteRolle(process.env.LIGA_STEWARD_ROLE_IDS) : null].filter(Boolean);
   try {
-    const antwort = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(4000), body: JSON.stringify({ ...(rolle ? { content: `<@&${rolle}>` } : {}), embeds: [karte], allowed_mentions: rolle ? { roles: [rolle] } : { parse: [] } }) });
+    const antwort = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(4000), body: JSON.stringify({ ...(rollen.length ? { content: rollen.map((r) => `<@&${r}>`).join(" ") } : {}), embeds: [karte], allowed_mentions: rollen.length ? { roles: rollen } : { parse: [] } }) });
     if (!antwort.ok) console.error("Discord-Meldung an die Rennleitung abgelehnt:", antwort.status);
     return antwort.ok;
   } catch (e) {

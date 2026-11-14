@@ -18,7 +18,17 @@
     "keine-rolle": "Dein Discord-Konto hat keine Rolle für die Rennleitung.",
     technik: "Technischer Fehler. Bitte versuche es gleich noch einmal.",
   };
-  const TABS = [["cockpit", "Cockpit"], ["reports", "Reports"], ["serien", "Seasons &amp; Events"], ["rennen", "Rennen"], ["strecken", "Strecken"], ["katalog", "Strafenkatalog"], ["reglement", "Reglement"], ["fahrer", "Fahrer"], ["teams", "Teams"], ["sichtung", "Sichtung"], ["ergebnisse", "Ergebnisse"], ["protokoll", "Protokoll"]];
+  // Navigation in Gruppen nach Aufgabe. Stewards sehen nur Reports und die Bereiche zum Nachlesen.
+  const NAV = [
+    ["Rennleitung", "rot", [["cockpit", "Cockpit"], ["reports", "Reports"], ["ergebnisse", "Ergebnisse"]]],
+    ["Liga", "blau", [["serien", "Seasons &amp; Events"], ["rennen", "Rennen"], ["strecken", "Strecken"], ["sichtung", "Sichtung"]]],
+    ["Fahrer", "gruen", [["fahrer", "Fahrer"], ["teams", "Teams"]]],
+    ["Regeln", "gelb", [["reglement", "Reglement"], ["katalog", "Strafenkatalog"]]],
+    ["", "", [["protokoll", "Protokoll"]]],
+  ];
+  const STEWARD_TABS = new Set(["cockpit", "reports", "ergebnisse", "fahrer", "reglement", "katalog"]);
+  const istSteward = () => !!d && d.rolle === "steward";
+  const tabErlaubt = (id) => !istSteward() || STEWARD_TABS.has(id);
   const URTEILE = [["kein-vergehen", "Kein Vergehen"], ["verwarnung", "Verwarnung"], ["strafpunkte", "Strafpunkte"], ["zeitstrafe", "Zeitstrafe"], ["dsq", "Disqualifikation"]];
   const NEUE_SERIE = { name: "", typ: "liga", saison: "", status: "geplant", anmeldungOffen: true, farbe: "rot", beschreibung: "", uebertragung: "", kategorie: "Sports_Car", fahrzeugklassen: [], rennenGesamt: 8, gewerteteRennen: 7, anmeldeschlussMinuten: 60,
     klassen: [{ name: "Pro", min: 2500, max: null }, { name: "Pro-Am", min: 1500, max: 2499 }, { name: "Am", min: 0, max: 1499 }],
@@ -393,9 +403,22 @@
     return !!(await sende({ aktion: "bericht-posten", serie, id, bild }));
   }
 
+  // Stewards: Reglement und Strafenkatalog in der öffentlichen Ansicht, nur zum Nachlesen
+  const regelnLesen = () => `<section class="a-karte"><div class="a-kartenkopf"><h2>Reglement und Strafenkatalog</h2><a class="a-knopf zweit klein" href="/regelwerk" target="_blank" rel="noopener">In neuem Tab öffnen</a></div><iframe class="a-regeln-lesen" src="/regelwerk" title="Reglement und Strafenkatalog"></iframe></section>`;
+
+  // Stewards sehen im Cockpit nur, was Reports betrifft.
+  function stewardCockpit(offene, einsprueche) {
+    const kachel = (wert, text, art) => `<button type="button" class="a-kennzahl ${art}" data-tab="reports"><b>${wert}</b><span>${esc(text)}</span></button>`;
+    return `<section class="a-held"><div class="a-held-bild" aria-hidden="true"></div><div><span class="a-kicker">Stewards</span><h1>Hallo, ${esc(d.name)}</h1><p>${offene.length ? `${offene.length} ${offene.length === 1 ? "Report wartet" : "Reports warten"} auf eine Entscheidung.` : "Keine offenen Reports, alles erledigt."}</p></div></section>
+      <div class="a-kennzahlen">${kachel(offene.length, "Offene Reports", offene.length ? "alarm" : "")}${einsprueche.length ? kachel(einsprueche.length, "Einsprüche", "alarm") : ""}</div>
+      <section class="a-karte"><h2>Zu entscheiden</h2>${offene.length ? `<div class="a-liste">${offene.slice(0, 8).map(reportZeile).join("")}</div>` : '<p class="a-leer">Aktuell liegt kein Report vor.</p>'}</section>
+      <section class="a-karte a-karte-info"><h2>Hinweis</h2><p class="a-hinweis">Als Steward entscheidest du über Reports. Fahrer-Akten, Ergebnisse, Reglement und Strafenkatalog kannst du nachlesen. Nach außen bleibst du anonym: Fahrer sehen bei Urteilen keinen Namen.</p></section>`;
+  }
+
   function cockpitTab() {
     const offene = d.reports.filter(braucht);
     const einsprueche = d.reports.filter(einspruchOffen);
+    if (istSteward()) return stewardCockpit(offene, einsprueche);
     const laufend = d.serien.filter((s) => s.status !== "beendet");
     const kommend = [...d.rennen].filter((r) => r.status !== "abgesagt" && String(r.datum) >= heute()).sort((a, b) => `${a.datum} ${a.startzeit}`.localeCompare(`${b.datum} ${b.startzeit}`));
     const unfertig = kommend.filter((r) => rennenWarnungen(r).length);
@@ -795,7 +818,7 @@
     const zahl_ = (w, t, art) => `<div class="a-kennzahl ${w && art ? art : ""}"><b>${w}</b><span>${t}</span></div>`;
     const fall = (f) => `<button type="button" class="a-fall" data-report="${esc(f.id)}"><span class="a-fall-kopf"><span class="a-chip ${f.rolle === "gemeldet" ? "rot" : ""}">${f.rolle === "gemeldet" ? "Gemeldet" : "Hat gemeldet"}</span>${f.urteil ? `<span class="a-chip">${esc(urteilKurz(f.urteil))}</span>` : '<span class="a-chip gelb">Offen</span>'}<time>${esc(zeit(f.erstellt))}</time></span><b>${esc(f.von)} <span>meldet</span> ${esc(f.gegen)}</b><small>${esc([f.serieName, f.rennenTitel].filter(Boolean).join(" · "))}</small></button>`;
     const strafeZeile = (x) => `<tr><td>${esc(x.serieName)}</td><td class="rechts">${esc(x.typ === "zeit" ? `+${x.sekunden} s` : x.typ === "dsq" ? "DSQ" : `−${x.punkte}`)}</td><td class="umbruch">${esc(x.grund)}</td><td>${x.ausReport ? '<span class="a-chip">aus Report</span>' : ""}</td></tr>`;
-    return `<section class="a-karte a-form"><div class="a-kartenkopf"><h2>Akte: ${esc(akte.name)}</h2><div class="a-leiste">${akte.daten.profil && !akte.bearbeiten ? '<button type="button" class="a-knopf klein" data-akte-bearbeiten="auf">Profil bearbeiten</button>' : ""}<button type="button" class="a-knopf zweit klein" data-akte-zu="1">Schließen</button></div></div>
+    return `<section class="a-karte a-form"><div class="a-kartenkopf"><h2>Akte: ${esc(akte.name)}</h2><div class="a-leiste">${akte.daten.profil && !akte.bearbeiten && !istSteward() ? '<button type="button" class="a-knopf klein" data-akte-bearbeiten="auf">Profil bearbeiten</button>' : ""}<button type="button" class="a-knopf zweit klein" data-akte-zu="1">Schließen</button></div></div>
       ${akte.bearbeiten ? akteProfilForm() : ""}
       <div class="a-kennzahlen">${zahl_(s.gemeldet, "Gemeldet worden", "warnung")}${zahl_(s.selbstGemeldet, "Selbst gemeldet")}${zahl_(s.verwarnungen, "Verwarnungen", "warnung")}${zahl_(s.strafpunkte, "Strafpunkte", "alarm")}${zahl_(s.zeitstrafen, "Zeitstrafen", "alarm")}${zahl_(s.disqualifikationen, "Disqualifikationen", "alarm")}</div>
       ${faelle.length ? `<h3>Fälle</h3><div class="a-liste">${faelle.map(fall).join("")}</div>` : '<p class="a-leer">Keine Reports zu diesem Fahrer.</p>'}
@@ -992,7 +1015,7 @@
 
   function alleFahrerTab() {
     if (alleFahrer === null && !alleFahrerLaedt) alleFahrerLaden();
-    const kopf = `<div class="a-kartenkopf"><h2>Fahrer</h2>${ansichtSchalter()}</div>`;
+    const kopf = `<div class="a-kartenkopf"><h2>Fahrer</h2>${istSteward() ? "" : ansichtSchalter()}</div>`;
     if (alleFahrer === null) return `${akteHtml()}<section class="a-karte">${kopf}<p class="a-leer">Lade alle registrierten Fahrer …</p></section>`;
     const liste = alleFahrer;
     const gruppen = {
@@ -1042,7 +1065,7 @@
   }
 
   function fahrerTab() {
-    if (fahrerAnsicht === "alle") return alleFahrerTab();
+    if (fahrerAnsicht === "alle" || istSteward()) return alleFahrerTab();
     if (!d.serien.length) return `<section class="a-karte">${ansichtSchalter()}<p class="a-leer">Leg zuerst eine Serie an.</p></section>`;
     const serie = d.serien.find((s) => s.id === serieId);
     const det = d.details;
@@ -1093,11 +1116,12 @@
   function ergebnisTab() {
     if (!d.serien.length) return '<section class="a-karte"><p class="a-leer">Leg zuerst eine Serie an.</p></section>';
     const det = d.details;
-    const ergebnisse = det.ergebnisse.map((e) => `<tr><td>${esc(zeit(e.start))}</td><td class="umbruch">${esc([e.strecke, e.variante].filter(Boolean).join(" · "))}</td><td class="rechts">${e.fahrer.length}</td><td>${e.sichtung ? '<span class="a-chip hell" title="Zählt nicht für die Tabelle">Sichtung</span> ' : ""}${e.stand === "vorlaeufig" ? '<span class="a-chip gelb">Vorläufig</span>' : '<span class="a-chip gruen">Endgültig</span>'}${e.verkuerzt ? ' <span class="a-chip rot">Verkürzt</span>' : ""}</td><td class="rechts"><div class="a-leiste a-rechtsbuendig"><button type="button" class="a-knopf zweit klein" data-ergebnis-distanz="${esc(e.id)}" data-wert="${e.verkuerzt ? "" : "1"}">${e.verkuerzt ? "Volle Distanz" : "Unter 75 % Distanz"}</button>${e.stand === "vorlaeufig" ? `<button type="button" class="a-knopf zweit klein" data-ergebnis-endgueltig="${esc(e.id)}">Endgültig freigeben</button>` : ""}<button type="button" class="a-knopf zweit klein" data-bericht-posten="${esc(e.id)}">In Discord posten</button><button type="button" class="a-knopf gefahr klein" data-ergebnis-loeschen="${esc(e.id)}">Löschen</button></div></td></tr>`).join("");
+    const lesen = istSteward();
+    const ergebnisse = det.ergebnisse.map((e) => `<tr><td>${esc(zeit(e.start))}</td><td class="umbruch">${esc([e.strecke, e.variante].filter(Boolean).join(" · "))}</td><td class="rechts">${e.fahrer.length}</td><td>${e.sichtung ? '<span class="a-chip hell" title="Zählt nicht für die Tabelle">Sichtung</span> ' : ""}${e.stand === "vorlaeufig" ? '<span class="a-chip gelb">Vorläufig</span>' : '<span class="a-chip gruen">Endgültig</span>'}${e.verkuerzt ? ' <span class="a-chip rot">Verkürzt</span>' : ""}</td><td class="rechts">${lesen ? `<a class="a-knopf zweit klein" href="/liga?serie=${encodeURIComponent(serieId)}" target="_blank" rel="noopener">Tabelle</a>` : `<div class="a-leiste a-rechtsbuendig"><button type="button" class="a-knopf zweit klein" data-ergebnis-distanz="${esc(e.id)}" data-wert="${e.verkuerzt ? "" : "1"}">${e.verkuerzt ? "Volle Distanz" : "Unter 75 % Distanz"}</button>${e.stand === "vorlaeufig" ? `<button type="button" class="a-knopf zweit klein" data-ergebnis-endgueltig="${esc(e.id)}">Endgültig freigeben</button>` : ""}<button type="button" class="a-knopf zweit klein" data-bericht-posten="${esc(e.id)}">In Discord posten</button><button type="button" class="a-knopf gefahr klein" data-ergebnis-loeschen="${esc(e.id)}">Löschen</button></div>`}</td></tr>`).join("");
     const strafen = det.strafen.map((s) => {
       const e = det.ergebnisse.find((x) => x.id === s.rennen);
       const wert = s.typ === "zeit" ? `+${s.sekunden} s` : s.typ === "dsq" ? "DSQ" : `−${s.punkte}`;
-      const aktion = s.reportId ? '<span class="a-chip">aus Report</span>' : `<button type="button" class="a-knopf gefahr klein" data-strafe-loeschen="${esc(s.id)}">Löschen</button>`;
+      const aktion = s.reportId ? '<span class="a-chip">aus Report</span>' : lesen ? "" : `<button type="button" class="a-knopf gefahr klein" data-strafe-loeschen="${esc(s.id)}">Löschen</button>`;
       return `<tr><td>${esc(s.name)}</td><td class="umbruch">${esc(e ? e.strecke : s.rennen)}</td><td class="rechts">${esc(wert)}</td><td class="umbruch">${esc(s.grund || "")}</td><td class="rechts">${aktion}</td></tr>`;
     }).join("");
     const strafForm = det.ergebnisse.length && (serieVon(serieId) || {}).typ !== "event" ? `<form class="a-felder" id="f-strafe" novalidate>
@@ -1107,6 +1131,10 @@
         ${feld("Grund (nur intern)", '<input name="grund" maxlength="200">')}
         <div class="a-feld" style="align-self:end"><button type="submit" class="a-knopf">Strafe eintragen</button></div>
       </form>` : '<p class="a-leer">Strafen sind möglich, sobald ein Ergebnis eingelesen ist.</p>';
+    if (lesen) {
+      return `<section class="a-karte"><div class="a-kartenkopf"><h2>Eingelesene Rennen</h2>${serienAuswahl()}</div>${ergebnisse ? `<div class="a-scroll"><table><thead><tr><th>Start</th><th>Strecke</th><th class="rechts">Fahrer</th><th>Stand</th><th></th></tr></thead><tbody>${ergebnisse}</tbody></table></div>` : '<p class="a-leer">Noch kein Ergebnis eingelesen.</p>'}</section>
+      <section class="a-karte"><h2>Strafen</h2>${strafen ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>Rennen</th><th class="rechts">Punkte</th><th>Grund</th><th></th></tr></thead><tbody>${strafen}</tbody></table></div>` : '<p class="a-leer">Keine Strafen in dieser Serie.</p>'}</section>`;
+    }
     return `<section class="a-karte"><div class="a-kartenkopf"><h2>Ergebnis einlesen</h2>${serienAuswahl()}</div>
       <p class="a-hinweis">In iRacing das Ergebnis öffnen, „Export Results“ wählen und die JSON-Datei hier auswählen. Veröffentlicht wird erst nach deiner Prüfung.</p>
       <div class="a-feld"><label for="a-datei">Ergebnisdatei (JSON)</label><input type="file" id="a-datei" accept=".json,application/json"></div>
@@ -1360,12 +1388,22 @@
   function zeichne() {
     if (!d || !d.angemeldet) return zeigeLogin();
     const inhalte = { reglement: reglementTab, katalog: katalogTab, protokoll: protokollTab, cockpit: cockpitTab, serien: serienTab, rennen: rennenTab, strecken: streckenTab, fahrer: fahrerTab, teams: teamsTab, sichtung: sichtungTab, reports: reportsTab, ergebnisse: ergebnisTab };
-    const inhalt = inhalte[tab]();
+    if (!tabErlaubt(tab)) tab = "cockpit";
+    const steward = istSteward();
+    const inhalt = steward && (tab === "reglement" || tab === "katalog") ? regelnLesen() : inhalte[tab]();
     const offene = d.reports.filter(braucht).length;
+    // Zahlen an den Punkten, wo etwas wartet
+    const zahlen = { reports: offene, fahrer: steward ? 0 : (d.nummernWuensche || []).length };
+    const punkt = ([id, t]) => `<button type="button" data-tab="${id}"${tab === id ? ' aria-current="page"' : ""}>${t}${id === "reports" ? `<em id="a-zaehler"${offene ? "" : " hidden"}>${offene}</em>` : zahlen[id] ? `<em>${zahlen[id]}</em>` : ""}</button>`;
+    const nav = NAV.map(([titel, farbe, punkte]) => {
+      const sichtbar = punkte.filter(([id]) => tabErlaubt(id));
+      if (!sichtbar.length) return "";
+      return `<div class="a-nav-gruppe${farbe ? ` g-${farbe}` : " ohne"}">${titel ? `<span class="a-nav-titel">${titel}</span>` : ""}${sichtbar.map(punkt).join("")}</div>`;
+    }).join("");
     app.innerHTML = `<div class="a-rahmen">
       <aside class="a-seite">
-        <a class="a-marke" href="/liga"><img src="img/brand/dsrs-logo.png" alt="Darkline Simracing Series" width="654" height="165"><span>Rennleitung</span></a>
-        <nav class="a-nav" aria-label="Bereiche">${TABS.map(([id, t]) => `<button type="button" data-tab="${id}"${tab === id ? ' aria-current="page"' : ""}>${t}${id === "reports" ? `<em id="a-zaehler"${offene ? "" : " hidden"}>${offene}</em>` : ""}</button>`).join("")}</nav>
+        <a class="a-marke" href="/liga"><img src="img/brand/dsrs-logo.png" alt="Darkline Simracing Series" width="654" height="165"><span>${steward ? "Stewards" : "Rennleitung"}</span></a>
+        <nav class="a-nav" aria-label="Bereiche">${nav}</nav>
         <div class="a-nutzer"><b>${esc(d.name)}</b><a href="/liga">Zur Liga</a><a href="/fahrerbereich">Fahrerbereich</a><button type="button" id="a-logout">Ausloggen</button></div>
       </aside>
       <main class="a-inhalt">${alarmHtml()}${meldung ? `<p class="a-meldung${meldung.fehler ? " fehler" : ""}" role="status">${esc(meldung.text)}</p>` : ""}${inhalt}</main>

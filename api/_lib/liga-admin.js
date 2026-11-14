@@ -21,6 +21,12 @@ const Teams = require("./liga-teams");
 const TERMIN_AKTIONEN = new Set(["serie-speichern", "serie-loeschen", "rennen-speichern", "rennen-loeschen", "rennen-verschieben", "rennen-duplizieren", "saison-planen"]);
 const { leseErgebnis, berechneTabelle, klasseFuer } = require("../../assets/liga-wertung.js");
 
+// Stewards: Reports abstimmen und entscheiden, dazu Fahrer-Akten, Ergebnisse, Strafenkatalog und Reglement nur lesen.
+// Ältere Sitzungen ohne Rolle gelten als volle Rennleitung.
+const istSteward = (s) => !!s && s.rolle === "steward";
+const STEWARD_AKTIONEN = new Set(["report-stimme", "report-status", "report-notiz", "report-urteil"]);
+const NUR_LEITUNG = "Das darf nur die volle Rennleitung.";
+
 const eintraege = async () => (await blobList(A.PREFIX)).map(A.leseEintrag).filter(Boolean);
 const serieFinden = (kat, id) => {
   const s = kat.serien.find((x) => x.id === id);
@@ -858,6 +864,7 @@ module.exports = async (req, res) => {
     if (!s) return res.status(200).json({ angemeldet: false });
     if ((req.query || {}).nur === "status") return res.status(200).json({ angemeldet: true });
     if ((req.query || {}).nur === "stand") return res.status(200).json({ angemeldet: true, stand: await R.stand() });
+    if (istSteward(s) && ["protokoll", "teams"].includes((req.query || {}).nur)) return res.status(403).json({ error: NUR_LEITUNG });
     // Das Protokoll wird nur beim Öffnen des Bereichs geholt.
     if ((req.query || {}).nur === "protokoll") return res.status(200).json({ angemeldet: true, protokoll: await protokollLesen().catch(() => []) });
     const kat = await D.katalog(true);
@@ -880,7 +887,9 @@ module.exports = async (req, res) => {
     const alleReports = await R.alleReports(true);
     const ergebnisseJe = new Map(await Promise.all([...new Set(alleReports.map((r) => r.serie))].filter((x) => D.istId(x)).map(async (id) => [id, await D.ergebnisseLesen(id).catch(() => [])])));
     const reports = alleReports.map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id), stimmen: R.stimmenSicht(r, s.id), kontext: R.rennKontext(r, ergebnisseJe.get(r.serie) || []) }));
-    return res.status(200).json({ angemeldet: true, name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), nummernWuensche: await P.wuenscheLesen().catch(() => []), fahrzeugAntraege: (await F.offeneAntraege().catch(() => [])).map((a) => ({ ...a, serieName: (kat.serien.find((x) => x.id === a.serie) || {}).name || a.serie })), beitrittsAnfragen: (await Anfragen.alle().catch(() => [])).filter((a) => kat.serien.some((x) => x.id === a.serie)).map((a) => ({ ...a, serieName: kat.serien.find((x) => x.id === a.serie).name })), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    // Stewards bekommen nur, was sie für Reports und zum Nachlesen brauchen, ohne Anträge und Hinweise der Rennleitung.
+    if (istSteward(s)) return res.status(200).json({ angemeldet: true, rolle: "steward", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...COCKPIT_LEER, nummernWuensche: [], fahrzeugAntraege: [], beitrittsAnfragen: [], details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    return res.status(200).json({ angemeldet: true, rolle: "leitung", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), nummernWuensche: await P.wuenscheLesen().catch(() => []), fahrzeugAntraege: (await F.offeneAntraege().catch(() => [])).map((a) => ({ ...a, serieName: (kat.serien.find((x) => x.id === a.serie) || {}).name || a.serie })), beitrittsAnfragen: (await Anfragen.alle().catch(() => [])).filter((a) => kat.serien.some((x) => x.id === a.serie)).map((a) => ({ ...a, serieName: kat.serien.find((x) => x.id === a.serie).name })), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });
@@ -891,6 +900,7 @@ module.exports = async (req, res) => {
   }
   if (!s) return res.status(401).json({ error: "Bitte melde dich erneut an." });
   if (!Object.prototype.hasOwnProperty.call(aktionen, body.aktion)) return res.status(400).json({ error: "Unbekannte Aktion." });
+  if (istSteward(s) && !STEWARD_AKTIONEN.has(body.aktion)) return res.status(403).json({ error: NUR_LEITUNG });
   const kat = await D.katalog(true);
   // Das Protokoll nutzt den Stand von vor der Aktion, damit Namen auch nach einem Löschen auffindbar sind. Eingetragen wird nur bei Erfolg.
   const antwort = await aktionen[body.aktion](body, kat, s);
@@ -900,4 +910,4 @@ module.exports = async (req, res) => {
   if (TERMIN_AKTIONEN.has(body.aktion)) await DiscordEvents.abgleichen({ erzwingen: true }).catch((e) => console.warn("Discord-Events:", e.message));
   return res.status(200).json({ ok: true, ...antwort });
 };
-Object.assign(module.exports, { protokollPfad, leseProtokoll, protokollText, alleFahrer });
+Object.assign(module.exports, { protokollPfad, leseProtokoll, protokollText, alleFahrer, istSteward, STEWARD_AKTIONEN });
