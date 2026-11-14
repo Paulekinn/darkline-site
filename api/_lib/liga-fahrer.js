@@ -332,6 +332,13 @@ module.exports = async (req, res) => {
         return rest;
       }) || profil;
     }
+  } else if (body.aktion === "uebersicht") {
+    // Antwort auf die einmalige Frage zur Fahrerübersicht. Öffentliches und privates Profil bekommen dieselbe Entscheidung.
+    if (!profil) throw new Hinweis("Bitte fülle zuerst dein Fahrerprofil aus.");
+    const ja = body.ja === true;
+    const extras = { nummer: profil.nummer, land: profil.land || "", team: profil.team || "", kanal: profil.kanal || "", zeigeBild: profil.zeigeBild !== false, uebersicht: ja };
+    await P.speichern(s, { ...profil, uebersicht: ja }, extras);
+    profil = (await D.jsonAendern(A.profilPfad(s.id), (aktuell) => (aktuell ? { ...aktuell, uebersicht: ja } : undefined))) || profil;
   } else if (body.aktion === "anmelden") {
     alle = await anmelden(s, profil, body, alle, kat);
   } else if (body.aktion === "abmelden") {

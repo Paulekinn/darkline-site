@@ -955,8 +955,65 @@
     return `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Sichtung</h2></div><div class="a-liste">${liste.map((x) => `<div class="a-abschluss ${serienFarbe(x.serie)}"><span><b>${esc(x.serieName)}</b><small>${x.eingerichtet ? `${x.komplett} von ${x.fahrer} Fahrern mit allen Strecken${x.teil ? `, ${x.teil} teilweise` : ""} · ${x.laeuft ? `läuft bis ${datumKurz(x.bis)}` : x.vorbei ? "vorbei" : `ab ${datumKurz(x.von)}`}` : "Noch nicht fertig eingerichtet"}</small></span><button type="button" class="a-knopf zweit klein" data-sichtung-oeffnen="${esc(x.serie)}">Öffnen</button></div>`).join("")}</div></section>`;
   }
 
+  /* ---------- Alle registrierten Fahrer, unabhängig von Seasons ---------- */
+  let fahrerAnsicht = "alle";   // "alle" oder "serie"
+  let alleFilter = "alle";
+  let alleFahrer = null;
+  let alleFahrerLaedt = false;
+  async function alleFahrerLaden() {
+    alleFahrerLaedt = true;
+    const a = await fetch(`${API}&nur=fahrer`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    alleFahrerLaedt = false;
+    alleFahrer = (a && a.fahrer) || [];
+    if (tab === "fahrer" && fahrerAnsicht === "alle") zeichne();
+  }
+  const ansichtSchalter = () => `<div class="a-leiste">${[["alle", "Alle registrierten"], ["serie", "Nach Season"]].map(([id, t]) => `<button type="button" class="a-filter" data-fahrer-ansicht="${id}" aria-pressed="${fahrerAnsicht === id}">${t}</button>`).join("")}</div>`;
+  const aktiveSerien = (f) => f.serien.filter((s) => !s.beendet);
+
+  function alleFahrerZeile(f) {
+    const bild = f.bild && f.pid ? `<img class="a-avatar" src="${esc(window.LigaKarte.avatarVon(f.pid, f.bild))}" alt="" width="34" height="34" loading="lazy">` : `<span class="a-avatar leer" aria-hidden="true">${esc(String(f.name).trim().charAt(0).toUpperCase())}</span>`;
+    const serien = aktiveSerien(f).map((s) => `<span class="a-chip ${s.typ === "event" ? "" : "hell"}">${esc(s.name)}</span>`).join(" ") || '<span class="a-chip">Keine</span>';
+    const uebersicht = f.uebersicht === true ? '<span class="a-chip gruen">Sichtbar</span>' : f.uebersicht === false ? '<span class="a-chip">Nein</span>' : '<span class="a-chip gelb">Nicht gefragt</span>';
+    const g61 = { team: '<span class="a-chip gruen">Im Team</span>', gemeldet: '<span class="a-chip gelb">Wartet auf Freigabe</span>', unbekannt: '<span class="a-chip">?</span>' }[f.g61] || '<span class="a-chip">–</span>';
+    const discord = f.discord.rolle ? `<span class="a-chip gruen" title="${esc(f.discord.name ? `Servername: ${f.discord.name}` : "Servername noch nicht gesetzt")}">${f.discord.fahrerRolle ? "Fahrer" : "Interessent"}${f.discord.name ? " · Name" : ""}</span>` : '<span class="a-chip gelb">Offen</span>';
+    return `<tr data-suche="${esc(`${f.name} ${f.custId} ${f.team || ""} ${f.nummer || ""} ${f.serien.map((s) => s.name).join(" ")}`.toLowerCase())}">
+      <td><div class="a-fahrer">${bild}<div><b>${f.nummer ? `<span class="a-nr">#${esc(f.nummer)}</span> ` : ""}${window.LigaKarte.flagge(f.land)}${esc(f.name)}</b>${f.team ? `<small>${esc(f.team)}</small>` : ""}${f.nummerWunsch ? `<small>Nummernwunsch #${esc(f.nummerWunsch)}</small>` : ""}</div></div></td>
+      <td>${esc(f.custId) || "–"}</td>
+      <td class="rechts">${zahl(f.irating)}</td>
+      <td>${serien}</td>
+      <td>${uebersicht}</td>
+      <td>${g61}</td>
+      <td>${discord}</td>
+      <td>${f.gespeichert ? esc(datumKurz(f.gespeichert)) : "–"}</td>
+      <td class="rechts">${akteKnopf(f.name, f.custId, f.discordId)}</td>
+    </tr>`;
+  }
+
+  function alleFahrerTab() {
+    if (alleFahrer === null && !alleFahrerLaedt) alleFahrerLaden();
+    const kopf = `<div class="a-kartenkopf"><h2>Fahrer</h2>${ansichtSchalter()}</div>`;
+    if (alleFahrer === null) return `${akteHtml()}<section class="a-karte">${kopf}<p class="a-leer">Lade alle registrierten Fahrer …</p></section>`;
+    const liste = alleFahrer;
+    const gruppen = {
+      alle: liste,
+      ohne: liste.filter((f) => !aktiveSerien(f).length),
+      season: liste.filter((f) => aktiveSerien(f).length),
+      offen: liste.filter((f) => f.uebersicht === null),
+    };
+    const gezeigt = gruppen[alleFilter] || liste;
+    const chips = [["alle", `Alle ${liste.length}`], ["season", `In einer Season ${gruppen.season.length}`], ["ohne", `Ohne Season ${gruppen.ohne.length}`], ["offen", `Übersicht nicht gefragt ${gruppen.offen.length}`]].map(([id, t]) => `<button type="button" class="a-filter" data-alle-filter="${id}" aria-pressed="${alleFilter === id}">${esc(t)}</button>`).join("");
+    const kachel = (w, t, art) => `<div class="a-kennzahl ${w && art ? art : ""}"><b>${w}</b><span>${esc(t)}</span></div>`;
+    return `${akteHtml()}<section class="a-karte">${kopf}
+      <div class="a-kennzahlen">${kachel(liste.length, "Registriert")}${kachel(gruppen.season.length, "In einer Season")}${kachel(gruppen.ohne.length, "Ohne Season")}${kachel(liste.filter((f) => f.uebersicht === true).length, "In der Fahrerübersicht")}${kachel(liste.filter((f) => f.g61 === "team").length, "Im Garage-61-Team")}${kachel(liste.filter((f) => f.g61 === "gemeldet").length, "Garage 61 wartet", "warnung")}</div>
+      ${liste.length ? `<div class="a-leiste">${chips}<input type="search" id="a-fahrer-suche" class="a-suche" placeholder="Fahrer, ID, Team oder Season suchen" aria-label="Fahrer suchen"></div>
+      ${gezeigt.length ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>iRacing-ID</th><th class="rechts">iRating</th><th>Seasons</th><th>Fahrerübersicht</th><th>Garage 61</th><th>Discord</th><th>Gespeichert</th><th></th></tr></thead><tbody>${gezeigt.map(alleFahrerZeile).join("")}</tbody></table></div>` : '<p class="a-leer">Keine Fahrer in dieser Ansicht.</p>'}
+      <p class="a-hinweis">Alle Fahrer mit Profil im Fahrerbereich, auch ohne Season. „Gespeichert“ ist die letzte Änderung am Profil. Garage 61 wird über den Namen erkannt. Die Fahrerübersicht entscheidet jeder Fahrer selbst.</p>` : '<p class="a-leer">Noch niemand registriert.</p>'}
+    </section>`;
+  }
+
   function fahrerTab() {
-    if (!d.serien.length) return '<section class="a-karte"><p class="a-leer">Leg zuerst eine Serie an.</p></section>';
+    if (fahrerAnsicht === "alle") return alleFahrerTab();
+    if (!d.serien.length) return `<section class="a-karte">${ansichtSchalter()}<p class="a-leer">Leg zuerst eine Serie an.</p></section>`;
     const serie = d.serien.find((s) => s.id === serieId);
     const det = d.details;
     const ohneProfil = det.fahrer.filter((f) => !f.custId);
@@ -968,7 +1025,7 @@
     const rennen = det.rennen.map((r) => `<details class="a-rennen"><summary>${esc(r.titel)} · ${esc(zeit(r.start))} · ${r.starter.length}/${r.plaetze}${r.warteliste.length ? ` · ${r.warteliste.length} warten` : ""}</summary>
         ${r.starter.length ? `<ol class="a-namen">${liste(r, r.starter)}</ol>` : '<p class="a-hinweis" style="padding:0 12px 10px">Noch niemand gemeldet.</p>'}
         ${r.warteliste.length ? `<h4>Warteliste</h4><ol class="a-namen">${liste(r, r.warteliste)}</ol>` : ""}</details>`).join("");
-    return `${akteHtml()}<section class="a-karte"><div class="a-kartenkopf"><h2>Fahrer</h2>${serienAuswahl()}</div>
+    return `${akteHtml()}<section class="a-karte"><div class="a-kartenkopf"><h2>Fahrer</h2><div class="a-leiste">${ansichtSchalter()}${serienAuswahl()}</div></div>
       <div class="a-kennzahlen">${kachel(det.fahrer.length, "Gemeldet")}${kachel(det.fahrer.filter((f) => f.mitglied).length, "In der Season")}${kachel(det.fahrer.filter((f) => !f.mitglied).length, "Einzelmeldungen")}${kachel(ohneProfil.length, "Ohne Profil", "alarm")}${kachel(abweichend.length, "iRating-Abweichung", "warnung")}</div>
       ${det.fahrer.length ? `<div class="a-leiste">${chips}<input type="search" id="a-fahrer-suche" class="a-suche" placeholder="Fahrer, ID oder Team suchen" aria-label="Fahrer suchen"></div>
       ${filter.length ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>Meldung</th><th>iRacing-ID</th><th class="rechts" title="Vom Fahrer im Profil angegeben">iRating Profil</th><th class="rechts" title="Aus dem zuletzt eingelesenen Rennergebnis">iRating letztes Rennen</th><th>Klasse</th>${(serie.modelle || []).length ? "<th>Fahrzeug</th>" : ""}<th></th></tr></thead><tbody>${filter.map((f) => fahrerZeile(f, serie)).join("")}</tbody></table></div>` : '<p class="a-leer">Keine Fahrer in dieser Ansicht.</p>'}
@@ -1318,6 +1375,8 @@
     }
     if (b.dataset.akte) return akteOeffnen(b);
     if (b.dataset.fahrerFilter) { fahrerFilter = b.dataset.fahrerFilter; return zeichne(); }
+    if (b.dataset.fahrerAnsicht) { fahrerAnsicht = b.dataset.fahrerAnsicht; if (fahrerAnsicht === "alle") alleFahrer = null; return zeichne(); }
+    if (b.dataset.alleFilter) { alleFilter = b.dataset.alleFilter; return zeichne(); }
     if (b.dataset.akteZu) { akte = null; return zeichne(); }
     if (b.dataset.akteBearbeiten) { akte.bearbeiten = b.dataset.akteBearbeiten === "auf"; akte.werte = null; setzeMeldung(""); return zeichne(); }
     if (b.dataset.ergebnisImport) {
@@ -1365,7 +1424,7 @@
       if (await aktion({ aktion: "sichtung-zuordnen", serie: serieId, slug, discordId: wahl }, wahl ? "Zugeordnet." : "Zuordnung gelöst.")) sichtungLaden();
       return;
     }
-    if (b.dataset.tab) { tab = b.dataset.tab; protokoll = null; sichtung = null; sichtungForm = null; form = null; planer = null; reportId = null; akte = null; setzeMeldung(""); if (tab === "reports") reportsAlsGesehen(); zeichne(); return window.scrollTo(0, 0); }
+    if (b.dataset.tab) { tab = b.dataset.tab; protokoll = null; alleFahrer = null;sichtung = null; sichtungForm = null; form = null; planer = null; reportId = null; akte = null; setzeMeldung(""); if (tab === "reports") reportsAlsGesehen(); zeichne(); return window.scrollTo(0, 0); }
     if (b.dataset.report) {
       const r = d.reports.find((x) => x.id === b.dataset.report);
       tab = "reports"; reportId = r.id; setzeMeldung("");

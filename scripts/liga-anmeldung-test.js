@@ -813,6 +813,44 @@ const tests = {
     assert.strictEqual(liste[0].starts, 0);
     assert.ok(!JSON.stringify(liste).includes('"o"'), "Der Besitzer-Prüfwert wird nie ausgeliefert");
   },
+  "Admin: Liste aller registrierten Fahrer, auch ohne Season": async () => {
+    const Admin = require("../api/_lib/liga-admin");
+    const alt = { fetch: global.fetch, env: { ...process.env } };
+    Object.assign(process.env, { SUPABASE_URL: "https://speicher.example", SUPABASE_SECRET_KEY: "k" });
+    const jetzt = "2026-11-14T10:00:00.000Z";
+    const zeilenJe = {
+      "liga/fahrer/": [
+        { pfad: "liga/fahrer/111111.json", inhalt: JSON.stringify({ iracingName: "Anna Racer", custId: "11", irating: 2100, nummer: 12, uebersicht: true, g61Anfrage: jetzt, discord: { i: true, f: true, n: "#12 Anna Racer" } }), binaer: false },
+        { pfad: "liga/fahrer/222222.json", inhalt: JSON.stringify({ iracingName: "Ben Neu", custId: "22", irating: 1500, nummer: 7 }), binaer: false },
+        { pfad: "liga/fahrer/kaputt.json", inhalt: "{", binaer: false },
+      ],
+      "liga/": [{ pfad: `liga/serien/s1/111111~~Anna`, geaendert: jetzt }, { pfad: `liga/serien/s0/222222~~Ben`, geaendert: jetzt }],
+    };
+    global.fetch = async (url) => {
+      const u = new URL(String(url));
+      if (u.hostname !== "speicher.example") return { ok: false, status: 503, json: async () => ({}), text: async () => "" };
+      const prefix = (u.searchParams.get("pfad") || "").replace(/^like\./, "").replace(/\*$/, "");
+      return { ok: true, json: async () => zeilenJe[prefix] || [] };
+    };
+    const warn = console.warn; const fehler = console.error;
+    console.warn = () => {}; console.error = () => {};
+    try {
+      const kat = { serien: [{ id: "s1", name: "GT3 Cup", status: "laeuft" }, { id: "s0", name: "Alt", status: "beendet" }] };
+      const liste = await Admin.alleFahrer(kat);
+      assert.deepStrictEqual(liste.map((f) => f.name), ["Ben Neu", "Anna Racer"], "Sortiert nach Startnummer, kaputte Einträge fehlen");
+      const [ben, anna] = liste;
+      assert.strictEqual(ben.uebersicht, null, "Ältere Profile: noch nicht gefragt");
+      assert.deepStrictEqual(ben.serien.map((s) => [s.id, s.beendet]), [["s0", true]]);
+      assert.strictEqual(anna.uebersicht, true);
+      assert.strictEqual(anna.g61, "gemeldet");
+      assert.deepStrictEqual(anna.discord, { rolle: true, fahrerRolle: true, name: "#12 Anna Racer" });
+      assert.strictEqual(anna.discordId, "111111");
+    } finally {
+      console.warn = warn; console.error = fehler;
+      global.fetch = alt.fetch;
+      for (const k of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
+    }
+  },
   "Sichtung: Garage-61-Beitritt aus dem Profil nennt Name und Startnummer": () => {
     const S = require("../api/_lib/liga-sichtung");
     const k = S.teamBeitrittKarte("Lena Test", 46);

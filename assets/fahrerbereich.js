@@ -519,6 +519,7 @@
       <div class="fb-leiste">${ansichtWahl()}${filterChips()}</div>
       <p class="fb-meldung" id="fb-meldung" role="alert" hidden></p>
       ${erstePanel()}
+      ${uebersichtFrage()}
       ${renntagPanel()}
       ${nummerEntscheidPanel()}
       <div class="fb-raster">
@@ -551,6 +552,17 @@
         ${schritt(g61[0], "Garage-61-Team beitreten", g61[1], registriert && !g61[0] ? g61Knopf("Team beitreten") : "")}
         ${schritt(inSeason ? "fertig" : "frei", "Season oder Event wählen", inSeason ? "Du bist in einer Season gemeldet." : "Freiwillig und jederzeit. Deine Startnummer bleibt auch ohne Season reserviert.")}
       </ol>
+    </section>`;
+  }
+
+  // Einmalige Frage für Profile von vor der Fahrerübersicht: Dort fehlt die Entscheidung noch ganz.
+  function uebersichtFrage() {
+    const p = stand.fahrer.profil;
+    if (!p || typeof p.uebersicht === "boolean") return "";
+    return `<section class="fb-panel fb-panel-wichtig"><h3>Neu: die Fahrerübersicht</h3>
+      <p>Unter <a href="/fahrer" target="_blank" rel="noopener">/fahrer</a> zeigen wir alle Fahrer der Liga. Möchtest du dort mit iRacing-Name${p.nummer ? ` und Startnummer #${esc(p.nummer)}` : ""} erscheinen, auch bevor du ein Rennen gefahren bist?</p>
+      <div class="fb-kalender"><button type="button" class="fb-knopf" data-uebersicht="ja">Ja, zeig mich</button><button type="button" class="fb-knopf zweit" data-uebersicht="nein">Nein, danke</button></div>
+      <p class="fb-klein">Ändern kannst du das jederzeit unter „Profil ändern“. Nach deinem ersten gewerteten Rennen stehst du ohnehin in den Tabellen und damit auch in der Übersicht.</p>
     </section>`;
   }
 
@@ -613,6 +625,10 @@
       return;
     }
     if (b.id === "fb-nummer-gelesen") return sende({ aktion: "nummer-gelesen" });
+    if (b.dataset.uebersicht) {
+      const ja = b.dataset.uebersicht === "ja";
+      return sende({ aktion: "uebersicht", ja }).then((ok) => { if (ok) meldung(ja ? "Du erscheinst jetzt in der Fahrerübersicht." : "Alles klar, du bleibst in der Übersicht unsichtbar, bis du dein erstes Rennen gefahren bist.", true); });
+    }
     if (b.id === "p-abbrechen") { profilOffen = false; return zeichne(); }
     if (b.dataset.ansicht) { ansicht = b.dataset.ansicht; if (ansicht === "sichtung") return sichtungLaden(); return zeichne(); }
     if (b.dataset.sichtNeu) return sichtungLaden();

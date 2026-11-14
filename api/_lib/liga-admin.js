@@ -74,6 +74,38 @@ async function serienDetails(kat, id) {
   };
 }
 
+// Alle registrierten Fahrer, unabhängig von Seasons: Profil, Seasons, Fahrerübersicht, Garage 61 und Discord-Stand
+async function alleFahrer(kat) {
+  const { blobInhalte } = require("./blob");
+  const [profile, alle, oeffentlich, wuensche, mitglieder] = await Promise.all([
+    blobInhalte("liga/fahrer/"), eintraege(), P.oeffentlicheProfile(), P.wuenscheLesen().catch(() => []),
+    Sichtung.teamMitglieder().catch(() => null),
+  ]);
+  const serienName = new Map(kat.serien.map((x) => [x.id, x]));
+  const imTeam = (name) => (mitglieder ? mitglieder.some((m) => Sichtung.namensKern(m.name) === Sichtung.namensKern(name)) : null);
+  return profile.map(([pfad, text]) => {
+    const m = /^liga\/fahrer\/(\d{5,25})\.json$/.exec(pfad);
+    let p = null;
+    try { p = m ? JSON.parse(text) : null; } catch (e) { p = null; }
+    if (!p) return null;
+    const discordId = m[1];
+    const pid = p.custId ? fahrerKennung(p.custId) : "";
+    const serien = [...new Set(alle.filter((e) => e.typ === "serie" && e.discordId === discordId).map((e) => e.serieId))]
+      .map((id) => serienName.get(id)).filter(Boolean)
+      .map((x) => ({ id: x.id, name: x.name, farbe: x.farbe || "rot", typ: x.typ || "liga", beendet: x.status === "beendet" }));
+    const dc = p.discord || {};
+    return {
+      discordId, pid, name: p.iracingName || "", custId: p.custId || "", irating: p.irating ?? null, nummer: p.nummer ?? "", land: p.land || "", team: p.team || "",
+      bild: (pid && oeffentlich[pid] && oeffentlich[pid].bild) || "", gespeichert: p.gespeichert || "",
+      uebersicht: typeof p.uebersicht === "boolean" ? p.uebersicht : null,
+      g61: imTeam(p.iracingName) === true ? "team" : p.g61Anfrage ? "gemeldet" : imTeam(p.iracingName) === null ? "unbekannt" : "",
+      discord: { rolle: !!dc.i, fahrerRolle: !!dc.f, name: dc.n || "" },
+      nummerWunsch: (wuensche.find((w) => w.discordId === discordId) || {}).nach || null,
+      serien,
+    };
+  }).filter(Boolean).sort((a, b) => (Number(a.nummer) || 1000) - (Number(b.nummer) || 1000) || a.name.localeCompare(b.name, "de"));
+}
+
 // Prüft, ob dieser Nutzer über den Report entscheiden darf.
 function darfEntscheiden(report, s) {
   if (R.beteiligt(report, s.id)) throw new Hinweis("Du bist an diesem Vorfall beteiligt und kannst nicht darüber entscheiden.");
@@ -311,7 +343,8 @@ const aktionen = {
     if (!gespeichert) throw new Hinweis("Dieser Fahrer hat noch kein Profil.");
     const bisher = JSON.parse(gespeichert);
     // Die Zustimmung zur Fahrerübersicht gibt nur der Fahrer selbst, die Rennleitung übernimmt sie unverändert.
-    const extras = { ...A.pruefeExtras(b.profil), zeigeBild: !b.bildEntfernen && bisher.zeigeBild !== false, uebersicht: bisher.uebersicht === true };
+    // Fehlt die Entscheidung noch, bleibt sie offen (undefined), damit der Fahrer weiter gefragt wird.
+    const extras = { ...A.pruefeExtras(b.profil), zeigeBild: !b.bildEntfernen && bisher.zeigeBild !== false, uebersicht: typeof bisher.uebersicht === "boolean" ? bisher.uebersicht : undefined };
     A.nummerPflicht(extras);
     const geaendert = extras.nummer !== bisher.nummer;
     const entscheid = geaendert ? P.nummerEntscheid("bestaetigt", extras.nummer) : null;
@@ -806,6 +839,8 @@ module.exports = async (req, res) => {
     // Das Protokoll wird nur beim Öffnen des Bereichs geholt.
     if ((req.query || {}).nur === "protokoll") return res.status(200).json({ angemeldet: true, protokoll: await protokollLesen().catch(() => []) });
     const kat = await D.katalog(true);
+    // Alle registrierten Fahrer, erst beim Öffnen der Ansicht geholt
+    if ((req.query || {}).nur === "fahrer") return res.status(200).json({ angemeldet: true, fahrer: await alleFahrer(kat) });
     if ((req.query || {}).akte) {
       const privatJeSerie = await Promise.all(kat.serien.map(async (x) => ({ serieName: x.name, privat: await D.privatLesen(x.id) })));
       const discordId = String(req.query.discord || "");
@@ -838,4 +873,4 @@ module.exports = async (req, res) => {
   if (TERMIN_AKTIONEN.has(body.aktion)) await DiscordEvents.abgleichen({ erzwingen: true }).catch((e) => console.warn("Discord-Events:", e.message));
   return res.status(200).json({ ok: true, ...antwort });
 };
-Object.assign(module.exports, { protokollPfad, leseProtokoll, protokollText });
+Object.assign(module.exports, { protokollPfad, leseProtokoll, protokollText, alleFahrer });
