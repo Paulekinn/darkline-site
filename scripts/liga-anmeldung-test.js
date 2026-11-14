@@ -872,7 +872,7 @@ const tests = {
     assert.strictEqual(T.eigeneSicht(team, "111111").einladung, "f".repeat(16));
     assert.strictEqual(T.eigeneSicht(team, "222222").einladung, undefined);
     assert.strictEqual(T.eigeneSicht(team, "222222").anfragen, undefined);
-    assert.deepStrictEqual(T.teamKurz(T.nachPid([team]).get("b".repeat(16))), { id: "aaaaaaaa", name: "NR", kuerzel: "NR", farbe: "rot" });
+    assert.deepStrictEqual(T.teamKurz(T.nachPid([team]).get("b".repeat(16))), { id: "aaaaaaaa", name: "NR", kuerzel: "NR", farbe: "rot", logo: "" });
   },
   "Teams: gründen, Link, Anfrage, Chefwechsel, verlassen": async () => {
     const T = require("../api/_lib/liga-teams");
@@ -925,9 +925,24 @@ const tests = {
       await T.mitgliedAktualisieren("333333", profil("Carla Neu", 22, "33"));
       [team] = await T.alle(true);
       assert.deepStrictEqual(team.mitglieder.map((m) => [m.name, m.nummer]), [["Ben", 7], ["Carla Neu", 22]]);
-      // Auflösen löscht das Team
+      // Teamlogo: nur der Teamchef, nur echte Bilder, Entfernen räumt das Bild weg
+      const webp = Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WEBPVP8 "), Buffer.alloc(24)]);
+      const logoDaten = `data:image/webp;base64,${webp.toString("base64")}`;
+      const logoDa = () => [...db.keys()].some((k) => k.includes(`team-${team.id}`));
+      await assert.rejects(T.aktion("team-logo", "333333", profil("Carla Neu", 22, "33"), { daten: logoDaten }), /nur der Teamchef/);
+      await assert.rejects(T.aktion("team-logo", "222222", profil("Ben", 7, "22"), { daten: "data:image/webp;base64,AAAA" }), /kein gültiges Bild/);
+      await T.aktion("team-logo", "222222", profil("Ben", 7, "22"), { daten: logoDaten });
+      [team] = await T.alle(true);
+      assert.ok(/^[0-9a-f]{6}$/.test(team.logo) && logoDa());
+      assert.strictEqual(T.oeffentlich(team).logo, team.logo);
+      await T.aktion("team-logo-weg", "222222", profil("Ben", 7, "22"));
+      [team] = await T.alle(true);
+      assert.ok(!team.logo && !logoDa());
+      // Auflösen löscht das Team samt Logo
+      await T.aktion("team-logo", "222222", profil("Ben", 7, "22"), { daten: logoDaten });
       await T.aktion("team-aufloesen", "222222", profil("Ben", 7, "22"));
       assert.strictEqual((await T.alle(true)).length, 0);
+      assert.ok(!logoDa(), "Das Logo verschwindet mit dem Team");
     } finally {
       global.fetch = alt.fetch;
       for (const k of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
@@ -938,7 +953,7 @@ const tests = {
     const T = require("../api/_lib/liga-teams");
     const team = { id: "aaaaaaaa", name: "NR", kuerzel: "NR", farbe: "rot", mitglieder: [{ discordId: "1", pid: "e".repeat(16), name: "Eva", nummer: 5 }] };
     const liste = P.fahrerListe([], new Map(), [], T.nachPid([team]));
-    assert.deepStrictEqual(liste.map((f) => [f.name, f.ligaTeam]), [["Eva", { id: "aaaaaaaa", name: "NR", kuerzel: "NR", farbe: "rot" }]]);
+    assert.deepStrictEqual(liste.map((f) => [f.name, f.ligaTeam]), [["Eva", { id: "aaaaaaaa", name: "NR", kuerzel: "NR", farbe: "rot", logo: "" }]]);
   },
   "Sichtung: Garage-61-Beitritt aus dem Profil nennt Name und Startnummer": () => {
     const S = require("../api/_lib/liga-sichtung");

@@ -37,7 +37,8 @@
     const b = d.bilanz;
     const zahlen = [[b.starts, "Starts"], [b.siege, "Siege"], [b.podien, "Podien"], [b.poles, "Poles"], [b.schnellste, "Schnellste Runden"], [b.ausfaelle, "Ausfälle"]];
     const land = p.land ? `${K.flagge(p.land)}<span>${esc(F.name(p.land))}</span>` : "";
-    const ligaTeam = d.team ? `<a class="fa-team-link s-${esc(d.team.farbe)}" href="/teams?id=${encodeURIComponent(d.team.id)}"><span class="fa-l-team">${esc(d.team.kuerzel)}</span>${esc(d.team.name)}</a>` : "";
+    const teamLogo = d.team && d.team.logo ? `<img class="fa-t-logo fa-t-logo-klein" src="api/liga?r=bild&k=team-${encodeURIComponent(d.team.id)}&v=${encodeURIComponent(d.team.logo)}" alt="">` : "";
+    const ligaTeam = d.team ? `<a class="fa-team-link s-${esc(d.team.farbe)}" href="/teams?id=${encodeURIComponent(d.team.id)}">${teamLogo}<span class="fa-l-team">${esc(d.team.kuerzel)}</span>${esc(d.team.name)}</a>` : "";
     // Im Liga-Team zählt nur das Team, der freie Club-Text entfällt.
     const club = d.team ? "" : p.team || "";
     const meta = [land ? `<span class="fa-land">${land}</span>` : "", ligaTeam, club ? `<span>${esc(club)}</span>` : ""].filter(Boolean).join('<span aria-hidden="true">·</span>');

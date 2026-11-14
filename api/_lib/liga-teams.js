@@ -56,8 +56,10 @@ function oeffentlich(team, profile = {}) {
     const p = (m.pid && profile[m.pid]) || {};
     return { pid: m.pid, name: m.name, nummer: m.nummer || null, land: p.land || "", bild: p.bild || "", chef: m.discordId === team.chef };
   }).sort((a, b) => Number(b.chef) - Number(a.chef) || (a.nummer || 1000) - (b.nummer || 1000));
-  return { id: team.id, name: team.name, kuerzel: team.kuerzel, farbe: team.farbe, erstellt: team.erstellt, mitglieder };
+  return { id: team.id, name: team.name, kuerzel: team.kuerzel, farbe: team.farbe, logo: team.logo || "", erstellt: team.erstellt, mitglieder };
 }
+const logoSchluessel = (id) => `team-${id}`;
+const logoWeg = (id) => D.bildLoeschen(logoSchluessel(id)).catch(() => {});
 
 // Sicht im Fahrerbereich. Der Teamchef sieht zusätzlich Einladungscode, Anfragen und die Kennungen zum Verwalten.
 function eigeneSicht(team, discordId, profile) {
@@ -73,7 +75,7 @@ function eigeneSicht(team, discordId, profile) {
   };
 }
 
-const kurzliste = (teams) => teams.map((t) => ({ id: t.id, name: t.name, kuerzel: t.kuerzel, farbe: t.farbe, anzahl: (t.mitglieder || []).length, voll: (t.mitglieder || []).length >= MAX_MITGLIEDER })).sort((a, b) => a.name.localeCompare(b.name, "de"));
+const kurzliste = (teams) => teams.map((t) => ({ id: t.id, name: t.name, kuerzel: t.kuerzel, farbe: t.farbe, logo: t.logo || "", anzahl: (t.mitglieder || []).length, voll: (t.mitglieder || []).length >= MAX_MITGLIEDER })).sort((a, b) => a.name.localeCompare(b.name, "de"));
 
 /* ---------- Ändern ---------- */
 async function aendern(id, fn) {
@@ -173,7 +175,7 @@ async function aktion(art, discordId, profil, body = {}) {
     if (!meins) return null;
     const andere = (meins.mitglieder || []).filter((m) => m.discordId !== discordId);
     if (istChef(meins, discordId) && andere.length) throw new Hinweis("Als Teamchef übergib zuerst die Leitung an ein anderes Mitglied oder löse das Team auf.");
-    if (!andere.length) { await blobDelete([pfad(meins.id)]); vergessen(); return null; }
+    if (!andere.length) { await blobDelete([pfad(meins.id)]); await logoWeg(meins.id); vergessen(); return null; }
     await aendern(meins.id, (alt) => ({ ...alt, mitglieder: (alt.mitglieder || []).filter((m) => m.discordId !== discordId) }));
     return { an: meins.chef, text: `🚪 **${(profil && profil.iracingName) || "Ein Fahrer"}** hat dein Team **${meins.name}** verlassen.` };
   }
@@ -212,7 +214,24 @@ async function aktion(art, discordId, profil, body = {}) {
   if (art === "team-aufloesen") {
     const team = chefPflicht();
     await blobDelete([pfad(team.id)]);
+    await logoWeg(team.id);
     vergessen();
+    return null;
+  }
+
+  // Teamlogo: Der Browser liefert ein quadratisches WebP oder JPEG als data:-URL. Die Version steckt in der Bildadresse.
+  if (art === "team-logo") {
+    const team = chefPflicht();
+    const buf = D.pruefeBild(body.daten);
+    if (buf.length > 1024 * 1024) throw new Hinweis("Das Logo ist zu groß. Bitte wähle ein kleineres Bild.");
+    await D.bildSpeichern(logoSchluessel(team.id), buf);
+    await aendern(team.id, (alt) => ({ ...alt, logo: zufall(3) }));
+    return null;
+  }
+  if (art === "team-logo-weg") {
+    const team = chefPflicht();
+    await logoWeg(team.id);
+    await aendern(team.id, (alt) => (alt.logo ? { ...alt, logo: "" } : undefined));
     return null;
   }
 
@@ -234,7 +253,13 @@ async function mitgliedAktualisieren(discordId, profil) {
 // Für die Rennleitung
 async function adminLoeschen(id) {
   await blobDelete([pfad(id)]);
+  await logoWeg(id);
   vergessen();
+}
+// Ein unpassendes Logo kann die Rennleitung entfernen.
+async function adminLogoWeg(id) {
+  await logoWeg(id);
+  return aendern(id, (alt) => (alt.logo ? { ...alt, logo: "" } : undefined));
 }
 async function adminEntfernen(id, discordId) {
   return aendern(id, (alt) => {
@@ -252,17 +277,19 @@ async function adminBearbeiten(id, eingabe) {
 
 // Team je anonymer Kennung, für Fahrerübersicht und Profile
 // mitgliedName nur zur internen Verwendung (Fahrerübersicht), vor der Ausgabe mit teamKurz() entfernen
-const nachPid = (teams) => new Map(teams.flatMap((t) => (t.mitglieder || []).filter((m) => m.pid).map((m) => [m.pid, { id: t.id, name: t.name, kuerzel: t.kuerzel, farbe: t.farbe, mitgliedName: m.name }])));
-const teamKurz = (t) => (t ? { id: t.id, name: t.name, kuerzel: t.kuerzel, farbe: t.farbe } : null);
+const nachPid = (teams) => new Map(teams.flatMap((t) => (t.mitglieder || []).filter((m) => m.pid).map((m) => [m.pid, { id: t.id, name: t.name, kuerzel: t.kuerzel, farbe: t.farbe, logo: t.logo || "", mitgliedName: m.name }])));
+const teamKurz = (t) => (t ? { id: t.id, name: t.name, kuerzel: t.kuerzel, farbe: t.farbe, logo: t.logo || "" } : null);
 
 // ?r=teams (öffentlich): alle Teams mit Mitgliedern
 async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Nicht erlaubt" });
   const P = require("./liga-profil");
-  const [teams, profile] = await Promise.all([alle(false), P.oeffentlicheProfile()]);
+  const [teams, profile, bilanz] = await Promise.all([alle(false), P.oeffentlicheProfile(), P.bilanzJePid().catch(() => new Map())]);
   res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=120");
-  return res.status(200).json({ teams: teams.map((t) => oeffentlich(t, profile)).sort((a, b) => b.mitglieder.length - a.mitglieder.length || a.name.localeCompare(b.name, "de")) });
+  // Die Bilanz je Mitglied sind seine Einzelrennen, keine Teamwertung.
+  const mitBilanz = (t) => ({ ...t, mitglieder: t.mitglieder.map((m) => ({ ...m, ...(bilanz.get(m.pid) || { starts: 0, siege: 0, podien: 0 }) })) });
+  return res.status(200).json({ teams: teams.map((t) => mitBilanz(oeffentlich(t, profile))).sort((a, b) => b.mitglieder.length - a.mitglieder.length || a.name.localeCompare(b.name, "de")) });
 }
 
 module.exports = handler;
-Object.assign(module.exports, { MAX_MITGLIEDER, FARBEN, alle, teamVon, istChef, pruefe, mitgliedAus, oeffentlich, eigeneSicht, kurzliste, aktion, mitgliedAktualisieren, adminLoeschen, adminEntfernen, adminBearbeiten, nachPid, teamKurz, aufnehmen });
+Object.assign(module.exports, { MAX_MITGLIEDER, FARBEN, alle, teamVon, istChef, pruefe, mitgliedAus, oeffentlich, eigeneSicht, kurzliste, aktion, mitgliedAktualisieren, adminLoeschen, adminLogoWeg, adminEntfernen, adminBearbeiten, nachPid, teamKurz, aufnehmen });

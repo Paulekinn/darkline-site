@@ -570,6 +570,33 @@
   let teamBearbeiten = false;
   let einladung = null; // { code, team } aus einem Einladungslink
   const teamKuerzel = (t) => `<span class="fb-team-kz ${farbe(t.farbe)}">${esc(t.kuerzel)}</span>`;
+  const teamLogo = (t, groesse = 56) => (t.logo ? `<img class="fb-team-logo" src="api/liga?r=bild&k=team-${encodeURIComponent(t.id)}&v=${encodeURIComponent(t.logo)}" alt="Logo ${esc(t.name)}" width="${groesse}" height="${groesse}" loading="lazy">` : "");
+
+  // Logo quadratisch auf 512 × 512 bringen, Seitenverhältnis bleibt, Transparenz bleibt bei WebP erhalten.
+  async function logoVorbereiten(datei) {
+    const url = URL.createObjectURL(datei);
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      const seite = 512;
+      const c = document.createElement("canvas");
+      c.width = seite; c.height = seite;
+      const ctx = c.getContext("2d");
+      const faktor = Math.min(seite / (img.naturalWidth || seite), seite / (img.naturalHeight || seite));
+      const b = Math.round((img.naturalWidth || seite) * faktor), h = Math.round((img.naturalHeight || seite) * faktor);
+      const webp = c.toDataURL("image/webp").startsWith("data:image/webp");
+      if (!webp) { ctx.fillStyle = "#0b0d0e"; ctx.fillRect(0, 0, seite, seite); } // JPEG kennt keine Transparenz
+      ctx.drawImage(img, Math.round((seite - b) / 2), Math.round((seite - h) / 2), b, h);
+      for (const q of [0.9, 0.8, 0.65, 0.5]) {
+        const daten = c.toDataURL(webp ? "image/webp" : "image/jpeg", q);
+        if (daten.length < 1300000) return daten;
+      }
+      throw new Error("zu gross");
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
   const teamFelder = (t = {}) => `
       <div class="fb-feld"><label for="t-name">Teamname</label><input id="t-name" maxlength="40" autocomplete="off" value="${esc(t.name || "")}"></div>
       <div class="fb-feld"><label for="t-kz">Kürzel (2 bis 4 Zeichen)</label><input id="t-kz" maxlength="4" autocomplete="off" value="${esc(t.kuerzel || "")}" style="text-transform:uppercase"></div>
@@ -584,7 +611,7 @@
       const liste = (stand.teams || []).map((x) => {
         const angefragt = anfragen.includes(x.id);
         const knopf = angefragt ? `<span class="fb-zu">Angefragt</span><button type="button" class="fb-abmelden" data-team-aktion="team-anfrage-zurueck" data-team="${esc(x.id)}">Zurückziehen</button>` : x.voll ? '<span class="fb-zu">Voll</span>' : `<button type="button" class="fb-abmelden" data-team-aktion="team-anfragen" data-team="${esc(x.id)}">Anfragen</button>`;
-        return `<li>${teamKuerzel(x)}<a href="/teams?id=${encodeURIComponent(x.id)}">${esc(x.name)}</a><small>${x.anzahl} ${x.anzahl === 1 ? "Fahrer" : "Fahrer"}</small><span class="fb-team-knopfe">${knopf}</span></li>`;
+        return `<li>${teamLogo(x, 28)}${teamKuerzel(x)}<a href="/teams?id=${encodeURIComponent(x.id)}">${esc(x.name)}</a><small>${x.anzahl} ${x.anzahl === 1 ? "Fahrer" : "Fahrer"}</small><span class="fb-team-knopfe">${knopf}</span></li>`;
       }).join("");
       return `<section class="fb-panel"><h3>Dein Team</h3>
         <p class="fb-klein">Du bist in keinem Team. Gründe eins und lade deine Teamkollegen per Link ein, oder frag bei einem bestehenden Team an.</p>
@@ -596,13 +623,18 @@
     const mitglieder = (t.istChef ? verwaltung : t.mitglieder).map((m) => `<li><span>${m.nummer ? `<b>#${esc(m.nummer)}</b> ` : ""}${esc(m.name)}${m.chef ? ' <em title="Teamchef">★ Chef</em>' : ""}</span>${t.istChef && !m.chef ? `<span class="fb-team-knopfe"><button type="button" class="fb-abmelden" data-team-aktion="team-chef" data-fahrer="${esc(m.discordId)}" data-name="${esc(m.name)}">Zum Chef machen</button><button type="button" class="fb-abmelden" data-team-aktion="team-entfernen" data-fahrer="${esc(m.discordId)}" data-name="${esc(m.name)}">Entfernen</button></span>` : ""}</li>`).join("");
     const link = t.istChef ? `${location.origin}/fahrerbereich?team=${t.einladung}` : "";
     const chefTeil = t.istChef ? `
+      <h4 class="fb-zwischen">Teamlogo</h4>
+      <div class="fb-team-logo-feld">${t.logo ? teamLogo(t, 72) : `<span class="fb-team-logo leer ${farbe(t.farbe)}" aria-hidden="true">${esc(t.kuerzel)}</span>`}
+        <div><label class="fb-abmelden fb-datei">${t.logo ? "Anderes Logo hochladen" : "Logo hochladen"}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-team-logo="1" hidden></label>${t.logo ? ' <button type="button" class="fb-abmelden" data-team-aktion="team-logo-weg">Entfernen</button>' : ""}
+        <p class="fb-klein">PNG, JPG, WebP oder SVG. Wird quadratisch auf 512 × 512 Pixel gebracht, transparente Flächen bleiben erhalten.</p></div>
+      </div>
       <h4 class="fb-zwischen">Einladungslink</h4>
       <p class="fb-klein">Wer diesen Link öffnet und registriert ist, tritt sofort bei. Teile ihn nur mit deinen Teamkollegen.</p>
       <div class="fb-kalender"><button type="button" class="fb-abmelden" data-kopieren="${esc(link)}">Link kopieren</button><button type="button" class="fb-abmelden" data-team-aktion="team-link-neu">Neuen Link erzeugen</button></div>
       ${(t.anfragen || []).length ? `<h4 class="fb-zwischen">Anfragen (${t.anfragen.length})</h4><ul class="fb-team-mitglieder">${t.anfragen.map((a) => `<li><span>${a.nummer ? `<b>#${esc(a.nummer)}</b> ` : ""}${esc(a.name)}</span><span class="fb-team-knopfe"><button type="button" class="fb-knopf fb-melden" data-team-aktion="team-anfrage-entscheiden" data-fahrer="${esc(a.discordId)}" data-ja="1">Annehmen</button><button type="button" class="fb-abmelden" data-team-aktion="team-anfrage-entscheiden" data-fahrer="${esc(a.discordId)}">Ablehnen</button></span></li>`).join("")}</ul>` : ""}
       ${teamBearbeiten ? `<form class="fb-profil" id="fb-team-form" novalidate>${teamFelder(t)}<div class="fb-profil-fuss"><button type="submit" class="fb-knopf">Speichern</button><button type="button" class="fb-knopf zweit" data-team-bearbeiten="zu">Abbrechen</button></div></form>` : ""}` : "";
     return `<section class="fb-panel ${farbe(t.farbe)} fb-team"><h3>Dein Team</h3>
-      <div class="fb-team-kopf">${teamKuerzel(t)}<strong>${esc(t.name)}</strong></div>
+      <div class="fb-team-kopf">${teamLogo(t, 48)}${teamKuerzel(t)}<strong>${esc(t.name)}</strong></div>
       <ul class="fb-team-mitglieder">${mitglieder}</ul>
       ${chefTeil}
       <p class="fb-profil-link"><a class="fb-link" href="/teams?id=${encodeURIComponent(t.id)}">Teamseite</a>${t.istChef && !teamBearbeiten ? ' <button type="button" class="fb-link" data-team-bearbeiten="auf">Team bearbeiten</button>' : ""} ${t.istChef ? '<button type="button" class="fb-link" data-team-aktion="team-aufloesen">Team auflösen</button>' : '<button type="button" class="fb-link" data-team-aktion="team-verlassen">Team verlassen</button>'}</p>
@@ -617,7 +649,7 @@
     const t = einladung.team;
     const hinweis = !profilFertig() ? "Registriere dich zuerst als Fahrer, dann kannst du beitreten." : stand.team ? `Du bist schon im Team ${stand.team.name}. Verlasse es zuerst, um zu wechseln.` : "";
     return `<section class="fb-panel fb-panel-wichtig ${farbe(t.farbe)}"><h3>Einladung ins Team</h3>
-      <div class="fb-team-kopf">${teamKuerzel(t)}<strong>${esc(t.name)}</strong><small>${t.anzahl} ${t.anzahl === 1 ? "Fahrer" : "Fahrer"}</small></div>
+      <div class="fb-team-kopf">${teamLogo(t, 48)}${teamKuerzel(t)}<strong>${esc(t.name)}</strong><small>${t.anzahl} ${t.anzahl === 1 ? "Fahrer" : "Fahrer"}</small></div>
       ${hinweis ? `<p class="fb-klein">${esc(hinweis)}</p>` : '<p class="fb-klein">Als Mitglied erscheinst du mit iRacing-Name und Startnummer öffentlich auf der Teamseite.</p>'}
       <div class="fb-kalender">${hinweis || t.voll ? "" : '<button type="button" class="fb-knopf" data-einladung="ja">Team beitreten</button>'}<button type="button" class="fb-knopf zweit" data-einladung="weg">${hinweis ? "Schließen" : "Nein, danke"}</button></div>
     </section>`;
@@ -736,6 +768,7 @@
         "team-chef": `${b.dataset.name} zum Teamchef machen? Du bist danach normales Mitglied.`,
         "team-link-neu": "Neuen Einladungslink erzeugen? Der alte Link funktioniert danach nicht mehr.",
         "team-anfrage-zurueck": "Anfrage zurückziehen?",
+        "team-logo-weg": "Teamlogo entfernen?",
       };
       if (fragen[art] && !window.confirm(fragen[art])) return;
       const texte = { "team-anfragen": "Deine Anfrage ist beim Teamchef. Du bekommst eine Nachricht im Discord, sobald er entschieden hat.", "team-verlassen": "Du hast das Team verlassen.", "team-aufloesen": "Das Team ist aufgelöst.", "team-link-neu": "Neuer Einladungslink erzeugt." };
@@ -818,6 +851,14 @@
 
   // Im Report-Formular gehören die Fahrer zum gewählten Rennen.
   main.addEventListener("change", (e) => {
+    if (e.target.dataset.teamLogo && e.target.files[0]) {
+      const datei = e.target.files[0];
+      logoVorbereiten(datei)
+        .then((daten) => sende({ aktion: "team-logo", daten }))
+        .then((ok) => { if (ok) meldung("Teamlogo gespeichert.", true); })
+        .catch(() => meldung("Dieses Bild konnte nicht gelesen werden. Bitte wähle ein anderes aus."));
+      return;
+    }
     if (e.target.dataset.haken) {
       const id = e.target.dataset.rennen;
       hakenSetzen(id, { ...hakenLesen(id), [e.target.dataset.haken]: e.target.checked });

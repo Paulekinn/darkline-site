@@ -18,7 +18,7 @@
     "keine-rolle": "Dein Discord-Konto hat keine Rolle für die Rennleitung.",
     technik: "Technischer Fehler. Bitte versuche es gleich noch einmal.",
   };
-  const TABS = [["cockpit", "Cockpit"], ["reports", "Reports"], ["serien", "Seasons &amp; Events"], ["rennen", "Rennen"], ["strecken", "Strecken"], ["katalog", "Strafenkatalog"], ["reglement", "Reglement"], ["fahrer", "Fahrer"], ["sichtung", "Sichtung"], ["ergebnisse", "Ergebnisse"], ["protokoll", "Protokoll"]];
+  const TABS = [["cockpit", "Cockpit"], ["reports", "Reports"], ["serien", "Seasons &amp; Events"], ["rennen", "Rennen"], ["strecken", "Strecken"], ["katalog", "Strafenkatalog"], ["reglement", "Reglement"], ["fahrer", "Fahrer"], ["teams", "Teams"], ["sichtung", "Sichtung"], ["ergebnisse", "Ergebnisse"], ["protokoll", "Protokoll"]];
   const URTEILE = [["kein-vergehen", "Kein Vergehen"], ["verwarnung", "Verwarnung"], ["strafpunkte", "Strafpunkte"], ["zeitstrafe", "Zeitstrafe"], ["dsq", "Disqualifikation"]];
   const NEUE_SERIE = { name: "", typ: "liga", saison: "", status: "geplant", anmeldungOffen: true, farbe: "rot", beschreibung: "", uebertragung: "", kategorie: "Sports_Car", fahrzeugklassen: [], rennenGesamt: 8, gewerteteRennen: 7, anmeldeschlussMinuten: 60,
     klassen: [{ name: "Pro", min: 2500, max: null }, { name: "Pro-Am", min: 1500, max: 2499 }, { name: "Am", min: 0, max: 1499 }],
@@ -967,7 +967,7 @@
     alleFahrer = (a && a.fahrer) || [];
     if (tab === "fahrer" && fahrerAnsicht === "alle") zeichne();
   }
-  const ansichtSchalter = () => `<div class="a-leiste">${[["alle", "Alle registrierten"], ["serie", "Nach Season"], ["teams", "Teams"]].map(([id, t]) => `<button type="button" class="a-filter" data-fahrer-ansicht="${id}" aria-pressed="${fahrerAnsicht === id}">${t}</button>`).join("")}</div>`;
+  const ansichtSchalter = () => `<div class="a-leiste">${[["alle", "Alle registrierten"], ["serie", "Nach Season"]].map(([id, t]) => `<button type="button" class="a-filter" data-fahrer-ansicht="${id}" aria-pressed="${fahrerAnsicht === id}">${t}</button>`).join("")}</div>`;
   const aktiveSerien = (f) => f.serien.filter((s) => !s.beendet);
 
   function alleFahrerZeile(f) {
@@ -1021,12 +1021,13 @@
     const a = await fetch(`${API}&nur=teams`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
     teamsLaedt = false;
     teamsDaten = (a && a.teams) || [];
-    if (tab === "fahrer" && fahrerAnsicht === "teams") zeichne();
+    if (tab === "teams") zeichne();
   }
   function teamKarte(t) {
     const mitglieder = t.mitglieder.map((m) => `<li><span>${m.nummer ? `<span class="a-nr">#${esc(m.nummer)}</span> ` : ""}${esc(m.name)}${m.chef ? ' <span class="a-chip gold">Chef</span>' : ""}</span><button type="button" class="a-weg" data-team-raus="${esc(t.id)}" data-fahrer="${esc(m.discordId)}" data-fahrer-name="${esc(m.name)}" data-name="${esc(t.name)}" aria-label="${esc(m.name)} aus dem Team entfernen">×</button></li>`).join("");
     const form = teamEdit === t.id ? `<form class="a-form" id="a-team-form" data-team="${esc(t.id)}"><div class="a-raster">${feld("Name", eingabe("name", t.name, 'maxlength="40"'))}${feld("Kürzel", eingabe("kuerzel", t.kuerzel, 'maxlength="4"'))}${feld("Farbe", auswahl("farbe", t.farbe, TEAMFARBEN))}</div><div class="a-leiste"><button type="submit" class="a-knopf">Speichern</button><button type="button" class="a-knopf zweit" data-team-edit="">Abbrechen</button></div></form>` : "";
-    return `<section class="a-karte"><div class="a-kartenkopf"><h2><span class="a-chip hell">${esc(t.kuerzel)}</span> ${esc(t.name)}</h2><div class="a-leiste">${t.anfragen ? `<span class="a-chip gelb">${t.anfragen} offene Anfrage${t.anfragen === 1 ? "" : "n"}</span>` : ""}<a class="a-knopf zweit klein" href="/teams?id=${encodeURIComponent(t.id)}" target="_blank" rel="noopener">Teamseite</a><button type="button" class="a-knopf zweit klein" data-team-edit="${esc(t.id)}">Bearbeiten</button><button type="button" class="a-knopf gefahr klein" data-team-loeschen="${esc(t.id)}" data-name="${esc(t.name)}">Löschen</button></div></div>
+    const logo = t.logo ? `<img class="a-team-logo" src="api/liga?r=bild&k=team-${encodeURIComponent(t.id)}&v=${encodeURIComponent(t.logo)}" alt="" width="36" height="36">` : "";
+    return `<section class="a-karte"><div class="a-kartenkopf"><h2>${logo}<span class="a-chip hell">${esc(t.kuerzel)}</span> ${esc(t.name)}</h2><div class="a-leiste">${t.anfragen ? `<span class="a-chip gelb">${t.anfragen} offene Anfrage${t.anfragen === 1 ? "" : "n"}</span>` : ""}${t.logo ? `<button type="button" class="a-knopf zweit klein" data-team-logo-weg="${esc(t.id)}" data-name="${esc(t.name)}">Logo entfernen</button>` : ""}<a class="a-knopf zweit klein" href="/teams?id=${encodeURIComponent(t.id)}" target="_blank" rel="noopener">Teamseite</a><button type="button" class="a-knopf zweit klein" data-team-edit="${esc(t.id)}">Bearbeiten</button><button type="button" class="a-knopf gefahr klein" data-team-loeschen="${esc(t.id)}" data-name="${esc(t.name)}">Löschen</button></div></div>
       ${form}
       <ol class="a-namen">${mitglieder}</ol>
       <p class="a-hinweis">Gegründet am ${esc(datumKurz(t.erstellt))} · ${t.mitglieder.length} ${t.mitglieder.length === 1 ? "Fahrer" : "Fahrer"}</p>
@@ -1034,14 +1035,13 @@
   }
   function teamsTab() {
     if (teamsDaten === null && !teamsLaedt) teamsLaden();
-    const kopf = `<section class="a-karte"><div class="a-kartenkopf"><h2>Teams</h2>${ansichtSchalter()}</div>`;
+    const kopf = `<section class="a-karte"><div class="a-kartenkopf"><h2>Teams</h2>${teamsDaten ? `<span class="a-chip">${teamsDaten.length} ${teamsDaten.length === 1 ? "Team" : "Teams"} · ${teamsDaten.reduce((n, t) => n + t.mitglieder.length, 0)} Fahrer</span>` : ""}</div>`;
     if (teamsDaten === null) return `${kopf}<p class="a-leer">Lade Teams …</p></section>`;
     return `${kopf}<p class="a-hinweis">Fahrer gründen Teams im Fahrerbereich und laden per Link ein oder nehmen Anfragen an. Hier kann die Rennleitung umbenennen, Fahrer entfernen und Teams löschen.</p>${teamsDaten.length ? "" : '<p class="a-leer">Noch keine Teams.</p>'}</section>${teamsDaten.map(teamKarte).join("")}`;
   }
 
   function fahrerTab() {
     if (fahrerAnsicht === "alle") return alleFahrerTab();
-    if (fahrerAnsicht === "teams") return teamsTab();
     if (!d.serien.length) return `<section class="a-karte">${ansichtSchalter()}<p class="a-leer">Leg zuerst eine Serie an.</p></section>`;
     const serie = d.serien.find((s) => s.id === serieId);
     const det = d.details;
@@ -1358,7 +1358,7 @@
   /* ---------- Rahmen ---------- */
   function zeichne() {
     if (!d || !d.angemeldet) return zeigeLogin();
-    const inhalte = { reglement: reglementTab, katalog: katalogTab, protokoll: protokollTab, cockpit: cockpitTab, serien: serienTab, rennen: rennenTab, strecken: streckenTab, fahrer: fahrerTab, sichtung: sichtungTab, reports: reportsTab, ergebnisse: ergebnisTab };
+    const inhalte = { reglement: reglementTab, katalog: katalogTab, protokoll: protokollTab, cockpit: cockpitTab, serien: serienTab, rennen: rennenTab, strecken: streckenTab, fahrer: fahrerTab, teams: teamsTab, sichtung: sichtungTab, reports: reportsTab, ergebnisse: ergebnisTab };
     const inhalt = inhalte[tab]();
     const offene = d.reports.filter(braucht).length;
     app.innerHTML = `<div class="a-rahmen">
@@ -1409,6 +1409,10 @@
     if (b.dataset.teamLoeschen) {
       if (!window.confirm(`Team ${b.dataset.name} löschen? Alle Mitglieder verlieren das Team. Das lässt sich nicht rückgängig machen.`)) return;
       return aktion({ aktion: "team-admin-loeschen", team: b.dataset.teamLoeschen, name: b.dataset.name }, "Team gelöscht.").then((ok) => { if (ok) { teamsDaten = null; zeichne(); } });
+    }
+    if (b.dataset.teamLogoWeg) {
+      if (!window.confirm(`Logo von ${b.dataset.name} entfernen?`)) return;
+      return aktion({ aktion: "team-admin-logo-weg", team: b.dataset.teamLogoWeg, name: b.dataset.name }, "Teamlogo entfernt.").then((ok) => { if (ok) { teamsDaten = null; zeichne(); } });
     }
     if (b.dataset.teamRaus) {
       if (!window.confirm(`${b.dataset.fahrerName} aus ${b.dataset.name} entfernen?`)) return;
@@ -1462,7 +1466,7 @@
       if (await aktion({ aktion: "sichtung-zuordnen", serie: serieId, slug, discordId: wahl }, wahl ? "Zugeordnet." : "Zuordnung gelöst.")) sichtungLaden();
       return;
     }
-    if (b.dataset.tab) { tab = b.dataset.tab; protokoll = null; alleFahrer = null;sichtung = null; sichtungForm = null; form = null; planer = null; reportId = null; akte = null; setzeMeldung(""); if (tab === "reports") reportsAlsGesehen(); zeichne(); return window.scrollTo(0, 0); }
+    if (b.dataset.tab) { tab = b.dataset.tab; protokoll = null; alleFahrer = null; teamsDaten = null; teamEdit = null; sichtung = null; sichtungForm = null; form = null; planer = null; reportId = null; akte = null; setzeMeldung(""); if (tab === "reports") reportsAlsGesehen(); zeichne(); return window.scrollTo(0, 0); }
     if (b.dataset.report) {
       const r = d.reports.find((x) => x.id === b.dataset.report);
       tab = "reports"; reportId = r.id; setzeMeldung("");

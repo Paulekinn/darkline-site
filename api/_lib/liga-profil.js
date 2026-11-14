@@ -212,6 +212,12 @@ function fahrerListe(serien, tabellen, profile, teamJe = new Map()) {
   }).sort((a, b) => (a.nummer || 1000) - (b.nummer || 1000) || String(a.name).localeCompare(String(b.name), "de"));
 }
 
+// Einzelbilanz je anonymer Kennung aus allen Tabellen, für die Mitgliederkacheln der Teamseite
+async function bilanzJePid() {
+  const { serien } = await D.katalog(false);
+  return new Map(fahrerListe(serien, await alleTabellen(serien), []).map((f) => [f.pid, { starts: f.starts, siege: f.siege, podien: f.podien }]));
+}
+
 // ?r=fahrerliste
 async function liste(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Nicht erlaubt" });
@@ -246,4 +252,4 @@ async function handler(req, res) {
 }
 
 module.exports = handler;
-Object.assign(module.exports, { liste, fahrerListe, bildNachziehen, bildVeraltet, oeffentlicheProfile, speichern, angabenVon, fahrerAkte, leseProfil, profilPfad, oeffentlich, avatarUrl, pruefeKonflikte, wunschLesen, wuenscheLesen, wunschLoeschen, wunschSetzen, istBeantragt, nummerEntscheid });
+Object.assign(module.exports, { liste, fahrerListe, bilanzJePid, bildNachziehen, bildVeraltet, oeffentlicheProfile, speichern, angabenVon, fahrerAkte, leseProfil, profilPfad, oeffentlich, avatarUrl, pruefeKonflikte, wunschLesen, wuenscheLesen, wunschLoeschen, wunschSetzen, istBeantragt, nummerEntscheid });

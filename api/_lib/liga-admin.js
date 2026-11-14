@@ -182,6 +182,7 @@ async function protokollText(b, kat) {
     "sichtung-zuruecksetzen": () => `Sichtungs-Abgabe zurückgesetzt in ${serie(b.serie)}: ${b.name || b.discordId}, ${b.streckeName || b.strecke}`,
     "sichtung-zuordnen": () => `Garage-61-Fahrer ${b.discordId ? "zugeordnet" : "Zuordnung gelöst"} in ${serie(b.serie)}: ${b.slug}`,
     "team-admin-loeschen": () => `Team gelöscht: ${b.name || b.team}`,
+    "team-admin-logo-weg": () => `Teamlogo entfernt: ${b.name || b.team}`,
     "team-admin-entfernen": () => `Fahrer aus Team entfernt: ${b.fahrerName || b.discordId}, ${b.name || b.team}`,
     "team-admin-bearbeiten": () => `Team geändert: ${b.name} (${String(b.kuerzel || "").toUpperCase()})`,
     "report-status": async () => `Report-Status geändert: ${await report()}`,
@@ -343,6 +344,10 @@ const aktionen = {
   // Teams: Die Rennleitung kann umbenennen, Mitglieder entfernen und Teams löschen. Gründen und Beitreten bleibt bei den Fahrern.
   async "team-admin-loeschen"(b) {
     await Teams.adminLoeschen(String(b.team || ""));
+    return {};
+  },
+  async "team-admin-logo-weg"(b) {
+    await Teams.adminLogoWeg(String(b.team || ""));
     return {};
   },
   async "team-admin-entfernen"(b) {
@@ -860,7 +865,7 @@ module.exports = async (req, res) => {
     if ((req.query || {}).nur === "fahrer") return res.status(200).json({ angemeldet: true, fahrer: await alleFahrer(kat) });
     // Teams für die Rennleitung: mit Discord-IDs zum Verwalten, ohne Einladungscode
     if ((req.query || {}).nur === "teams") {
-      const teams = (await Teams.alle(true)).map((t) => ({ id: t.id, name: t.name, kuerzel: t.kuerzel, farbe: t.farbe, erstellt: t.erstellt, anfragen: (t.anfragen || []).length, mitglieder: (t.mitglieder || []).map((m) => ({ discordId: m.discordId, name: m.name, nummer: m.nummer || null, chef: m.discordId === t.chef })) })).sort((a, b) => a.name.localeCompare(b.name, "de"));
+      const teams = (await Teams.alle(true)).map((t) => ({ id: t.id, name: t.name, kuerzel: t.kuerzel, farbe: t.farbe, logo: t.logo || "", erstellt: t.erstellt, anfragen: (t.anfragen || []).length, mitglieder: (t.mitglieder || []).map((m) => ({ discordId: m.discordId, name: m.name, nummer: m.nummer || null, chef: m.discordId === t.chef })) })).sort((a, b) => a.name.localeCompare(b.name, "de"));
       return res.status(200).json({ angemeldet: true, teams });
     }
     if ((req.query || {}).akte) {

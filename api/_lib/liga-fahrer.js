@@ -12,7 +12,7 @@ const F = require("./liga-fahrzeuge");
 const Sichtung = require("./liga-sichtung");
 const Anfragen = require("./liga-anfragen");
 const Teams = require("./liga-teams");
-const TEAM_AKTIONEN = new Set(["team-gruenden", "team-beitreten", "team-anfragen", "team-anfrage-zurueck", "team-anfrage-entscheiden", "team-verlassen", "team-entfernen", "team-bearbeiten", "team-link-neu", "team-chef", "team-aufloesen"]);
+const TEAM_AKTIONEN = new Set(["team-gruenden", "team-beitreten", "team-anfragen", "team-anfrage-zurueck", "team-anfrage-entscheiden", "team-verlassen", "team-entfernen", "team-bearbeiten", "team-link-neu", "team-chef", "team-aufloesen", "team-logo", "team-logo-weg"]);
 const { klasseFuer } = require("../../assets/liga-wertung.js");
 
 const SCHLUSS_MINUTEN = 60;

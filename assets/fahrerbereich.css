@@ -95,6 +95,12 @@
 .fb-team{border-top-color:var(--s)}
 .fb-team-kz{display:inline-grid;place-items:center;min-width:34px;padding:4px 6px;background:var(--s);color:#fff;font:900 .74rem/1 var(--f-wide);letter-spacing:.04em;transform:skewX(-8deg)}
 .fb-team-kopf{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:4px 0 10px}
+.fb-team-logo{flex:none;width:48px;height:48px;object-fit:contain}
+.fb-team-logo.leer{display:inline-grid;place-items:center;width:72px;height:72px;background:color-mix(in srgb,var(--s) 22%,var(--monitor));color:var(--s);font:900 1.1rem/1 var(--f-wide)}
+.fb-team-logo-feld{display:flex;align-items:flex-start;gap:14px;margin-bottom:6px}
+.fb-team-logo-feld img.fb-team-logo{width:72px;height:72px}
+.fb-team-logo-feld p{margin:6px 0 0}
+.fb-datei{cursor:pointer}
 .fb-team-kopf strong{font:900 1rem/1.15 var(--f-wide);text-transform:uppercase}
 .fb-team-kopf small{color:var(--muted);font:.74rem/1 var(--f-mono)}
 .fb-team-mitglieder,.fb-team-liste{display:grid;gap:4px;margin:0 0 6px;padding:0;list-style:none}
@@ -102,6 +108,7 @@
 .fb-team-mitglieder b{color:var(--s,var(--red))}
 .fb-team-mitglieder em{font-style:normal;font:600 .66rem/1 var(--f-mono);color:var(--liga-gelb);text-transform:uppercase}
 .fb-team-liste li{justify-content:flex-start}
+.fb-team-liste .fb-team-logo{width:28px;height:28px}
 .fb-team-liste a{font-weight:700;color:var(--ink);text-underline-offset:3px}
 .fb-team-liste small{color:var(--muted);font:.72rem/1 var(--f-mono)}
 .fb-team-knopfe{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin-left:auto}

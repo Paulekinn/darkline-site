@@ -67,6 +67,12 @@
 .fa-t-namen{display:flex;flex-wrap:wrap;gap:4px 10px;margin:0;padding:0;list-style:none;font:.78rem/1.3 var(--f-mono);color:var(--muted)}
 .fa-t-namen b{color:var(--s)}
 .fa-t-gross{min-width:84px;padding:12px 14px;font-size:1.6rem}
+.fa-t-logo{flex:none;width:44px;height:44px;object-fit:contain}
+.fa-t-logo-klein{width:24px;height:24px}
+.fa-t-logo-gross{width:clamp(84px,10vw,124px);height:auto;aspect-ratio:1}
+.fa-identitaet .fa-t-kz:not(.fa-t-gross){margin-bottom:6px}
+.fa-t-chef{color:var(--s)!important}
+.fa-t-hinweis{margin:14px 0 16px;color:var(--muted);font-size:.84rem}
 .fa-t-mitglieder .fa-l-kachel{border-left-color:var(--s)}
 .fa-t-mitglieder .fa-l-text strong em,.fa-t-mitglieder .fa-l-ohne{color:var(--s)}
 .fa-t-mitglieder{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:8px;margin:0;padding:0;list-style:none}
