@@ -119,6 +119,10 @@ const SERIEN = {
 
 const STRECKEN = [["Spa", "Circuit de Spa-Francorchamps", 1373000], ["Monza", "Autodromo Nazionale Monza", 1068000], ["Red Bull Ring", "Red Bull Ring", 885000], ["Zandvoort", "Circuit Zandvoort", 951000],
   ["Imola", "Autodromo Enzo e Dino Ferrari", 1011000], ["Silverstone", "Silverstone Circuit", 1182000], ["Nürburgring", "Nürburgring Grand-Prix-Strecke", 1146000], ["Barcelona", "Circuit de Barcelona-Catalunya", 1052000]];
+const HINWEISE = {
+  "Circuit de Spa-Francorchamps": "**Track Limits:** Ausgang Raidillon (Eau Rouge) und Bus Stop. Alle vier Räder jenseits der weißen Linie gelten als Verstoß, iRacing zählt mit.\n\n**Boxeneinfahrt:** Die durchgezogene Linie vor der Bus Stop nicht überfahren.\n\n**Start:** Rolling Start, Überholen erst nach der Startlinie.",
+  "Autodromo Nazionale Monza": "**Track Limits:** Ausgang Ascari und Parabolica (Alboreto). Die Kerbs innen in der ersten Schikane nicht abkürzen.\n\n**Boxenausfahrt:** Bis Curva Grande rechts der weißen Linie bleiben.\n\n**Erste Runde:** In der ersten Schikane gilt besondere Vorsicht, Kollisionen dort werden strenger bewertet.",
+};
 const basis = { startzeit: "20:00", plaetze: 30, training: "60 Min", qualifying: "15 Min", renndauer: "45 Min", wetter: "Dynamisch, trocken", fahrzeuge: "GT3", passwort: "demo",
   briefing: "**Ablauf:** Training, Qualifying, Rennen.\n\n**Regeln:** Es gilt das Reglement der Darkline Simracing Series." };
 // GT3: fünf Rennen gefahren (wöchentlich, das letzte vor zwei Tagen und damit noch vorläufig), drei folgen
@@ -162,9 +166,17 @@ async function fuellen() {
     await json(A.profilPfad(f.id), profil);
   }
 
-  // Seasons und Rennen
+  // Streckenbibliothek: Spa und Monza mit Fahrerhinweisen, die anderen ohne
+  const bibliothek = {};
+  for (const [, name] of STRECKEN) {
+    const id = D.slug(`${name} Grand Prix`);
+    await D.streckeSpeichern(id, D.pruefeStrecke({ name, variante: "Grand Prix", hinweise: HINWEISE[name] || "" }));
+    bibliothek[name] = id;
+  }
+
+  // Seasons und Rennen (Rennen auf Bibliotheksstrecken sind verknüpft und bringen deren Hinweise mit)
   for (const [id, s] of Object.entries(SERIEN)) await D.serieSpeichern(id, s);
-  for (const [id, r] of Object.entries(RENNEN)) await D.rennenSpeichern(id, { ...D.pruefeRennen(r, Object.keys(SERIEN)), streckeId: "" });
+  for (const [id, r] of Object.entries(RENNEN)) await D.rennenSpeichern(id, { ...D.pruefeRennen(r, Object.keys(SERIEN)), streckeId: bibliothek[r.strecke] || "" });
 
   // Stammfahrer: GT3 Sprint mit Anna, Carla und 14 aus dem Feld; GT4 schon 6 Meldungen (Ben ist frei zum Testen)
   const melden = (serieId, f, klasse) => B.blobPut(A.mitgliedPfad(serieId, f.id, klasse, f.profil.iracingName), "1", "text/plain");

@@ -119,7 +119,7 @@ function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, ser
         // Ligen laufen über die iRacing-Liga. Eigene Zugangsdaten braucht es nur bei Einzelrennen und Serien mit ein oder zwei Rennen.
         zugangNoetig: einzelrennen || !(serie.rennenGesamt > 2),
         strecke: r.strecke || "", streckenBild: r.streckenBild || null, fahrzeuge: fahrzeugeVon(r, serie), fahrzeugklassen: serie.fahrzeugklassen || [], plaetze: r.plaetze || 0,
-        training: r.training || "", qualifying: r.qualifying || "", renndauer: r.renndauer || "", wetter: r.wetter || "", server: r.server || "", briefing: r.briefing || "",
+        training: r.training || "", qualifying: r.qualifying || "", renndauer: r.renndauer || "", wetter: r.wetter || "", server: r.server || "", briefing: r.briefing || "", streckenHinweise: r.streckenHinweise || null,
         starter: starter.map(oeffentlich), warteliste: warteliste.map(oeffentlich),
         ich: eigen ? { status: iS >= 0 ? "starter" : "warteliste", platz: (iS >= 0 ? iS : iW) + 1, fahrzeugklasse: eigen.fahrzeugklasse, quelle: eigen.typ, ...(mitIds ? { discordId } : {}) } : null,
         passwort: iS >= 0 && r.passwort ? r.passwort : "",

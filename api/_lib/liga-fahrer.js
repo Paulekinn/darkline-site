@@ -22,7 +22,7 @@ const katFuerReports = (kat, liste) => mitCommunity(kat, (liste || []).filter(Co
 // Reports, Seasons und Discord-Rollen arbeiten weiter mit dem reinen Liga-Katalog.
 function mitCommunity(kat, liste) {
   const c = Community.alsKatalog(liste || []);
-  return { ...kat, serien: [...kat.serien, ...c.serien], rennen: [...kat.rennen, ...c.rennen] };
+  return { ...kat, serien: [...kat.serien, ...c.serien], rennen: [...kat.rennen, ...D.hinweiseAnhaengen(c.rennen, kat.strecken)] };
 }
 const TEAM_AKTIONEN = new Set(["team-gruenden", "team-beitreten", "team-anfragen", "team-anfrage-zurueck", "team-anfrage-entscheiden", "team-verlassen", "team-entfernen", "team-bearbeiten", "team-link-neu", "team-chef", "team-aufloesen", "team-logo", "team-logo-weg"]);
 const { klasseFuer } = require("../../assets/liga-wertung.js");

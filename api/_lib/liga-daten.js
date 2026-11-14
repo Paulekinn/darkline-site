@@ -224,8 +224,28 @@ function pruefeStrecke(e) {
   const laengeKm = laengeText ? Number(laengeText) : null;
   if (laengeKm !== null && !(laengeKm > 0 && laengeKm <= 50)) throw new Hinweis("Bitte gib die Länge in Kilometern an, zum Beispiel 7,004.");
   const kurvenText = String(e.kurven ?? "").trim();
-  return { name, variante: text(e.variante, 60), land, laengeKm, kurven: kurvenText ? ganzzahl(kurvenText, "Kurven", 1, 200) : null, notiz: text(e.notiz, 300) };
+  return { name, variante: text(e.variante, 60), land, laengeKm, kurven: kurvenText ? ganzzahl(kurvenText, "Kurven", 1, 200) : null, notiz: text(e.notiz, 300), hinweise: text(e.hinweise, 4000) };
 }
+
+// Streckenhinweise für Fahrer (Track Limits, Boxengasse …) hängen am Rennen, damit jede Ansicht sie mit dem Briefing zeigt.
+// Ligarennen sind über die Strecken-ID verknüpft. Ohne ID (z. B. Community-Rennen mit frei getipptem Namen) zählt der Name,
+// aber nur, wenn genau eine Strecke mit Hinweisen passt.
+const streckenName = (s) => [s.name, s.variante].filter(Boolean).join(" · ");
+function streckeZumRennen(r, strecken) {
+  const mitHinweisen = strecken.filter((s) => s.hinweise);
+  if (!mitHinweisen.length) return null;
+  if (r.streckeId) return mitHinweisen.find((s) => s.id === r.streckeId) || null;
+  const t = slug(r.strecke);
+  if (!t) return null;
+  const genau = mitHinweisen.filter((s) => [slug(s.name), slug(`${s.name} ${s.variante || ""}`)].includes(t));
+  if (genau.length === 1) return genau[0];
+  const aehnlich = mitHinweisen.filter((s) => { const n = slug(s.name); return n.length > 3 && (t.includes(n) || n.includes(t)); });
+  return aehnlich.length === 1 ? aehnlich[0] : null;
+}
+const hinweiseAnhaengen = (rennen, strecken) => rennen.map((r) => {
+  const s = streckeZumRennen(r, strecken || []);
+  return s ? { ...r, streckenHinweise: { name: streckenName(s), text: s.hinweise } } : r;
+});
 
 // Gleicht ein Ergebnis mit den Anmeldungen ab. Gewertet und gespeichert werden nur gemeldete Fahrer und ausdrücklich zugelassene Gäste.
 // gemeldet: Map iRacing-ID → Name. stammfahrer: iRacing-IDs der Season-Fahrer, alle anderen gelten als Gast. Bei Events null, dort gibt es keine Gäste.
@@ -358,7 +378,7 @@ function streckenZusammen(eigene, importiert) {
   const name = (s) => [s.name, s.variante].filter(Boolean).join(" ").toLowerCase();
   const ids = new Set(eigene.map((s) => s.id));
   const namen = new Set(eigene.map(name));
-  return [...eigene, ...importiert.filter((s) => !ids.has(s.id) && !namen.has(name(s))).map((s) => ({ land: "", laengeKm: null, kurven: null, notiz: "", ...s, importiert: true }))];
+  return [...eigene, ...importiert.filter((s) => !ids.has(s.id) && !namen.has(name(s))).map((s) => ({ land: "", laengeKm: null, kurven: null, notiz: "", hinweise: "", ...s, importiert: true }))];
 }
 
 // Serien und Rennen, kurz pro Funktionsinstanz zwischengespeichert. Nach eigenen Änderungen wird neu gelesen.
@@ -368,10 +388,10 @@ async function katalog(frisch) {
   const [serienRoh, rennenRoh, eigeneStrecken, importiert, einstellungen] = await Promise.all([ordner(`${WURZEL}serien/`), ordner(`${WURZEL}rennen/`), ordner(`${WURZEL}strecken/`), leseJson(STRECKEN_IMPORT), leseJson(`${WURZEL}einstellungen.json`)]);
   const strecken = streckenZusammen(eigeneStrecken, importiert || []);
   // Streckenkarte direkt am Rennen, damit jede Ansicht sie ohne weiteren Abruf zeigen kann
-  const rennen = rennenRoh.map((r) => {
+  const rennen = hinweiseAnhaengen(rennenRoh.map((r) => {
     const s = r.streckeId && strecken.find((x) => x.id === r.streckeId);
     return s && s.kartenVersion ? { ...r, streckenBild: { k: `strecke-${s.id}`, v: s.kartenVersion } } : r;
-  });
+  }), strecken);
   const serien = serienRoh.map((s) => ({ ...s, status: wirksamerStatus(s, rennen, Date.now()) }));
   katalogCache = { bis: Date.now() + 60000, wert: { serien, rennen, strecken, einstellungen: einstellungen || {} } };
   return katalogCache.wert;
@@ -426,4 +446,4 @@ async function tabelleNeu(serie, regeln, alleErgebnisse, rennen) {
   return warnungen;
 }
 
-module.exports = { istSichtung, wertungsErgebnisse, sichtungVorschlag, SICHTUNG_STANDARD, SICHTUNG_FELDER,pruefungNachRennen, strafkonten, streckenZusammen, streckenImportSpeichern, streckeAusImportEntfernen, datumPlus, rennenOhneErgebnis, wirksamerStatus, pruefeStrecke, streckeSpeichern, streckeLoeschen, serieDatenLoeschen, pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, privatAendern, jsonAendern, nochAktuell, nichtUeberschreiben, konflikt, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };
+module.exports = { hinweiseAnhaengen, streckeZumRennen, istSichtung, wertungsErgebnisse, sichtungVorschlag, SICHTUNG_STANDARD, SICHTUNG_FELDER,pruefungNachRennen, strafkonten, streckenZusammen, streckenImportSpeichern, streckeAusImportEntfernen, datumPlus, rennenOhneErgebnis, wirksamerStatus, pruefeStrecke, streckeSpeichern, streckeLoeschen, serieDatenLoeschen, pruefeBild, bildTyp, einstellungenSpeichern, bildSpeichern, bildLesen, bildLoeschen, abgleichen, ordner, Hinweis, istId, brauchtId, slug, pruefeSerie, pruefeRennen, oeffentlichesRennen, neueRennenId, katalog, katalogVerwerfen, serieSpeichern, rennenSpeichern, serieLoeschen, rennenLoeschen, tabelleLesen, privatLesen, privatSchreiben, privatAendern, jsonAendern, nochAktuell, nichtUeberschreiben, konflikt, ergebnisseLesen, ergebnisSpeichern, ergebnisLoeschen, tabelleNeu };

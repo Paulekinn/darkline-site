@@ -241,6 +241,8 @@
 .fb-briefing :first-child{margin-top:0}
 .fb-briefing :last-child{margin-bottom:0}
 .fb-briefing a{color:var(--ink)}
+.fb-hinweise-box{box-shadow:inset 3px 0 0 #ffb020}
+.fb-hinweise-box summary{color:#ffb020}
 
 /* Weitere Rennen nebeneinander */
 .fb-zwischen{margin:8px 0 0;font:900 1.05rem/1.1 var(--f-wide);font-variation-settings:"wdth" 116;text-transform:uppercase;transform:skewX(-8deg);transform-origin:left bottom}

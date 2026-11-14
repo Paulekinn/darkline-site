@@ -175,6 +175,8 @@ scripts/liga-test.js, scripts/liga-anmeldung-test.js   Tests (mit node ausführe
 
 **Reports und Urteile:** Fahrer melden Vorfälle im Fahrerbereich unter „Reports“, wenn sie im Rennen gestartet sind, bis zur Report-Frist der Serie (Standard 24 Stunden nach Rennende). Das League Team prüft sie unter `/liga-admin` → Reports und entscheidet: kein Vergehen, Verwarnung, Strafpunkte, Zeitstrafe oder Disqualifikation. Für eine Strafe muss das Ergebnis des Rennens eingelesen sein, die Tabelle rechnet sich danach selbst neu. Zeitstrafen wirken innerhalb der Fahrzeugklasse und nur bei Fahrern in der Führungsrunde, weil iRacing für Überrundete keinen Zeitabstand liefert. Beteiligte können einmal Einspruch einlegen (Standard 48 Stunden), danach ist das Urteil endgültig. Wer selbst an einem Vorfall beteiligt ist, kann nicht darüber entscheiden. Urteile sehen nur eingeloggte Fahrer, interne Notizen nur das League Team. Optional meldet `LIGA_DISCORD_WEBHOOK` Strafen kurz in einem Discord-Kanal.
 
+**Streckenhinweise:** Unter `/liga-admin` → Strecken hat jede Strecke ein Feld „Hinweise für Fahrer“ (Markdown, z. B. Track Limits, Boxengasse). Sie erscheinen bei jedem Rennen auf dieser Strecke unter dem Briefing im Fahrerbereich und in der Discord-Erinnerung am Renntag. Ligarennen sind über die gewählte Strecke aus der Bibliothek verknüpft, Community-Rennen über den Namen, aber nur, wenn genau eine Strecke mit Hinweisen passt. Die interne „Notiz für die Rennleitung“ bleibt intern.
+
 **Datenschutz:** Vor dem Start die Datenschutzerklärung um Fahrerbereich, Cookies, Fahrerdaten und Reports ergänzen.
 
 ## Lokal ansehen

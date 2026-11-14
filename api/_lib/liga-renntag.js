@@ -48,7 +48,7 @@ async function kalender(req, res) {
   // Community-Rennen kommen wie im Fahrerbereich dazu. Der Veranstalter hat sein eigenes Rennen auch ohne Anmeldung im Kalender.
   const c = Community.alsKatalog(community);
   const eigene = new Set(community.filter((a) => a.discordId === discordId).map(Community.rennenId));
-  const rennen = A.baueRennen([...kat.rennen, ...c.rennen], alle, { jetzt, schlussMinuten: 60, discordId, serien: serienMap([...kat.serien, ...c.serien]), auchVergangene: true })
+  const rennen = A.baueRennen([...kat.rennen, ...D.hinweiseAnhaengen(c.rennen, kat.strecken)], alle, { jetzt, schlussMinuten: 60, discordId, serien: serienMap([...kat.serien, ...c.serien]), auchVergangene: true })
     .filter((r) => new Date(r.start).getTime() > jetzt - 30 * 864e5)
     .map((r) => (!r.ich && eigene.has(r.id) ? { ...r, ich: { status: "veranstalter" } } : r));
   res.statusCode = 200;
@@ -79,6 +79,8 @@ function erinnerungKarte(r) {
       feld("Serie", r.serieName), feld("Start", `${berlinUhr(r.start)} Uhr`), feld("Strecke", r.strecke), feld("Gemeldet", gemeldet),
       ...(ablauf ? [feld("Ablauf", ablauf, false)] : []),
       ...(r.fahrzeuge ? [feld("Fahrzeuge", r.fahrzeuge, false)] : []),
+      // Streckenhinweise kommen aus der Streckenbibliothek, damit Discord und Fahrerbereich dasselbe sagen. Zu lange Texte werden gekürzt.
+      ...(r.streckenHinweise ? [feld(`Streckenhinweise ${r.streckenHinweise.name}`.slice(0, 256), String(r.streckenHinweise.text).length > 900 ? `${String(r.streckenHinweise.text).slice(0, 900).trim()} … [weiterlesen](${LINK}/fahrerbereich)` : r.streckenHinweise.text, false)] : []),
     ],
     footer: { text: r.zugangNoetig ? "Server und Passwort stehen im Fahrerbereich." : "Die Session findest du in iRacing bei unserer Liga." },
   };

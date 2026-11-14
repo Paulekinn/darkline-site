@@ -1826,8 +1826,8 @@ const tests = {
     assert.strictEqual(D.wirksamerStatus({ id: "gt3", status: "laeuft" }, [], 0), "laeuft");
   },
   "Strecke: gültige Angaben werden vereinheitlicht": () => {
-    assert.deepStrictEqual(D.pruefeStrecke({ name: " Spa ", variante: "GP", land: "BE", laengeKm: "7,004", kurven: "20", notiz: "" }), { name: "Spa", variante: "GP", land: "BE", laengeKm: 7.004, kurven: 20, notiz: "" });
-    assert.deepStrictEqual(D.pruefeStrecke({ name: "Monza" }), { name: "Monza", variante: "", land: "", laengeKm: null, kurven: null, notiz: "" });
+    assert.deepStrictEqual(D.pruefeStrecke({ name: " Spa ", variante: "GP", land: "BE", laengeKm: "7,004", kurven: "20", notiz: "", hinweise: " **Track Limits** " }), { name: "Spa", variante: "GP", land: "BE", laengeKm: 7.004, kurven: 20, notiz: "", hinweise: "**Track Limits**" });
+    assert.deepStrictEqual(D.pruefeStrecke({ name: "Monza" }), { name: "Monza", variante: "", land: "", laengeKm: null, kurven: null, notiz: "", hinweise: "" });
   },
   "Strecke: ungültige Angaben werden abgelehnt": () => {
     assert.throws(() => D.pruefeStrecke({ name: "x" }), /Namen/);
@@ -2040,6 +2040,35 @@ const tests = {
     assert.throws(() => D.pruefeRennen({ ...e, startzeit: "abends" }, ["gt3"]), /Startzeit/);
     const o = D.oeffentlichesRennen(r);
     assert.deepStrictEqual([o.passwort, o.briefing, o.server, o.titel], [undefined, undefined, undefined, "Runde 1"]);
+  },
+  "Streckenhinweise hängen am passenden Rennen": () => {
+    const strecken = [
+      { id: "spa-gp", name: "Circuit de Spa-Francorchamps", variante: "Grand Prix", hinweise: "Track Limits Eau Rouge" },
+      { id: "nring-gp", name: "Nürburgring", variante: "Grand Prix", hinweise: "GP-Hinweis" },
+      { id: "nring-nos", name: "Nürburgring", variante: "Nordschleife", hinweise: "NOS-Hinweis" },
+      { id: "monza", name: "Autodromo Nazionale Monza", variante: "Grand Prix", hinweise: "" },
+    ];
+    const [mitId, freiSpa, freiNring, ohneHinweis, fremd, falscheId] = D.hinweiseAnhaengen([
+      { id: "a", streckeId: "spa-gp", strecke: "egal" }, { id: "b", strecke: "Spa-Francorchamps" }, { id: "c", strecke: "Nürburgring" },
+      { id: "d", streckeId: "monza", strecke: "Monza" }, { id: "e", strecke: "Suzuka" }, { id: "f", streckeId: "monza", strecke: "Spa-Francorchamps" },
+    ], strecken);
+    assert.deepStrictEqual(mitId.streckenHinweise, { name: "Circuit de Spa-Francorchamps · Grand Prix", text: "Track Limits Eau Rouge" });
+    assert.strictEqual(freiSpa.streckenHinweise.text, "Track Limits Eau Rouge", "Frei getippter Name findet die eine passende Strecke");
+    assert.strictEqual(freiNring.streckenHinweise, undefined, "Zwei Varianten passen: lieber nichts als die falschen Hinweise");
+    assert.strictEqual(ohneHinweis.streckenHinweise, undefined);
+    assert.strictEqual(fremd.streckenHinweise, undefined);
+    assert.strictEqual(falscheId.streckenHinweise, undefined, "Mit Strecken-ID zählt nur die ID, nicht der Name");
+    assert.strictEqual(D.pruefeStrecke({ name: "Spa", hinweise: "x".repeat(5000) }).hinweise.length, 4000);
+  },
+  "Renntag-Erinnerung zeigt Streckenhinweise": () => {
+    const T = require("../api/_lib/liga-renntag");
+    const basis = { titel: "Rennen 1", serieName: "GT3", strecke: "Spa", start: iso(START), plaetze: 40, starter: [] };
+    const k = T.erinnerungKarte({ ...basis, streckenHinweise: { name: "Spa · GP", text: "Track Limits Eau Rouge" } });
+    const f = k.fields.find((x) => x.name === "Streckenhinweise Spa · GP");
+    assert.strictEqual(f.value, "Track Limits Eau Rouge");
+    const lang = T.erinnerungKarte({ ...basis, streckenHinweise: { name: "Spa", text: "a".repeat(2000) } }).fields.find((x) => x.name.startsWith("Streckenhinweise"));
+    assert.ok(lang.value.length <= 1024 && lang.value.includes("weiterlesen"));
+    assert.ok(!T.erinnerungKarte(basis).fields.some((x) => x.name.startsWith("Streckenhinweise")));
   },
   "Kennungen können keine Pfade verlassen": () => {
     assert.strictEqual(D.istId("../geheim"), false);

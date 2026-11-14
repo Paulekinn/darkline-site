@@ -783,7 +783,7 @@
           </div>`, "Session-Name und Passwort braucht es nur bei Events und Serien mit ein oder zwei Rennen, Ligen laufen über die iRacing-Liga. Das Passwort sehen nur Fahrer mit Startplatz, das Briefing nur angemeldete Fahrer.")}
         </div>
         <aside class="a-spalte">
-          ${abschnittForm(4, "Strecke", `${feld("Strecke", eingabe("strecke", w.strecke, 'maxlength="80" list="a-strecken" id="r-strecke" autocomplete="off" placeholder="Name eintippen"'))}<div id="a-karte-vorschau">${kartenVorschau(karte)}</div>`, "Strecken aus der Bibliothek bringen ihre Streckenkarte automatisch mit.")}
+          ${abschnittForm(4, "Strecke", `${feld("Strecke", eingabe("strecke", w.strecke, 'maxlength="80" list="a-strecken" id="r-strecke" autocomplete="off" placeholder="Name eintippen"'))}<div id="a-karte-vorschau">${kartenVorschau(karte)}</div>`, "Strecken aus der Bibliothek bringen ihre Streckenkarte und ihre Fahrerhinweise automatisch mit. Die Hinweise erscheinen unter dem Briefing.")}
         </aside>
       </div>
       <section class="a-checkliste" aria-live="polite"><h3>Vor dem Speichern</h3><ul id="a-rennen-check"></ul></section>
@@ -885,14 +885,16 @@
         ${feld("Kurven", eingabe("kurven", w.kurven ?? "", 'type="number" min="1"'))}
         ${feld("Notiz für die Rennleitung", eingabe("notiz", w.notiz, 'maxlength="300"'), true)}
       </div>`)}
-      ${abschnittForm(2, "Streckenkarte", form.id ? bildFeld(`strecke:${form.id}`) : '<p class="a-hinweis">Nach dem Speichern kannst du direkt die Karte hochladen.</p>')}
+      ${abschnittForm(2, "Hinweise für Fahrer", `${feld("Streckenhinweise (Markdown)", `<textarea name="hinweise" maxlength="4000" placeholder="**Track Limits:** z. B. Ausgang Kurve 4 und letzte Schikane, alle vier Räder neben der weißen Linie gelten als Verstoß.&#10;&#10;**Boxeneinfahrt:** z. B. durchgezogene Linie nicht überfahren.">${esc(w.hinweise || "")}</textarea>`, true)}
+        <p class="a-hinweis">Erscheinen öffentlich bei jedem Rennen auf dieser Strecke unter dem Briefing, in Seasons, Events und Community-Rennen. Eine Änderung gilt sofort für alle Rennen hier.</p>`)}
+      ${abschnittForm(3, "Streckenkarte", form.id ? bildFeld(`strecke:${form.id}`) : '<p class="a-hinweis">Nach dem Speichern kannst du direkt die Karte hochladen.</p>')}
       ${formLeiste("Strecke speichern", form.id ? '<button type="button" class="a-knopf gefahr" data-strecke-loeschen="1">Löschen</button>' : "")}
     </form>`;
   }
 
   const STRECKEN_SEITE = 48;
   const einsaetzeJeStrecke = () => d.rennen.reduce((m, r) => (r.streckeId ? m.set(r.streckeId, (m.get(r.streckeId) || 0) + 1) : m), new Map());
-  const STRECKEN_FILTER = { alle: () => true, karte: (s) => !!s.kartenVersion, ohne: (s) => !s.kartenVersion };
+  const STRECKEN_FILTER = { alle: () => true, karte: (s) => !!s.kartenVersion, ohne: (s) => !s.kartenVersion, hinweise: (s) => !!s.hinweise };
 
   function streckenListe() {
     const einsaetze = einsaetzeJeStrecke();
@@ -905,7 +907,7 @@
     if (!treffer.length) return '<p class="a-leer">Keine Strecke gefunden.</p>';
     const karten = (streckenAlle ? treffer : treffer.slice(0, STRECKEN_SEITE)).map((s) => {
       const anzahl = einsaetze.get(s.id) || 0;
-      const daten = [s.laengeKm ? `${String(s.laengeKm).replace(".", ",")} km` : "", s.kurven ? `${s.kurven} Kurven` : "", anzahl ? `${anzahl}× im Kalender` : ""].filter(Boolean).join(" · ");
+      const daten = [s.laengeKm ? `${String(s.laengeKm).replace(".", ",")} km` : "", s.kurven ? `${s.kurven} Kurven` : "", anzahl ? `${anzahl}× im Kalender` : "", s.hinweise ? "Mit Fahrerhinweisen" : ""].filter(Boolean).join(" · ");
       return `<button type="button" class="a-strecke" data-strecke-bearbeiten="${esc(s.id)}">
         <span class="a-strecke-karte">${s.kartenVersion ? `<img src="${esc(streckeBild(s))}" alt="" loading="lazy">` : "<em>Keine Karte</em>"}</span>
         <span class="a-strecke-text"><b>${window.LigaKarte.flagge(s.land)}${esc(s.name)}</b>${s.variante ? `<small>${esc(s.variante)}</small>` : ""}${daten ? `<small>${esc(daten)}</small>` : ""}</span>
@@ -919,7 +921,7 @@
   function streckenTab() {
     const einsaetze = einsaetzeJeStrecke();
     const anzahl = (f) => d.strecken.filter(f).length;
-    const chips = [["alle", "Alle", d.strecken.length], ["karte", "Mit Karte", anzahl(STRECKEN_FILTER.karte)], ["ohne", "Ohne Karte", anzahl(STRECKEN_FILTER.ohne)], ["kalender", "Im Kalender", anzahl((s) => einsaetze.has(s.id))]].map(([id, t, n]) => `<button type="button" class="a-filter" data-strecken-filter="${id}" aria-pressed="${streckenFilter === id}">${t} ${n}</button>`).join("");
+    const chips = [["alle", "Alle", d.strecken.length], ["karte", "Mit Karte", anzahl(STRECKEN_FILTER.karte)], ["ohne", "Ohne Karte", anzahl(STRECKEN_FILTER.ohne)], ["hinweise", "Mit Hinweisen", anzahl(STRECKEN_FILTER.hinweise)], ["kalender", "Im Kalender", anzahl((s) => einsaetze.has(s.id))]].map(([id, t, n]) => `<button type="button" class="a-filter" data-strecken-filter="${id}" aria-pressed="${streckenFilter === id}">${t} ${n}</button>`).join("");
     return `${form && form.art === "strecke" ? streckenForm() : ""}
       <section class="a-karte"><div class="a-kartenkopf"><h2>Streckenbibliothek</h2><div class="a-leiste"><button type="button" class="a-knopf zweit" data-strecken-import="1">Aus Garage 61 importieren</button><button type="button" class="a-knopf" data-strecke-neu="1">Neue Strecke</button></div></div>
       <p class="a-hinweis">Einmal anlegen, in jeder Saison wiederverwenden. Die Karte erscheint automatisch beim Rennen und im Fahrerbereich. Öffne eine Strecke, um ihre Karte aus einer Team-Runde zu erzeugen.</p>

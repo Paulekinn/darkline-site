@@ -24,6 +24,7 @@
   let beschaeftigt = false;
   let profilOffen = false;
   let briefingOffen = false;
+  let hinweiseOffen = true; // Streckenhinweise sind kurz und wichtig, deshalb zuerst offen
   let starterOffen = false;
   let ansicht = "rennen";  // "rennen" oder "reports"
   let reportEntwurf = {};
@@ -134,7 +135,7 @@
     const schritte = [
       ["Profil", stand.fahrer.profil ? "on" : ""],
       ["Gemeldet", r.ich ? (r.ich.status === "starter" ? "on" : "warte") : ""],
-      ["Briefing", r.briefing ? "on" : ""],
+      ["Briefing", r.briefing || r.streckenHinweise ? "on" : ""],
       ...(zeigeZugang(r) ? [["Zugangsdaten", r.passwort ? "on" : ""]] : []),
     ];
     const text = { on: "erledigt", warte: "Warteliste", "": "noch offen" };
@@ -160,6 +161,7 @@
         ${fakt("Belegung", belegung(r))}${fakt("Fahrzeuge", r.fahrzeuge)}${fakt("Training", r.training)}${fakt("Qualifying", r.qualifying)}${fakt("Rennen", r.renndauer)}${fakt("Wetter", r.wetter)}${fakt("Session", r.server)}${fakt("Passwort", passwort, "geheim")}
       </dl>
       <details class="fb-briefing-box"${briefingOffen ? " open" : ""}><summary>${r.community ? "Beschreibung des Veranstalters" : "Briefing und Renninfos"}</summary><div class="fb-briefing">${r.briefing ? md(r.briefing) : "<p>Das Briefing folgt vor dem Rennen.</p>"}</div></details>
+      ${r.streckenHinweise ? `<details class="fb-briefing-box fb-hinweise-box"${hinweiseOffen ? " open" : ""}><summary>Streckenhinweise · ${esc(r.streckenHinweise.name)}</summary><div class="fb-briefing">${md(r.streckenHinweise.text)}</div></details>` : ""}
       ${starterBlock(r)}
     </article>`;
   }
@@ -543,6 +545,8 @@
     const profilPanel = `<section class="fb-panel${f.profil ? "" : " fb-panel-wichtig"}"><h3>${!f.profil ? "Als Fahrer registrieren" :profilOffen ? "Profil ändern" : "Dein Profil"}</h3>${profilNoetig ? profilForm() : profilAnsicht()}</section>`;
     const box = main.querySelector(".fb-briefing-box");
     if (box) briefingOffen = box.open;
+    const hinweiseBox = main.querySelector(".fb-hinweise-box");
+    if (hinweiseBox) hinweiseOffen = hinweiseBox.open;
     const starterBox = main.querySelector(".fb-starter-box");
     if (starterBox) starterOffen = starterBox.open;
     const leerText = filter === "meine" ? "Du bist noch für kein Rennen gemeldet. Melde dich rechts für eine Serie an oder schau unter „Alle“." : "Hier ist gerade kein Rennen geplant. Neue Termine erscheinen hier und im Discord.";

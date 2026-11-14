@@ -131,7 +131,7 @@ const rennenFinden = (kat, id) => {
   return r;
 };
 // Die Streckenkarte wird beim Lesen ergänzt und gehört nicht in die Datei.
-const rennenDaten = ({ streckenBild, ...r }) => r;
+const rennenDaten = ({ streckenBild, streckenHinweise, ...r }) => r;
 
 /* ---------- Änderungsprotokoll: jede Aktion steht im Dateinamen, eine Abfrage liefert alle Einträge ---------- */
 const PROTOKOLL = "liga-protokoll/";
@@ -637,7 +637,7 @@ const aktionen = {
     if (id) {
       const bisher = kat.rennen.find((r) => r.id === id);
       if (!bisher) throw new Hinweis("Dieses Rennen gibt es nicht.");
-      D.nichtUeberschreiben(b.vorher, bisher, ["streckenBild"], "Dieses Rennen");
+      D.nichtUeberschreiben(b.vorher, bisher, ["streckenBild", "streckenHinweise"], "Dieses Rennen");
     } else id = D.neueRennenId(daten);
     await D.rennenSpeichern(id, daten);
     // Wird ein Rennen zur Sichtung, wieder zum Wertungsrennen oder einer anderen Serie zugeordnet, ändert sich die Tabelle.
