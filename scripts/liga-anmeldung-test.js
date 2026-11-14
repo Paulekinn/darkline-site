@@ -993,6 +993,116 @@ const tests = {
       for (const k of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
     }
   },
+  "Community-Rennen: Eingaben prüfen und Überschneidungen finden": () => {
+    const C = require("../api/_lib/liga-community");
+    const jetzt = Date.UTC(2026, 10, 14, 12, 0);
+    const gut = { titel: "Spa Night Sprint", datum: "2026-11-25", uhrzeit: "20:00", strecke: "Spa", fahrzeugklasse: "GT3", dauer: 45, beschreibung: "Lockerer Sprint am Abend für alle Klassen." };
+    const a = C.pruefe(gut, jetzt);
+    assert.strictEqual(a.start, "2026-11-25T19:00:00.000Z");
+    assert.deepStrictEqual([a.art, a.zugang, a.quali], ["einzel", "offen", false]);
+    assert.throws(() => C.pruefe({ ...gut, datum: "2026-11-17" }, jetzt), /mindestens 5 Tage/);
+    assert.throws(() => C.pruefe({ ...gut, datum: "2027-12-01" }, jetzt), /nächsten 180 Tagen/);
+    assert.throws(() => C.pruefe({ ...gut, titel: "X" }, jetzt), /Titel/);
+    assert.throws(() => C.pruefe({ ...gut, dauer: 5 }, jetzt), /Renndauer/);
+    assert.throws(() => C.pruefe({ ...gut, beschreibung: "kurz" }, jetzt), /beschreibe/);
+    // Überschneidung: Liga-Rennen 20:30 überschneidet sich, 21:00 (nach 45 Minuten) und abgesagte nicht
+    const rennen = [
+      { serie: "gt3", titel: "R1", datum: "2026-11-25", startzeit: "20:30", renndauer: "60 min" },
+      { serie: "gt3", titel: "R2", datum: "2026-11-25", startzeit: "21:00", renndauer: "60 min" },
+      { serie: "gt3", titel: "R3", datum: "2026-11-25", startzeit: "20:00", status: "abgesagt" },
+    ];
+    assert.deepStrictEqual(C.kollisionen(a, rennen, [{ id: "gt3", name: "GT3 Sprint" }]), ["GT3 Sprint: R1"]);
+  },
+  "Community-Rennen: beantragen, ein offener Antrag, zurückziehen, entscheiden": async () => {
+    const C = require("../api/_lib/liga-community");
+    const Admin = require("../api/_lib/liga-admin");
+    assert.ok(!Admin.STEWARD_AKTIONEN.has("community-entscheiden"), "Stewards entscheiden nicht über Community-Rennen");
+    const alt = { fetch: global.fetch, env: { ...process.env } };
+    Object.assign(process.env, { SUPABASE_URL: "https://speicher.example", SUPABASE_SECRET_KEY: "k" });
+    const db = new Map();
+    let uhr = 0;
+    global.fetch = async (url, init = {}) => {
+      const u = new URL(String(url));
+      const p = u.searchParams.get("pfad") || "";
+      const antwort = (daten) => ({ ok: true, json: async () => daten, text: async () => "" });
+      if (!init.method || init.method === "GET") {
+        if (p.startsWith("like.")) { const pre = p.slice(5).replace(/\*$/, "").replace(/\\(.)/g, "$1"); return antwort([...db].filter(([k]) => k.startsWith(pre)).map(([pfad, z]) => ({ pfad, ...z }))); }
+        const z = db.get(p.slice(3)); return antwort(z ? [z] : []);
+      }
+      if (init.method === "POST") { const [z] = JSON.parse(init.body); if (db.has(z.pfad)) return antwort([]); db.set(z.pfad, { inhalt: z.inhalt, binaer: false, geaendert: new Date(++uhr * 1000).toISOString() }); return antwort([{ pfad: z.pfad }]); }
+      if (init.method === "PATCH") { const pfad = p.slice(3); const z = db.get(pfad); if (!z || `eq.${z.geaendert}` !== u.searchParams.get("geaendert")) return antwort([]); db.set(pfad, { ...z, ...JSON.parse(init.body), geaendert: new Date(++uhr * 1000).toISOString() }); return antwort([{ pfad }]); }
+      if (init.method === "DELETE") { for (const k of [...db.keys()]) if (p.includes(`"${k}"`)) db.delete(k); return antwort([]); }
+      throw new Error("unerwartet");
+    };
+    const tag = new Date(Date.now() + 10 * 864e5).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+    const eingabe = { titel: "Nordschleife Fun Race", datum: tag, uhrzeit: "19:30", strecke: "Nordschleife", fahrzeugklasse: "Mazda MX-5", dauer: 60, art: "team", quali: true, beschreibung: "Teamrennen über eine Stunde, offen für alle." };
+    const anna = { iracingName: "Anna", nummer: 12, custId: "11" };
+    const kat = { rennen: [], serien: [] };
+    try {
+      await assert.rejects(C.aktion("community-beantragen", "111111", null, eingabe, kat), /registriere dich/);
+      const { karte } = await C.aktion("community-beantragen", "111111", anna, eingabe, kat);
+      assert.strictEqual(karte.title, "Community-Rennen beantragt");
+      await assert.rejects(C.aktion("community-beantragen", "111111", anna, eingabe, kat), /schon einen offenen Antrag/);
+      let [antrag] = await C.alle(true);
+      assert.deepStrictEqual([antrag.status, antrag.art, antrag.quali, antrag.name], ["offen", "team", true, "Anna"]);
+      // Der Fahrer sieht seinen Antrag ohne Discord-ID, andere sehen ihn nicht
+      const sicht = C.eigene(await C.alle(true), "111111");
+      assert.strictEqual(sicht.length, 1);
+      assert.ok(!("discordId" in sicht[0]));
+      assert.strictEqual(C.eigene(await C.alle(true), "222222").length, 0);
+      // Nur der eigene Antrag lässt sich zurückziehen
+      await C.aktion("community-zurueck", "222222", null, { id: antrag.id });
+      assert.strictEqual((await C.alle(true)).length, 1);
+      await C.aktion("community-zurueck", "111111", anna, { id: antrag.id });
+      assert.strictEqual((await C.alle(true)).length, 0);
+      // Freigabe braucht eine Stewarding-Wahl, danach kein Zurückziehen und keine zweite Entscheidung
+      await C.aktion("community-beantragen", "111111", anna, eingabe, kat);
+      [antrag] = await C.alle(true);
+      await assert.rejects(C.entscheiden(antrag.id, { ja: true, stewarding: "" }, "Leitung"), /Stewarding/);
+      const frei = await C.entscheiden(antrag.id, { ja: true, stewarding: "darkline", sponsored: true }, "Leitung");
+      assert.deepStrictEqual([frei.status, frei.entscheid.stewarding, frei.entscheid.sponsored], ["freigegeben", "darkline", true]);
+      assert.ok(/Stewarding durch Darkline/.test(C.freigabeText(frei)) && /Darkline Sponsored/.test(C.freigabeText(frei)));
+      await assert.rejects(C.aktion("community-zurueck", "111111", anna, { id: antrag.id }), /schon entschieden/);
+      await assert.rejects(C.entscheiden(antrag.id, { ja: false }, "Leitung"), /nicht mehr vor/);
+      assert.strictEqual(C.offeneFuerCockpit(await C.alle(true), kat).length, 0);
+      // Nach der Freigabe ist ein neuer Antrag möglich, Ablehnung mit Grund
+      await C.aktion("community-beantragen", "111111", anna, { ...eingabe, titel: "Zweites Rennen" }, kat);
+      const offen = C.offeneFuerCockpit(await C.alle(true), kat);
+      assert.deepStrictEqual(offen.map((x) => x.titel), ["Zweites Rennen"]);
+      const nein = await C.entscheiden(offen[0].id, { ja: false, grund: "Termin passt nicht" }, "Leitung");
+      assert.strictEqual(nein.status, "abgelehnt");
+      assert.ok(/Grund: Termin passt nicht/.test(C.ablehnungText(nein, nein.entscheid.grund)));
+      assert.deepStrictEqual(C.eigene(await C.alle(true), "111111").map((x) => x.status), ["freigegeben", "abgelehnt"]);
+
+      // Banner: nur echte Bilder, beim Antrag oder danach, nach der Freigabe mit Meldung, nicht bei abgelehnten Anträgen
+      const webp = Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WEBPVP8 "), Buffer.alloc(24)]);
+      const bild = `data:image/webp;base64,${webp.toString("base64")}`;
+      const bannerDa = (id) => [...db.keys()].some((k) => k.includes(`community-${id}`));
+      await assert.rejects(C.aktion("community-beantragen", "222222", { iracingName: "Ben", nummer: 7 }, { ...eingabe, banner: "data:image/webp;base64,AAAA" }, kat), /kein gültiges Bild/);
+      assert.ok(!(await C.alle(true)).some((x) => x.name === "Ben"), "Ein ungültiger Banner hinterlässt keinen Antrag");
+      await C.aktion("community-beantragen", "222222", { iracingName: "Ben", nummer: 7 }, { ...eingabe, banner: bild }, kat);
+      const ben = (await C.alle(true)).find((x) => x.name === "Ben");
+      assert.ok(/^[0-9a-f]{6}$/.test(ben.banner) && bannerDa(ben.id));
+      assert.ok(C.meldungKarte(ben).image.url.includes(`community-${ben.id}`));
+      await assert.rejects(C.aktion("community-banner", "111111", anna, { id: ben.id, daten: bild }), /gibt es nicht/);
+      // Zurückziehen räumt den Banner mit weg
+      await C.aktion("community-zurueck", "222222", null, { id: ben.id });
+      assert.ok(!bannerDa(ben.id));
+      // Nach der Freigabe: Banner ändern meldet an die Rennleitung, die ihn entfernen kann
+      const ohne = await C.aktion("community-banner", "111111", anna, { id: frei.id, daten: bild });
+      assert.strictEqual(ohne.karte.title, "Community-Rennen: neuer Banner");
+      assert.deepStrictEqual(C.kommendeMitBanner(await C.alle(true)).map((x) => x.id), [frei.id]);
+      const weg = await C.adminBannerWeg(frei.id);
+      assert.ok(!weg.banner && !bannerDa(frei.id));
+      assert.ok(/entfernt/.test(C.bannerEntferntText(weg)));
+      await assert.rejects(C.adminBannerWeg(frei.id), /schon entfernt/);
+      await assert.rejects(C.aktion("community-banner", "111111", anna, { id: nein.id, daten: bild }), /nur bis zum Start/);
+      assert.strictEqual(C.bannerAenderbar({ status: "freigegeben", start: new Date(Date.now() - 1000).toISOString() }), false);
+    } finally {
+      global.fetch = alt.fetch;
+      for (const k of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
+    }
+  },
   "Fahrerübersicht: Teammitglieder erscheinen mit Team, auch ohne Rennen": () => {
     const P = require("../api/_lib/liga-profil");
     const T = require("../api/_lib/liga-teams");

@@ -1,4 +1,4 @@
-// Fahrerbereich der Liga. GET: Dashboard · POST { aktion }: profil, anmelden, abmelden, serie-anmelden, serie-abmelden, serie-anfragen, serie-anfrage-zurueck, logout
+// Fahrerbereich der Liga. GET: Dashboard · POST { aktion }: profil, anmelden, abmelden, serie-anmelden, serie-abmelden, serie-anfragen, serie-anfrage-zurueck, community-beantragen, community-zurueck, team-…, logout
 // Ligafahrer haben ein eigenes Cookie (dpm_liga) und damit keinen Zugang zum Teambereich.
 const { getLigaSession, clearLigaSession, fahrerKennung, kalenderSchluessel } = require("./session");
 const P = require("./liga-profil");
@@ -12,6 +12,8 @@ const F = require("./liga-fahrzeuge");
 const Sichtung = require("./liga-sichtung");
 const Anfragen = require("./liga-anfragen");
 const Teams = require("./liga-teams");
+const Community = require("./liga-community");
+const COMMUNITY_AKTIONEN = new Set(["community-beantragen", "community-zurueck", "community-banner", "community-banner-weg"]);
 const TEAM_AKTIONEN = new Set(["team-gruenden", "team-beitreten", "team-anfragen", "team-anfrage-zurueck", "team-anfrage-entscheiden", "team-verlassen", "team-entfernen", "team-bearbeiten", "team-link-neu", "team-chef", "team-aufloesen", "team-logo", "team-logo-weg"]);
 const { klasseFuer } = require("../../assets/liga-wertung.js");
 
@@ -71,7 +73,7 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
   // Fahrzeug je Season mit Fahrzeugwahl, in der der Fahrer gemeldet ist
   const mitWahl = kat.serien.filter((x) => (x.modelle || []).length && x.status !== "beendet" && alle.some((e) => e.typ === "serie" && e.serieId === x.id && e.discordId === s.id));
   // Die Abfragen hängen nicht voneinander ab und laufen deshalb gleichzeitig.
-  const [oeffentlich, wunsch, tabellen, reports, fahrzeuge, sichtungOffen, anfragen, imTeam, teams] = await Promise.all([
+  const [oeffentlich, wunsch, tabellen, reports, fahrzeuge, sichtungOffen, anfragen, imTeam, teams, community] = await Promise.all([
     pid ? P.angabenVon(pid).catch(() => null) : null,
     P.wunschLesen(s.id).catch(() => null),
     profil ? laufendeTabellen(kat) : null,
@@ -83,6 +85,7 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
     // Garage-61-Team: kurz zwischengespeichert, ohne Antwort bleibt der Stand offen (null).
     profil ? Sichtung.imTeam(profil.iracingName) : false,
     Teams.alle(frisch).catch(() => []),
+    Community.alle(frisch).catch(() => []),
   ]);
   const meinTeam = Teams.teamVon(teams, s.id);
   return res.status(200).json({
@@ -99,6 +102,8 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
     teamAnfragen: teams.filter((t) => (t.anfragen || []).some((a) => a.discordId === s.id)).map((t) => t.id),
     teams: Teams.kurzliste(teams),
     teamMax: Teams.MAX_MITGLIEDER,
+    // Community-Rennen: eigene Anträge und Streckennamen als Vorschläge fürs Formular
+    community: { antraege: Community.eigene(community, s.id), vorlaufTage: Community.VORLAUF_TAGE, strecken: [...new Set(kat.strecken.map((x) => x.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de")) },
     meineKarten: profil ? A.eigeneKarten(kat.serien, tabellen, profil.iracingName, pid) : [],
     serien: A.baueSerien(kat.serien, alle, { discordId: s.id, profil, klasseFuer, anfragen }),
     // Termine beendeter Serien gehören nicht mehr in den Fahrerbereich.
@@ -383,6 +388,10 @@ module.exports = async (req, res) => {
     await reportMelden(s, profil, body, alle, kat);
   } else if (body.aktion === "report-einspruch") {
     await reportEinspruch(s, profil, body, kat);
+  } else if (COMMUNITY_AKTIONEN.has(body.aktion)) {
+    // Die Meldung an die Rennleitung darf scheitern, der Antrag ist trotzdem gespeichert und steht im Cockpit.
+    const ergebnis = await Community.aktion(body.aktion, s.id, profil, body, kat);
+    if (ergebnis && ergebnis.karte) await R.teamMelden(ergebnis.karte).catch(() => {});
   } else if (TEAM_AKTIONEN.has(body.aktion)) {
     // Die Direktnachricht an Teamchef oder Fahrer darf scheitern, die Aktion gilt trotzdem.
     const nachricht = await Teams.aktion(body.aktion, s.id, profil, body);

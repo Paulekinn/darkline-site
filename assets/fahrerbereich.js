@@ -396,7 +396,7 @@
     const p = stand.fahrer.profil;
     const profilOffen_ = !profilFertig() || typeof p.uebersicht !== "boolean" ? 1 : 0;
     const teamAnfragen = stand.team && stand.team.istChef ? (stand.team.anfragen || []).length : 0;
-    return `<div class="fb-ansicht" role="group" aria-label="Ansicht wählen">${reiter("rennen", "Rennen", 0)}${reiter("profil", "Profil", profilOffen_, !profilFertig() ? "Registrierung fehlt noch" : "Frage zur Fahrerübersicht offen")}${reiter("team", "Team", teamAnfragen, `${teamAnfragen} offene ${teamAnfragen === 1 ? "Anfrage" : "Anfragen"}`)}${reiter("reports", "Reports", offen, `${offen} ${offen === 1 ? "Urteil" : "Urteile"} mit möglichem Einspruch`)}${(stand.sichtung || []).length ? reiter("sichtung", "Sichtung", sichtungOffen, `${sichtungOffen} ${sichtungOffen === 1 ? "Strecke" : "Strecken"} noch abzugeben`) : ""}</div>`;
+    return `<div class="fb-ansicht" role="group" aria-label="Ansicht wählen">${reiter("rennen", "Rennen", 0)}${reiter("profil", "Profil", profilOffen_, !profilFertig() ? "Registrierung fehlt noch" : "Frage zur Fahrerübersicht offen")}${reiter("team", "Team", teamAnfragen, `${teamAnfragen} offene ${teamAnfragen === 1 ? "Anfrage" : "Anfragen"}`)}${reiter("community", "Veranstalten", 0)}${reiter("reports", "Reports", offen, `${offen} ${offen === 1 ? "Urteil" : "Urteile"} mit möglichem Einspruch`)}${(stand.sichtung || []).length ? reiter("sichtung", "Sichtung", sichtungOffen, `${sichtungOffen} ${sichtungOffen === 1 ? "Strecke" : "Strecken"} noch abzugeben`) : ""}</div>`;
   }
 
   /* ---------- Sichtung: nur die eigenen Werte, erst beim Öffnen aus Garage 61 geladen ---------- */
@@ -546,6 +546,13 @@
       </div>`);
       return;
     }
+    if (ansicht === "community") {
+      main.innerHTML = rahmen(`<div class="fb-raster">
+        <div class="fb-haupt-spalte">${communityPanel()}</div>
+        <aside class="fb-seiten-spalte">${communityHinweis()}</aside>
+      </div>`);
+      return;
+    }
     main.innerHTML = `${kopf}<section class="sheet"><div class="wrap">
       <div class="fb-leiste">${ansichtWahl()}${filterChips()}</div>
       <p class="fb-meldung" id="fb-meldung" role="alert" hidden></p>
@@ -662,6 +669,107 @@
     const u = new URL(location.href); u.searchParams.delete("team"); history.replaceState(null, "", u);
   };
 
+  /* ---------- Community-Rennen: eigenes Rennen beantragen, die Rennleitung entscheidet ---------- */
+  let communityEntwurf = {};
+  let communityBanner = ""; // vorbereiteter Banner fürs Formular (data:-URL), bleibt bei einem Fehler erhalten
+  const BANNER_HINWEIS = "Querformat, wird auf 1600 × 900 Pixel zugeschnitten. Nur eigene Bilder oder Bilder, die du verwenden darfst, keine fremden Logos.";
+  const bannerBild = (a) => `api/liga?r=bild&k=community-${encodeURIComponent(a.id)}&v=${encodeURIComponent(a.banner)}`;
+
+  // Banner auf 1600 × 900 bringen: füllt die Fläche, überstehende Ränder werden mittig abgeschnitten.
+  async function bannerVorbereiten(datei) {
+    const url = URL.createObjectURL(datei);
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      const b = 1600, h = 900;
+      const c = document.createElement("canvas");
+      c.width = b; c.height = h;
+      const ctx = c.getContext("2d");
+      const w = img.naturalWidth || b, hh = img.naturalHeight || h;
+      const faktor = Math.max(b / w, h / hh);
+      ctx.fillStyle = "#0b0d0e"; ctx.fillRect(0, 0, b, h);
+      ctx.drawImage(img, Math.round((b - w * faktor) / 2), Math.round((h - hh * faktor) / 2), Math.round(w * faktor), Math.round(hh * faktor));
+      const webp = c.toDataURL("image/webp").startsWith("data:image/webp");
+      for (const q of [0.85, 0.75, 0.6, 0.45]) {
+        const daten = c.toDataURL(webp ? "image/webp" : "image/jpeg", q);
+        if (daten.length < 1300000) return daten;
+      }
+      throw new Error("zu gross");
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+  const COMMUNITY_STATUS = { offen: ["warteliste", "Wartet auf Entscheidung"], freigegeben: ["starter", "Freigegeben"], abgelehnt: ["abgesagt", "Abgelehnt"] };
+  const STEWARDING = { darkline: "Stewarding durch Darkline", eigene: "Auf eigene Verantwortung" };
+  const tagPlus = (n) => new Date(Date.now() + n * 864e5).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+
+  function communityKarte(a) {
+    const [klasse, text] = COMMUNITY_STATUS[a.status] || ["", a.status];
+    const e = a.entscheid;
+    const format = [`${a.dauer} min`, a.quali ? "mit Quali" : "", a.art === "team" ? "Teamrennen" : "Einzelrennen", a.zugang === "einladung" ? "auf Einladung" : "offen für alle"].filter(Boolean).join(" · ");
+    const entscheid = a.status === "freigegeben" && e ? `<p class="fb-klein">${esc(STEWARDING[e.stewarding] || "")}${e.sponsored ? " · ⭐ Darkline Sponsored" : ""}</p>` : a.status === "abgelehnt" && e && e.grund ? `<p class="fb-klein">Grund: ${esc(e.grund)}</p>` : "";
+    const bannerTeil = a.bannerAenderbar
+      ? `<div class="fb-kalender"><label class="fb-abmelden fb-datei">${a.banner ? "Anderen Banner hochladen" : "Banner hochladen"}<input type="file" accept="image/png,image/jpeg,image/webp" data-community-banner="${esc(a.id)}" hidden></label>${a.banner ? `<button type="button" class="fb-abmelden" data-community-banner-weg="${esc(a.id)}">Banner entfernen</button>` : ""}</div>${a.status === "freigegeben" ? '<p class="fb-klein">Ein neuer Banner ist sofort sichtbar. Die Rennleitung wird informiert und kann ihn entfernen.</p>' : ""}`
+      : "";
+    return `<article class="fb-fall">
+      ${a.banner ? `<img class="fb-community-banner" src="${esc(bannerBild(a))}" alt="Banner ${esc(a.titel)}" width="1600" height="900" loading="lazy" style="display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:6px;margin-bottom:12px">` : ""}
+      <div class="fb-fall-kopf"><div><h3>${esc(a.titel)}</h3><p class="fb-klein">${esc(datum(a.start))}, ${esc(uhr(a.start))} · ${esc(a.strecke)} · ${esc(a.fahrzeugklasse)}</p></div><span class="fb-status ${klasse}">${esc(text)}</span></div>
+      <p class="fb-klein">${esc(format)}</p>
+      <p class="fb-fall-text">${esc(a.beschreibung)}</p>${entscheid}
+      ${bannerTeil}
+      ${a.status === "offen" ? `<p class="fb-profil-link"><button type="button" class="fb-link" data-community-zurueck="${esc(a.id)}">Antrag zurückziehen</button></p>` : ""}
+    </article>`;
+  }
+
+  // Eingaben sichern, bevor die Seite neu gezeichnet wird (etwa nach der Bildwahl)
+  function communityEntwurfMerken() {
+    const f = $("fb-community");
+    if (f) communityEntwurf = { ...Object.fromEntries([...new FormData(f).entries()].filter(([, v]) => typeof v === "string")), quali: f.elements.quali.checked };
+  }
+
+  function communityForm() {
+    const c = stand.community || {};
+    const w = communityEntwurf;
+    const vorlauf = c.vorlaufTage || 5;
+    const opt = (wert, liste) => liste.map(([v, t]) => `<option value="${v}"${(w[wert] || liste[0][0]) === v ? " selected" : ""}>${t}</option>`).join("");
+    return `<form class="fb-profil" id="fb-community" novalidate>
+      <div class="fb-feld"><label for="c-titel">Titel</label><input id="c-titel" name="titel" maxlength="60" placeholder="z. B. Spa Night Sprint" value="${esc(w.titel || "")}"></div>
+      <div class="fb-feld"><label for="c-datum">Datum</label><input id="c-datum" name="datum" type="date" min="${tagPlus(vorlauf)}" value="${esc(w.datum || "")}"></div>
+      <div class="fb-feld"><label for="c-uhr">Startzeit (deutsche Zeit)</label><input id="c-uhr" name="uhrzeit" type="time" value="${esc(w.uhrzeit || "20:00")}"></div>
+      <div class="fb-feld"><label for="c-strecke">Strecke</label><input id="c-strecke" name="strecke" maxlength="80" list="c-strecken" autocomplete="off" placeholder="Strecke und Variante" value="${esc(w.strecke || "")}"><datalist id="c-strecken">${(c.strecken || []).map((n) => `<option value="${esc(n)}"></option>`).join("")}</datalist></div>
+      <div class="fb-feld"><label for="c-fz">Fahrzeugklasse oder Fahrzeug</label><input id="c-fz" name="fahrzeugklasse" maxlength="80" placeholder="z. B. GT3 oder Mazda MX-5" value="${esc(w.fahrzeugklasse || "")}"></div>
+      <div class="fb-feld"><label for="c-dauer">Renndauer in Minuten</label><input id="c-dauer" name="dauer" type="number" min="10" max="1440" step="5" inputmode="numeric" value="${esc(w.dauer || "45")}"></div>
+      <div class="fb-feld"><label for="c-art">Art</label><select id="c-art" name="art">${opt("art", [["einzel", "Einzelrennen"], ["team", "Teamrennen"]])}</select></div>
+      <div class="fb-feld"><label for="c-zugang">Teilnahme</label><select id="c-zugang" name="zugang">${opt("zugang", [["offen", "Offen für alle Fahrer"], ["einladung", "Nur auf Einladung"]])}</select></div>
+      <label class="fb-haken"><input type="checkbox" id="c-quali" name="quali"${w.quali ? " checked" : ""}><span>Mit Qualifying</span></label>
+      <div class="fb-feld"><label for="c-text">Beschreibung</label><textarea id="c-text" name="beschreibung" maxlength="1000" rows="4" placeholder="Worum geht es, für wen ist das Rennen gedacht, gibt es Besonderheiten?">${esc(w.beschreibung || "")}</textarea></div>
+      <div class="fb-feld"><label>Banner (freiwillig)</label>
+        ${communityBanner ? `<img src="${esc(communityBanner)}" alt="Gewählter Banner" style="display:block;width:100%;max-width:480px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:6px;margin-bottom:8px">` : ""}
+        <div class="fb-kalender"><label class="fb-abmelden fb-datei">${communityBanner ? "Anderes Bild wählen" : "Bild wählen"}<input type="file" accept="image/png,image/jpeg,image/webp" data-community-banner="neu" hidden></label>${communityBanner ? '<button type="button" class="fb-abmelden" data-community-banner-weg="neu">Entfernen</button>' : ""}</div>
+        <small class="fb-klein">${esc(BANNER_HINWEIS)} Ohne Banner verwenden wir ein Livery-Bild.</small></div>
+      <div class="fb-profil-fuss"><button type="submit" class="fb-knopf">Antrag stellen</button><p>Frühestens ${vorlauf} Tage im Voraus. Die Rennleitung prüft deinen Antrag, du bekommst die Entscheidung per Direktnachricht im Discord.</p></div>
+    </form>`;
+  }
+
+  function communityPanel() {
+    if (!profilFertig()) return '<section class="fb-panel"><h3>Community-Rennen</h3><p class="fb-klein">Registriere dich zuerst als Fahrer, dann kannst du ein eigenes Rennen beantragen.</p><p class="fb-profil-link"><button type="button" class="fb-link" data-profil="1">Zur Registrierung</button></p></section>';
+    const antraege = (stand.community || {}).antraege || [];
+    const offen = antraege.some((a) => a.status === "offen");
+    const form = offen
+      ? '<p class="fb-klein">Du hast einen offenen Antrag. Sobald die Rennleitung entschieden hat, kannst du den nächsten stellen.</p>'
+      : communityForm();
+    return `<section class="fb-panel"><h3>Eigenes Community-Rennen veranstalten</h3>${form}</section>
+      <h3 class="fb-zwischen">Deine Anträge</h3>
+      ${antraege.length ? `<div class="fb-faelle">${antraege.map(communityKarte).join("")}</div>` : '<p class="fb-leer">Du hast noch kein Community-Rennen beantragt.</p>'}`;
+  }
+
+  const communityHinweis = () => `<section class="fb-panel"><h3>So funktionieren Community-Rennen</h3>
+    <p class="fb-klein">Jeder registrierte Fahrer kann ein eigenes Rennen vorschlagen, als Einzel- oder Teamrennen. Community-Rennen sind eine eigene Kategorie und zählen nicht für die Seasons.</p>
+    <p class="fb-klein">Du hostest die Session selbst in iRacing. Die Rennleitung legt bei der Freigabe fest, ob Darkline das Stewarding übernimmt oder ob auf eigene Verantwortung gefahren wird. Besonders gute Vorschläge kann Darkline als „Darkline Sponsored“ unterstützen.</p>
+    <p class="fb-klein">Pro Fahrer ist immer nur ein offener Antrag möglich.</p>
+  </section>`;
+
   /* ---------- Erste Schritte: Registrierung, Garage-61-Team, Season (freiwillig) ---------- */
   const g61Fertig = () => !!stand.g61 && (stand.g61.imTeam === true || stand.g61.gemeldet);
   const g61Knopf = (text) => `<a class="fb-knopf fb-team-knopf" href="${esc(stand.g61.link)}" target="_blank" rel="noopener" data-g61-beitritt="1">${esc(text)} ↗</a>`;
@@ -760,6 +868,15 @@
       const name = einladung.team.name;
       return sende({ aktion: "team-beitreten", code: einladung.code }).then((ok) => { if (ok) { einladungWeg(); ansicht = "team"; zeichne(); meldung(`Willkommen im Team ${name}!`, true); } });
     }
+    if (b.dataset.communityBannerWeg === "neu") { communityEntwurfMerken(); communityBanner = ""; return zeichne(); }
+    if (b.dataset.communityBannerWeg) {
+      if (!window.confirm("Banner entfernen? Dann verwenden wir ein Livery-Bild.")) return;
+      return sende({ aktion: "community-banner-weg", id: b.dataset.communityBannerWeg }).then((ok) => { if (ok) meldung("Banner entfernt.", true); });
+    }
+    if (b.dataset.communityZurueck) {
+      if (!window.confirm("Antrag für dein Community-Rennen zurückziehen?")) return;
+      return sende({ aktion: "community-zurueck", id: b.dataset.communityZurueck }).then((ok) => { if (ok) meldung("Dein Antrag ist zurückgezogen.", true); });
+    }
     if (b.dataset.teamAktion) {
       const art = b.dataset.teamAktion;
       const t = stand.team;
@@ -853,6 +970,19 @@
 
   // Im Report-Formular gehören die Fahrer zum gewählten Rennen.
   main.addEventListener("change", (e) => {
+    if (e.target.dataset.communityBanner && e.target.files[0]) {
+      const ziel = e.target.dataset.communityBanner;
+      const fehler = () => meldung("Dieses Bild konnte nicht gelesen werden. Bitte wähle ein anderes aus.");
+      if (ziel === "neu") {
+        communityEntwurfMerken();
+        bannerVorbereiten(e.target.files[0]).then((daten) => { communityBanner = daten; zeichne(); }, fehler);
+        return;
+      }
+      bannerVorbereiten(e.target.files[0])
+        .then((daten) => sende({ aktion: "community-banner", id: ziel, daten }))
+        .then((ok) => { if (ok) meldung("Banner gespeichert.", true); }, fehler);
+      return;
+    }
     if (e.target.dataset.teamLogo && e.target.files[0]) {
       const datei = e.target.files[0];
       logoVorbereiten(datei)
@@ -881,6 +1011,13 @@
     if (e.target.classList.contains("fb-einspruch")) {
       e.preventDefault();
       if (await sende({ aktion: "report-einspruch", id: e.target.dataset.id, text: e.target.elements.text.value })) meldung("Dein Einspruch ist eingegangen.", true);
+      return;
+    }
+    if (e.target.id === "fb-community") {
+      e.preventDefault();
+      // Der Entwurf bleibt bei einem Fehler stehen, weil die Seite nach dem Senden neu gezeichnet wird.
+      communityEntwurfMerken();
+      if (await sende({ aktion: "community-beantragen", ...communityEntwurf, dauer: Number(communityEntwurf.dauer), banner: communityBanner })) { communityEntwurf = {}; communityBanner = ""; zeichne(); meldung("Dein Antrag ist bei der Rennleitung. Du bekommst die Entscheidung per Direktnachricht im Discord.", true); }
       return;
     }
     if (e.target.id === "fb-team-form") {

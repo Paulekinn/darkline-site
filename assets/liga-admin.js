@@ -445,6 +445,22 @@
       const infos = [a.serieName, a.irating ? `iRating ${a.irating}` : "", a.modell, a.fahrzeugklasse, `angefragt ${zeit(a.seit)}`].filter(Boolean).join(" · ");
       return `<div class="a-abschluss ${serienFarbe(a.serie)}"><span><b>${esc(a.name || "Fahrer")}</b><small>${esc(infos)}</small>${a.nachricht ? `<small>„${esc(a.nachricht)}“</small>` : ""}</span><div class="a-leiste"><button type="button" class="a-knopf klein" data-anfrage-entscheid="ja" ${daten}>Freigeben</button><button type="button" class="a-knopf zweit klein" data-anfrage-entscheid="nein" ${daten}>Ablehnen</button></div></div>`;
     }).join("")}</div></section>` : "";
+    // Community-Rennen: Bei der Freigabe legt die Rennleitung Stewarding und „Darkline Sponsored“ fest.
+    const community = d.communityAntraege || [];
+    const communityBild = (a) => `api/liga?r=bild&k=community-${encodeURIComponent(a.id)}&v=${encodeURIComponent(a.banner)}`;
+    // Freigegebene Rennen mit Banner: Fahrer dürfen ihn bis zum Start ändern, die Rennleitung kann ihn entfernen.
+    const mitBanner = d.communityBanner || [];
+    const terminText = (iso) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+    const communityHtml = community.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Community-Rennen</h2><span class="a-chip gelb">${community.length}</span></div><div class="a-liste">${community.map((a) => {
+      const daten = `data-id="${esc(a.id)}" data-titel="${esc(a.titel)}" data-name="${esc(a.name)}"`;
+      const infos = [`${terminText(a.start)} Uhr`, a.strecke, a.fahrzeugklasse, `${a.dauer} min${a.quali ? " mit Quali" : ""}`, a.art === "team" ? "Teamrennen" : "Einzelrennen", a.zugang === "einladung" ? "auf Einladung" : "offen"].join(" · ");
+      const parallel = (a.kollisionen || []).length ? `<small class="a-bild-fehler">Überschneidung mit: ${esc(a.kollisionen.join(", "))}</small>` : "";
+      return `<div class="a-abschluss s-rot" data-community="${esc(a.id)}"><span>${a.banner ? `<img src="${esc(communityBild(a))}" alt="Banner ${esc(a.titel)}" loading="lazy" style="display:block;width:100%;max-width:360px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:4px;margin-bottom:6px">` : ""}<b>${esc(a.titel)}</b><small>von ${esc(a.name)}${a.nummer ? ` (#${esc(a.nummer)})` : ""}, beantragt ${esc(zeit(a.erstellt))}</small><small>${esc(infos)}</small><small>„${esc(a.beschreibung)}“</small>${parallel}
+        <label class="a-check">Stewarding <select data-community-stewarding aria-label="Stewarding für ${esc(a.titel)}"><option value="">Bitte wählen</option><option value="darkline">Durch Darkline</option><option value="eigene">Auf eigene Verantwortung</option></select></label>
+        <label class="a-check"><input type="checkbox" data-community-sponsored> Darkline Sponsored</label></span>
+        <div class="a-leiste"><button type="button" class="a-knopf klein" data-community-entscheid="ja" ${daten}>Freigeben</button><button type="button" class="a-knopf zweit klein" data-community-entscheid="nein" ${daten}>Ablehnen</button></div></div>`;
+    }).join("")}</div></section>` : "";
+    const bannerHtml = mitBanner.length ? `<section class="a-karte"><div class="a-kartenkopf"><h2>Banner der Community-Rennen</h2><span class="a-chip">${mitBanner.length}</span></div><p class="a-hinweis">Fahrer können ihren Banner bis zum Start ändern, er ist sofort sichtbar. Unpassende Banner entfernt ihr hier, der Fahrer bekommt eine Direktnachricht.</p><div class="a-liste">${mitBanner.map((a) => `<div class="a-abschluss s-rot"><span><img src="${esc(communityBild(a))}" alt="Banner ${esc(a.titel)}" loading="lazy" style="display:block;width:100%;max-width:240px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:4px;margin-bottom:6px"><b>${esc(a.titel)}</b><small>von ${esc(a.name)} · ${esc(terminText(a.start))} Uhr</small></span><button type="button" class="a-knopf zweit klein" data-community-banner-weg="${esc(a.id)}" data-titel="${esc(a.titel)}" data-name="${esc(a.name)}">Banner entfernen</button></div>`).join("")}</div></section>` : "";
     const kachel = (wert, text, art, ziel) => `<button type="button" class="a-kennzahl ${art}" data-tab="${ziel}"><b>${wert}</b><span>${esc(text)}</span></button>`;
     const reportsHtml = offene.slice(0, 5).map(reportZeile).join("");
     const termine = kommend.slice(0, 5).map(terminZeile).join("");
@@ -457,12 +473,13 @@
         ${kachel(unfertig.length, "Rennen unvollständig", unfertig.length ? "warnung" : "", "rennen")}
       </div>
       ${(d.fehlendeErgebnisse || []).length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Ergebnis fehlt</h2><span class="a-chip gelb">${d.fehlendeErgebnisse.length}</span></div><div class="a-liste">${d.fehlendeErgebnisse.slice(0, 6).map((r) => `<div class="a-abschluss ${serienFarbe(r.serie)}"><span><b>${esc(r.titel)}</b><small>${esc([(serieVon(r.serie) || {}).name, datumKurz(r.datum)].filter(Boolean).join(" · "))}</small></span><button type="button" class="a-knopf zweit klein" data-ergebnis-import="${esc(r.serie)}">Importieren</button></div>`).join("")}</div></section>` : ""}
-      ${anfragenHtml}${nummernHtml}${fahrzeugHtml}
+      ${anfragenHtml}${communityHtml}${nummernHtml}${fahrzeugHtml}
       ${cockpitSichtung()}
       ${anmeldungFaellig}
       ${cockpitPruefungen()}
       ${cockpitStrafkonten()}
       ${abschluss}
+      ${bannerHtml}
       <div class="a-zwei">
         <section class="a-karte"><div class="a-kartenkopf"><h2>Zu entscheiden</h2><button type="button" class="a-knopf zweit klein" data-tab="reports">Alle Reports</button></div>${reportsHtml ? `<div class="a-liste">${reportsHtml}</div>` : '<p class="a-leer">Aktuell liegt nichts an.</p>'}</section>
         <section class="a-karte"><div class="a-kartenkopf"><h2>Nächste Rennen</h2><button type="button" class="a-knopf zweit klein" data-tab="rennen">Alle Rennen</button></div>${termine ? `<div class="a-liste">${termine}</div>` : '<p class="a-leer">Keine Rennen geplant.</p>'}</section>
@@ -1676,6 +1693,21 @@
       const grund = ja ? "" : window.prompt("Grund für die Ablehnung (freiwillig). Der Fahrer bekommt ihn per Direktnachricht.", "");
       if (grund === null) return;
       return aktion({ aktion: "anfrage-entscheiden", serie: b.dataset.serie, discordId: b.dataset.discord, name: b.dataset.name, ja, grund }, ja ? "Freigegeben, der Fahrer ist angemeldet und wird informiert." : "Abgelehnt, der Fahrer wird informiert.");
+    }
+    if (b.dataset.communityBannerWeg) {
+      if (!window.confirm(`Banner von „${b.dataset.titel}“ entfernen? ${b.dataset.name} bekommt eine Direktnachricht und kann einen anderen hochladen.`)) return;
+      return aktion({ aktion: "community-banner-weg", id: b.dataset.communityBannerWeg, titel: b.dataset.titel }, "Banner entfernt, der Fahrer wird informiert.");
+    }
+    if (b.dataset.communityEntscheid) {
+      const ja = b.dataset.communityEntscheid === "ja";
+      const zeile = b.closest("[data-community]");
+      const wahl = zeile.querySelector("[data-community-stewarding]");
+      const sponsored = zeile.querySelector("[data-community-sponsored]").checked;
+      if (ja && !wahl.value) { wahl.focus(); return window.alert("Bitte wähle zuerst aus, wer das Stewarding übernimmt."); }
+      if (ja && !window.confirm(`„${b.dataset.titel}“ freigeben? ${wahl.value === "darkline" ? "Darkline übernimmt das Stewarding." : "Gefahren wird auf eigene Verantwortung."}${sponsored ? " Das Rennen wird als Darkline Sponsored markiert." : ""} ${b.dataset.name} bekommt eine Direktnachricht.`)) return;
+      const grund = ja ? "" : window.prompt("Grund für die Ablehnung (freiwillig). Der Fahrer bekommt ihn per Direktnachricht.", "");
+      if (grund === null) return;
+      return aktion({ aktion: "community-entscheiden", id: b.dataset.id, titel: b.dataset.titel, ja, stewarding: wahl.value, sponsored, grund }, ja ? "Freigegeben, der Fahrer wird informiert." : "Abgelehnt, der Fahrer wird informiert.");
     }
     if (b.dataset.fahrzeugEntscheid) {
       const ja = b.dataset.fahrzeugEntscheid === "ja";

@@ -17,6 +17,7 @@ const Sichtung = require("./liga-sichtung");
 const Anfragen = require("./liga-anfragen");
 const DiscordEvents = require("./discord-events");
 const Teams = require("./liga-teams");
+const Community = require("./liga-community");
 // Aktionen, nach denen sich Liga-Termine in Discord ändern können
 const TERMIN_AKTIONEN = new Set(["serie-speichern", "serie-loeschen", "rennen-speichern", "rennen-loeschen", "rennen-verschieben", "rennen-duplizieren", "saison-planen"]);
 const { leseErgebnis, berechneTabelle, klasseFuer } = require("../../assets/liga-wertung.js");
@@ -180,6 +181,8 @@ async function protokollText(b, kat) {
     "nummer-ablehnen": () => `Startnummer abgelehnt: ${b.name}, gewünscht #${b.nummer}`,
     "g61-sichtung-test": () => "",
     "anfrage-entscheiden": () => `Beitrittsanfrage ${b.ja === true ? "freigegeben" : "abgelehnt"} in ${serie(b.serie)}: ${b.name || b.discordId}`,
+    "community-entscheiden": () => `Community-Rennen ${b.ja === true ? `freigegeben (${b.stewarding === "darkline" ? "Stewarding durch Darkline" : "auf eigene Verantwortung"}${b.sponsored === true ? ", Darkline Sponsored" : ""})` : "abgelehnt"}: ${b.titel || b.id}`,
+    "community-banner-weg": () => `Banner eines Community-Rennens entfernt: ${b.titel || b.id}`,
     "fahrzeug-entscheiden": () => `Fahrzeugwechsel ${b.ja === true ? "bestätigt" : "abgelehnt"} in ${serie(b.serie)}`,
     "fahrzeug-setzen": () => `Fahrzeug gesetzt in ${serie(b.serie)}: ${b.modell}`,
     "fahrzeug-streichen": () => `Ergebnis wegen Fahrzeug gestrichen in ${serie(b.serie)}`,
@@ -461,6 +464,20 @@ const aktionen = {
     const profilText = await blobGet(A.profilPfad(discordId));
     if (profilText) await Dc.abgleichen(discordId, JSON.parse(profilText), await eintraege(), kat.serien).catch(() => {});
     await Dc.nachricht(discordId, Anfragen.freigabeText(serie));
+    return {};
+  },
+  // Community-Rennen: Freigabe mit Stewarding und optional „Darkline Sponsored“, oder Ablehnung mit Grund. Der Fahrer bekommt eine Direktnachricht.
+  async "community-entscheiden"(b, kat, s) {
+    const ja = b.ja === true;
+    const antrag = await Community.entscheiden(String(b.id || ""), { ja, stewarding: String(b.stewarding || ""), sponsored: b.sponsored === true, grund: b.grund }, s && s.name);
+    // Die Entscheidung gilt auch, wenn die Direktnachricht nicht zugestellt werden kann.
+    await Dc.nachricht(antrag.discordId, ja ? Community.freigabeText(antrag) : Community.ablehnungText(antrag, antrag.entscheid.grund)).catch((e) => console.warn("Community-Rennen: Nachricht:", e.message));
+    return {};
+  },
+  // Unpassender Banner eines Community-Rennens: Die Rennleitung entfernt ihn, der Fahrer bekommt eine Direktnachricht.
+  async "community-banner-weg"(b) {
+    const antrag = await Community.adminBannerWeg(String(b.id || ""));
+    await Dc.nachricht(antrag.discordId, Community.bannerEntferntText(antrag)).catch((e) => console.warn("Community-Rennen: Nachricht:", e.message));
     return {};
   },
   // Die Rennleitung setzt das Fahrzeug direkt, etwa nach einem im Rennen festgestellten Wechsel.
@@ -888,8 +905,8 @@ module.exports = async (req, res) => {
     const ergebnisseJe = new Map(await Promise.all([...new Set(alleReports.map((r) => r.serie))].filter((x) => D.istId(x)).map(async (id) => [id, await D.ergebnisseLesen(id).catch(() => [])])));
     const reports = alleReports.map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id), stimmen: R.stimmenSicht(r, s.id), kontext: R.rennKontext(r, ergebnisseJe.get(r.serie) || []) }));
     // Stewards bekommen nur, was sie für Reports und zum Nachlesen brauchen, ohne Anträge und Hinweise der Rennleitung.
-    if (istSteward(s)) return res.status(200).json({ angemeldet: true, rolle: "steward", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...COCKPIT_LEER, nummernWuensche: [], fahrzeugAntraege: [], beitrittsAnfragen: [], details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
-    return res.status(200).json({ angemeldet: true, rolle: "leitung", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), nummernWuensche: await P.wuenscheLesen().catch(() => []), fahrzeugAntraege: (await F.offeneAntraege().catch(() => [])).map((a) => ({ ...a, serieName: (kat.serien.find((x) => x.id === a.serie) || {}).name || a.serie })), beitrittsAnfragen: (await Anfragen.alle().catch(() => [])).filter((a) => kat.serien.some((x) => x.id === a.serie)).map((a) => ({ ...a, serieName: kat.serien.find((x) => x.id === a.serie).name })), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    if (istSteward(s)) return res.status(200).json({ angemeldet: true, rolle: "steward", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...COCKPIT_LEER, nummernWuensche: [], fahrzeugAntraege: [], beitrittsAnfragen: [], communityAntraege: [], communityBanner: [], details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    return res.status(200).json({ angemeldet: true, rolle: "leitung", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), nummernWuensche: await P.wuenscheLesen().catch(() => []), fahrzeugAntraege: (await F.offeneAntraege().catch(() => [])).map((a) => ({ ...a, serieName: (kat.serien.find((x) => x.id === a.serie) || {}).name || a.serie })), beitrittsAnfragen: (await Anfragen.alle().catch(() => [])).filter((a) => kat.serien.some((x) => x.id === a.serie)).map((a) => ({ ...a, serieName: kat.serien.find((x) => x.id === a.serie).name })), ...(await Community.alle(true).then((liste) => ({ communityAntraege: Community.offeneFuerCockpit(liste, kat), communityBanner: Community.kommendeMitBanner(liste) })).catch(() => ({ communityAntraege: [], communityBanner: [] }))), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });
