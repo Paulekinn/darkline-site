@@ -280,7 +280,11 @@
     return `<div class="fb-lizenz">
         <div class="fb-lizenz-kopf"><img src="img/brand/dsrs-logo.png" alt="" width="654" height="165"><span>Fahrerlizenz</span></div>
         <div class="fb-lizenz-fahrer">${bild ? `<img class="fb-lizenz-bild" src="${esc(bild)}" alt="" width="52" height="52">` : ""}<strong>${p.nummer ? `<span class="fb-lizenz-nr">#${esc(p.nummer)}</span> ` : ""}${esc(p.iracingName)}</strong></div>
-        ${p.land || p.team ? `<small class="fb-lizenz-info">${window.LigaKarte.flagge(p.land)}${esc([window.LigaFlaggen.name(p.land), p.team].filter(Boolean).join(" · "))}</small>` : ""}
+        ${(() => {
+          // Der freie Club-Text entfällt, wenn er nur das Liga-Team wiederholt.
+          const club = p.team && !(stand.team && String(p.team).trim().toLowerCase() === String(stand.team.name).trim().toLowerCase()) ? p.team : "";
+          return p.land || club ? `<small class="fb-lizenz-info">${window.LigaKarte.flagge(p.land)}${esc([window.LigaFlaggen.name(p.land), club].filter(Boolean).join(" · "))}</small>` : "";
+        })()}
         ${stand.team ? `<a class="fb-lizenz-team ${farbe(stand.team.farbe)}" href="/teams?id=${encodeURIComponent(stand.team.id)}">${teamKuerzel(stand.team)}<span>${esc(stand.team.name)}</span></a>` : ""}
         <dl><div><dt>iRacing-ID</dt><dd>${esc(p.custId)}</dd></div><div><dt>Sports-Car-iRating</dt><dd>${esc(Number(p.irating).toLocaleString("de-DE"))}</dd></div></dl>
       </div>
