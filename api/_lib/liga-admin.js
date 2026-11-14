@@ -61,14 +61,15 @@ async function serienDetails(kat, id) {
   // Letztes iRating je iRacing-ID aus den eingelesenen Ergebnissen
   const ausErgebnis = new Map();
   [...ergebnisse].sort((a, b) => String(a.start).localeCompare(String(b.start))).forEach((e) => e.fahrer.forEach((f) => { if (f.irating > 0) ausErgebnis.set(f.cust, f.irating); }));
-  const sportsCar = serie.kategorie === "Sports_Car";
+  // Sports Car und Formula: Klasse aus dem iRating der Kategorie (Ergebnis vor Profilangabe). Oval und Dirt stuft die Rennleitung ein.
+  const sportsCar = serie.kategorie === "Sports_Car" || serie.kategorie === "Formula";
   const fahrer = ids.map((d) => {
     const p = profile.get(d);
     const eintrag = mitglieder.find((e) => e.discordId === d) || direkt.find((e) => e.discordId === d);
-    const irating = p ? ausErgebnis.get(p.custId) ?? p.irating : null;
+    const irating = p ? ausErgebnis.get(p.custId) ?? A.iratingFuer(p, serie.kategorie) : null;
     const auto = sportsCar && irating !== null ? (klasseFuer(irating, serie.klassen) || {}).id || "" : "";
     const pid = p && p.custId ? fahrerKennung(p.custId) : "";
-    return { pid, nummer: p ? p.nummer ?? "" : "", land: p ? p.land || "" : "", team: p ? p.team || "" : "", bild: (pid && oeffentlich[pid] && oeffentlich[pid].bild) || "", discordId: d, name: eintrag.name, mitglied: mitglieder.some((e) => e.discordId === d), fahrzeugklasse: eintrag.fahrzeugklasse, custId: p ? p.custId : "", iratingAngabe: p ? p.irating : null, iratingErgebnis: p && ausErgebnis.has(p.custId) ? ausErgebnis.get(p.custId) : null, klasseAuto: auto, klasseFest: p ? privat.einstufung[p.custId] || "" : "", modell: (fahrzeuge.get(d) || {}).modell || "", wechsel: ((fahrzeuge.get(d) || {}).wechsel || []).length };
+    return { pid, nummer: p ? p.nummer ?? "" : "", land: p ? p.land || "" : "", team: p ? p.team || "" : "", bild: (pid && oeffentlich[pid] && oeffentlich[pid].bild) || "", discordId: d, name: eintrag.name, mitglied: mitglieder.some((e) => e.discordId === d), fahrzeugklasse: eintrag.fahrzeugklasse, custId: p ? p.custId : "", iratingAngabe: p ? A.iratingFuer(p, serie.kategorie) ?? (serie.kategorie === "Formula" ? null : p.irating) : null, iratingErgebnis: p && ausErgebnis.has(p.custId) ? ausErgebnis.get(p.custId) : null, klasseAuto: auto, klasseFest: p ? privat.einstufung[p.custId] || "" : "", modell: (fahrzeuge.get(d) || {}).modell || "", wechsel: ((fahrzeuge.get(d) || {}).wechsel || []).length };
   }).sort((a, b) => a.name.localeCompare(b.name, "de"));
   const opt = { jetzt: Date.now(), schlussMinuten: 60, discordId: "", serien: { [id]: serie }, mitIds: true };
   return {
@@ -947,7 +948,7 @@ module.exports = async (req, res) => {
       const discordId = String(req.query.discord || "");
       const text = D.istId(discordId) ? await blobGet(A.profilPfad(discordId)) : null;
       const p = text ? JSON.parse(text) : null;
-      const profil = p ? { iracingName: p.iracingName, custId: p.custId, irating: p.irating, nummer: p.nummer ?? "", land: p.land || "", team: p.team || "", kanal: p.kanal || "", hatBild: !!((await P.angabenVon(fahrerKennung(p.custId)).catch(() => null)) || {}).bild } : null;
+      const profil = p ? { iracingName: p.iracingName, custId: p.custId, irating: p.irating, iratingFormula: p.iratingFormula ?? null, nummer: p.nummer ?? "", land: p.land || "", team: p.team || "", kanal: p.kanal || "", hatBild: !!((await P.angabenVon(fahrerKennung(p.custId)).catch(() => null)) || {}).bild } : null;
       return res.status(200).json({ ...R.fahrerAkte(await R.alleReports(true), privatJeSerie, { cust: String(req.query.cust || (p && p.custId) || ""), discordId }), profil });
     }
     const details = D.istId((req.query || {}).serie) && kat.serien.some((x) => x.id === req.query.serie) ? await serienDetails(kat, req.query.serie) : null;

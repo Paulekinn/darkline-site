@@ -578,6 +578,7 @@
   };
   // Private Season: Teilnahme nur nach Freigabe durch die Rennleitung
   const privatPill = (s) => (s.aufAnfrage ? '<span class="liga-pill liga-pill-privat" title="Teilnahme nur nach Freigabe durch die Rennleitung"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3z"/></svg>Privat · Auf Anfrage</span>' : "");
+  const katBadge = (kategorie, klein) => window.LigaKarte.kategorieBadge(kategorie, klein);
   const artBadge = (typ, klein) => `<span class="liga-art ${typ === "event" ? "event" : "liga"}${klein ? " klein" : ""}">${typ === "event" ? "Event" : "Liga"}</span>`;
   const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
   const terminText = (r) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.datum || ""); return `${m ? `${m[3]}.${m[2]}.` : ""}${r.startzeit ? ` · ${r.startzeit}` : ""}`; };
@@ -641,7 +642,7 @@
       ${streamBand(s)}
       <div class="liga-poster-bild" style="background-image:url('${esc(kartenBild(s))}')" aria-hidden="true"></div>
       <div class="liga-poster-inhalt">
-        <div class="liga-poster-kopf">${artBadge(s.typ)}${s.saison ? `<span class="liga-pill">${esc(s.saison)}</span>` : ""}${privatPill(s)}<span class="liga-pill farbig">${esc(s.status === "anmeldung" && s.anmeldungOffen === false ? "Anmeldung geschlossen" : STATUS[s.status] || "")}</span></div>
+        <div class="liga-poster-kopf">${artBadge(s.typ)}${katBadge(s.kategorie)}${s.saison ? `<span class="liga-pill">${esc(s.saison)}</span>` : ""}${privatPill(s)}<span class="liga-pill farbig">${esc(s.status === "anmeldung" && s.anmeldungOffen === false ? "Anmeldung geschlossen" : STATUS[s.status] || "")}</span></div>
         <h3><a href="${serienLink(s)}">${esc(s.name)}</a></h3>
         ${s.beschreibung ? `<p>${esc(s.beschreibung)}</p>` : ""}
         <div class="liga-poster-klassen">${klassen}</div>
@@ -658,7 +659,7 @@
     const d = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.datum || "");
     return `<a class="liga-termin ${farbeSerie(s)}${s.typ === "event" ? " ist-event" : ""}" href="${serienLink(s)}">
       <span class="liga-termin-datum"><b>${d ? d[3] : "–"}</b><small>${d ? MONATE[+d[2] - 1] : ""}</small></span>
-      <span class="liga-termin-text">${artBadge(s.typ, true)}<b>${esc(r.titel)}</b><small>${esc(s.name)}${r.startzeit ? ` · ${esc(r.startzeit)} Uhr` : ""}${r.sichtung ? " · Sichtung" : ""}</small></span>
+      <span class="liga-termin-text"><span class="liga-badges">${artBadge(s.typ, true)}${katBadge(s.kategorie, true)}</span><b>${esc(r.titel)}</b><small>${esc(s.name)}${r.startzeit ? ` · ${esc(r.startzeit)} Uhr` : ""}${r.sichtung ? " · Sichtung" : ""}</small></span>
     </a>`;
   }
 
@@ -666,7 +667,7 @@
   function feature(r, s) {
     const start = startMs(r);
     return `<aside class="liga-feature ${farbeSerie(s)}">
-      <div class="liga-feature-kopf"><span class="lbl">Nächstes Rennen</span>${artBadge(s.typ)}</div>
+      <div class="liga-feature-kopf"><span class="lbl">Nächstes Rennen</span><span class="liga-badges">${artBadge(s.typ)}${katBadge(s.kategorie)}</span></div>
       <p class="liga-feature-serie">${esc(s.name)}</p>
       <h2>${esc(r.strecke || r.titel)}</h2>
       ${r.streckenBild ? `<img class="liga-feature-karte" src="api/liga?r=bild&k=${encodeURIComponent(r.streckenBild.k)}&v=${encodeURIComponent(r.streckenBild.v)}" alt="Streckenkarte ${esc(r.strecke)}" loading="lazy">` : ""}
@@ -688,7 +689,7 @@
     return `<article class="liga-poster s-gelb ist-event${c.abgesagt ? " beendet" : ""}">
       <div class="liga-poster-bild" style="background-image:url('${esc(communityBild(c))}')" aria-hidden="true"></div>
       <div class="liga-poster-inhalt">
-        <div class="liga-poster-kopf"><span class="liga-art event">Community</span>${c.sponsored ? '<span class="liga-pill farbig">★ Darkline Sponsored</span>' : ""}<span class="liga-pill">${c.art === "team" ? "Teamrennen" : "Einzelrennen"}</span>${c.abgesagt ? '<span class="liga-pill farbig">Abgesagt</span>' : ""}</div>
+        <div class="liga-poster-kopf"><span class="liga-art event">Community</span>${katBadge(c.kategorie)}${c.sponsored ? '<span class="liga-pill farbig">★ Darkline Sponsored</span>' : ""}<span class="liga-pill">${c.art === "team" ? "Teamrennen" : "Einzelrennen"}</span>${c.abgesagt ? '<span class="liga-pill farbig">Abgesagt</span>' : ""}</div>
         <h3><a href="${communityLink(c)}">${esc(c.titel)}</a></h3>
         <p>${esc(text)}</p>
         <dl class="liga-poster-daten">
@@ -886,7 +887,7 @@
 
     document.title = `${s.name} · Darkline Simracing Series`;
     $("liga-titel").innerHTML = esc(s.name);
-    document.querySelector(".liga-kicker").innerHTML = `${artBadge(s.typ)}${privatPill(s)}${streamBadge(s)}`;
+    document.querySelector(".liga-kicker").innerHTML = `${artBadge(s.typ)}${katBadge(s.kategorie)}${privatPill(s)}${streamBadge(s)}`;
     $("liga-saison").textContent = [s.saison, s.beschreibung].filter(Boolean).join(" · ");
     $("liga-cta").innerHTML = `${serienAktion(s)}<a class="liga-mini zweit" href="/liga">Alle Serien</a>`;
     const d = daten.tabelle;

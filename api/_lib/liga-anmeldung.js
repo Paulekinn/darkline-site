@@ -97,7 +97,7 @@ function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, ser
       const oeffentlich = (e) => (mitIds ? { name: e.name, fahrzeugklasse: e.fahrzeugklasse, gast: istGast(e), discordId: e.discordId, quelle: e.typ } : { name: e.name, fahrzeugklasse: e.fahrzeugklasse, gast: istGast(e) });
       return {
         id: r.id, titel: r.titel || r.strecke || "Rennen", status: abgesagt ? "abgesagt" : "geplant",
-        serie: r.serie || "", serieName: serie.name || "", serieFarbe: serie.farbe || "rot", serieTyp: serie.typ || "liga",
+        serie: r.serie || "", serieName: serie.name || "", serieFarbe: serie.farbe || "rot", serieTyp: serie.typ || "liga", serieKategorie: serie.kategorie || "Sports_Car",
         start: new Date(r.startMs).toISOString(), ende: new Date(r.startMs + dauerMinuten(r.renndauer) * 60e3).toISOString(), schluss: new Date(schlussMs).toISOString(),
         startMs: r.startMs, endeMs: r.startMs + dauerMinuten(r.renndauer) * 60e3,
         // In einer beendeten Serie ändert sich nichts mehr. Ist nur die Anmeldung der Serie zu, kann man sich noch abmelden.
@@ -131,15 +131,27 @@ function kollisionen(kalender, rennenId, eintraege, optionen) {
   return baueRennen(kalender, eintraege, optionen).filter((r) => r.id !== rennenId && r.ich && r.status !== "abgesagt" && ueberlappt(ziel, fenster.get(r.id))).map((r) => r.titel);
 }
 
+// Das passende iRating aus dem Profil: Sports Car oder Formula. null, wenn es fehlt oder die Kategorie keins hat.
+function iratingFuer(profil, kategorie) {
+  if (!profil) return null;
+  const wert = !kategorie || kategorie === "Sports_Car" ? profil.irating : kategorie === "Formula" ? profil.iratingFormula : null;
+  return wert === null || wert === undefined || wert === "" || !Number.isFinite(Number(wert)) ? null : Number(wert);
+}
+// Formula-Serie mit Klassen nach iRating: Für die Anmeldung braucht es das Formula-iRating.
+const formulaIratingNoetig = (s) => s.kategorie === "Formula" && !s.ohneKlassen && s.einstufungArt !== "sichtung";
+
 // Serien für Übersicht und Fahrerbereich, mit Status des angemeldeten Fahrers
 function baueSerien(serienListe, eintraege, { discordId, profil, klasseFuer, anfragen = new Set() }) {
   return serienListe.map((s) => {
     const mitglieder = eintraege.filter((e) => e.typ === "serie" && e.serieId === s.id);
     const eigen = mitglieder.find((e) => e.discordId === discordId);
-    const sportsCar = !s.kategorie || s.kategorie === "Sports_Car";
+    // Sports Car und Formula haben je ein eigenes iRating im Profil. Bei Oval und Dirt stuft die Rennleitung ein.
+    const mitIrating = !s.kategorie || s.kategorie === "Sports_Car" || s.kategorie === "Formula";
+    const rating = iratingFuer(profil, s.kategorie);
     // Bei Sichtung steht die Klasse erst nach dem Sichtungsrennen fest, eine Vorhersage aus dem iRating wäre irreführend.
-    const klasse = s.einstufungArt === "sichtung" && !s.ohneKlassen ? "Einstufung nach Sichtung" : profil && sportsCar && !s.ohneKlassen ? (klasseFuer(profil.irating, s.klassen || []) || {}).name || "" : "";
-    return { id: s.id, name: s.name, typ: s.typ || "liga", saison: s.saison || "", status: s.status || "anmeldung", anmeldungOffen: s.anmeldungOffen !== false && s.status !== "beendet" && s.status !== "geplant", farbe: s.farbe || "rot", bildVersion: s.bildVersion || 0, fahrzeugklassen: s.fahrzeugklassen || [], fahrer: mitglieder.length, ich: !!eigen, fahrzeugklasse: eigen ? eigen.fahrzeugklasse : "", klasse, einstufungDurchRennleitung: !sportsCar && !s.ohneKlassen, modelle: s.modelle || [], freieWechsel: s.freieWechsel || 0, aufAnfrage: !!s.aufAnfrage, voraussetzungen: s.voraussetzungen || "", anfrage: !eigen && anfragen.has(s.id) };
+    const klasse = s.einstufungArt === "sichtung" && !s.ohneKlassen ? "Einstufung nach Sichtung" : rating !== null && !s.ohneKlassen ? (klasseFuer(rating, s.klassen || []) || {}).name || "" : "";
+    const sportsCar = mitIrating;
+    return { id: s.id, name: s.name, typ: s.typ || "liga", saison: s.saison || "", status: s.status || "anmeldung", anmeldungOffen: s.anmeldungOffen !== false && s.status !== "beendet" && s.status !== "geplant", farbe: s.farbe || "rot", bildVersion: s.bildVersion || 0, fahrzeugklassen: s.fahrzeugklassen || [], fahrer: mitglieder.length, ich: !!eigen, fahrzeugklasse: eigen ? eigen.fahrzeugklasse : "", klasse, einstufungDurchRennleitung: !sportsCar && !s.ohneKlassen, kategorie: s.kategorie || "Sports_Car", formulaIratingFehlt: formulaIratingNoetig(s) && rating === null, modelle: s.modelle || [], freieWechsel: s.freieWechsel || 0, aufAnfrage: !!s.aufAnfrage, voraussetzungen: s.voraussetzungen || "", anfrage: !eigen && anfragen.has(s.id) };
   });
 }
 
@@ -190,7 +202,10 @@ function pruefeProfil(p) {
   if (name.length < 2 || name.length > 40) throw new Error("Bitte gib deinen iRacing-Namen an (2 bis 40 Zeichen).");
   if (!/^[1-9]\d{0,8}$/.test(custId)) throw new Error("Die iRacing-ID besteht nur aus Ziffern.");
   if (!/^\d{1,5}$/.test(irating) || +irating > 20000) throw new Error("Bitte gib dein Sports-Car-iRating als Zahl an.");
-  return { iracingName: name, custId, irating: +irating };
+  // Formula-iRating: freiwillig, gebraucht für die Klasse in Formula-Serien und für Grenzen bei Formula-Community-Rennen
+  const formula = String((p && p.iratingFormula) ?? "").trim();
+  if (formula && (!/^\d{1,5}$/.test(formula) || +formula > 20000)) throw new Error("Bitte gib dein Formula-iRating als Zahl an oder lass das Feld leer.");
+  return { iracingName: name, custId, irating: +irating, iratingFormula: formula ? +formula : null };
 }
 
-module.exports = { PREFIX, anmeldungPfad, mitgliedPfad, abmeldungPfad, profilPfad, leseEintrag, berlinNachUtc, dauerMinuten, ordne, baueRennen, baueSerien, kollisionen, eigeneKarten, klassenFarbeAus, pruefeProfil, pruefeExtras, nummerPflicht };
+module.exports = { PREFIX, anmeldungPfad, mitgliedPfad, abmeldungPfad, profilPfad, leseEintrag, berlinNachUtc, dauerMinuten, ordne, baueRennen, baueSerien, kollisionen, eigeneKarten, klassenFarbeAus, iratingFuer, formulaIratingNoetig, pruefeProfil, pruefeExtras, nummerPflicht };

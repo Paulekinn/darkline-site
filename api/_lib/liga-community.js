@@ -22,7 +22,7 @@ const crypto = require("crypto");
 const { blobInhalte, blobDelete, blobPut, blobGet } = require("./blob");
 const D = require("./liga-daten");
 const { Hinweis } = D;
-const { berlinNachUtc, dauerMinuten, anmeldungPfad, profilPfad } = require("./liga-anmeldung");
+const { berlinNachUtc, dauerMinuten, anmeldungPfad, profilPfad, iratingFuer } = require("./liga-anmeldung");
 const { fahrerKennung } = require("./session");
 
 const PREFIX = "liga/community/";
@@ -136,7 +136,7 @@ function pruefe(e, jetzt = Date.now()) {
   if (titel.length < 3) throw new Hinweis("Bitte gib dem Rennen einen Titel mit mindestens 3 Zeichen.");
   return {
     titel, ...pruefeTermin(e, jetzt), ...pruefeRahmen(e),
-    ...pruefeAblauf(e), art: e.art === "team" ? "team" : "einzel", zugang: e.zugang === "freigabe" || e.zugang === "einladung" ? "freigabe" : "offen",
+    ...pruefeAblauf(e), art: e.art === "team" ? "team" : "einzel", kategorie: e.kategorie === "Formula" ? "Formula" : "Sports_Car", zugang: e.zugang === "freigabe" || e.zugang === "einladung" ? "freigabe" : "offen",
     beschreibung: pruefeBeschreibung(e.beschreibung),
   };
 }
@@ -159,8 +159,9 @@ function teilnahmePruefen(a, profil, team, jetzt = Date.now()) {
   if (!vorStart(a, jetzt)) throw new Hinweis("Dieses Rennen hat schon begonnen.");
   if (!profil || !profil.iracingName || !profil.nummer) throw new Hinweis("Bitte registriere dich zuerst als Fahrer mit Startnummer.");
   if (a.iratingMin !== null && a.iratingMin !== undefined || a.iratingMax !== null && a.iratingMax !== undefined) {
-    const ir = Number(profil.irating);
-    if (!Number.isFinite(ir) || profil.irating === null || profil.irating === "") throw new Hinweis("Für dieses Rennen gilt eine iRating-Grenze. Bitte trage dein iRating in deinem Profil ein.");
+    // Sports Car oder Formula: geprüft wird das iRating der Kategorie des Rennens
+    const ir = iratingFuer(profil, a.kategorie || "Sports_Car");
+    if (ir === null) throw new Hinweis(a.kategorie === "Formula" ? "Für dieses Formula-Rennen gilt eine iRating-Grenze. Bitte trage dein Formula-iRating in deinem Profil ein." : "Für dieses Rennen gilt eine iRating-Grenze. Bitte trage dein iRating in deinem Profil ein.");
     if (a.iratingMin !== null && a.iratingMin !== undefined && ir < a.iratingMin) throw new Hinweis(`Für dieses Rennen brauchst du mindestens ${a.iratingMin} iRating.`);
     if (a.iratingMax !== null && a.iratingMax !== undefined && ir > a.iratingMax) throw new Hinweis(`Dieses Rennen ist für Fahrer bis ${a.iratingMax} iRating.`);
   }
@@ -172,7 +173,7 @@ function teilnahmePruefen(a, profil, team, jetzt = Date.now()) {
 function alsKatalog(liste) {
   const relevant = liste.filter((a) => a.status === "freigegeben" || a.status === "abgesagt");
   return {
-    serien: relevant.map((a) => ({ id: rennenId(a), name: "Community-Rennen", typ: "community", farbe: "gelb", status: "anmeldung", anmeldungOffen: true, fahrzeugklassen: [] })),
+    serien: relevant.map((a) => ({ id: rennenId(a), name: "Community-Rennen", typ: "community", kategorie: a.kategorie || "Sports_Car", farbe: "gelb", status: "anmeldung", anmeldungOffen: true, fahrzeugklassen: [] })),
     rennen: relevant.map((a) => ({
       id: rennenId(a), serie: rennenId(a), titel: a.titel, datum: a.datum, startzeit: a.uhrzeit, strecke: a.strecke, plaetze: plaetzeVon(a),
       status: a.status === "abgesagt" ? "abgesagt" : "geplant", fahrzeuge: a.fahrzeugklasse, renndauer: `${a.dauer} min`, training: trainingText(a), qualifying: qualiText(a),
@@ -183,7 +184,7 @@ function alsKatalog(liste) {
 // Zusatzangaben eines Community-Rennens für die Karte im Fahrerbereich
 const info = (a, discordId) => ({
   id: a.id, veranstalter: a.name, nummer: a.nummer || null, sponsored: !!(a.entscheid && a.entscheid.sponsored), stewarding: (a.entscheid && a.entscheid.stewarding) || "",
-  art: a.art, zugang: zugangVon(a), banner: a.banner || "", iratingMin: a.iratingMin ?? null, iratingMax: a.iratingMax ?? null,
+  art: a.art, kategorie: a.kategorie || "Sports_Car", zugang: zugangVon(a), banner: a.banner || "", iratingMin: a.iratingMin ?? null, iratingMax: a.iratingMax ?? null,
   eigenes: a.discordId === discordId, anfrage: (a.anfragen || []).some((x) => x.discordId === discordId),
 });
 
@@ -200,7 +201,7 @@ function eigene(liste, discordId, eintraege = []) {
     ergebnisMoeglich: a.status === "freigegeben" && !vorStart(a) && Date.now() <= Date.parse(a.start) + ERGEBNIS_TAGE * 864e5,
     ergebnis: ergebnis ? { hochgeladen: ergebnis.hochgeladen, team: !!ergebnis.team, zeilen: wertung({ ergebnis, strafen }).slice(0, 3).map((z) => ({ platz: z.platz, name: z.name })), anzahl: ergebnis.zeilen.length } : null,
     ...a, zugang: zugangVon(a), plaetze: plaetzeVon(a), iratingMin: a.iratingMin ?? null, iratingMax: a.iratingMax ?? null,
-    training: a.training || 0, qualiDauer: a.qualiDauer ?? (a.quali ? 10 : 0),
+    training: a.training || 0, qualiDauer: a.qualiDauer ?? (a.quali ? 10 : 0), kategorie: a.kategorie || "Sports_Car",
     banner: a.banner || "", bannerAenderbar: bannerAenderbar(a), rennen: rennenId(a),
     bearbeitbar: a.status === "freigegeben" && vorStart(a), gemeldet: gemeldeteIds(a, eintraege).length,
     // Anfragen und Zugangsdaten sieht nur der Veranstalter selbst.
@@ -225,7 +226,7 @@ const kommendeMitBanner = (liste, jetzt = Date.now()) => liste.filter((a) => a.s
 // Öffentlich für /liga: kommende freigegebene Rennen ohne Discord-IDs, Anfragen und Zugangsdaten
 const oeffentlich = (liste, jetzt = Date.now()) => liste.filter((a) => (a.status === "freigegeben" || a.status === "abgesagt") && nochAktuell(a, jetzt)).sort(nachStart).map((a) => ({
   id: a.id, rennen: rennenId(a), titel: a.titel, start: a.start, datum: a.datum, uhrzeit: a.uhrzeit, strecke: a.strecke, fahrzeugklasse: a.fahrzeugklasse, dauer: a.dauer, quali: !!a.quali, training: a.training || 0, qualiDauer: a.qualiDauer || 0,
-  art: a.art, zugang: zugangVon(a), plaetze: plaetzeVon(a), iratingMin: a.iratingMin ?? null, iratingMax: a.iratingMax ?? null, beschreibung: a.beschreibung, banner: a.banner || "",
+  art: a.art, kategorie: a.kategorie || "Sports_Car", zugang: zugangVon(a), plaetze: plaetzeVon(a), iratingMin: a.iratingMin ?? null, iratingMax: a.iratingMax ?? null, beschreibung: a.beschreibung, banner: a.banner || "",
   veranstalter: a.name, nummer: a.nummer || null, sponsored: !!(a.entscheid && a.entscheid.sponsored), stewarding: (a.entscheid && a.entscheid.stewarding) || "", abgesagt: a.status === "abgesagt",
 }));
 
@@ -250,7 +251,7 @@ const meldungKarte = (a, parallel = []) => ({
     { name: "Fahrer", value: `${a.name}${a.nummer ? ` (#${a.nummer})` : ""}`, inline: true },
     { name: "Termin", value: `${termin(a)} Uhr`, inline: true },
     { name: "Strecke", value: a.strecke, inline: true },
-    { name: "Fahrzeug", value: a.fahrzeugklasse, inline: true },
+    { name: "Fahrzeug", value: `${a.fahrzeugklasse} (${a.kategorie === "Formula" ? "Formula" : "Sports Car"})`, inline: true },
     { name: "Format", value: formatText(a), inline: true },
     ...(iratingText(a) ? [{ name: "iRating", value: iratingText(a), inline: true }] : []),
     ...(parallel.length ? [{ name: "⚠️ Überschneidung mit", value: parallel.join("\n").slice(0, 1000) }] : []),
@@ -320,7 +321,7 @@ async function aktion(art, discordId, profil, body = {}, ctx = {}) {
     await aendern(a.id, (alt) => {
       if ((alt.anfragen || []).some((x) => x.discordId === discordId)) return undefined;
       neu = true;
-      return { ...alt, anfragen: [...(alt.anfragen || []), { discordId, name: profil.iracingName, nummer: profil.nummer, irating: profil.irating ?? null, team: ctx.team ? ctx.team.kuerzel : "", seit: new Date().toISOString() }].slice(-100) };
+      return { ...alt, anfragen: [...(alt.anfragen || []), { discordId, name: profil.iracingName, nummer: profil.nummer, irating: iratingFuer(profil, a.kategorie || "Sports_Car"), team: ctx.team ? ctx.team.kuerzel : "", seit: new Date().toISOString() }].slice(-100) };
     });
     return neu ? { nachrichten: [{ an: a.discordId, text: `📨 **${profil.iracingName}** (#${profil.nummer}) möchte bei deinem Community-Rennen **${a.titel}** mitfahren. Annehmen oder ablehnen kannst du im Fahrerbereich unter „Veranstalten“: ${LINK}` }] } : null;
   }

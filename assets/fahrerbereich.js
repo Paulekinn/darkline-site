@@ -56,9 +56,10 @@
 
   const artBadge = (typ) => (typ === "community" ? '<span class="liga-art klein event">Community</span>' : `<span class="liga-art klein ${typ === "event" ? "event" : "liga"}">${typ === "event" ? "Event" : "Liga"}</span>`);
   // Community-Rennen: Veranstalter und „Darkline Sponsored“ statt Seriennamen
+  const katBadge = (k) => window.LigaKarte.kategorieBadge(k, true);
   const serienTag = (r) => {
-    if (r.community) return `${artBadge("community")} <span class="fb-serie-tag s-gelb">von ${esc(r.community.veranstalter)}</span>${r.community.sponsored ? ' <span class="fb-serie-tag s-gelb">★ Darkline Sponsored</span>' : ""}`;
-    return r.serieName ? `${artBadge(r.serieTyp)} <span class="fb-serie-tag ${farbe(r.serieFarbe)}">${esc(r.serieName)}</span>` : "";
+    if (r.community) return `${artBadge("community")} ${katBadge(r.community.kategorie)} <span class="fb-serie-tag s-gelb">von ${esc(r.community.veranstalter)}</span>${r.community.sponsored ? ' <span class="fb-serie-tag s-gelb">★ Darkline Sponsored</span>' : ""}`;
+    return r.serieName ? `${artBadge(r.serieTyp)} ${katBadge(r.serieKategorie)} <span class="fb-serie-tag ${farbe(r.serieFarbe)}">${esc(r.serieName)}</span>` : "";
   };
   const communityIrating = (c) => (c.iratingMin != null && c.iratingMax != null ? `iRating ${c.iratingMin} bis ${c.iratingMax}` : c.iratingMin != null ? `iRating ab ${c.iratingMin}` : c.iratingMax != null ? `iRating bis ${c.iratingMax}` : "");
   const voraussetzungen = (c) => [communityIrating(c), c.art === "team" ? "Teamrennen: nur mit Liga-Team" : "", c.zugang === "freigabe" ? "Teilnahme nach Freigabe durch den Veranstalter" : ""].filter(Boolean).join(" · ");
@@ -258,8 +259,8 @@
       else if (s.aufAnfrage && s.anmeldungOffen && profilFertig()) aktion = anfrageAktion(s);
       else if (s.anmeldungOffen && profilFertig()) aktion = `${klassenAuswahl("s-" + s.id, s.fahrzeugklassen)}${modellAuswahl(s)}<button type="button" class="fb-knopf fb-melden" data-serie-aktion="serie-anmelden" data-serie="${esc(s.id)}">Jetzt anmelden</button>`;
       else if (!s.anmeldungOffen) aktion = s.status === "geplant" ? FOLGT : GESCHLOSSEN;
-      const info = [s.aufAnfrage && !s.ich ? `Privat${s.voraussetzungen ? `: ${s.voraussetzungen}` : ""}` : "", s.ich ? `Dabei${s.fahrzeugklasse ? ` · ${s.fahrzeugklasse}` : ""}` : "", s.einstufungDurchRennleitung ? "Einstufung durch Rennleitung" : s.klasse].filter(Boolean).join(" · ");
-      return `<li class="${farbe(s.farbe)}${s.ich ? " dabei" : ""}"><span class="fb-serie-bild" ${motiv(bildVon(s.id, s.bildVersion))} aria-hidden="true"></span><div>${artBadge(s.typ)} <a href="/liga?serie=${encodeURIComponent(s.id)}">${esc(s.name)}</a>${info ? `<small>${esc(info)}</small>` : ""}</div><div class="fb-serie-aktion">${aktion}</div>${s.ich ? fahrzeugZeile(s) : ""}</li>`;
+      const info = [s.aufAnfrage && !s.ich ? `Privat${s.voraussetzungen ? `: ${s.voraussetzungen}` : ""}` : "", s.ich ? `Dabei${s.fahrzeugklasse ? ` · ${s.fahrzeugklasse}` : ""}` : "", s.einstufungDurchRennleitung ? "Einstufung durch Rennleitung" : s.formulaIratingFehlt ? "Formula-iRating im Profil fehlt" : s.klasse].filter(Boolean).join(" · ");
+      return `<li class="${farbe(s.farbe)}${s.ich ? " dabei" : ""}"><span class="fb-serie-bild" ${motiv(bildVon(s.id, s.bildVersion))} aria-hidden="true"></span><div>${artBadge(s.typ)} ${katBadge(s.kategorie)} <a href="/liga?serie=${encodeURIComponent(s.id)}">${esc(s.name)}</a>${info ? `<small>${esc(info)}</small>` : ""}</div><div class="fb-serie-aktion">${aktion}</div>${s.ich ? fahrzeugZeile(s) : ""}</li>`;
     }).join("");
     return `<section class="fb-panel"><h3>Serien und Events</h3><ul class="fb-serien">${zeilen}</ul></section>`;
   }
@@ -277,6 +278,7 @@
       <div class="fb-feld"><label for="p-name">iRacing-Name</label><input id="p-name" autocomplete="off" maxlength="40" value="${esc(p.iracingName || "")}" required></div>
       <div class="fb-feld"><label for="p-cust">iRacing-ID</label><input id="p-cust" inputmode="numeric" autocomplete="off" maxlength="9" value="${esc(p.custId || "")}" required></div>
       <div class="fb-feld"><label for="p-ir">Sports-Car-iRating</label><input id="p-ir" inputmode="numeric" autocomplete="off" maxlength="5" value="${esc(p.irating ?? "")}" required></div>
+      <div class="fb-feld"><label for="p-irf">Formula-iRating (freiwillig)</label><input id="p-irf" inputmode="numeric" autocomplete="off" maxlength="5" value="${esc(p.iratingFormula ?? "")}"><small class="fb-klein">Brauchst du für Formula-Serien und Formula-Community-Rennen mit iRating-Grenze.</small></div>
       <div class="fb-feld"><label for="p-nr">Startnummer</label><input id="p-nr" inputmode="numeric" autocomplete="off" maxlength="3" placeholder="1 bis 999" value="${esc(wunsch ?? p.nummer ?? "")}" required></div>
       <p class="fb-klein">${nummerHinweis}</p>
       <h4 class="fb-oeffentlich">Öffentlich auf deinem Profil, alles freiwillig</h4>
@@ -306,7 +308,7 @@
           return p.land || club ? `<small class="fb-lizenz-info">${window.LigaKarte.flagge(p.land)}${esc([window.LigaFlaggen.name(p.land), club].filter(Boolean).join(" · "))}</small>` : "";
         })()}
         ${stand.team ? `<a class="fb-lizenz-team ${farbe(stand.team.farbe)}" href="/teams?id=${encodeURIComponent(stand.team.id)}">${teamZeichen(stand.team, 28)}<span>${esc(stand.team.name)}</span></a>` : ""}
-        <dl><div><dt>iRacing-ID</dt><dd>${esc(p.custId)}</dd></div><div><dt>Sports-Car-iRating</dt><dd>${esc(Number(p.irating).toLocaleString("de-DE"))}</dd></div></dl>
+        <dl><div><dt>iRacing-ID</dt><dd>${esc(p.custId)}</dd></div><div><dt>Sports-Car-iRating</dt><dd>${esc(Number(p.irating).toLocaleString("de-DE"))}</dd></div>${p.iratingFormula != null ? `<div><dt>Formula-iRating</dt><dd>${esc(Number(p.iratingFormula).toLocaleString("de-DE"))}</dd></div>` : ""}</dl>
       </div>
       <ul class="fb-profil-status">
         <li><span>Fahrerübersicht</span><b>${p.uebersicht === true ? "Sichtbar" : "Nicht sichtbar"}</b></li>
@@ -813,6 +815,7 @@
       <div class="fb-feld"><label for="c-strecke">Strecke</label><input id="c-strecke" name="strecke" maxlength="80" list="c-strecken" autocomplete="off" placeholder="Strecke und Variante" value="${esc(w.strecke || "")}"><datalist id="c-strecken">${(c.strecken || []).map((n) => `<option value="${esc(n)}"></option>`).join("")}</datalist></div>
       <div class="fb-feld"><label for="c-fz">Fahrzeugklasse oder Fahrzeug</label><input id="c-fz" name="fahrzeugklasse" maxlength="80" placeholder="z. B. GT3 oder Mazda MX-5" value="${esc(w.fahrzeugklasse || "")}"></div>
       ${ablaufFelder("c", w)}
+      <div class="fb-feld"><label for="c-kategorie">iRacing-Kategorie</label><select id="c-kategorie" name="kategorie">${opt("kategorie", [["Sports_Car", "Sports Car"], ["Formula", "Formula"]])}</select><small class="fb-klein">Bestimmt, welches iRating für die Grenzen zählt.</small></div>
       <div class="fb-feld"><label for="c-art">Art</label><select id="c-art" name="art">${opt("art", [["einzel", "Einzelrennen"], ["team", "Teamrennen"]])}</select></div>
       <div class="fb-feld"><label for="c-zugang">Teilnahme</label><select id="c-zugang" name="zugang">${opt("zugang", [["offen", "Offen für alle Fahrer"], ["freigabe", "Nur mit meiner Freigabe"]])}</select></div>
       ${rahmenFelder("c", w)}
@@ -904,7 +907,7 @@
     }
     beschaeftigt = false;
     // Bei einem Fehler bleibt alles Eingetippte stehen.
-    const felder = fehler && daten.aktion === "profil" ? ["p-name", "p-cust", "p-ir", "p-nr", "p-land", "p-team", "p-kanal"] : [];
+    const felder = fehler && daten.aktion === "profil" ? ["p-name", "p-cust", "p-ir", "p-irf", "p-nr", "p-land", "p-team", "p-kanal"] : [];
     const eingaben = felder.map((id) => $(id).value);
     const haken = felder.length ? [$("p-bild").checked, $("p-uebersicht").checked] : [];
     zeichne();
@@ -1146,7 +1149,7 @@
     }
     if (e.target.id !== "fb-profil") return;
     e.preventDefault();
-    sende({ aktion: "profil", profil: { iracingName: $("p-name").value, custId: $("p-cust").value, irating: $("p-ir").value, nummer: $("p-nr").value, land: $("p-land").value, team: $("p-team").value, kanal: $("p-kanal").value, zeigeBild: $("p-bild").checked, uebersicht: $("p-uebersicht").checked } });
+    sende({ aktion: "profil", profil: { iracingName: $("p-name").value, custId: $("p-cust").value, irating: $("p-ir").value, iratingFormula: $("p-irf").value, nummer: $("p-nr").value, land: $("p-land").value, team: $("p-team").value, kanal: $("p-kanal").value, zeigeBild: $("p-bild").checked, uebersicht: $("p-uebersicht").checked } });
   });
 
   // Countdown zum gewählten Rennen

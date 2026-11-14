@@ -45,6 +45,7 @@
   let g61Test = null;       // Ergebnis des Garage-61-Zugriffstests (Protokoll-Reiter)
   // Fahrzeugklassen zum Schnell-Hinzufügen. Garage 61 liefert keine Klasse mit, erkannt wird am iRacing-Namen.
   // Cup-Autos (etwa Porsche 911 GT3 Cup) sind keine GT3-Klasse und fallen heraus. Ergebnis immer kurz prüfen.
+  // Schnellwahl „Ganze Klasse“: Sports Car und Formula. Die Muster prüfen die Fahrzeugnamen aus Garage 61.
   const FAHRZEUGKLASSEN = [
     ["GT3", (n) => /\bGT3\b/i.test(n) && !/\bCup\b/i.test(n)],
     ["GT4", (n) => /\bGT4\b/i.test(n)],
@@ -52,6 +53,15 @@
     ["LMP2", (n) => /\bLMP2\b|\bP217\b/i.test(n)],
     ["LMP3", (n) => /\bLMP3\b|\bP320\b/i.test(n)],
     ["TCR", (n) => /\bTCR\b/i.test(n)],
+    ["F4", (n) => /\bF4\b/i.test(n)],
+    ["Formula Renault 2.0", (n) => /Formula Renault 2\.0|\bFR ?2\.0\b/i.test(n)],
+    ["Formula Ford / FF1600", (n) => /\bFF1600\b|Formula Ford/i.test(n)],
+    ["Formula Vee", (n) => /Formula Vee/i.test(n)],
+    ["Super Formula Lights", (n) => /Super Formula Lights|\bSF ?Lights\b|\bSF23 Lights\b/i.test(n)],
+    ["Super Formula", (n) => /Super Formula|\bSF ?23\b|\bSF ?19\b/i.test(n) && !/Lights/i.test(n)],
+    ["F3", (n) => /\bF3\b|Formula 3|Dallara F3|FIA F3/i.test(n)],
+    ["IndyCar (IR-18)", (n) => /\bIR-?18\b|IndyCar/i.test(n)],
+    ["Formel 1", (n) => /\bW1[2-4]\b|\bFW31\b|\bMP4-30\b|\bF1\b|Formula 1/i.test(n)],
   ];
   let notizEntwurf = null; // { id, text, konflikt } solange Notizen nicht gespeichert sind
   let meldung = null;     // { text, fehler }
@@ -603,7 +613,7 @@
       <div class="a-serie-inhalt">
         <div class="a-leiste">${istEvent ? '<span class="a-chip gold">★ Event</span>' : '<span class="a-chip hell">Season</span>'}${s.status === "geplant" ? '<span class="a-chip">Geplant</span>' : statusChip(s.status)}${s.anmeldungOffen === false && s.status !== "geplant" ? '<span class="a-chip">Anmeldung zu</span>' : ""}${s.aufAnfrage ? '<span class="a-chip">Privat</span>' : ""}</div>
         <h3>${esc(s.name)}</h3>
-        <p class="a-hinweis">${esc([istEvent ? "" : s.saison, s.ohneKlassen ? "Ohne iRating-Klassen" : `${(s.klassen || []).length} Klassen`, istEvent ? "" : `${s.gewerteteRennen} von ${s.rennenGesamt} Rennen gewertet`].filter(Boolean).join(" · "))}</p>
+        <p class="a-hinweis">${esc([window.LigaKarte.KATEGORIEN[s.kategorie] || "Sports Car", istEvent ? "" : s.saison, s.ohneKlassen ? "Ohne iRating-Klassen" : `${(s.klassen || []).length} Klassen`, istEvent ? "" : `${s.gewerteteRennen} von ${s.rennenGesamt} Rennen gewertet`].filter(Boolean).join(" · "))}</p>
         ${info}
         <div class="a-leiste">${s.status === "geplant" ? `<button type="button" class="a-knopf klein" data-serie-oeffnen="${esc(s.id)}">Anmeldung öffnen</button>` : ""}<button type="button" class="a-knopf${s.status === "geplant" ? " zweit" : ""} klein" data-serie-bearbeiten="${esc(s.id)}">Bearbeiten</button>${aktionen}<a class="a-knopf zweit klein" href="/liga?serie=${encodeURIComponent(s.id)}">Ansehen</a></div>
       </div>
@@ -846,6 +856,7 @@
         ${feld("iRacing-Name", eingabe("iracingName", w.iracingName, 'maxlength="40" autocomplete="off"'))}
         ${feld("iRacing-ID", eingabe("custId", w.custId, 'inputmode="numeric" maxlength="9" autocomplete="off"'))}
         ${feld("Sports-Car-iRating", eingabe("irating", w.irating, 'inputmode="numeric" maxlength="5" autocomplete="off"'))}
+        ${feld("Formula-iRating (freiwillig)", eingabe("iratingFormula", w.iratingFormula ?? "", 'inputmode="numeric" maxlength="5" autocomplete="off"'))}
         ${feld("Startnummer", eingabe("nummer", w.nummer ?? "", 'inputmode="numeric" maxlength="3" placeholder="1 bis 999"'))}
         ${feld("Land", auswahl("land", w.land || "", [["", "Keine Angabe"], ...window.LigaFlaggen.LAENDER]))}
         ${feld("Team oder Club", eingabe("team", w.team || "", 'maxlength="40"'))}

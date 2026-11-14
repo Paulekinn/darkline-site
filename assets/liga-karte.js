@@ -41,5 +41,12 @@
     return treffer ? FAHRZEUG_FARBEN[treffer] : FAHRZEUG_REIHE[[...schluessel].reduce((t, c) => t + c.charCodeAt(0), 0) % FAHRZEUG_REIHE.length];
   }
 
-  window.LigaKarte = { WERTE, rang, klassenFarbe, KLASSEN_FARBEN, klassenFarbwert, fahrzeugFarbe, bildVon, avatarVon, flagge, werte, inhalt };
+  // iRacing-Kategorie als Abzeichen. Ältere Serien ohne Angabe gelten als Sports Car.
+  const KATEGORIEN = { Sports_Car: "Sports Car", Formula: "Formula", Oval: "Oval", Dirt_Road: "Dirt Road", Dirt_Oval: "Dirt Oval" };
+  const kategorieBadge = (kategorie, klein) => {
+    const k = KATEGORIEN[kategorie] ? kategorie : "Sports_Car";
+    return `<span class="liga-kat kat-${k.toLowerCase().replace(/_/g, "-")}${klein ? " klein" : ""}">${KATEGORIEN[k]}</span>`;
+  };
+
+  window.LigaKarte = { WERTE, rang, klassenFarbe, KATEGORIEN, kategorieBadge, KLASSEN_FARBEN, klassenFarbwert, fahrzeugFarbe, bildVon, avatarVon, flagge, werte, inhalt };
 })();

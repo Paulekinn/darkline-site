@@ -1226,6 +1226,26 @@ const tests = {
     const [alt] = C.alsKatalog([{ ...basis, id: "abcd0002", status: "freigegeben", quali: true }]).rennen;
     assert.deepStrictEqual([alt.training, alt.qualifying], ["", "Ja"], "Ältere Rennen ohne Dauer zeigen weiter „Ja“");
   },
+  "Formula: Kategorie bei Community-Rennen und in der Rennliste": () => {
+    const C = require("../api/_lib/liga-community");
+    const jetzt = Date.UTC(2026, 10, 14, 12, 0);
+    const basis = { titel: "F4 Sprint", datum: "2026-11-25", uhrzeit: "20:00", strecke: "Spa", fahrzeugklasse: "F4", dauer: 30, beschreibung: "Formula-Sprint am Abend für alle." };
+    assert.strictEqual(C.pruefe({ ...basis, kategorie: "Formula" }, jetzt).kategorie, "Formula");
+    assert.strictEqual(C.pruefe({ ...basis, kategorie: "Quatsch" }, jetzt).kategorie, "Sports_Car", "Unbekannt heißt Sports Car");
+    // Die iRating-Grenze prüft das iRating der Kategorie
+    const a = { status: "freigegeben", start: new Date(Date.now() + 864e5).toISOString(), art: "einzel", zugang: "offen", iratingMin: null, iratingMax: 2000, kategorie: "Formula" };
+    const profil = { iracingName: "Lena", nummer: 4, irating: 1500 };
+    assert.throws(() => C.teilnahmePruefen(a, profil, null), /Formula-iRating in deinem Profil/);
+    assert.throws(() => C.teilnahmePruefen(a, { ...profil, iratingFormula: 2500 }, null), /bis 2000/);
+    C.teilnahmePruefen(a, { ...profil, iratingFormula: 1800 }, null);
+    C.teilnahmePruefen({ ...a, kategorie: "Sports_Car" }, profil, null);
+    // Kategorie in Rennliste und Serien: ältere Serien ohne Angabe gelten als Sports Car
+    const [r] = A.baueRennen([{ ...SERIENRENNEN }], [], { ...OPT, serien: { gt3: { id: "gt3", kategorie: "Formula" } } });
+    assert.strictEqual(r.serieKategorie, "Formula");
+    const [r2] = A.baueRennen([{ ...SERIENRENNEN }], [], { ...OPT, serien: { gt3: { id: "gt3" } } });
+    assert.strictEqual(r2.serieKategorie, "Sports_Car");
+    assert.strictEqual(C.alsKatalog([{ ...basis, id: "abcd0001", status: "freigegeben", kategorie: "Formula" }]).serien[0].kategorie, "Formula");
+  },
   "Community-Rennen: Ergebnisse lesen, abgleichen und werten": () => {
     const C = require("../api/_lib/liga-community");
     const start = "2026-11-20T19:00:00Z";
@@ -1914,7 +1934,9 @@ const tests = {
     assert.strictEqual(A.baueRennen([RENNEN], [], { ...OPT, jetzt: START + 3 * 3600e3 + 1 }).length, 0);
   },
   "Profil wird geprüft": () => {
-    assert.deepStrictEqual(A.pruefeProfil({ iracingName: " Max Muster ", custId: "123456", irating: "1850" }), { iracingName: "Max Muster", custId: "123456", irating: 1850 });
+    assert.deepStrictEqual(A.pruefeProfil({ iracingName: " Max Muster ", custId: "123456", irating: "1850" }), { iracingName: "Max Muster", custId: "123456", irating: 1850, iratingFormula: null });
+    assert.strictEqual(A.pruefeProfil({ iracingName: "Max", custId: "12", irating: "1850", iratingFormula: "2200" }).iratingFormula, 2200);
+    assert.throws(() => A.pruefeProfil({ iracingName: "Max", custId: "12", irating: "1850", iratingFormula: "viel" }), /Formula-iRating/);
     assert.throws(() => A.pruefeProfil({ iracingName: "M", custId: "1", irating: "1" }), /Namen/);
     assert.throws(() => A.pruefeProfil({ iracingName: "Max", custId: "12a", irating: "1" }), /iRacing-ID/);
     assert.throws(() => A.pruefeProfil({ iracingName: "Max", custId: "12", irating: "viel" }), /iRating/);
@@ -1952,9 +1974,16 @@ const tests = {
   "Serienstatus zeigt Mitgliedschaft und Klasse": () => {
     const { klasseFuer } = require("../assets/liga-wertung.js");
     const klassen = [{ id: "am", name: "Am", min: 0, max: 1499 }, { id: "pro", name: "Pro", min: 1500, max: null }];
-    const [gt3, formel] = A.baueSerien([{ id: "gt3", name: "GT3", klassen }, { id: "f", name: "Formel", kategorie: "Formula", klassen }], [mitglied("gt3", "2", 100)], { discordId: "2", profil: { irating: 2000 }, klasseFuer });
-    assert.deepStrictEqual([gt3.ich, gt3.klasse, gt3.fahrer], [true, "Pro", 1]);
-    assert.deepStrictEqual([formel.ich, formel.klasse, formel.einstufungDurchRennleitung], [false, "", true]);
+    const serien = [{ id: "gt3", name: "GT3", klassen }, { id: "f", name: "Formel", kategorie: "Formula", klassen }, { id: "o", name: "Oval", kategorie: "Oval", klassen }];
+    const [gt3, formel, oval] = A.baueSerien(serien, [mitglied("gt3", "2", 100)], { discordId: "2", profil: { irating: 2000 }, klasseFuer });
+    assert.deepStrictEqual([gt3.ich, gt3.klasse, gt3.fahrer, gt3.kategorie], [true, "Pro", 1, "Sports_Car"]);
+    // Formula: ohne Formula-iRating keine Klasse und ein Hinweis, mit Formula-iRating die passende Klasse
+    assert.deepStrictEqual([formel.ich, formel.klasse, formel.einstufungDurchRennleitung, formel.formulaIratingFehlt], [false, "", false, true]);
+    const [, formel2] = A.baueSerien(serien, [], { discordId: "2", profil: { irating: 2000, iratingFormula: 1200 }, klasseFuer });
+    assert.deepStrictEqual([formel2.klasse, formel2.formulaIratingFehlt], ["Am", false]);
+    // Oval und Dirt stuft weiter die Rennleitung ein
+    assert.strictEqual(oval.einstufungDurchRennleitung, true);
+    assert.strictEqual(A.formulaIratingNoetig({ kategorie: "Formula", ohneKlassen: true }), false, "Ohne Klassen braucht es kein Formula-iRating");
   },
   "Liga-Cookie öffnet nicht den Teambereich": () => {
     const r = res();

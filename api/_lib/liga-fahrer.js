@@ -194,6 +194,10 @@ function profilVollstaendig(profil) {
   if (!profil) throw new Hinweis("Bitte fülle zuerst dein Fahrerprofil aus.");
   if (!profil.nummer) throw new Hinweis("Bitte trage zuerst eine Startnummer in deinem Profil ein.");
 }
+// Formula-Serie mit Klassen nach iRating: ohne Formula-iRating gibt es keine Klasse.
+function formulaIratingPruefen(serie, profil) {
+  if (A.formulaIratingNoetig(serie) && A.iratingFuer(profil, "Formula") === null) throw new Hinweis("Diese Season wird nach Formula-iRating eingestuft. Bitte trage es zuerst in deinem Profil ein.");
+}
 
 async function anmelden(s, profil, body, alle, kat, communityListe = []) {
   profilVollstaendig(profil);
@@ -237,6 +241,7 @@ async function serieAnmelden(s, profil, body, alle, kat) {
   if (serie.anmeldungOffen === false || serie.status === "beendet") throw new Hinweis("Die Anmeldung für diese Serie ist geschlossen.");
   if (alle.some((e) => e.typ === "serie" && e.serieId === serie.id && e.discordId === s.id)) return alle;
   if (serie.aufAnfrage) throw new Hinweis("Diese Season ist privat. Bitte stelle eine Beitrittsanfrage, die Rennleitung gibt dich dann frei.");
+  formulaIratingPruefen(serie, profil);
   // Das Fahrzeug wird vor der Anmeldung geprüft, damit niemand ohne Auto in der Season steht.
   F.modellPruefen(serie, String(body.modell || ""));
   const pfad = A.mitgliedPfad(serie.id, s.id, fahrzeugklasseWaehlen(serie.fahrzeugklassen || [], String(body.fahrzeugklasse || "")), profil.iracingName);
@@ -256,8 +261,9 @@ async function serieAnfragen(s, profil, body, alle, kat) {
   if (serie.anmeldungOffen === false || serie.status === "beendet") throw new Hinweis("Die Anmeldung für diese Serie ist geschlossen.");
   if (alle.some((e) => e.typ === "serie" && e.serieId === serie.id && e.discordId === s.id)) return;
   if (await Anfragen.lesen(serie.id, s.id)) return;
+  formulaIratingPruefen(serie, profil);
   const anfrage = {
-    name: profil.iracingName, custId: profil.custId || "", irating: profil.irating || null,
+    name: profil.iracingName, custId: profil.custId || "", irating: A.iratingFuer(profil, serie.kategorie) ?? profil.irating ?? null,
     fahrzeugklasse: fahrzeugklasseWaehlen(serie.fahrzeugklassen || [], String(body.fahrzeugklasse || "")),
     modell: F.modellPruefen(serie, String(body.modell || "")),
     nachricht: String(body.nachricht || "").trim().replace(/\s+/g, " ").slice(0, 300),
