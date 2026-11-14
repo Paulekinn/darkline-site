@@ -19,7 +19,7 @@
   function teamKachel(t) {
     const namen = t.mitglieder.slice(0, 6).map((m) => `<li>${m.nummer ? `<b>#${esc(m.nummer)}</b> ` : ""}${esc(m.name)}</li>`).join("") + (t.mitglieder.length > 6 ? `<li>+${t.mitglieder.length - 6} weitere</li>` : "");
     return `<li><a class="fa-t-kachel ${farbe(t.farbe)}" href="/teams?id=${encodeURIComponent(t.id)}">
-      <div class="fa-t-kopf">${logo(t)}<span class="fa-t-kz">${esc(t.kuerzel)}</span><strong>${esc(t.name)}</strong></div>
+      <div class="fa-t-kopf">${logo(t) || `<span class="fa-t-kz">${esc(t.kuerzel)}</span>`}<strong>${esc(t.name)}</strong></div>
       <small class="lbl">${t.mitglieder.length} ${t.mitglieder.length === 1 ? "Fahrer" : "Fahrer"}</small>
       <ul class="fa-t-namen">${namen}</ul>
     </a></li>`;
@@ -42,7 +42,7 @@
 
   function zeigeTeam(t) {
     document.title = `${t.name} · Darkline Simracing Series`;
-    main.innerHTML = `${held("img/hero.webp", "Team", `<div class="fa-identitaet ${farbe(t.farbe)}">${t.logo ? logo(t, "fa-t-logo-gross") : `<span class="fa-t-kz fa-t-gross">${esc(t.kuerzel)}</span>`}<div>${t.logo ? `<span class="fa-t-kz">${esc(t.kuerzel)}</span>` : ""}<h1>${esc(t.name)}</h1></div></div>`, `<div class="fa-zahlen fa-l-zahlen"><div><b>${t.mitglieder.length}</b><span>${t.mitglieder.length === 1 ? "Fahrer" : "Fahrer"}</span></div></div>`)}
+    main.innerHTML = `${held("img/hero.webp", "Team", `<div class="fa-identitaet ${farbe(t.farbe)}">${t.logo ? logo(t, "fa-t-logo-gross") : `<span class="fa-t-kz fa-t-gross">${esc(t.kuerzel)}</span>`}<div><h1>${esc(t.name)}</h1></div></div>`, `<div class="fa-zahlen fa-l-zahlen"><div><b>${t.mitglieder.length}</b><span>${t.mitglieder.length === 1 ? "Fahrer" : "Fahrer"}</span></div></div>`)}
       <section class="sheet"><div class="wrap">
         <div class="doc-head"><h2 class="wide">Fahrer</h2><div class="doc-meta lbl">${t.mitglieder.length} im Team</div></div>
         <p class="fa-l-satz fa-t-hinweis">Die Zahlen auf den Kacheln sind die Einzelrennen der Fahrer. Teamergebnisse folgen mit den ersten Team-Events.</p>

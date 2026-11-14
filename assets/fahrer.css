@@ -68,7 +68,7 @@
 .fa-t-namen b{color:var(--s)}
 .fa-t-gross{min-width:84px;padding:12px 14px;font-size:1.6rem}
 .fa-t-logo{flex:none;width:44px;height:44px;object-fit:contain}
-.fa-t-logo-klein{width:24px;height:24px}
+.fa-t-logo-klein{width:28px;height:28px}
 .fa-t-logo-gross{width:clamp(84px,10vw,124px);height:auto;aspect-ratio:1}
 .fa-identitaet .fa-t-kz:not(.fa-t-gross){margin-bottom:6px}
 .fa-t-chef{color:var(--s)!important}

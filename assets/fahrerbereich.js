@@ -285,7 +285,7 @@
           const club = stand.team ? "" : p.team || "";
           return p.land || club ? `<small class="fb-lizenz-info">${window.LigaKarte.flagge(p.land)}${esc([window.LigaFlaggen.name(p.land), club].filter(Boolean).join(" · "))}</small>` : "";
         })()}
-        ${stand.team ? `<a class="fb-lizenz-team ${farbe(stand.team.farbe)}" href="/teams?id=${encodeURIComponent(stand.team.id)}">${teamKuerzel(stand.team)}<span>${esc(stand.team.name)}</span></a>` : ""}
+        ${stand.team ? `<a class="fb-lizenz-team ${farbe(stand.team.farbe)}" href="/teams?id=${encodeURIComponent(stand.team.id)}">${teamZeichen(stand.team, 28)}<span>${esc(stand.team.name)}</span></a>` : ""}
         <dl><div><dt>iRacing-ID</dt><dd>${esc(p.custId)}</dd></div><div><dt>Sports-Car-iRating</dt><dd>${esc(Number(p.irating).toLocaleString("de-DE"))}</dd></div></dl>
       </div>
       <ul class="fb-profil-status">
@@ -570,7 +570,9 @@
   let teamBearbeiten = false;
   let einladung = null; // { code, team } aus einem Einladungslink
   const teamKuerzel = (t) => `<span class="fb-team-kz ${farbe(t.farbe)}">${esc(t.kuerzel)}</span>`;
-  const teamLogo = (t, groesse = 56) => (t.logo ? `<img class="fb-team-logo" src="api/liga?r=bild&k=team-${encodeURIComponent(t.id)}&v=${encodeURIComponent(t.logo)}" alt="Logo ${esc(t.name)}" width="${groesse}" height="${groesse}" loading="lazy">` : "");
+  const teamLogo = (t, groesse = 56) => (t.logo ? `<img class="fb-team-logo" src="api/liga?r=bild&k=team-${encodeURIComponent(t.id)}&v=${encodeURIComponent(t.logo)}" alt="Logo ${esc(t.name)}" width="${groesse}" height="${groesse}" style="width:${groesse}px;height:${groesse}px" loading="lazy">` : "");
+  // Mit Logo steht nur das Logo neben dem Namen, ohne Logo das Kürzel
+  const teamZeichen = (t, groesse) => (t.logo ? teamLogo(t, groesse) : teamKuerzel(t));
 
   // Logo quadratisch auf 512 × 512 bringen, Seitenverhältnis bleibt, Transparenz bleibt bei WebP erhalten.
   async function logoVorbereiten(datei) {
@@ -611,7 +613,7 @@
       const liste = (stand.teams || []).map((x) => {
         const angefragt = anfragen.includes(x.id);
         const knopf = angefragt ? `<span class="fb-zu">Angefragt</span><button type="button" class="fb-abmelden" data-team-aktion="team-anfrage-zurueck" data-team="${esc(x.id)}">Zurückziehen</button>` : x.voll ? '<span class="fb-zu">Voll</span>' : `<button type="button" class="fb-abmelden" data-team-aktion="team-anfragen" data-team="${esc(x.id)}">Anfragen</button>`;
-        return `<li>${teamLogo(x, 28)}${teamKuerzel(x)}<a href="/teams?id=${encodeURIComponent(x.id)}">${esc(x.name)}</a><small>${x.anzahl} ${x.anzahl === 1 ? "Fahrer" : "Fahrer"}</small><span class="fb-team-knopfe">${knopf}</span></li>`;
+        return `<li>${teamZeichen(x, 28)}<a href="/teams?id=${encodeURIComponent(x.id)}">${esc(x.name)}</a><small>${x.anzahl} ${x.anzahl === 1 ? "Fahrer" : "Fahrer"}</small><span class="fb-team-knopfe">${knopf}</span></li>`;
       }).join("");
       return `<section class="fb-panel"><h3>Dein Team</h3>
         <p class="fb-klein">Du bist in keinem Team. Gründe eins und lade deine Teamkollegen per Link ein, oder frag bei einem bestehenden Team an.</p>
@@ -634,7 +636,7 @@
       ${(t.anfragen || []).length ? `<h4 class="fb-zwischen">Anfragen (${t.anfragen.length})</h4><ul class="fb-team-mitglieder">${t.anfragen.map((a) => `<li><span>${a.nummer ? `<b>#${esc(a.nummer)}</b> ` : ""}${esc(a.name)}</span><span class="fb-team-knopfe"><button type="button" class="fb-knopf fb-melden" data-team-aktion="team-anfrage-entscheiden" data-fahrer="${esc(a.discordId)}" data-ja="1">Annehmen</button><button type="button" class="fb-abmelden" data-team-aktion="team-anfrage-entscheiden" data-fahrer="${esc(a.discordId)}">Ablehnen</button></span></li>`).join("")}</ul>` : ""}
       ${teamBearbeiten ? `<form class="fb-profil" id="fb-team-form" novalidate>${teamFelder(t)}<div class="fb-profil-fuss"><button type="submit" class="fb-knopf">Speichern</button><button type="button" class="fb-knopf zweit" data-team-bearbeiten="zu">Abbrechen</button></div></form>` : ""}` : "";
     return `<section class="fb-panel ${farbe(t.farbe)} fb-team"><h3>Dein Team</h3>
-      <div class="fb-team-kopf">${teamLogo(t, 48)}${teamKuerzel(t)}<strong>${esc(t.name)}</strong></div>
+      <div class="fb-team-kopf">${teamZeichen(t, 48)}<strong>${esc(t.name)}</strong></div>
       <ul class="fb-team-mitglieder">${mitglieder}</ul>
       ${chefTeil}
       <p class="fb-profil-link"><a class="fb-link" href="/teams?id=${encodeURIComponent(t.id)}">Teamseite</a>${t.istChef && !teamBearbeiten ? ' <button type="button" class="fb-link" data-team-bearbeiten="auf">Team bearbeiten</button>' : ""} ${t.istChef ? '<button type="button" class="fb-link" data-team-aktion="team-aufloesen">Team auflösen</button>' : '<button type="button" class="fb-link" data-team-aktion="team-verlassen">Team verlassen</button>'}</p>
@@ -649,7 +651,7 @@
     const t = einladung.team;
     const hinweis = !profilFertig() ? "Registriere dich zuerst als Fahrer, dann kannst du beitreten." : stand.team ? `Du bist schon im Team ${stand.team.name}. Verlasse es zuerst, um zu wechseln.` : "";
     return `<section class="fb-panel fb-panel-wichtig ${farbe(t.farbe)}"><h3>Einladung ins Team</h3>
-      <div class="fb-team-kopf">${teamLogo(t, 48)}${teamKuerzel(t)}<strong>${esc(t.name)}</strong><small>${t.anzahl} ${t.anzahl === 1 ? "Fahrer" : "Fahrer"}</small></div>
+      <div class="fb-team-kopf">${teamZeichen(t, 48)}<strong>${esc(t.name)}</strong><small>${t.anzahl} ${t.anzahl === 1 ? "Fahrer" : "Fahrer"}</small></div>
       ${hinweis ? `<p class="fb-klein">${esc(hinweis)}</p>` : '<p class="fb-klein">Als Mitglied erscheinst du mit iRacing-Name und Startnummer öffentlich auf der Teamseite.</p>'}
       <div class="fb-kalender">${hinweis || t.voll ? "" : '<button type="button" class="fb-knopf" data-einladung="ja">Team beitreten</button>'}<button type="button" class="fb-knopf zweit" data-einladung="weg">${hinweis ? "Schließen" : "Nein, danke"}</button></div>
     </section>`;
