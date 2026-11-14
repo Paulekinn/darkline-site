@@ -688,6 +688,60 @@
   const brauchtZugang = (s) => !s || s.typ === "event" || !(s.rennenGesamt > 2);
   const rennenWarnungen = (r) => [!r.passwort && brauchtZugang(serieVon(r.serie)) && "Kein Passwort", !r.briefing && "Kein Briefing", !r.strecke && "Keine Strecke"].filter(Boolean);
 
+  // Wetter als feste Auswahl (iRacing-Einstellungen in Worten). Ein älterer, frei eingetippter Wert bleibt als eigene Option erhalten.
+  const WETTER = ["Realistisch (dynamisch)", "Dynamisch, trocken", "Dynamisch, Regen möglich", "Fest, sonnig", "Fest, bewölkt", "Fest, Regen"];
+  const wetterAuswahl = (wert) => {
+    const w = String(wert || "");
+    const optionen = [["", "Noch offen"], ...WETTER.map((x) => [x, x]), ...(w && !WETTER.includes(w) ? [[w, `Bisher: ${w}`]] : [])];
+    return auswahl("wetter", w, optionen);
+  };
+  // Dauer: Eingabe in Minuten. Gespeichert wird lesbar („45 min“, „6 h“), so wie die Seite es auch auswertet.
+  const minutenAus = (text) => {
+    const t = String(text ?? "").toLowerCase().replace(",", ".").trim();
+    if (!t) return "";
+    let m;
+    if ((m = /^(\d+)$/.exec(t))) return +m[1];
+    if ((m = /^(\d+)\s*[:.]\s*(\d{1,2})\s*h?/.exec(t))) return +m[1] * 60 + +m[2];
+    if ((m = /^(\d+(?:\.\d+)?)\s*h[a-z]*\s*(\d+)?/.exec(t))) return Math.round(+m[1] * 60) + (+m[2] || 0);
+    if ((m = /^(\d+)\s*m/.exec(t))) return +m[1];
+    return "";
+  };
+  const alsDauer = (wert) => { const n = Number(wert); return !String(wert ?? "").trim() || !Number.isFinite(n) || n <= 0 ? "" : n >= 120 && n % 60 === 0 ? `${n / 60} h` : `${Math.round(n)} min`; };
+  const minutenFeld = (name, titel, wert, platzhalter) => feld(`${titel} (Minuten)`, eingabe(name, minutenAus(wert), `type="number" min="0" max="1440" step="5" inputmode="numeric" placeholder="${platzhalter}"`));
+  const ablaufFelder = (w) => `
+            ${minutenFeld("training", "Training", w.training, "z. B. 30")}
+            ${minutenFeld("qualifying", "Qualifying", w.qualifying, "z. B. 15")}
+            ${minutenFeld("renndauer", "Renndauer", w.renndauer, "z. B. 60")}
+            ${feld("Wetter", wetterAuswahl(w.wetter))}`;
+  // Vor dem Speichern: Minuten zurück in lesbare Dauer
+  const dauernSetzen = (w) => { ["training", "qualifying", "renndauer"].forEach((k) => { if (k in w) w[k] = alsDauer(w[k]); }); return w; };
+
+  // Checkliste unter dem Rennen-Formular
+  function rennenCheck() {
+    const f = document.getElementById("f-rennen");
+    const ziel = document.getElementById("a-rennen-check");
+    if (!f || !ziel) return;
+    const wert = (n) => (f.elements[n] ? String(f.elements[n].value || "").trim() : "");
+    const s = serieVon(wert("serie"));
+    const strecke = wert("strecke");
+    const ausBibliothek = strecke && streckeAus(strecke);
+    const zugang = brauchtZugang(s);
+    const pruefungen = [
+      ["Titel", wert("titel") ? "ok" : "fehlt", wert("titel") || "Bitte einen Titel eintragen"],
+      ["Termin", wert("datum") && wert("startzeit") ? "ok" : "fehlt", wert("datum") && wert("startzeit") ? `${datumKurz(wert("datum"))}, ${wert("startzeit")} Uhr` : "Bitte Datum und Rennstart eintragen"],
+      ["Strecke", !strecke ? "fehlt" : ausBibliothek ? "ok" : "info", !strecke ? "Bitte eine Strecke wählen" : ausBibliothek ? `${strecke}, mit Streckenkarte aus der Bibliothek` : `${strecke}, nicht in der Bibliothek, also ohne Streckenkarte`],
+      ["Startplätze", Number(wert("plaetze")) > 0 ? "ok" : "fehlt", Number(wert("plaetze")) > 0 ? `${wert("plaetze")} Plätze` : "Bitte die Zahl der Startplätze eintragen"],
+      ["Renndauer", wert("renndauer") ? "ok" : "info", wert("renndauer") ? `${alsDauer(wert("renndauer"))}` : "Ohne Angabe rechnet die Seite mit 2 Stunden (Kalender, Überschneidungen, Report-Frist)"],
+      ["Ablauf", wert("training") || wert("qualifying") ? "ok" : "frei", [wert("training") && `Training ${alsDauer(wert("training"))}`, wert("qualifying") && `Quali ${alsDauer(wert("qualifying"))}`].filter(Boolean).join(", ") || "Kein Training und kein Qualifying angegeben"],
+      ["Wetter", wert("wetter") ? "ok" : "frei", wert("wetter") || "Noch offen"],
+      ...(zugang ? [["Zugang", wert("server") && wert("passwort") ? "ok" : "info", wert("server") && wert("passwort") ? "Session-Name und Passwort eingetragen" : "Session-Name oder Passwort fehlt, Fahrer sehen dann „Kommt im Discord“"]] : []),
+      ["Briefing", wert("briefing") ? "ok" : "info", wert("briefing") ? "Eingetragen" : "Noch kein Briefing"],
+      ...(wert("status") === "abgesagt" ? [["Status", "info", "Abgesagt: Gemeldete sehen das Rennen als abgesagt"]] : []),
+    ];
+    const zeichen = { ok: "✓", fehlt: "!", frei: "○", info: "i" };
+    ziel.innerHTML = pruefungen.map(([t, art, text]) => `<li class="${art}"><b aria-hidden="true">${zeichen[art]}</b><span><strong>${esc(t)}</strong> ${esc(text)}</span></li>`).join("");
+  }
+
   function rennenForm() {
     const w = form.werte;
     const karte = (streckeAus(w.strecke) || {});
@@ -696,7 +750,7 @@
       ${streckenDatalist()}
       <div class="a-rennen-form">
         <div class="a-spalte">
-          ${abschnittForm(1, "Termin", `<div class="a-felder">
+          ${abschnittForm(1, "Termin", `<div class="a-felder unten">
             ${feld("Titel", eingabe("titel", w.titel, 'maxlength="80" placeholder="Runde 1 · Spa"'))}
             ${feld("Serie oder Event", auswahl("serie", w.serie || serieId, d.serien.map((s) => [s.id, s.name])))}
             ${feld("Status", auswahl("status", w.status, [["geplant", "Geplant"], ["abgesagt", "Abgesagt"]]))}
@@ -704,14 +758,11 @@
             ${feld("Rennstart (deutsche Zeit)", eingabe("startzeit", w.startzeit, 'type="time"'))}
             ${feld("Startplätze", eingabe("plaetze", w.plaetze, 'type="number" min="1"'))}
           </div>${w.sichtung ? '<label class="a-check"><input type="checkbox" name="sichtung" checked> Altes Sichtungsrennen: zählt nicht für die Tabelle. Die Sichtung läuft inzwischen über Garage 61.</label>' : ""}`)}
-          ${abschnittForm(2, "Ablauf", `<div class="a-felder">
-            ${feld("Fahrzeuge", eingabe("fahrzeuge", w.fahrzeuge, 'maxlength="80"'))}
-            ${feld("Training", eingabe("training", w.training, 'placeholder="30 min"'))}
-            ${feld("Qualifying", eingabe("qualifying", w.qualifying, 'placeholder="15 min"'))}
-            ${feld("Renndauer", eingabe("renndauer", w.renndauer, 'placeholder="60 min"'))}
-            ${feld("Wetter", eingabe("wetter", w.wetter))}
+          ${abschnittForm(2, "Ablauf", `<div class="a-felder unten">
+            ${ablaufFelder(w)}
+            ${feld("Fahrzeuge", eingabe("fahrzeuge", w.fahrzeuge, 'maxlength="80" placeholder="z. B. GT3, frei wählbar"'))}
           </div>`)}
-          ${abschnittForm(3, "Zugang und Briefing", `<div class="a-felder">
+          ${abschnittForm(3, "Zugang und Briefing", `<div class="a-felder unten">
             ${feld("Session-Name in iRacing", eingabe("server", w.server))}
             ${feld("Session-Passwort", eingabe("passwort", w.passwort, 'autocomplete="off"'))}
             ${feld("Briefing und Renninfos (Markdown)", `<textarea name="briefing" maxlength="10000">${esc(w.briefing)}</textarea>`, true)}
@@ -721,6 +772,7 @@
           ${abschnittForm(4, "Strecke", `${feld("Strecke", eingabe("strecke", w.strecke, 'maxlength="80" list="a-strecken" id="r-strecke" autocomplete="off" placeholder="Name eintippen"'))}<div id="a-karte-vorschau">${kartenVorschau(karte)}</div>`, "Strecken aus der Bibliothek bringen ihre Streckenkarte automatisch mit.")}
         </aside>
       </div>
+      <section class="a-checkliste" aria-live="polite"><h3>Vor dem Speichern</h3><ul id="a-rennen-check"></ul></section>
       ${formLeiste("Rennen speichern", form.id ? '<button type="button" class="a-knopf gefahr" data-rennen-loeschen="1">Löschen</button>' : "")}
     </form>`;
   }
@@ -751,19 +803,16 @@
       ${streckenDatalist()}
       <div class="a-rennen-form">
         <div class="a-spalte">
-          ${abschnittForm(1, "Rhythmus", `<div class="a-felder">
+          ${abschnittForm(1, "Rhythmus", `<div class="a-felder unten">
             ${feld("Erstes Rennen", `<input type="date" id="p-start" value="${esc(planer.start)}">`)}
             ${feld("Abstand in Tagen", `<input type="number" id="p-abstand" min="1" max="60" value="${esc(planer.abstand)}">`)}
             ${feld("Anzahl Rennen", `<input type="number" id="p-anzahl" min="1" max="60" value="${planer.zeilen.length}">`)}
             ${feld("Rennstart", eingabe("startzeit", planer.startzeit, 'type="time"'))}
           </div>`, "Die Termine rechnen sich automatisch, jeder lässt sich einzeln ändern.")}
-          ${abschnittForm(2, "Gilt für alle Rennen", `<div class="a-felder">
+          ${abschnittForm(2, "Gilt für alle Rennen", `<div class="a-felder unten">
             ${feld("Startplätze", eingabe("plaetze", planer.plaetze, 'type="number" min="1"'))}
-            ${feld("Fahrzeuge", eingabe("fahrzeuge", planer.fahrzeuge, 'maxlength="80"'))}
-            ${feld("Training", eingabe("training", planer.training, 'placeholder="30 min"'))}
-            ${feld("Qualifying", eingabe("qualifying", planer.qualifying, 'placeholder="15 min"'))}
-            ${feld("Renndauer", eingabe("renndauer", planer.renndauer, 'placeholder="60 min"'))}
-            ${feld("Wetter", eingabe("wetter", planer.wetter))}
+            ${ablaufFelder(planer)}
+            ${feld("Fahrzeuge", eingabe("fahrzeuge", planer.fahrzeuge, 'maxlength="80" placeholder="z. B. GT3, frei wählbar"'))}
           </div>`)}
         </div>
         <div class="a-spalte">${abschnittForm(3, "Rennkalender", `<div class="a-plan" id="a-plan-zeilen">${planerZeilenHtml()}</div>`, "Das Briefing trägst du später je Rennen ein.")}</div>
@@ -1523,6 +1572,7 @@
     document.title = `${offene ? `(${offene}) ` : ""}Rennleitung · Darkline Simracing Series`;
     klassenKontrolle();
     serienCheck();
+    rennenCheck();
   }
 
   // Öffnet ein Formular oder den Planer und bringt es in den sichtbaren Bereich.
@@ -1536,6 +1586,9 @@
 
   // Knöpfe im Season-Formular (Punkte-Vorlage, Fahrzeuge, Klassen) setzen Werte ohne Eingabe-Ereignis: Checkliste danach neu prüfen.
   app.addEventListener("click", (e) => { if (e.target.closest && e.target.closest("#f-serie")) setTimeout(serienCheck, 0); });
+  // Rennen-Formular: Checkliste bei jeder Eingabe neu prüfen (auch wenn spätere Handler früh aussteigen)
+  app.addEventListener("input", (e) => { if (e.target.closest && e.target.closest("#f-rennen")) rennenCheck(); });
+  app.addEventListener("change", (e) => { if (e.target.closest && e.target.closest("#f-rennen")) rennenCheck(); });
 
   app.addEventListener("click", async (e) => {
     const b = e.target.closest("button");
@@ -1914,6 +1967,7 @@
       if (await aktion({ aktion: "serie-speichern", id: form.id, serie: w, vorher: form.vorher }, w.typ === "event" ? "Event gespeichert." : "Season gespeichert.")) { serienReiter = w.status === "beendet" ? "archiv" : w.typ === "event" ? "event" : "liga"; zeichne(); }
     } else if (f.id === "f-rennen") {
       w.sichtung = f.elements.sichtung ? f.elements.sichtung.checked : false;
+      dauernSetzen(w);
       form.werte = w;
       aktion({ aktion: "rennen-speichern", id: form.id, rennen: { ...w, streckeId: (streckeAus(w.strecke) || {}).id || "" }, vorher: form.vorher },"Rennen gespeichert.");
     } else if (f.id === "f-strecke") {
@@ -1925,7 +1979,7 @@
     } else if (f.id === "f-plan") {
       planerLesen();
       const vorhanden = d.rennen.filter((r) => r.serie === planer.serie).length;
-      const gemeinsam = { status: "geplant", briefing: serieVon(planer.serie).briefingVorlage || "", startzeit: planer.startzeit, plaetze: planer.plaetze, fahrzeuge: planer.fahrzeuge, training: planer.training, qualifying: planer.qualifying, renndauer: planer.renndauer, wetter: planer.wetter };
+      const gemeinsam = { status: "geplant", briefing: serieVon(planer.serie).briefingVorlage || "", startzeit: planer.startzeit, plaetze: planer.plaetze, fahrzeuge: planer.fahrzeuge, training: alsDauer(planer.training), qualifying: alsDauer(planer.qualifying), renndauer: alsDauer(planer.renndauer), wetter: planer.wetter };
       const rennen = planer.zeilen.map((z, i) => ({ ...gemeinsam, datum: z.datum, strecke: z.strecke.trim(), streckeId: (streckeAus(z.strecke) || {}).id || "", titel: `Runde ${vorhanden + i + 1}${z.strecke.trim() ? ` · ${z.strecke.trim()}` : ""}` }));
       const a = await aktion({ aktion: "saison-planen", serie: planer.serie, rennen }, `${rennen.length} ${rennen.length === 1 ? "Rennen" : "Rennen"} angelegt.`);
       if (a) { planer = null; zeichne(); }
