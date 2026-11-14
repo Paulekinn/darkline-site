@@ -261,7 +261,7 @@
       <p class="fb-klein">${nummerHinweis}</p>
       <h4 class="fb-oeffentlich">Öffentlich auf deinem Profil, alles freiwillig</h4>
       <div class="fb-feld"><label for="p-land">Land</label><select id="p-land"><option value="">Keine Angabe</option>${window.LigaFlaggen.LAENDER.map(([c, n]) => `<option value="${c}"${c === p.land ? " selected" : ""}>${esc(n)}</option>`).join("")}</select></div>
-      <div class="fb-feld"><label for="p-team">Club oder Sim-Team außerhalb der Liga</label><input id="p-team" autocomplete="off" maxlength="40" value="${esc(p.team || "")}"></div>
+      <div class="fb-feld"><label for="p-team">Club oder Sim-Team außerhalb der Liga</label><input id="p-team" autocomplete="off" maxlength="40" value="${esc(p.team || "")}">${stand.team ? `<small class="fb-klein">Wird nicht angezeigt, solange du im Team ${esc(stand.team.name)} bist.</small>` : ""}</div>
       <div class="fb-feld"><label for="p-kanal">Twitch- oder YouTube-Link</label><input id="p-kanal" autocomplete="off" maxlength="150" placeholder="https://www.twitch.tv/…" value="${esc(p.kanal || "")}"></div>
       <label class="fb-haken"><input type="checkbox" id="p-bild"${p.zeigeBild === false ? "" : " checked"}><span>Mein Discord-Profilbild auf dem Profil und der Fahrerkarte zeigen</span></label>
       <label class="fb-haken"><input type="checkbox" id="p-uebersicht"${p.uebersicht === true ? " checked" : ""}><span>Mich mit iRacing-Name und Startnummer in der öffentlichen Fahrerübersicht zeigen, auch bevor ich ein Rennen gefahren bin</span></label>
@@ -281,8 +281,8 @@
         <div class="fb-lizenz-kopf"><img src="img/brand/dsrs-logo.png" alt="" width="654" height="165"><span>Fahrerlizenz</span></div>
         <div class="fb-lizenz-fahrer">${bild ? `<img class="fb-lizenz-bild" src="${esc(bild)}" alt="" width="52" height="52">` : ""}<strong>${p.nummer ? `<span class="fb-lizenz-nr">#${esc(p.nummer)}</span> ` : ""}${esc(p.iracingName)}</strong></div>
         ${(() => {
-          // Der freie Club-Text entfällt, wenn er nur das Liga-Team wiederholt.
-          const club = p.team && !(stand.team && String(p.team).trim().toLowerCase() === String(stand.team.name).trim().toLowerCase()) ? p.team : "";
+          // Im Liga-Team zählt nur das Team, der freie Club-Text entfällt.
+          const club = stand.team ? "" : p.team || "";
           return p.land || club ? `<small class="fb-lizenz-info">${window.LigaKarte.flagge(p.land)}${esc([window.LigaFlaggen.name(p.land), club].filter(Boolean).join(" · "))}</small>` : "";
         })()}
         ${stand.team ? `<a class="fb-lizenz-team ${farbe(stand.team.farbe)}" href="/teams?id=${encodeURIComponent(stand.team.id)}">${teamKuerzel(stand.team)}<span>${esc(stand.team.name)}</span></a>` : ""}

@@ -13,7 +13,6 @@
   const teilenLink = (k) => `/liga?serie=${encodeURIComponent(k.serie)}#fahrer/${encodeURIComponent(k.klasseId)}/${encodeURIComponent(k.name)}`;
   const karteHtml = (k, profil) => `<div class="fa-karte"><div class="liga-fk ${K.klassenFarbe(k)} ${K.rang(k.karte.rating)}">${K.inhalt({ ...k, profil })}</div><a class="liga-mini zweit" href="${esc(teilenLink(k))}">Bild und Link zum Teilen</a></div>`;
 
-  const gleich = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
   const kanalName = (url) => (/twitch\.tv/.test(url) ? "Twitch" : "YouTube");
 
   function zeileVerlauf(r) {
@@ -39,8 +38,8 @@
     const zahlen = [[b.starts, "Starts"], [b.siege, "Siege"], [b.podien, "Podien"], [b.poles, "Poles"], [b.schnellste, "Schnellste Runden"], [b.ausfaelle, "Ausfälle"]];
     const land = p.land ? `${K.flagge(p.land)}<span>${esc(F.name(p.land))}</span>` : "";
     const ligaTeam = d.team ? `<a class="fa-team-link s-${esc(d.team.farbe)}" href="/teams?id=${encodeURIComponent(d.team.id)}"><span class="fa-l-team">${esc(d.team.kuerzel)}</span>${esc(d.team.name)}</a>` : "";
-    // Der freie Club-Text entfällt, wenn er nur das Liga-Team wiederholt.
-    const club = p.team && !(d.team && gleich(p.team, d.team.name)) ? p.team : "";
+    // Im Liga-Team zählt nur das Team, der freie Club-Text entfällt.
+    const club = d.team ? "" : p.team || "";
     const meta = [land ? `<span class="fa-land">${land}</span>` : "", ligaTeam, club ? `<span>${esc(club)}</span>` : ""].filter(Boolean).join('<span aria-hidden="true">·</span>');
     main.innerHTML = `<section class="fa-held">
         <div class="fa-held-bild" style="background-image:url('${esc(kopfbild)}')" aria-hidden="true"></div>
