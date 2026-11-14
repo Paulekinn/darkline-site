@@ -675,8 +675,37 @@
     </aside>`;
   }
 
-  function uebersicht(serien, rennen) {
-    if (!serien.length) return leer(null);
+  // Community-Rennen: von Fahrern veranstaltet, zählen nicht für die Seasons. Angemeldet wird im Fahrerbereich.
+  const communityLink = (c) => `/fahrerbereich?rennen=${encodeURIComponent(c.rennen)}`;
+  const communityBild = (c) => (c.banner ? eigenesBild(`community-${c.id}`, c.banner) : `img/cars/${livery(c.id)}.webp`);
+  const communityIrating = (c) => (c.iratingMin != null && c.iratingMax != null ? `iRating ${c.iratingMin} bis ${c.iratingMax}` : c.iratingMin != null ? `iRating ab ${c.iratingMin}` : c.iratingMax != null ? `iRating bis ${c.iratingMax}` : "");
+  function communityKarte(c) {
+    const start = new Date(c.start);
+    const wann = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(start);
+    const bedingungen = [communityIrating(c), c.art === "team" ? "nur mit Liga-Team" : "", c.zugang === "freigabe" ? "Veranstalter gibt frei" : ""].filter(Boolean).join(" · ") || "offen für alle";
+    const text = c.beschreibung.length > 180 ? `${c.beschreibung.slice(0, 177).trim()} …` : c.beschreibung;
+    return `<article class="liga-poster s-gelb ist-event${c.abgesagt ? " beendet" : ""}">
+      <div class="liga-poster-bild" style="background-image:url('${esc(communityBild(c))}')" aria-hidden="true"></div>
+      <div class="liga-poster-inhalt">
+        <div class="liga-poster-kopf"><span class="liga-art event">Community</span>${c.sponsored ? '<span class="liga-pill farbig">★ Darkline Sponsored</span>' : ""}<span class="liga-pill">${c.art === "team" ? "Teamrennen" : "Einzelrennen"}</span>${c.abgesagt ? '<span class="liga-pill farbig">Abgesagt</span>' : ""}</div>
+        <h3><a href="${communityLink(c)}">${esc(c.titel)}</a></h3>
+        <p>${esc(text)}</p>
+        <dl class="liga-poster-daten">
+          <div><dt>Termin</dt><dd>${esc(wann)} Uhr</dd></div>
+          <div><dt>Strecke</dt><dd>${esc(c.strecke)} · ${esc(c.fahrzeugklasse)}</dd></div>
+          <div><dt>Veranstalter</dt><dd>${esc(c.veranstalter)}${c.nummer ? ` #${esc(c.nummer)}` : ""}</dd></div>
+          <div><dt>Teilnahme</dt><dd>${esc(`${c.plaetze} Plätze · ${bedingungen}`)}</dd></div>
+        </dl>
+        <div class="liga-serie-aktion">${c.abgesagt ? '<span class="liga-zu">Abgesagt</span>' : `<a class="liga-melden" href="${communityLink(c)}">${c.zugang === "freigabe" ? "Teilnahme anfragen" : "Zum Rennen"}</a>`}</div>
+      </div>
+    </article>`;
+  }
+
+  const communityAbschnitt = (community) => (community.length ? einfuegen(abschnitt("Community-Rennen", "Von Fahrern veranstaltet", "Eigene Rennen unserer Fahrer, außerhalb der Seasons. Du willst selbst eins veranstalten? Im Fahrerbereich unter „Veranstalten“.", `<div class="liga-poster-raster">${community.map(communityKarte).join("")}</div>`, "community")) : null);
+
+  function uebersicht(serien, rennen, community = []) {
+    // Community-Rennen erscheinen auch, wenn gerade keine Serie läuft.
+    if (!serien.length) { communityAbschnitt(community); return leer(null); }
     const aktiv = serien.filter((s) => s.status !== "beendet");
     const archiv = serien.filter((s) => s.status === "beendet");
     // Rennen von heute bleiben drei Stunden nach dem Start stehen, danach rückt das nächste nach.
@@ -703,6 +732,7 @@
     const events = aktiv.filter((s) => s.typ === "event");
     if (ligen.length) einfuegen(abschnitt("Ligen", imBetrieb(ligen) ? `${imBetrieb(ligen)} aktiv` : "In Planung", "", liste(ligen)));
     if (events.length) einfuegen(abschnitt("Events", `${events.length} ${events.length === 1 ? "Termin" : "Termine"}`, "", liste(events)));
+    communityAbschnitt(community);
     if (!aktiv.length) einfuegen(abschnitt("Ligen und Events", "In Planung", "", '<p class="liga-hinweis">Neue Serien werden hier und im Discord angekündigt.</p>'));
     const weitere = termine.slice(1, 7);
     if (weitere.length) einfuegen(abschnitt("Weitere Termine", "Alle Serien", "", `<div class="liga-termine">${weitere.map((x) => terminZeile(x.r, x.s)).join("")}</div>`));
@@ -829,7 +859,7 @@
     const s = kennung && serien.find((x) => x.id === kennung);
     // Titelbild: Bild der Serie, sonst das Bild der Übersicht, sonst das Teamfoto
     $("liga-kopfbild").src = s && s.bildVersion ? eigenesBild(`serie-${s.id}`, s.bildVersion) : daten && daten.kopfbildVersion ? eigenesBild("uebersicht", daten.kopfbildVersion) : "img/hero.webp";
-    if (!s) return uebersicht(serien, rennen);
+    if (!s) return uebersicht(serien, rennen, (daten && daten.community) || []);
 
     document.title = `${s.name} · Darkline Simracing Series`;
     $("liga-titel").innerHTML = esc(s.name);

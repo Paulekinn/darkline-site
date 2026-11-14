@@ -13,7 +13,13 @@ const Sichtung = require("./liga-sichtung");
 const Anfragen = require("./liga-anfragen");
 const Teams = require("./liga-teams");
 const Community = require("./liga-community");
-const COMMUNITY_AKTIONEN = new Set(["community-beantragen", "community-zurueck", "community-banner", "community-banner-weg"]);
+const COMMUNITY_AKTIONEN = new Set(["community-beantragen", "community-zurueck", "community-banner", "community-banner-weg", "community-teilnahme-anfragen", "community-teilnahme-zurueck", "community-teilnahme-entscheiden", "community-bearbeiten", "community-aenderung", "community-aenderung-zurueck", "community-absagen"]);
+// Freigegebene Community-Rennen kommen nur im Speicher zum Katalog dazu: für Rennliste, Anmeldung und Überschneidungen.
+// Reports, Seasons und Discord-Rollen arbeiten weiter mit dem reinen Liga-Katalog.
+function mitCommunity(kat, liste) {
+  const c = Community.alsKatalog(liste || []);
+  return { ...kat, serien: [...kat.serien, ...c.serien], rennen: [...kat.rennen, ...c.rennen] };
+}
 const TEAM_AKTIONEN = new Set(["team-gruenden", "team-beitreten", "team-anfragen", "team-anfrage-zurueck", "team-anfrage-entscheiden", "team-verlassen", "team-entfernen", "team-bearbeiten", "team-link-neu", "team-chef", "team-aufloesen", "team-logo", "team-logo-weg"]);
 const { klasseFuer } = require("../../assets/liga-wertung.js");
 
@@ -88,6 +94,17 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
     Community.alle(frisch).catch(() => []),
   ]);
   const meinTeam = Teams.teamVon(teams, s.id);
+  // Rennliste mit Community-Rennen. Intern mit Discord-IDs gebaut, damit Teamrennen das Teamkürzel zeigen können, ausgeliefert ohne.
+  const katMit = mitCommunity(kat, community);
+  const nachAntrag = new Map(community.map((a) => [Community.rennenId(a), a]));
+  const ohneId = ({ discordId, quelle, ...f }) => f;
+  const rennen = A.baueRennen(katMit.rennen, alle, { ...optionen(s, katMit), mitIds: true })
+    .filter((r) => (serienMap(kat.serien)[r.serie] || {}).status !== "beendet")
+    .map((r) => {
+      const a = nachAntrag.get(r.id);
+      const mitTeam = (f) => { const t = a && a.art === "team" ? Teams.teamVon(teams, f.discordId) : null; return { ...ohneId(f), ...(t ? { team: t.kuerzel } : {}) }; };
+      return { ...r, starter: r.starter.map(mitTeam), warteliste: r.warteliste.map(mitTeam), ich: r.ich ? { ...r.ich, discordId: undefined } : null, ...(a ? { community: Community.info(a, s.id) } : {}) };
+    });
   return res.status(200).json({
     ...extra,
     sichtung: sichtungSerien(kat, alle, s.id).map((x) => x.id),
@@ -103,11 +120,11 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
     teams: Teams.kurzliste(teams),
     teamMax: Teams.MAX_MITGLIEDER,
     // Community-Rennen: eigene Anträge und Streckennamen als Vorschläge fürs Formular
-    community: { antraege: Community.eigene(community, s.id), vorlaufTage: Community.VORLAUF_TAGE, strecken: [...new Set(kat.strecken.map((x) => x.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de")) },
+    community: { antraege: Community.eigene(community, s.id, alle), vorlaufTage: Community.VORLAUF_TAGE, aenderungVorlaufTage: Community.AENDERUNG_VORLAUF_TAGE, standardPlaetze: Community.STANDARD_PLAETZE, strecken: [...new Set(kat.strecken.map((x) => x.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de")) },
     meineKarten: profil ? A.eigeneKarten(kat.serien, tabellen, profil.iracingName, pid) : [],
     serien: A.baueSerien(kat.serien, alle, { discordId: s.id, profil, klasseFuer, anfragen }),
     // Termine beendeter Serien gehören nicht mehr in den Fahrerbereich.
-    rennen: A.baueRennen(kat.rennen, alle, optionen(s, kat)).filter((r) => (serienMap(kat.serien)[r.serie] || {}).status !== "beendet"),
+    rennen,
     reports,
   });
 }
@@ -173,9 +190,12 @@ function profilVollstaendig(profil) {
   if (!profil.nummer) throw new Hinweis("Bitte trage zuerst eine Startnummer in deinem Profil ein.");
 }
 
-async function anmelden(s, profil, body, alle, kat) {
+async function anmelden(s, profil, body, alle, kat, communityListe = []) {
   profilVollstaendig(profil);
   const { rennen, stand } = rennenPruefen(s, kat, alle, body.rennen);
+  // Community-Rennen: iRating-Grenzen, Liga-Team bei Teamrennen, bei Freigabe nur über eine Anfrage
+  const cId = Community.idAusRennen(rennen.id);
+  if (cId) Community.direktAnmeldenPruefen(communityListe.find((a) => a.id === cId), s.id, profil, Teams.teamVon(await Teams.alle(false).catch(() => []), s.id));
   if (!stand) throw new Hinweis("Die Anmeldung für dieses Rennen ist geschlossen.");
   if (stand.ich) return alle;
   if (stand.anmeldungFolgt) throw new Hinweis("Die Anmeldung für diese Serie ist noch nicht geöffnet.");
@@ -361,10 +381,11 @@ module.exports = async (req, res) => {
     const extras = { nummer: profil.nummer, land: profil.land || "", team: profil.team || "", kanal: profil.kanal || "", zeigeBild: profil.zeigeBild !== false, uebersicht: ja };
     await P.speichern(s, { ...profil, uebersicht: ja }, extras);
     profil = (await D.jsonAendern(A.profilPfad(s.id), (aktuell) => (aktuell ? { ...aktuell, uebersicht: ja } : undefined))) || profil;
-  } else if (body.aktion === "anmelden") {
-    alle = await anmelden(s, profil, body, alle, kat);
-  } else if (body.aktion === "abmelden") {
-    alle = await abmelden(s, body, alle, kat);
+  } else if (body.aktion === "anmelden" || body.aktion === "abmelden") {
+    // Auch Community-Rennen: Sie kommen für diese Aktion zum Katalog dazu.
+    const communityListe = await Community.alle(true).catch(() => []);
+    const katMit = mitCommunity(kat, communityListe);
+    alle = body.aktion === "anmelden" ? await anmelden(s, profil, body, alle, katMit, communityListe) : await abmelden(s, body, alle, katMit);
   } else if (body.aktion === "serie-anmelden") {
     alle = await serieAnmelden(s, profil, body, alle, kat);
   } else if (body.aktion === "serie-abmelden") {
@@ -389,9 +410,12 @@ module.exports = async (req, res) => {
   } else if (body.aktion === "report-einspruch") {
     await reportEinspruch(s, profil, body, kat);
   } else if (COMMUNITY_AKTIONEN.has(body.aktion)) {
-    // Die Meldung an die Rennleitung darf scheitern, der Antrag ist trotzdem gespeichert und steht im Cockpit.
-    const ergebnis = await Community.aktion(body.aktion, s.id, profil, body, kat);
+    // Meldung an die Rennleitung und Direktnachrichten dürfen scheitern, gespeichert ist dann trotzdem.
+    const team = Teams.teamVon(await Teams.alle(false).catch(() => []), s.id);
+    const ergebnis = await Community.aktion(body.aktion, s.id, profil, body, { kat, eintraege: alle, team });
+    if (ergebnis && ergebnis.eintrag) alle = merke([...alle, jetztEintrag(ergebnis.eintrag)]);
     if (ergebnis && ergebnis.karte) await R.teamMelden(ergebnis.karte).catch(() => {});
+    for (const n of (ergebnis && ergebnis.nachrichten) || []) await Dc.nachricht(n.an, n.text).catch(() => {});
   } else if (TEAM_AKTIONEN.has(body.aktion)) {
     // Die Direktnachricht an Teamchef oder Fahrer darf scheitern, die Aktion gilt trotzdem.
     const nachricht = await Teams.aktion(body.aktion, s.id, profil, body);

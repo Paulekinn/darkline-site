@@ -14,7 +14,7 @@ function zugang() {
 const aktiv = () => !!zugang();
 
 const servername = (nummer, name) => `#${nummer} ${name}`.slice(0, MAX_NAME).trim();
-const istLaufendeLiga = (s) => !!s && s.typ !== "event" && s.status !== "beendet";
+const istLaufendeLiga = (s) => !!s && s.typ !== "event" && s.typ !== "community" && s.status !== "beendet";
 
 // Der gewünschte Stand: Vollständiges Profil gibt die Rolle Interessent und den Fahrernamen, die Nummer davor nur eine laufende Liga.
 function soll(discordId, profil, alle, serien) {

@@ -3,11 +3,14 @@ const D = require("./liga-daten");
 const P = require("./liga-profil");
 const R = require("./liga-reports");
 const { eventReihe } = require("./liga-events");
+const Community = require("./liga-community");
 
 module.exports = async (req, res) => {
   if (req.method !== "GET") return res.status(405).json({ error: "Nicht erlaubt" });
   const { serien, rennen, einstellungen } = await D.katalog(false);
   const antwort = { serien, rennen: rennen.map(D.oeffentlichesRennen), kopfbildVersion: einstellungen.kopfbildVersion || 0 };
+  // Kommende Community-Rennen für die Übersicht. Ein Fehler hier blendet nur den Abschnitt aus.
+  if (!(req.query || {}).serie) antwort.community = Community.oeffentlich(await Community.alle(false).catch(() => []));
   const kennung = (req.query || {}).serie;
   if (D.istId(kennung) && serien.some((s) => s.id === kennung)) antwort.tabelle = await D.tabelleLesen(kennung);
   // Das iRating dient nur der Einstufung und bleibt bei der Rennleitung.

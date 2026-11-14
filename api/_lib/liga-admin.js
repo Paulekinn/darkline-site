@@ -182,6 +182,8 @@ async function protokollText(b, kat) {
     "g61-sichtung-test": () => "",
     "anfrage-entscheiden": () => `Beitrittsanfrage ${b.ja === true ? "freigegeben" : "abgelehnt"} in ${serie(b.serie)}: ${b.name || b.discordId}`,
     "community-entscheiden": () => `Community-Rennen ${b.ja === true ? `freigegeben (${b.stewarding === "darkline" ? "Stewarding durch Darkline" : "auf eigene Verantwortung"}${b.sponsored === true ? ", Darkline Sponsored" : ""})` : "abgelehnt"}: ${b.titel || b.id}`,
+    "community-aenderung-entscheiden": () => `Änderung eines Community-Rennens ${b.ja === true ? "freigegeben" : "abgelehnt"}: ${b.titel || b.id}`,
+    "community-absagen": () => `Community-Rennen abgesagt: ${b.titel || b.id}`,
     "community-banner-weg": () => `Banner eines Community-Rennens entfernt: ${b.titel || b.id}`,
     "fahrzeug-entscheiden": () => `Fahrzeugwechsel ${b.ja === true ? "bestätigt" : "abgelehnt"} in ${serie(b.serie)}`,
     "fahrzeug-setzen": () => `Fahrzeug gesetzt in ${serie(b.serie)}: ${b.modell}`,
@@ -472,6 +474,25 @@ const aktionen = {
     const antrag = await Community.entscheiden(String(b.id || ""), { ja, stewarding: String(b.stewarding || ""), sponsored: b.sponsored === true, grund: b.grund }, s && s.name);
     // Die Entscheidung gilt auch, wenn die Direktnachricht nicht zugestellt werden kann.
     await Dc.nachricht(antrag.discordId, ja ? Community.freigabeText(antrag) : Community.ablehnungText(antrag, antrag.entscheid.grund)).catch((e) => console.warn("Community-Rennen: Nachricht:", e.message));
+    return {};
+  },
+  // Beantragte Änderung eines Community-Rennens: Bei Freigabe bekommen Veranstalter und alle Gemeldeten eine Direktnachricht.
+  async "community-aenderung-entscheiden"(b) {
+    const ja = b.ja === true;
+    const { vorher, nachher } = await Community.aenderungEntscheiden(String(b.id || ""), ja);
+    const grund = String(b.grund || "").trim().slice(0, 300);
+    const nachrichten = ja
+      ? [{ an: vorher.discordId, text: Community.aenderungFreigabeText(nachher) }, ...Community.gemeldeteIds(nachher, await eintraege()).filter((x) => x !== vorher.discordId).map((an) => ({ an, text: Community.neuerTerminText(nachher) }))]
+      : [{ an: vorher.discordId, text: Community.aenderungAbgelehntText(vorher, grund) }];
+    for (const n of nachrichten) await Dc.nachricht(n.an, n.text).catch((e) => console.warn("Community-Rennen: Nachricht:", e.message));
+    return {};
+  },
+  // Die Rennleitung sagt ein freigegebenes Community-Rennen ab. Veranstalter, Gemeldete und offene Anfragen werden informiert.
+  async "community-absagen"(b, kat, s) {
+    const grund = String(b.grund || "").trim().slice(0, 300);
+    const a = await Community.adminAbsagen(String(b.id || ""), grund, s && s.name);
+    const an = [a.discordId, ...Community.gemeldeteIds(a, await eintraege()), ...(a.anfragen || []).map((x) => x.discordId)].filter((x, i, l) => l.indexOf(x) === i);
+    for (const id of an) await Dc.nachricht(id, Community.absageText(a, grund, true)).catch((e) => console.warn("Community-Rennen: Nachricht:", e.message));
     return {};
   },
   // Unpassender Banner eines Community-Rennens: Die Rennleitung entfernt ihn, der Fahrer bekommt eine Direktnachricht.
@@ -905,8 +926,8 @@ module.exports = async (req, res) => {
     const ergebnisseJe = new Map(await Promise.all([...new Set(alleReports.map((r) => r.serie))].filter((x) => D.istId(x)).map(async (id) => [id, await D.ergebnisseLesen(id).catch(() => [])])));
     const reports = alleReports.map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id), stimmen: R.stimmenSicht(r, s.id), kontext: R.rennKontext(r, ergebnisseJe.get(r.serie) || []) }));
     // Stewards bekommen nur, was sie für Reports und zum Nachlesen brauchen, ohne Anträge und Hinweise der Rennleitung.
-    if (istSteward(s)) return res.status(200).json({ angemeldet: true, rolle: "steward", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...COCKPIT_LEER, nummernWuensche: [], fahrzeugAntraege: [], beitrittsAnfragen: [], communityAntraege: [], communityBanner: [], details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
-    return res.status(200).json({ angemeldet: true, rolle: "leitung", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), nummernWuensche: await P.wuenscheLesen().catch(() => []), fahrzeugAntraege: (await F.offeneAntraege().catch(() => [])).map((a) => ({ ...a, serieName: (kat.serien.find((x) => x.id === a.serie) || {}).name || a.serie })), beitrittsAnfragen: (await Anfragen.alle().catch(() => [])).filter((a) => kat.serien.some((x) => x.id === a.serie)).map((a) => ({ ...a, serieName: kat.serien.find((x) => x.id === a.serie).name })), ...(await Community.alle(true).then((liste) => ({ communityAntraege: Community.offeneFuerCockpit(liste, kat), communityBanner: Community.kommendeMitBanner(liste) })).catch(() => ({ communityAntraege: [], communityBanner: [] }))), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    if (istSteward(s)) return res.status(200).json({ angemeldet: true, rolle: "steward", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...COCKPIT_LEER, nummernWuensche: [], fahrzeugAntraege: [], beitrittsAnfragen: [], communityAntraege: [], communityAenderungen: [], communityKommend: [], details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    return res.status(200).json({ angemeldet: true, rolle: "leitung", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), nummernWuensche: await P.wuenscheLesen().catch(() => []), fahrzeugAntraege: (await F.offeneAntraege().catch(() => [])).map((a) => ({ ...a, serieName: (kat.serien.find((x) => x.id === a.serie) || {}).name || a.serie })), beitrittsAnfragen: (await Anfragen.alle().catch(() => [])).filter((a) => kat.serien.some((x) => x.id === a.serie)).map((a) => ({ ...a, serieName: kat.serien.find((x) => x.id === a.serie).name })), ...(await Promise.all([Community.alle(true), eintraege()]).then(([liste, meldungen]) => ({ communityAntraege: Community.offeneFuerCockpit(liste, kat), communityAenderungen: Community.aenderungenFuerCockpit(liste, kat), communityKommend: Community.kommendeFuerCockpit(liste, meldungen) })).catch(() => ({ communityAntraege: [], communityAenderungen: [], communityKommend: [] }))), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });

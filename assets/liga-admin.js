@@ -448,19 +448,31 @@
     // Community-Rennen: Bei der Freigabe legt die Rennleitung Stewarding und „Darkline Sponsored“ fest.
     const community = d.communityAntraege || [];
     const communityBild = (a) => `api/liga?r=bild&k=community-${encodeURIComponent(a.id)}&v=${encodeURIComponent(a.banner)}`;
-    // Freigegebene Rennen mit Banner: Fahrer dürfen ihn bis zum Start ändern, die Rennleitung kann ihn entfernen.
-    const mitBanner = d.communityBanner || [];
+    // Kommende freigegebene Rennen: Banner entfernen oder absagen. Beantragte Änderungen gibt die Rennleitung frei.
+    const cKommend = d.communityKommend || [];
+    const aenderungen = d.communityAenderungen || [];
+    const iratingText = (a) => (a.iratingMin != null && a.iratingMax != null ? `iRating ${a.iratingMin} bis ${a.iratingMax}` : a.iratingMin != null ? `iRating ab ${a.iratingMin}` : a.iratingMax != null ? `iRating bis ${a.iratingMax}` : "");
     const terminText = (iso) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
     const communityHtml = community.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Community-Rennen</h2><span class="a-chip gelb">${community.length}</span></div><div class="a-liste">${community.map((a) => {
       const daten = `data-id="${esc(a.id)}" data-titel="${esc(a.titel)}" data-name="${esc(a.name)}"`;
-      const infos = [`${terminText(a.start)} Uhr`, a.strecke, a.fahrzeugklasse, `${a.dauer} min${a.quali ? " mit Quali" : ""}`, a.art === "team" ? "Teamrennen" : "Einzelrennen", a.zugang === "einladung" ? "auf Einladung" : "offen"].join(" · ");
+      const infos = [`${terminText(a.start)} Uhr`, a.strecke, a.fahrzeugklasse, `${a.dauer} min${a.quali ? " mit Quali" : ""}`, a.art === "team" ? "Teamrennen" : "Einzelrennen", a.zugang === "freigabe" ? "Veranstalter gibt Fahrer frei" : "offen für alle", `${a.plaetze} Plätze`, iratingText(a)].filter(Boolean).join(" · ");
       const parallel = (a.kollisionen || []).length ? `<small class="a-bild-fehler">Überschneidung mit: ${esc(a.kollisionen.join(", "))}</small>` : "";
       return `<div class="a-abschluss s-rot" data-community="${esc(a.id)}"><span>${a.banner ? `<img src="${esc(communityBild(a))}" alt="Banner ${esc(a.titel)}" loading="lazy" style="display:block;width:100%;max-width:360px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:4px;margin-bottom:6px">` : ""}<b>${esc(a.titel)}</b><small>von ${esc(a.name)}${a.nummer ? ` (#${esc(a.nummer)})` : ""}, beantragt ${esc(zeit(a.erstellt))}</small><small>${esc(infos)}</small><small>„${esc(a.beschreibung)}“</small>${parallel}
         <label class="a-check">Stewarding <select data-community-stewarding aria-label="Stewarding für ${esc(a.titel)}"><option value="">Bitte wählen</option><option value="darkline">Durch Darkline</option><option value="eigene">Auf eigene Verantwortung</option></select></label>
         <label class="a-check"><input type="checkbox" data-community-sponsored> Darkline Sponsored</label></span>
         <div class="a-leiste"><button type="button" class="a-knopf klein" data-community-entscheid="ja" ${daten}>Freigeben</button><button type="button" class="a-knopf zweit klein" data-community-entscheid="nein" ${daten}>Ablehnen</button></div></div>`;
     }).join("")}</div></section>` : "";
-    const bannerHtml = mitBanner.length ? `<section class="a-karte"><div class="a-kartenkopf"><h2>Banner der Community-Rennen</h2><span class="a-chip">${mitBanner.length}</span></div><p class="a-hinweis">Fahrer können ihren Banner bis zum Start ändern, er ist sofort sichtbar. Unpassende Banner entfernt ihr hier, der Fahrer bekommt eine Direktnachricht.</p><div class="a-liste">${mitBanner.map((a) => `<div class="a-abschluss s-rot"><span><img src="${esc(communityBild(a))}" alt="Banner ${esc(a.titel)}" loading="lazy" style="display:block;width:100%;max-width:240px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:4px;margin-bottom:6px"><b>${esc(a.titel)}</b><small>von ${esc(a.name)} · ${esc(terminText(a.start))} Uhr</small></span><button type="button" class="a-knopf zweit klein" data-community-banner-weg="${esc(a.id)}" data-titel="${esc(a.titel)}" data-name="${esc(a.name)}">Banner entfernen</button></div>`).join("")}</div></section>` : "";
+    const aenderungHtml = aenderungen.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Community-Rennen: Änderungen</h2><span class="a-chip gelb">${aenderungen.length}</span></div><div class="a-liste">${aenderungen.map((a) => {
+      const daten = `data-id="${esc(a.id)}" data-titel="${esc(a.titel)}" data-name="${esc(a.name)}"`;
+      const stand = (x) => `${terminText(x.start)} Uhr · ${x.strecke} · ${x.fahrzeugklasse} · ${x.dauer} min`;
+      const parallel = (a.kollisionen || []).length ? `<small class="a-bild-fehler">Überschneidung mit: ${esc(a.kollisionen.join(", "))}</small>` : "";
+      return `<div class="a-abschluss s-rot"><span><b>${esc(a.titel)}</b><small>von ${esc(a.name)}</small><small>Bisher: ${esc(stand(a.alt))}</small><small>Neu: ${esc(stand(a.neu))}</small>${parallel}</span><div class="a-leiste"><button type="button" class="a-knopf klein" data-community-aenderung="ja" ${daten}>Freigeben</button><button type="button" class="a-knopf zweit klein" data-community-aenderung="nein" ${daten}>Ablehnen</button></div></div>`;
+    }).join("")}</div></section>` : "";
+    const bannerHtml = cKommend.length ? `<section class="a-karte"><div class="a-kartenkopf"><h2>Kommende Community-Rennen</h2><span class="a-chip">${cKommend.length}</span></div><p class="a-hinweis">Veranstalter können ihren Banner bis zum Start ändern, er ist sofort sichtbar. Unpassende Banner entfernt ihr hier. Bei einer Absage bekommen Veranstalter und alle Gemeldeten eine Direktnachricht.</p><div class="a-liste">${cKommend.map((a) => {
+      const daten = `data-titel="${esc(a.titel)}" data-name="${esc(a.name)}"`;
+      const infos = [`${terminText(a.start)} Uhr`, a.strecke, `${a.gemeldet} von ${a.plaetze} gemeldet`, a.stewarding === "darkline" ? "Stewarding durch Darkline" : "auf eigene Verantwortung", a.sponsored ? "Darkline Sponsored" : ""].filter(Boolean).join(" · ");
+      return `<div class="a-abschluss s-rot"><span>${a.banner ? `<img src="${esc(communityBild(a))}" alt="Banner ${esc(a.titel)}" loading="lazy" style="display:block;width:100%;max-width:240px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:4px;margin-bottom:6px">` : ""}<b>${esc(a.titel)}</b><small>von ${esc(a.name)}</small><small>${esc(infos)}</small></span><div class="a-leiste">${a.banner ? `<button type="button" class="a-knopf zweit klein" data-community-banner-weg="${esc(a.id)}" ${daten}>Banner entfernen</button>` : ""}<button type="button" class="a-knopf zweit klein" data-community-absagen="${esc(a.id)}" ${daten}>Absagen</button></div></div>`;
+    }).join("")}</div></section>` : "";
     const kachel = (wert, text, art, ziel) => `<button type="button" class="a-kennzahl ${art}" data-tab="${ziel}"><b>${wert}</b><span>${esc(text)}</span></button>`;
     const reportsHtml = offene.slice(0, 5).map(reportZeile).join("");
     const termine = kommend.slice(0, 5).map(terminZeile).join("");
@@ -473,7 +485,7 @@
         ${kachel(unfertig.length, "Rennen unvollständig", unfertig.length ? "warnung" : "", "rennen")}
       </div>
       ${(d.fehlendeErgebnisse || []).length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Ergebnis fehlt</h2><span class="a-chip gelb">${d.fehlendeErgebnisse.length}</span></div><div class="a-liste">${d.fehlendeErgebnisse.slice(0, 6).map((r) => `<div class="a-abschluss ${serienFarbe(r.serie)}"><span><b>${esc(r.titel)}</b><small>${esc([(serieVon(r.serie) || {}).name, datumKurz(r.datum)].filter(Boolean).join(" · "))}</small></span><button type="button" class="a-knopf zweit klein" data-ergebnis-import="${esc(r.serie)}">Importieren</button></div>`).join("")}</div></section>` : ""}
-      ${anfragenHtml}${communityHtml}${nummernHtml}${fahrzeugHtml}
+      ${anfragenHtml}${communityHtml}${aenderungHtml}${nummernHtml}${fahrzeugHtml}
       ${cockpitSichtung()}
       ${anmeldungFaellig}
       ${cockpitPruefungen()}
@@ -1693,6 +1705,18 @@
       const grund = ja ? "" : window.prompt("Grund für die Ablehnung (freiwillig). Der Fahrer bekommt ihn per Direktnachricht.", "");
       if (grund === null) return;
       return aktion({ aktion: "anfrage-entscheiden", serie: b.dataset.serie, discordId: b.dataset.discord, name: b.dataset.name, ja, grund }, ja ? "Freigegeben, der Fahrer ist angemeldet und wird informiert." : "Abgelehnt, der Fahrer wird informiert.");
+    }
+    if (b.dataset.communityAenderung) {
+      const ja = b.dataset.communityAenderung === "ja";
+      if (ja && !window.confirm(`Änderung an „${b.dataset.titel}“ übernehmen? ${b.dataset.name} und alle Gemeldeten bekommen eine Direktnachricht.`)) return;
+      const grund = ja ? "" : window.prompt("Grund für die Ablehnung (freiwillig). Der Veranstalter bekommt ihn per Direktnachricht.", "");
+      if (grund === null) return;
+      return aktion({ aktion: "community-aenderung-entscheiden", id: b.dataset.id, titel: b.dataset.titel, ja, grund }, ja ? "Änderung übernommen, alle Gemeldeten werden informiert." : "Änderung abgelehnt, der Veranstalter wird informiert.");
+    }
+    if (b.dataset.communityAbsagen) {
+      const grund = window.prompt(`„${b.dataset.titel}“ absagen? ${b.dataset.name} und alle Gemeldeten bekommen eine Direktnachricht. Grund (freiwillig):`, "");
+      if (grund === null) return;
+      return aktion({ aktion: "community-absagen", id: b.dataset.communityAbsagen, titel: b.dataset.titel, grund }, "Rennen abgesagt, alle werden informiert.");
     }
     if (b.dataset.communityBannerWeg) {
       if (!window.confirm(`Banner von „${b.dataset.titel}“ entfernen? ${b.dataset.name} bekommt eine Direktnachricht und kann einen anderen hochladen.`)) return;

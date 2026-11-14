@@ -1103,6 +1103,114 @@ const tests = {
       for (const k of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
     }
   },
+  "Community-Rennen: Teilnahme, Startplätze und öffentliche Sicht": () => {
+    const C = require("../api/_lib/liga-community");
+    const jetzt = Date.UTC(2026, 10, 14, 12, 0);
+    const basis = { titel: "Spa Night Sprint", datum: "2026-11-25", uhrzeit: "20:00", strecke: "Spa", fahrzeugklasse: "GT3", dauer: 45, beschreibung: "Lockerer Sprint am Abend für alle Klassen." };
+    // Startplätze und iRating-Grenzen
+    assert.deepStrictEqual(C.pruefeRahmen({ plaetze: "24", iratingMin: "1500", iratingMax: "" }), { plaetze: 24, iratingMin: 1500, iratingMax: null });
+    assert.throws(() => C.pruefeRahmen({ plaetze: 1 }), /2 bis 100/);
+    assert.throws(() => C.pruefeRahmen({ iratingMin: 3000, iratingMax: 2000 }), /größer/);
+    assert.strictEqual(C.pruefe({ ...basis, zugang: "einladung" }, jetzt).zugang, "freigabe", "Alte Anträge mit Einladung gelten als Freigabe");
+    // Teilnahme: iRating aus dem Profil, Teamrennen nur mit Liga-Team
+    const a = { id: "abcd0001", discordId: "9", status: "freigegeben", start: new Date(Date.now() + 864e5).toISOString(), art: "team", zugang: "offen", iratingMin: 1500, iratingMax: 2500 };
+    const fahrer = (ir) => ({ iracingName: "Lena", nummer: 4, irating: ir });
+    assert.throws(() => C.teilnahmePruefen(a, fahrer(1200), { kuerzel: "NR" }), /mindestens 1500/);
+    assert.throws(() => C.teilnahmePruefen(a, fahrer(3000), { kuerzel: "NR" }), /bis 2500/);
+    assert.throws(() => C.teilnahmePruefen(a, fahrer(null), { kuerzel: "NR" }), /iRating in deinem Profil/);
+    assert.throws(() => C.teilnahmePruefen(a, fahrer(2000), null), /Liga-Team/);
+    C.teilnahmePruefen(a, fahrer(2000), { kuerzel: "NR" });
+    assert.throws(() => C.teilnahmePruefen({ ...a, status: "abgesagt" }, fahrer(2000), { kuerzel: "NR" }), /abgesagt/);
+    // Bei Freigabe meldet sich nur der Veranstalter direkt an
+    assert.throws(() => C.direktAnmeldenPruefen({ ...a, art: "einzel", zugang: "freigabe" }, "1", fahrer(2000), null), /Teilnahme-Anfrage/);
+    C.direktAnmeldenPruefen({ ...a, art: "einzel", zugang: "freigabe" }, "9", fahrer(2000), null);
+    // Im Fahrerbereich: Rennen mit Startplätzen und Warteliste, ohne Gäste, mit Zugangsdaten nur für Starter
+    const frei = { ...a, art: "einzel", datum: "2030-06-01", uhrzeit: "20:00", start: "2030-06-01T18:00:00.000Z", titel: "Community Test", strecke: "Monza", fahrzeugklasse: "GT4", dauer: 30, plaetze: 2, beschreibung: "Testrennen", session: { name: "DSRS Test", passwort: "geheim" } };
+    const kat = C.alsKatalog([frei, { ...frei, id: "abcd0002", status: "offen" }]);
+    assert.deepStrictEqual(kat.rennen.map((r) => r.id), ["c-abcd0001"], "Offene Anträge erscheinen nicht als Rennen");
+    const ein = (id, ms) => A.leseEintrag({ pathname: A.anmeldungPfad("c-abcd0001", id, "", `F${id}`), uploadedAt: iso(ms) });
+    const serien = Object.fromEntries(kat.serien.map((s) => [s.id, s]));
+    const [r1] = A.baueRennen(kat.rennen, [ein("1", 1), ein("2", 2), ein("3", 3)], { jetzt: Date.UTC(2030, 4, 1), schlussMinuten: 60, discordId: "2", serien });
+    assert.deepStrictEqual([r1.starter.length, r1.warteliste.length, r1.starter.some((f) => f.gast), r1.zugangNoetig, r1.passwort, r1.server], [2, 1, false, true, "geheim", "DSRS Test"]);
+    const [r3] = A.baueRennen(kat.rennen, [ein("1", 1), ein("2", 2), ein("3", 3)], { jetzt: Date.UTC(2030, 4, 1), schlussMinuten: 60, discordId: "3", serien });
+    assert.strictEqual(r3.passwort, "", "Auf der Warteliste gibt es kein Passwort");
+    assert.strictEqual(C.idAusRennen("c-abcd0001"), "abcd0001");
+    assert.strictEqual(C.idAusRennen("r1"), null);
+    // Öffentlich: ohne Discord-ID, Anfragen und Zugangsdaten
+    const [o] = C.oeffentlich([{ ...frei, name: "Anna", anfragen: [{ discordId: "5" }] }], Date.UTC(2030, 4, 1));
+    assert.ok(!("discordId" in o) && !("session" in o) && !("anfragen" in o));
+    assert.deepStrictEqual([o.rennen, o.veranstalter, o.plaetze], ["c-abcd0001", "Anna", 2]);
+  },
+  "Community-Rennen: Anfragen, Bearbeiten, Änderung und Absage": async () => {
+    const C = require("../api/_lib/liga-community");
+    const alt = { fetch: global.fetch, env: { ...process.env } };
+    Object.assign(process.env, { SUPABASE_URL: "https://speicher.example", SUPABASE_SECRET_KEY: "k" });
+    const db = new Map();
+    let uhr = 0;
+    global.fetch = async (url, init = {}) => {
+      const u = new URL(String(url));
+      const p = u.searchParams.get("pfad") || "";
+      const antwort = (daten) => ({ ok: true, json: async () => daten, text: async () => "" });
+      if (!init.method || init.method === "GET") {
+        if (p.startsWith("like.")) { const pre = p.slice(5).replace(/\*$/, "").replace(/\\(.)/g, "$1"); return antwort([...db].filter(([k]) => k.startsWith(pre)).map(([pfad, z]) => ({ pfad, ...z }))); }
+        const z = db.get(p.slice(3)); return antwort(z ? [z] : []);
+      }
+      if (init.method === "POST") { for (const z of JSON.parse(init.body)) { if (!db.has(z.pfad) || !String(init.headers && init.headers.prefer).includes("ignore-duplicates")) db.set(z.pfad, { inhalt: z.inhalt, binaer: false, geaendert: new Date(++uhr * 1000).toISOString() }); } return antwort([{ pfad: JSON.parse(init.body)[0].pfad }]); }
+      if (init.method === "PATCH") { const pfad = p.slice(3); const z = db.get(pfad); if (!z || `eq.${z.geaendert}` !== u.searchParams.get("geaendert")) return antwort([]); db.set(pfad, { ...z, ...JSON.parse(init.body), geaendert: new Date(++uhr * 1000).toISOString() }); return antwort([{ pfad }]); }
+      if (init.method === "DELETE") { for (const k of [...db.keys()]) if (p.includes(`"${k}"`)) db.delete(k); return antwort([]); }
+      throw new Error("unerwartet");
+    };
+    const tag = (n) => new Date(Date.now() + n * 864e5).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+    const anna = { iracingName: "Anna", nummer: 12, irating: 2000 };
+    const ben = { iracingName: "Ben", nummer: 7, irating: 1800 };
+    const eingabe = { titel: "Freigabe-Rennen", datum: tag(10), uhrzeit: "20:00", strecke: "Spa", fahrzeugklasse: "GT3", dauer: 45, zugang: "freigabe", plaetze: 20, iratingMin: 1000, beschreibung: "Rennen mit Freigabe durch den Veranstalter." };
+    try {
+      await C.aktion("community-beantragen", "111111", anna, eingabe);
+      let [a] = await C.alle(true);
+      // Vor der Freigabe gibt es weder Anfragen noch Verwaltung
+      await assert.rejects(C.aktion("community-teilnahme-anfragen", "222222", ben, { id: a.id }), /gibt es nicht/);
+      await assert.rejects(C.aktion("community-bearbeiten", "111111", anna, { id: a.id, plaetze: 10, beschreibung: "Neue Beschreibung des Rennens." }), /wartet noch/);
+      await C.entscheiden(a.id, { ja: true, stewarding: "eigene" }, "Leitung");
+      // Anfrage: Nachricht an den Veranstalter, nur der Veranstalter entscheidet
+      const anfrage = await C.aktion("community-teilnahme-anfragen", "222222", ben, { id: a.id }, { eintraege: [] });
+      assert.strictEqual(anfrage.nachrichten[0].an, "111111");
+      await assert.rejects(C.aktion("community-teilnahme-entscheiden", "222222", ben, { id: a.id, fahrer: "222222", ja: true }), /gibt es nicht/);
+      const ok = await C.aktion("community-teilnahme-entscheiden", "111111", anna, { id: a.id, fahrer: "222222", ja: true });
+      assert.ok(ok.eintrag.startsWith(`liga/anmeldungen/c-${a.id}/222222~`) && db.has(ok.eintrag));
+      assert.strictEqual(ok.nachrichten[0].an, "222222");
+      [a] = await C.alle(true);
+      assert.strictEqual(a.anfragen.length, 0);
+      // Bearbeiten: Startplätze, Grenzen, Session-Daten und Beschreibung
+      await C.aktion("community-bearbeiten", "111111", anna, { id: a.id, plaetze: "16", iratingMin: "", iratingMax: "3000", sessionName: "DSRS Spa", passwort: "pw", beschreibung: "Neue Beschreibung des Rennens." });
+      [a] = await C.alle(true);
+      assert.deepStrictEqual([a.plaetze, a.iratingMin, a.iratingMax, a.session.name, a.session.passwort], [16, null, 3000, "DSRS Spa", "pw"]);
+      const sicht = C.eigene(await C.alle(true), "111111", [A.leseEintrag({ pathname: ok.eintrag, uploadedAt: iso(1) })])[0];
+      assert.deepStrictEqual([sicht.bearbeitbar, sicht.gemeldet, sicht.session.passwort], [true, 1, "pw"]);
+      // Änderung: Antrag, Freigabe durch die Rennleitung übernimmt Termin und Strecke
+      await assert.rejects(C.aktion("community-aenderung", "111111", anna, { id: a.id, datum: tag(1), uhrzeit: "20:00", strecke: "Monza", fahrzeugklasse: "GT3", dauer: 45 }), /mindestens 2 Tage/);
+      const karte = await C.aktion("community-aenderung", "111111", anna, { id: a.id, datum: tag(12), uhrzeit: "21:00", strecke: "Monza", fahrzeugklasse: "GT3", dauer: 60 });
+      assert.strictEqual(karte.karte.title, "Community-Rennen: Änderung beantragt");
+      assert.strictEqual(C.aenderungenFuerCockpit(await C.alle(true), { rennen: [], serien: [] }).length, 1);
+      await assert.rejects(C.aktion("community-aenderung", "111111", anna, { id: a.id, datum: tag(13), uhrzeit: "21:00", strecke: "Monza", fahrzeugklasse: "GT3", dauer: 60 }), /schon eine Änderung/);
+      const { nachher } = await C.aenderungEntscheiden(a.id, true);
+      assert.deepStrictEqual([nachher.strecke, nachher.dauer, nachher.uhrzeit, nachher.aenderung], ["Monza", 60, "21:00", null]);
+      assert.ok(/Monza/.test(C.neuerTerminText(nachher)));
+      // Kommende Rennen im Cockpit mit Anzahl der Meldungen
+      const [k] = C.kommendeFuerCockpit(await C.alle(true), [A.leseEintrag({ pathname: ok.eintrag, uploadedAt: iso(1) })]);
+      assert.deepStrictEqual([k.gemeldet, k.plaetze], [1, 16]);
+      // Absage: Nachricht an alle Gemeldeten, danach ist nichts mehr änderbar
+      const absage = await C.aktion("community-absagen", "111111", anna, { id: a.id, grund: "Server kaputt" }, { eintraege: [A.leseEintrag({ pathname: ok.eintrag, uploadedAt: iso(1) })] });
+      assert.deepStrictEqual(absage.nachrichten.map((n) => n.an), ["222222"]);
+      assert.ok(/abgesagt/.test(absage.nachrichten[0].text) && /Server kaputt/.test(absage.nachrichten[0].text));
+      [a] = await C.alle(true);
+      assert.strictEqual(a.status, "abgesagt");
+      await assert.rejects(C.aktion("community-bearbeiten", "111111", anna, { id: a.id, plaetze: 10, beschreibung: "Neue Beschreibung des Rennens." }), /erledigt/);
+      await assert.rejects(C.adminAbsagen(a.id, "", "Leitung"), /nicht \(mehr\) freigegeben/);
+    } finally {
+      global.fetch = alt.fetch;
+      for (const k of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
+    }
+  },
   "Fahrerübersicht: Teammitglieder erscheinen mit Team, auch ohne Rennen": () => {
     const P = require("../api/_lib/liga-profil");
     const T = require("../api/_lib/liga-teams");

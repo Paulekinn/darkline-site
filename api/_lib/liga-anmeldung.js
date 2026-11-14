@@ -77,6 +77,8 @@ function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, ser
     .sort((a, b) => a.startMs - b.startMs)
     .map((r) => {
       const serie = serien[r.serie] || {};
+      // Events und Community-Rennen sind Einzelrennen: keine Gäste, eigene Zugangsdaten
+      const einzelrennen = serie.typ === "event" || serie.typ === "community";
       const minuten = Number.isFinite(serie.anmeldeschlussMinuten) ? serie.anmeldeschlussMinuten : schlussMinuten;
       const schlussMs = r.startMs - minuten * 60e3;
       const abgemeldet = new Set(eintraege.filter((e) => e.typ === "abmeldung" && e.rennenId === r.id).map((e) => e.discordId));
@@ -91,7 +93,7 @@ function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, ser
       // Die Discord-ID sieht nur die Rennleitung.
       // Gast ist, wer nur für dieses Rennen gemeldet und nicht in der Season ist. Bei Events gibt es keine Gäste.
       const inSerie = new Set(eintraege.filter((e) => e.typ === "serie" && r.serie && e.serieId === r.serie).map((e) => e.discordId));
-      const istGast = (e) => serie.typ !== "event" && !!r.serie && e.typ === "rennen" && !inSerie.has(e.discordId);
+      const istGast = (e) => !einzelrennen && !!r.serie && e.typ === "rennen" && !inSerie.has(e.discordId);
       const oeffentlich = (e) => (mitIds ? { name: e.name, fahrzeugklasse: e.fahrzeugklasse, gast: istGast(e), discordId: e.discordId, quelle: e.typ } : { name: e.name, fahrzeugklasse: e.fahrzeugklasse, gast: istGast(e) });
       return {
         id: r.id, titel: r.titel || r.strecke || "Rennen", status: abgesagt ? "abgesagt" : "geplant",
@@ -103,9 +105,9 @@ function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, ser
         anmeldungZu: serie.anmeldungOffen === false || serie.status === "geplant",
         anmeldungFolgt: serie.status === "geplant",
         // Private Season: nur freigegebene Fahrer, keine Gäste für einzelne Rennen
-        nurFreigegeben: !!serie.aufAnfrage && serie.typ !== "event" && !inSerie.has(discordId),
-        // Ligen laufen über die iRacing-Liga. Eigene Zugangsdaten braucht es nur bei Events und Serien mit ein oder zwei Rennen.
-        zugangNoetig: serie.typ === "event" || !(serie.rennenGesamt > 2),
+        nurFreigegeben: !!serie.aufAnfrage && !einzelrennen && !inSerie.has(discordId),
+        // Ligen laufen über die iRacing-Liga. Eigene Zugangsdaten braucht es nur bei Einzelrennen und Serien mit ein oder zwei Rennen.
+        zugangNoetig: einzelrennen || !(serie.rennenGesamt > 2),
         strecke: r.strecke || "", streckenBild: r.streckenBild || null, fahrzeuge: r.fahrzeuge || "", fahrzeugklassen: serie.fahrzeugklassen || [], plaetze: r.plaetze || 0,
         training: r.training || "", qualifying: r.qualifying || "", renndauer: r.renndauer || "", wetter: r.wetter || "", server: r.server || "", briefing: r.briefing || "",
         starter: starter.map(oeffentlich), warteliste: warteliste.map(oeffentlich),
