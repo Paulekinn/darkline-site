@@ -7,13 +7,13 @@
   "strecke": "Suzuka International Racing Course Grand Prix",
   "serie": "IMSA Endurance Series",
   "klasse": "GT3",
-  "fahrzeug": "noch nicht bekannt",
+  "fahrzeug": "BMW M4 GT3 EVO",
   "crew": [
     "Pascal Rodenberg",
     "Vanessa Peltré (Gast)"
   ],
-  "start": null,
-  "ziel": null,
+  "start": 1,
+  "ziel": 1,
   "fazit": "",
   "banner": "/img/races/seriesid_419.png",
   "bericht_titel": "",
