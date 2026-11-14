@@ -1246,6 +1246,13 @@ const tests = {
     assert.strictEqual(r2.serieKategorie, "Sports_Car");
     assert.strictEqual(C.alsKatalog([{ ...basis, id: "abcd0001", status: "freigegeben", kategorie: "Formula" }]).serien[0].kategorie, "Formula");
   },
+  "Fahrzeuge: Rennen zeigt die Season, außer es weicht ab": () => {
+    const bau = (rennen, serie) => A.baueRennen([{ ...SERIENRENNEN, ...rennen }], [], { ...OPT, serien: { gt3: { id: "gt3", ...serie } } })[0].fahrzeuge;
+    assert.strictEqual(bau({}, { fahrzeugklassen: ["GT3", "GT4"] }), "GT3, GT4", "Fahrzeugklassen der Season");
+    assert.strictEqual(bau({}, { modelle: ["BMW M4 GT3", "Porsche 992", "Ferrari 296", "Audi R8", "McLaren 720S"] }), "BMW M4 GT3, Porsche 992, Ferrari 296 + 2 weitere", "Sonst die erlaubten Modelle, gekürzt");
+    assert.strictEqual(bau({ fahrzeuge: "Mazda MX-5" }, { fahrzeugklassen: ["GT3"] }), "Mazda MX-5", "Eine Abweichung am Rennen geht vor");
+    assert.strictEqual(bau({}, {}), "", "Ohne Angabe bleibt es leer");
+  },
   "Community-Rennen: Ergebnisse lesen, abgleichen und werten": () => {
     const C = require("../api/_lib/liga-community");
     const start = "2026-11-20T19:00:00Z";

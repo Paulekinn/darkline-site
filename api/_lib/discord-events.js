@@ -65,7 +65,7 @@ function ligaTermine(kat) {
       beschreibung: kurz([
         serie.name ? `Serie: ${serie.name}` : "",
         ablauf,
-        r.fahrzeuge ? `Fahrzeuge: ${r.fahrzeuge}` : "",
+        A.fahrzeugeVon(r, serie) ? `Fahrzeuge: ${A.fahrzeugeVon(r, serie)}` : "",
         `An- und Abmeldung im Fahrerbereich: ${SITE}/fahrerbereich`,
         `Alle Infos: ${SITE}/liga${r.serie ? `?serie=${encodeURIComponent(r.serie)}` : ""}`,
       ].filter(Boolean).join("\n"), 1000),

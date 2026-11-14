@@ -33,6 +33,9 @@ const KAT = {
   assert.strictEqual(t[0].ende - t[0].start, 60 * 60e3);
   assert.ok(t[1].name.endsWith("(Sichtung)"));
   assert.ok(E.ligaTermine({ serien: [], rennen: [{ id: "x", titel: "A".repeat(200), datum: "2026-11-20", startzeit: "20:00" }] })[0].name.length <= 100, "Discord erlaubt 100 Zeichen");
+  // Ohne Fahrzeuge am Rennen nennt das Event die Fahrzeugklassen der Season
+  const mitSeason = E.ligaTermine({ serien: [{ id: "s", name: "Multi", fahrzeugklassen: ["GTP", "GT3"] }], rennen: [{ id: "y", serie: "s", titel: "R1", datum: "2026-11-20", startzeit: "20:00" }] })[0];
+  assert.ok(mitSeason.beschreibung.includes("Fahrzeuge: GTP, GT3"));
 }
 {
   // Community-Rennen: nur freigegebene mit „Darkline Sponsored“

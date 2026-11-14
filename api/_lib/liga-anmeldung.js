@@ -69,6 +69,16 @@ function ordne(eintraege, plaetze) {
 
 const ueberlappt = (a, b) => a.startMs < b.endeMs && b.startMs < a.endeMs;
 
+// Fahrzeuge eines Rennens: was am Rennen steht (Abweichung), sonst aus der Season: Fahrzeugklassen, sonst erlaubte Modelle (gekürzt).
+function fahrzeugeVonSerie(serie) {
+  const klassen = (serie && serie.fahrzeugklassen) || [];
+  if (klassen.length) return klassen.join(", ");
+  const modelle = (serie && serie.modelle) || [];
+  if (!modelle.length) return "";
+  return modelle.length > 3 ? `${modelle.slice(0, 3).join(", ")} + ${modelle.length - 3} weitere` : modelle.join(", ");
+}
+const fahrzeugeVon = (r, serie) => String((r && r.fahrzeuge) || "").trim() || fahrzeugeVonSerie(serie);
+
 // Bereitet die Rennen für den Fahrerbereich auf. Das Passwort sehen nur Fahrer mit Startplatz.
 function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, serien = {}, mitIds = false, auchVergangene = false }) {
   const liste = kalender
@@ -108,7 +118,7 @@ function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, ser
         nurFreigegeben: !!serie.aufAnfrage && !einzelrennen && !inSerie.has(discordId),
         // Ligen laufen über die iRacing-Liga. Eigene Zugangsdaten braucht es nur bei Einzelrennen und Serien mit ein oder zwei Rennen.
         zugangNoetig: einzelrennen || !(serie.rennenGesamt > 2),
-        strecke: r.strecke || "", streckenBild: r.streckenBild || null, fahrzeuge: r.fahrzeuge || "", fahrzeugklassen: serie.fahrzeugklassen || [], plaetze: r.plaetze || 0,
+        strecke: r.strecke || "", streckenBild: r.streckenBild || null, fahrzeuge: fahrzeugeVon(r, serie), fahrzeugklassen: serie.fahrzeugklassen || [], plaetze: r.plaetze || 0,
         training: r.training || "", qualifying: r.qualifying || "", renndauer: r.renndauer || "", wetter: r.wetter || "", server: r.server || "", briefing: r.briefing || "",
         starter: starter.map(oeffentlich), warteliste: warteliste.map(oeffentlich),
         ich: eigen ? { status: iS >= 0 ? "starter" : "warteliste", platz: (iS >= 0 ? iS : iW) + 1, fahrzeugklasse: eigen.fahrzeugklasse, quelle: eigen.typ, ...(mitIds ? { discordId } : {}) } : null,
@@ -208,4 +218,4 @@ function pruefeProfil(p) {
   return { iracingName: name, custId, irating: +irating, iratingFormula: formula ? +formula : null };
 }
 
-module.exports = { PREFIX, anmeldungPfad, mitgliedPfad, abmeldungPfad, profilPfad, leseEintrag, berlinNachUtc, dauerMinuten, ordne, baueRennen, baueSerien, kollisionen, eigeneKarten, klassenFarbeAus, iratingFuer, formulaIratingNoetig, pruefeProfil, pruefeExtras, nummerPflicht };
+module.exports = { PREFIX, anmeldungPfad, mitgliedPfad, abmeldungPfad, profilPfad, leseEintrag, berlinNachUtc, dauerMinuten, ordne, baueRennen, baueSerien, kollisionen, eigeneKarten, klassenFarbeAus, iratingFuer, fahrzeugeVon, fahrzeugeVonSerie, formulaIratingNoetig, pruefeProfil, pruefeExtras, nummerPflicht };

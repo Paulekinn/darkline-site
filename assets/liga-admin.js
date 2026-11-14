@@ -716,6 +716,14 @@
   // Vor dem Speichern: Minuten zurück in lesbare Dauer
   const dauernSetzen = (w) => { ["training", "qualifying", "renndauer"].forEach((k) => { if (k in w) w[k] = alsDauer(w[k]); }); return w; };
 
+  // Was die Fahrer ohne Angabe am Rennen sehen: Fahrzeugklassen der Season, sonst ihre erlaubten Fahrzeuge (wie auf dem Server)
+  const seasonFahrzeuge = (s) => {
+    if (!s) return "";
+    if ((s.fahrzeugklassen || []).length) return s.fahrzeugklassen.join(", ");
+    const m = s.modelle || [];
+    return m.length > 3 ? `${m.slice(0, 3).join(", ")} + ${m.length - 3} weitere` : m.join(", ");
+  };
+
   // Checkliste unter dem Rennen-Formular
   function rennenCheck() {
     const f = document.getElementById("f-rennen");
@@ -734,6 +742,12 @@
       ["Renndauer", wert("renndauer") ? "ok" : "info", wert("renndauer") ? `${alsDauer(wert("renndauer"))}` : "Ohne Angabe rechnet die Seite mit 2 Stunden (Kalender, Überschneidungen, Report-Frist)"],
       ["Ablauf", wert("training") || wert("qualifying") ? "ok" : "frei", [wert("training") && `Training ${alsDauer(wert("training"))}`, wert("qualifying") && `Quali ${alsDauer(wert("qualifying"))}`].filter(Boolean).join(", ") || "Kein Training und kein Qualifying angegeben"],
       ["Wetter", wert("wetter") ? "ok" : "frei", wert("wetter") || "Noch offen"],
+      // Fahrzeuge: Abweichung am Rennen, sonst das, was die Fahrer aus der Season sehen
+      (() => {
+        const eigene = wert("fahrzeuge");
+        const ausSeason = seasonFahrzeuge(s);
+        return ["Fahrzeuge", eigene || ausSeason ? "ok" : "frei", eigene ? `Abweichend: ${eigene}` : ausSeason ? `Aus der Season: ${ausSeason}` : "Weder hier noch in der Season angegeben"];
+      })(),
       ...(zugang ? [["Zugang", wert("server") && wert("passwort") ? "ok" : "info", wert("server") && wert("passwort") ? "Session-Name und Passwort eingetragen" : "Session-Name oder Passwort fehlt, Fahrer sehen dann „Kommt im Discord“"]] : []),
       ["Briefing", wert("briefing") ? "ok" : "info", wert("briefing") ? "Eingetragen" : "Noch kein Briefing"],
       ...(wert("status") === "abgesagt" ? [["Status", "info", "Abgesagt: Gemeldete sehen das Rennen als abgesagt"]] : []),
@@ -760,7 +774,7 @@
           </div>${w.sichtung ? '<label class="a-check"><input type="checkbox" name="sichtung" checked> Altes Sichtungsrennen: zählt nicht für die Tabelle. Die Sichtung läuft inzwischen über Garage 61.</label>' : ""}`)}
           ${abschnittForm(2, "Ablauf", `<div class="a-felder unten">
             ${ablaufFelder(w)}
-            ${feld("Fahrzeuge", eingabe("fahrzeuge", w.fahrzeuge, 'maxlength="80" placeholder="z. B. GT3, frei wählbar"'))}
+            ${feld("Abweichende Fahrzeuge (nur wenn anders als in der Season)", eingabe("fahrzeuge", w.fahrzeuge, 'maxlength="80" placeholder="Leer lassen: Angaben der Season"'), true)}
           </div>`)}
           ${abschnittForm(3, "Zugang und Briefing", `<div class="a-felder unten">
             ${feld("Session-Name in iRacing", eingabe("server", w.server))}
@@ -812,7 +826,7 @@
           ${abschnittForm(2, "Gilt für alle Rennen", `<div class="a-felder unten">
             ${feld("Startplätze", eingabe("plaetze", planer.plaetze, 'type="number" min="1"'))}
             ${ablaufFelder(planer)}
-            ${feld("Fahrzeuge", eingabe("fahrzeuge", planer.fahrzeuge, 'maxlength="80" placeholder="z. B. GT3, frei wählbar"'))}
+            ${feld("Abweichende Fahrzeuge (nur wenn anders als in der Season)", eingabe("fahrzeuge", planer.fahrzeuge, 'maxlength="80" placeholder="Leer lassen: Angaben der Season"'), true)}
           </div>`)}
         </div>
         <div class="a-spalte">${abschnittForm(3, "Rennkalender", `<div class="a-plan" id="a-plan-zeilen">${planerZeilenHtml()}</div>`, "Das Briefing trägst du später je Rennen ein.")}</div>
