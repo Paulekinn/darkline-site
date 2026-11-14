@@ -228,7 +228,8 @@
   }
 
   function serienPanel() {
-    const offene = stand.serien.filter((s) => s.status !== "beendet");
+    // Geschlossene Serien, in denen der Fahrer nicht ist, haben hier nichts zu tun. „Anmeldung folgt“ bleibt als Ausblick stehen.
+    const offene = stand.serien.filter((s) => s.status !== "beendet" && (s.ich || s.anfrage || s.anmeldungOffen || s.status === "geplant"));
     if (!offene.length) return "";
     const zeilen = offene.map((s) => {
       let aktion = "";
@@ -288,7 +289,7 @@
       </ul>
       ${stand.fahrer.nummerWunsch ? `<p class="fb-klein">Änderung auf #${esc(stand.fahrer.nummerWunsch)} beantragt. Sie gilt, sobald die Rennleitung sie bestätigt.</p>` : ""}
       ${bildFehlt ? '<p class="fb-klein">Dein Discord-Bild ist noch nicht übernommen. Logge dich einmal aus und wieder ein, dann erscheint es hier. Ohne eigenes Bild bei Discord bleibt der Platz leer.</p>' : ""}
-      <p class="fb-profil-link"><button type="button" class="fb-link" data-profil="1">Profil ändern</button>${(stand.meineKarten || []).some((k) => k.pid) || (p.uebersicht === true && stand.fahrer.pid) ? ` <a class="fb-link" href="/fahrer?id=${encodeURIComponent(stand.fahrer.pid)}">Öffentliches Profil</a>` : ""}</p>`;
+      <p class="fb-profil-link"><button type="button" class="fb-link" data-profil="1">Profil ändern</button></p>`;
   }
 
   /* ---------- Kopfbereich mit persönlicher Fahrerkarte ---------- */
@@ -387,7 +388,10 @@
     const sichtungOffen = stand.sichtungOffen || 0;
     // Reiter mit offener Aufgabe leuchten und zeigen eine Zahl, bis sie erledigt ist.
     const reiter = (id, text, zahl, hinweis) => `<button type="button" data-ansicht="${id}" aria-pressed="${ansicht === id}" class="${zahl && ansicht !== id ? "wichtig" : ""}"${zahl ? ` title="${esc(hinweis)}"` : ""}><span>${text}</span>${zahl ? `<em aria-label="${esc(hinweis)}">${zahl}</em>` : ""}</button>`;
-    return `<div class="fb-ansicht" role="group" aria-label="Ansicht wählen">${reiter("rennen", "Rennen", 0)}${reiter("reports", "Reports", offen, `${offen} ${offen === 1 ? "Urteil" : "Urteile"} mit möglichem Einspruch`)}${(stand.sichtung || []).length ? reiter("sichtung", "Sichtung", sichtungOffen, `${sichtungOffen} ${sichtungOffen === 1 ? "Strecke" : "Strecken"} noch abzugeben`) : ""}</div>`;
+    const p = stand.fahrer.profil;
+    const profilOffen_ = !profilFertig() || typeof p.uebersicht !== "boolean" ? 1 : 0;
+    const teamAnfragen = stand.team && stand.team.istChef ? (stand.team.anfragen || []).length : 0;
+    return `<div class="fb-ansicht" role="group" aria-label="Ansicht wählen">${reiter("rennen", "Rennen", 0)}${reiter("profil", "Profil", profilOffen_, !profilFertig() ? "Registrierung fehlt noch" : "Frage zur Fahrerübersicht offen")}${reiter("team", "Team", teamAnfragen, `${teamAnfragen} offene ${teamAnfragen === 1 ? "Anfrage" : "Anfragen"}`)}${reiter("reports", "Reports", offen, `${offen} ${offen === 1 ? "Urteil" : "Urteile"} mit möglichem Einspruch`)}${(stand.sichtung || []).length ? reiter("sichtung", "Sichtung", sichtungOffen, `${sichtungOffen} ${sichtungOffen === 1 ? "Strecke" : "Strecken"} noch abzugeben`) : ""}</div>`;
   }
 
   /* ---------- Sichtung: nur die eigenen Werte, erst beim Öffnen aus Garage 61 geladen ---------- */
@@ -493,13 +497,17 @@
   }
 
   function filterChips() {
-    const chips = [["meine", "Meine Rennen"], ["alle", "Alle"], ...stand.serien.filter((s) => s.status !== "beendet").map((s) => [s.id, s.typ === "event" ? `★ ${s.name}` : s.name])];
+    // Serienknöpfe nur für Serien mit kommenden Rennen, und erst ab zwei solchen Serien
+    const mitRennen = stand.serien.filter((s) => s.status !== "beendet" && stand.rennen.some((r) => r.serie === s.id));
+    const chips = [["meine", "Meine Rennen"], ["alle", "Alle"], ...(mitRennen.length > 1 ? mitRennen.map((s) => [s.id, s.typ === "event" ? `★ ${s.name}` : s.name]) : [])];
     return `<div class="fb-filter" role="group" aria-label="Rennen filtern">${chips.map(([id, name]) => `<button type="button" data-filter="${esc(id)}" aria-pressed="${filter === id}">${esc(name)}</button>`).join("")}</div>`;
   }
 
   function zeichne() {
     if (!stand.angemeldet) return zeigeLogin();
     const f = stand.fahrer;
+    // Ein gewählter Serienfilter ohne Rennen (etwa nach Ende der Serie) fällt auf „Alle“ zurück.
+    if (filter && filter !== "meine" && filter !== "alle" && !stand.rennen.some((r) => r.serie === filter)) filter = "alle";
     if (!filter) filter = stand.rennen.some((r) => r.ich) ? "meine" : "alle";
     const sichtbar = stand.rennen.filter((r) => filter === "alle" || (filter === "meine" ? r.ich : r.serie === filter));
     const haupt = sichtbar.find((r) => r.id === auswahl) || sichtbar[0];
@@ -512,8 +520,25 @@
     if (starterBox) starterOffen = starterBox.open;
     const leerText = filter === "meine" ? "Du bist noch für kein Rennen gemeldet. Melde dich rechts für eine Serie an oder schau unter „Alle“." : "Hier ist gerade kein Rennen geplant. Neue Termine erscheinen hier und im Discord.";
     const kopf = kopfbereich(f, haupt);
+    const rahmen = (inhalt) => `${kopf}<section class="sheet"><div class="wrap"><div class="fb-leiste">${ansichtWahl()}</div><p class="fb-meldung" id="fb-meldung" role="alert" hidden></p>${inhalt}</div></section>`;
     if (ansicht === "reports" || ansicht === "sichtung") {
-      main.innerHTML = `${kopf}<section class="sheet"><div class="wrap"><div class="fb-leiste">${ansichtWahl()}</div><p class="fb-meldung" id="fb-meldung" role="alert" hidden></p>${ansicht === "reports" ? reportsAnsicht() : sichtungAnsicht()}</div></section>`;
+      main.innerHTML = rahmen(ansicht === "reports" ? reportsAnsicht() : sichtungAnsicht());
+      return;
+    }
+    // Profil: alles, was man einmal einrichtet. Team: eigenes Team oder gründen/beitreten, in voller Breite.
+    if (ansicht === "profil") {
+      main.innerHTML = rahmen(`${uebersichtFrage()}${nummerEntscheidPanel()}<div class="fb-raster">
+        <div class="fb-haupt-spalte">${profilPanel}</div>
+        <aside class="fb-seiten-spalte">${kalenderPanel()}${f.profil ? `<section class="fb-panel"><h3>Öffentlich</h3><p class="fb-klein">So sehen dich andere: in der <a href="/fahrer">Fahrerübersicht</a>${stand.team ? ` und auf der <a href="/teams?id=${encodeURIComponent(stand.team.id)}">Teamseite</a>` : ""}.</p>${(stand.meineKarten || []).some((k) => k.pid) || (f.profil.uebersicht === true && f.pid) || stand.team ? `<p class="fb-profil-link"><a class="fb-link" href="/fahrer?id=${encodeURIComponent(f.pid)}">Dein öffentliches Profil</a></p>` : '<p class="fb-klein">Ein öffentliches Profil hast du nach deinem ersten Rennen, mit Haken für die Fahrerübersicht oder als Teammitglied.</p>'}</section>` : ""}</aside>
+      </div>`);
+      return;
+    }
+    if (ansicht === "team") {
+      const hinweis = '<section class="fb-panel"><h3>So funktionieren Teams</h3><p class="fb-klein">Jeder registrierte Fahrer kann ein Team gründen und ist dann Teamchef. Mitglieder kommen per Einladungslink dazu oder stellen eine Anfrage, die der Teamchef annimmt. Du bist in höchstens einem Team.</p><p class="fb-profil-link"><a class="fb-link" href="/teams">Alle Teams ansehen</a></p></section>';
+      main.innerHTML = rahmen(`${einladungPanel()}<div class="fb-raster">
+        <div class="fb-haupt-spalte">${teamPanel() || '<section class="fb-panel"><h3>Dein Team</h3><p class="fb-klein">Registriere dich zuerst als Fahrer, dann kannst du ein Team gründen oder einem beitreten.</p><p class="fb-profil-link"><button type="button" class="fb-link" data-profil="1">Zur Registrierung</button></p></section>'}</div>
+        <aside class="fb-seiten-spalte">${hinweis}</aside>
+      </div>`);
       return;
     }
     main.innerHTML = `${kopf}<section class="sheet"><div class="wrap">
@@ -529,7 +554,7 @@
           ${haupt ? hauptRennen(haupt) : `<p class="fb-leer">${esc(leerText)}</p>`}
           ${rest.length ? `<h3 class="fb-zwischen">Weitere Rennen</h3><ol class="fb-termine">${rest.map((r) => weiteresRennen(r, new Set(rest.map((x) => x.serie)).size > 1)).join("")}</ol>` : ""}
         </div>
-        <aside class="fb-seiten-spalte">${serienPanel()}${haupt ? feldPanel(haupt) : ""}${kalenderPanel()}${profilPanel}${teamPanel()}</aside>
+        <aside class="fb-seiten-spalte">${serienPanel()}${haupt ? feldPanel(haupt) : ""}</aside>
       </div>
     </div></section>`;
     uhrwerk();
@@ -694,7 +719,7 @@
     if (b.dataset.einladung === "weg") { einladungWeg(); return zeichne(); }
     if (b.dataset.einladung === "ja" && einladung) {
       const name = einladung.team.name;
-      return sende({ aktion: "team-beitreten", code: einladung.code }).then((ok) => { if (ok) { einladungWeg(); zeichne(); meldung(`Willkommen im Team ${name}!`, true); } });
+      return sende({ aktion: "team-beitreten", code: einladung.code }).then((ok) => { if (ok) { einladungWeg(); ansicht = "team"; zeichne(); meldung(`Willkommen im Team ${name}!`, true); } });
     }
     if (b.dataset.teamAktion) {
       const art = b.dataset.teamAktion;
@@ -732,6 +757,7 @@
     if (b.dataset.waehle) { auswahl = b.dataset.waehle; zeichne(); return main.querySelector(".fb-haupt").scrollIntoView({ block: "start" }); }
     if (b.dataset.profil) {
       profilOffen = true;
+      ansicht = "profil";
       zeichne();
       const form = $("fb-profil");
       if (form) form.scrollIntoView({ block: "center" });
