@@ -260,7 +260,7 @@
       <p class="fb-klein">${nummerHinweis}</p>
       <h4 class="fb-oeffentlich">Öffentlich auf deinem Profil, alles freiwillig</h4>
       <div class="fb-feld"><label for="p-land">Land</label><select id="p-land"><option value="">Keine Angabe</option>${window.LigaFlaggen.LAENDER.map(([c, n]) => `<option value="${c}"${c === p.land ? " selected" : ""}>${esc(n)}</option>`).join("")}</select></div>
-      <div class="fb-feld"><label for="p-team">Team oder Club</label><input id="p-team" autocomplete="off" maxlength="40" value="${esc(p.team || "")}"></div>
+      <div class="fb-feld"><label for="p-team">Club oder Sim-Team außerhalb der Liga</label><input id="p-team" autocomplete="off" maxlength="40" value="${esc(p.team || "")}"></div>
       <div class="fb-feld"><label for="p-kanal">Twitch- oder YouTube-Link</label><input id="p-kanal" autocomplete="off" maxlength="150" placeholder="https://www.twitch.tv/…" value="${esc(p.kanal || "")}"></div>
       <label class="fb-haken"><input type="checkbox" id="p-bild"${p.zeigeBild === false ? "" : " checked"}><span>Mein Discord-Profilbild auf dem Profil und der Fahrerkarte zeigen</span></label>
       <label class="fb-haken"><input type="checkbox" id="p-uebersicht"${p.uebersicht === true ? " checked" : ""}><span>Mich mit iRacing-Name und Startnummer in der öffentlichen Fahrerübersicht zeigen, auch bevor ich ein Rennen gefahren bin</span></label>
@@ -358,6 +358,7 @@
           <img class="fb-login-logo" src="img/brand/dsrs-logo.png" alt="Darkline Simracing Series" width="654" height="165">
           <h1>Dein <em>Cockpit</em></h1>
           ${fehler ? `<p class="fb-meldung" role="alert">${esc(fehler)}</p>` : ""}
+          ${einladungsCode ? '<p class="fb-meldung gut">Du wurdest in ein Team eingeladen. Melde dich an, dann kannst du beitreten.</p>' : ""}
           <ul class="fb-vorteile">
             <li><b>Registrieren</b><span>Startnummer sichern, auch ohne Season</span></li>
             <li><b>Rennen</b><span>Alle Termine deiner Serien auf einen Blick</span></li>
@@ -518,6 +519,7 @@
     main.innerHTML = `${kopf}<section class="sheet"><div class="wrap">
       <div class="fb-leiste">${ansichtWahl()}${filterChips()}</div>
       <p class="fb-meldung" id="fb-meldung" role="alert" hidden></p>
+      ${einladungPanel()}
       ${erstePanel()}
       ${uebersichtFrage()}
       ${renntagPanel()}
@@ -527,11 +529,74 @@
           ${haupt ? hauptRennen(haupt) : `<p class="fb-leer">${esc(leerText)}</p>`}
           ${rest.length ? `<h3 class="fb-zwischen">Weitere Rennen</h3><ol class="fb-termine">${rest.map((r) => weiteresRennen(r, new Set(rest.map((x) => x.serie)).size > 1)).join("")}</ol>` : ""}
         </div>
-        <aside class="fb-seiten-spalte">${serienPanel()}${haupt ? feldPanel(haupt) : ""}${kalenderPanel()}${profilPanel}</aside>
+        <aside class="fb-seiten-spalte">${serienPanel()}${haupt ? feldPanel(haupt) : ""}${kalenderPanel()}${profilPanel}${teamPanel()}</aside>
       </div>
     </div></section>`;
     uhrwerk();
   }
+
+  /* ---------- Liga-Team: gründen, beitreten (Link oder Anfrage), verwalten ---------- */
+  const TEAMFARBEN = [["rot", "Rot"], ["blau", "Blau"], ["lila", "Lila"], ["gruen", "Grün"], ["gelb", "Gelb"], ["tuerkis", "Türkis"]];
+  let teamBearbeiten = false;
+  let einladung = null; // { code, team } aus einem Einladungslink
+  const teamKuerzel = (t) => `<span class="fb-team-kz ${farbe(t.farbe)}">${esc(t.kuerzel)}</span>`;
+  const teamFelder = (t = {}) => `
+      <div class="fb-feld"><label for="t-name">Teamname</label><input id="t-name" maxlength="40" autocomplete="off" value="${esc(t.name || "")}"></div>
+      <div class="fb-feld"><label for="t-kz">Kürzel (2 bis 4 Zeichen)</label><input id="t-kz" maxlength="4" autocomplete="off" value="${esc(t.kuerzel || "")}" style="text-transform:uppercase"></div>
+      <div class="fb-feld"><label for="t-farbe">Teamfarbe</label><select id="t-farbe">${TEAMFARBEN.map(([v, n]) => `<option value="${v}"${v === (t.farbe || "rot") ? " selected" : ""}>${n}</option>`).join("")}</select></div>`;
+  const teamEingaben = () => ({ name: $("t-name").value, kuerzel: $("t-kz").value, farbe: $("t-farbe").value });
+
+  function teamPanel() {
+    if (!profilFertig()) return "";
+    const t = stand.team;
+    if (!t) {
+      const anfragen = stand.teamAnfragen || [];
+      const liste = (stand.teams || []).map((x) => {
+        const angefragt = anfragen.includes(x.id);
+        const knopf = angefragt ? `<span class="fb-zu">Angefragt</span><button type="button" class="fb-abmelden" data-team-aktion="team-anfrage-zurueck" data-team="${esc(x.id)}">Zurückziehen</button>` : x.voll ? '<span class="fb-zu">Voll</span>' : `<button type="button" class="fb-abmelden" data-team-aktion="team-anfragen" data-team="${esc(x.id)}">Anfragen</button>`;
+        return `<li>${teamKuerzel(x)}<a href="/teams?id=${encodeURIComponent(x.id)}">${esc(x.name)}</a><small>${x.anzahl} ${x.anzahl === 1 ? "Fahrer" : "Fahrer"}</small><span class="fb-team-knopfe">${knopf}</span></li>`;
+      }).join("");
+      return `<section class="fb-panel"><h3>Dein Team</h3>
+        <p class="fb-klein">Du bist in keinem Team. Gründe eins und lade deine Teamkollegen per Link ein, oder frag bei einem bestehenden Team an.</p>
+        <details class="fb-team-neu"><summary>Team gründen</summary><form class="fb-profil" id="fb-team-form" novalidate>${teamFelder()}<div class="fb-profil-fuss"><button type="submit" class="fb-knopf">Team gründen</button><p>Du wirst Teamchef. Teamname, Kürzel und alle Mitglieder mit iRacing-Name und Startnummer stehen öffentlich auf der Teamseite.</p></div></form></details>
+        ${liste ? `<h4 class="fb-zwischen">Bestehende Teams</h4><ul class="fb-team-liste">${liste}</ul>` : ""}
+      </section>`;
+    }
+    const verwaltung = t.istChef ? (t.verwaltung || []) : [];
+    const mitglieder = (t.istChef ? verwaltung : t.mitglieder).map((m) => `<li><span>${m.nummer ? `<b>#${esc(m.nummer)}</b> ` : ""}${esc(m.name)}${m.chef ? ' <em title="Teamchef">★ Chef</em>' : ""}</span>${t.istChef && !m.chef ? `<span class="fb-team-knopfe"><button type="button" class="fb-abmelden" data-team-aktion="team-chef" data-fahrer="${esc(m.discordId)}" data-name="${esc(m.name)}">Zum Chef machen</button><button type="button" class="fb-abmelden" data-team-aktion="team-entfernen" data-fahrer="${esc(m.discordId)}" data-name="${esc(m.name)}">Entfernen</button></span>` : ""}</li>`).join("");
+    const link = t.istChef ? `${location.origin}/fahrerbereich?team=${t.einladung}` : "";
+    const chefTeil = t.istChef ? `
+      <h4 class="fb-zwischen">Einladungslink</h4>
+      <p class="fb-klein">Wer diesen Link öffnet und registriert ist, tritt sofort bei. Teile ihn nur mit deinen Teamkollegen.</p>
+      <div class="fb-kalender"><button type="button" class="fb-abmelden" data-kopieren="${esc(link)}">Link kopieren</button><button type="button" class="fb-abmelden" data-team-aktion="team-link-neu">Neuen Link erzeugen</button></div>
+      ${(t.anfragen || []).length ? `<h4 class="fb-zwischen">Anfragen (${t.anfragen.length})</h4><ul class="fb-team-mitglieder">${t.anfragen.map((a) => `<li><span>${a.nummer ? `<b>#${esc(a.nummer)}</b> ` : ""}${esc(a.name)}</span><span class="fb-team-knopfe"><button type="button" class="fb-knopf fb-melden" data-team-aktion="team-anfrage-entscheiden" data-fahrer="${esc(a.discordId)}" data-ja="1">Annehmen</button><button type="button" class="fb-abmelden" data-team-aktion="team-anfrage-entscheiden" data-fahrer="${esc(a.discordId)}">Ablehnen</button></span></li>`).join("")}</ul>` : ""}
+      ${teamBearbeiten ? `<form class="fb-profil" id="fb-team-form" novalidate>${teamFelder(t)}<div class="fb-profil-fuss"><button type="submit" class="fb-knopf">Speichern</button><button type="button" class="fb-knopf zweit" data-team-bearbeiten="zu">Abbrechen</button></div></form>` : ""}` : "";
+    return `<section class="fb-panel ${farbe(t.farbe)} fb-team"><h3>Dein Team</h3>
+      <div class="fb-team-kopf">${teamKuerzel(t)}<strong>${esc(t.name)}</strong></div>
+      <ul class="fb-team-mitglieder">${mitglieder}</ul>
+      ${chefTeil}
+      <p class="fb-profil-link"><a class="fb-link" href="/teams?id=${encodeURIComponent(t.id)}">Teamseite</a>${t.istChef && !teamBearbeiten ? ' <button type="button" class="fb-link" data-team-bearbeiten="auf">Team bearbeiten</button>' : ""} ${t.istChef ? '<button type="button" class="fb-link" data-team-aktion="team-aufloesen">Team auflösen</button>' : '<button type="button" class="fb-link" data-team-aktion="team-verlassen">Team verlassen</button>'}</p>
+      ${t.istChef && (t.verwaltung || []).length > 1 ? '<p class="fb-klein">Zum Verlassen machst du zuerst ein anderes Mitglied zum Teamchef.</p>' : ""}
+    </section>`;
+  }
+
+  // Einladungslink geöffnet: Team anzeigen, Beitritt erst nach Klick
+  function einladungPanel() {
+    if (!einladung) return "";
+    if (!einladung.team) return `<section class="fb-panel fb-panel-wichtig"><h3>Team-Einladung</h3><p>Dieser Einladungslink ist ungültig oder abgelaufen. Frag den Teamchef nach einem neuen.</p><p class="fb-profil-link"><button type="button" class="fb-link" data-einladung="weg">Schließen</button></p></section>`;
+    const t = einladung.team;
+    const hinweis = !profilFertig() ? "Registriere dich zuerst als Fahrer, dann kannst du beitreten." : stand.team ? `Du bist schon im Team ${stand.team.name}. Verlasse es zuerst, um zu wechseln.` : "";
+    return `<section class="fb-panel fb-panel-wichtig ${farbe(t.farbe)}"><h3>Einladung ins Team</h3>
+      <div class="fb-team-kopf">${teamKuerzel(t)}<strong>${esc(t.name)}</strong><small>${t.anzahl} ${t.anzahl === 1 ? "Fahrer" : "Fahrer"}</small></div>
+      ${hinweis ? `<p class="fb-klein">${esc(hinweis)}</p>` : '<p class="fb-klein">Als Mitglied erscheinst du mit iRacing-Name und Startnummer öffentlich auf der Teamseite.</p>'}
+      <div class="fb-kalender">${hinweis || t.voll ? "" : '<button type="button" class="fb-knopf" data-einladung="ja">Team beitreten</button>'}<button type="button" class="fb-knopf zweit" data-einladung="weg">${hinweis ? "Schließen" : "Nein, danke"}</button></div>
+    </section>`;
+  }
+  const einladungWeg = () => {
+    einladung = null;
+    try { sessionStorage.removeItem("dsrs-team-einladung"); } catch (e) { /* ohne Speicher egal */ }
+    const u = new URL(location.href); u.searchParams.delete("team"); history.replaceState(null, "", u);
+  };
 
   /* ---------- Erste Schritte: Registrierung, Garage-61-Team, Season (freiwillig) ---------- */
   const g61Fertig = () => !!stand.g61 && (stand.g61.imTeam === true || stand.g61.gemeldet);
@@ -625,6 +690,27 @@
       return;
     }
     if (b.id === "fb-nummer-gelesen") return sende({ aktion: "nummer-gelesen" });
+    if (b.dataset.teamBearbeiten) { teamBearbeiten = b.dataset.teamBearbeiten === "auf"; return zeichne(); }
+    if (b.dataset.einladung === "weg") { einladungWeg(); return zeichne(); }
+    if (b.dataset.einladung === "ja" && einladung) {
+      const name = einladung.team.name;
+      return sende({ aktion: "team-beitreten", code: einladung.code }).then((ok) => { if (ok) { einladungWeg(); zeichne(); meldung(`Willkommen im Team ${name}!`, true); } });
+    }
+    if (b.dataset.teamAktion) {
+      const art = b.dataset.teamAktion;
+      const t = stand.team;
+      const fragen = {
+        "team-verlassen": t ? `Team ${t.name} wirklich verlassen?` : "",
+        "team-aufloesen": t ? `Team ${t.name} auflösen? Alle Mitglieder verlieren das Team, das lässt sich nicht rückgängig machen.` : "",
+        "team-entfernen": `${b.dataset.name} aus dem Team entfernen?`,
+        "team-chef": `${b.dataset.name} zum Teamchef machen? Du bist danach normales Mitglied.`,
+        "team-link-neu": "Neuen Einladungslink erzeugen? Der alte Link funktioniert danach nicht mehr.",
+        "team-anfrage-zurueck": "Anfrage zurückziehen?",
+      };
+      if (fragen[art] && !window.confirm(fragen[art])) return;
+      const texte = { "team-anfragen": "Deine Anfrage ist beim Teamchef. Du bekommst eine Nachricht im Discord, sobald er entschieden hat.", "team-verlassen": "Du hast das Team verlassen.", "team-aufloesen": "Das Team ist aufgelöst.", "team-link-neu": "Neuer Einladungslink erzeugt." };
+      return sende({ aktion: art, team: b.dataset.team, fahrer: b.dataset.fahrer, ja: b.dataset.ja === "1" }).then((ok) => { if (ok && texte[art]) meldung(texte[art], true); });
+    }
     if (b.dataset.uebersicht) {
       const ja = b.dataset.uebersicht === "ja";
       return sende({ aktion: "uebersicht", ja }).then((ok) => { if (ok) meldung(ja ? "Du erscheinst jetzt in der Fahrerübersicht." : "Alles klar, du bleibst in der Übersicht unsichtbar, bis du dein erstes Rennen gefahren bist.", true); });
@@ -723,6 +809,12 @@
       if (await sende({ aktion: "report-einspruch", id: e.target.dataset.id, text: e.target.elements.text.value })) meldung("Dein Einspruch ist eingegangen.", true);
       return;
     }
+    if (e.target.id === "fb-team-form") {
+      e.preventDefault();
+      const neu = !stand.team;
+      if (await sende({ aktion: neu ? "team-gruenden" : "team-bearbeiten", ...teamEingaben() })) { teamBearbeiten = false; zeichne(); meldung(neu ? "Dein Team ist gegründet. Teile jetzt den Einladungslink mit deinen Teamkollegen." : "Team gespeichert.", true); }
+      return;
+    }
     if (e.target.id !== "fb-profil") return;
     e.preventDefault();
     sende({ aktion: "profil", profil: { iracingName: $("p-name").value, custId: $("p-cust").value, irating: $("p-ir").value, nummer: $("p-nr").value, land: $("p-land").value, team: $("p-team").value, kanal: $("p-kanal").value, zeigeBild: $("p-bild").checked, uebersicht: $("p-uebersicht").checked } });
@@ -739,8 +831,24 @@
   }
   setInterval(uhrwerk, 30000);
 
+  // Einladungslink (?team=<code>): Der Code überlebt den Discord-Login im Sitzungsspeicher.
+  const einladungsCode = (() => {
+    const ausLink = new URLSearchParams(location.search).get("team");
+    try {
+      if (ausLink) sessionStorage.setItem("dsrs-team-einladung", ausLink);
+      return ausLink || sessionStorage.getItem("dsrs-team-einladung");
+    } catch (e) { return ausLink; }
+  })();
+  async function einladungLaden() {
+    if (!einladungsCode || !/^[0-9a-f]{16}$/.test(einladungsCode)) return;
+    const d = await fetch(`${API}&nur=einladung&code=${encodeURIComponent(einladungsCode)}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    if (!d || !d.angemeldet) return;
+    einladung = { code: einladungsCode, team: d.team };
+    zeichne();
+  }
+
   fetch(API, { cache: "no-store" })
     .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
-    .then((d) => { stand = d; zeichne(); })
+    .then((d) => { stand = d; zeichne(); if (d.angemeldet) einladungLaden(); })
     .catch(() => { main.innerHTML = abschnitt("Fahrerbereich", "Darkline Simracing Series", '<p class="fb-leer">Der Fahrerbereich ist gerade nicht erreichbar. Bitte versuche es gleich noch einmal.</p>'); });
 })();

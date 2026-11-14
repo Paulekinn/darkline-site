@@ -851,6 +851,95 @@ const tests = {
       for (const k of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
     }
   },
+  "Teams: Eingaben werden geprüft, Name und Kürzel sind eindeutig": () => {
+    const T = require("../api/_lib/liga-teams");
+    const teams = [{ id: "aaaaaaaa", name: "Night Racers", kuerzel: "NR", farbe: "rot" }];
+    assert.deepStrictEqual(T.pruefe({ name: "  Blue   Line ", kuerzel: "bl1", farbe: "blau" }, teams), { name: "Blue Line", kuerzel: "BL1", farbe: "blau" });
+    assert.throws(() => T.pruefe({ name: "night racers", kuerzel: "XX" }, teams), /gibt es schon/);
+    assert.throws(() => T.pruefe({ name: "Neu", kuerzel: "nr" }, teams), /vergeben/);
+    assert.doesNotThrow(() => T.pruefe({ name: "Night Racers", kuerzel: "NR" }, teams, "aaaaaaaa"), "Das eigene Team zählt nicht als Doppel");
+    assert.throws(() => T.pruefe({ name: "X", kuerzel: "AB" }, []), /2 bis 40/);
+    assert.throws(() => T.pruefe({ name: "Gut", kuerzel: "A" }, []), /Kürzel/);
+    assert.throws(() => T.pruefe({ name: "Gut", kuerzel: "AB", farbe: "pink" }, []), /Teamfarbe/);
+  },
+  "Teams: öffentliche Sicht ohne Discord-IDs, Einladung nur für den Teamchef": () => {
+    const T = require("../api/_lib/liga-teams");
+    const team = { id: "aaaaaaaa", name: "NR", kuerzel: "NR", farbe: "rot", chef: "111111", einladung: "f".repeat(16), anfragen: [{ discordId: "333333", name: "C" }], mitglieder: [{ discordId: "222222", pid: "b".repeat(16), name: "Ben", nummer: 7 }, { discordId: "111111", pid: "a".repeat(16), name: "Anna", nummer: 12 }] };
+    const o = T.oeffentlich(team, { ["a".repeat(16)]: { land: "DE", bild: "v1" } });
+    const text = JSON.stringify(o);
+    assert.ok(!text.includes("111111") && !text.includes("ffff") && !text.includes("333333"), "Keine Discord-IDs, kein Code, keine Anfragen");
+    assert.deepStrictEqual(o.mitglieder.map((m) => [m.name, m.chef, m.land]), [["Anna", true, "DE"], ["Ben", false, ""]]);
+    assert.strictEqual(T.eigeneSicht(team, "111111").einladung, "f".repeat(16));
+    assert.strictEqual(T.eigeneSicht(team, "222222").einladung, undefined);
+    assert.strictEqual(T.eigeneSicht(team, "222222").anfragen, undefined);
+    assert.deepStrictEqual(T.teamKurz(T.nachPid([team]).get("b".repeat(16))), { id: "aaaaaaaa", name: "NR", kuerzel: "NR", farbe: "rot" });
+  },
+  "Teams: gründen, Link, Anfrage, Chefwechsel, verlassen": async () => {
+    const T = require("../api/_lib/liga-teams");
+    const alt = { fetch: global.fetch, env: { ...process.env } };
+    Object.assign(process.env, { SUPABASE_URL: "https://speicher.example", SUPABASE_SECRET_KEY: "k" });
+    // Kleiner Speicher im Arbeitsspeicher, der die Abfragen der Supabase-Schnittstelle nachbildet
+    const db = new Map();
+    let uhr = 0;
+    global.fetch = async (url, init = {}) => {
+      const u = new URL(String(url));
+      const p = u.searchParams.get("pfad") || "";
+      const antwort = (daten) => ({ ok: true, json: async () => daten, text: async () => "" });
+      if (!init.method || init.method === "GET") {
+        if (p.startsWith("like.")) { const pre = p.slice(5).replace(/\*$/, "").replace(/\\(.)/g, "$1"); return antwort([...db].filter(([k]) => k.startsWith(pre)).map(([pfad, z]) => ({ pfad, ...z }))); }
+        const z = db.get(p.slice(3)); return antwort(z ? [z] : []);
+      }
+      if (init.method === "POST") { const [z] = JSON.parse(init.body); if (db.has(z.pfad)) return antwort([]); db.set(z.pfad, { inhalt: z.inhalt, binaer: false, geaendert: new Date(++uhr * 1000).toISOString() }); return antwort([{ pfad: z.pfad }]); }
+      if (init.method === "PATCH") { const pfad = p.slice(3); const z = db.get(pfad); if (!z || `eq.${z.geaendert}` !== u.searchParams.get("geaendert")) return antwort([]); db.set(pfad, { ...z, ...JSON.parse(init.body), geaendert: new Date(++uhr * 1000).toISOString() }); return antwort([{ pfad }]); }
+      if (init.method === "DELETE") { for (const k of [...db.keys()]) if (p.includes(`"${k}"`)) db.delete(k); return antwort([]); }
+      throw new Error("unerwartet");
+    };
+    const profil = (name, nummer, cust) => ({ iracingName: name, nummer, custId: cust });
+    try {
+      await assert.rejects(T.aktion("team-gruenden", "111111", null, { name: "Night Racers", kuerzel: "NR" }), /registriere dich/);
+      await T.aktion("team-gruenden", "111111", profil("Anna", 12, "11"), { name: "Night Racers", kuerzel: "nr", farbe: "blau" });
+      let [team] = await T.alle(true);
+      assert.deepStrictEqual([team.name, team.kuerzel, team.chef, team.mitglieder.length], ["Night Racers", "NR", "111111", 1]);
+      await assert.rejects(T.aktion("team-gruenden", "111111", profil("Anna", 12, "11"), { name: "Zweites", kuerzel: "ZW" }), /schon im Team/);
+      // Beitritt per Link, Nachricht an den Chef
+      await assert.rejects(T.aktion("team-beitreten", "222222", profil("Ben", 7, "22"), { code: "0".repeat(16) }), /ungültig/);
+      const n = await T.aktion("team-beitreten", "222222", profil("Ben", 7, "22"), { code: team.einladung });
+      assert.strictEqual(n.an, "111111");
+      // Anfrage: nur der Chef entscheidet
+      await T.aktion("team-anfragen", "333333", profil("Carla", 21, "33"), { team: team.id });
+      await assert.rejects(T.aktion("team-anfrage-entscheiden", "222222", profil("Ben", 7, "22"), { fahrer: "333333", ja: true }), /nur der Teamchef/);
+      const ok = await T.aktion("team-anfrage-entscheiden", "111111", profil("Anna", 12, "11"), { fahrer: "333333", ja: true });
+      assert.strictEqual(ok.an, "333333");
+      [team] = await T.alle(true);
+      assert.deepStrictEqual(team.mitglieder.map((m) => m.name), ["Anna", "Ben", "Carla"]);
+      assert.strictEqual(team.anfragen.length, 0);
+      // Chef kann nicht einfach gehen, nach der Übergabe schon
+      await assert.rejects(T.aktion("team-verlassen", "111111", profil("Anna", 12, "11")), /übergib zuerst/);
+      await T.aktion("team-chef", "111111", profil("Anna", 12, "11"), { fahrer: "222222" });
+      await T.aktion("team-verlassen", "111111", profil("Anna", 12, "11"));
+      // Neuer Link: der alte gilt nicht mehr
+      const alterCode = (await T.alle(true))[0].einladung;
+      await T.aktion("team-link-neu", "222222", profil("Ben", 7, "22"));
+      await assert.rejects(T.aktion("team-beitreten", "111111", profil("Anna", 12, "11"), { code: alterCode }), /ungültig/);
+      // Namensänderung wird im Team nachgezogen
+      await T.mitgliedAktualisieren("333333", profil("Carla Neu", 22, "33"));
+      [team] = await T.alle(true);
+      assert.deepStrictEqual(team.mitglieder.map((m) => [m.name, m.nummer]), [["Ben", 7], ["Carla Neu", 22]]);
+      // Auflösen löscht das Team
+      await T.aktion("team-aufloesen", "222222", profil("Ben", 7, "22"));
+      assert.strictEqual((await T.alle(true)).length, 0);
+    } finally {
+      global.fetch = alt.fetch;
+      for (const k of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
+    }
+  },
+  "Fahrerübersicht: Teammitglieder erscheinen mit Team, auch ohne Rennen": () => {
+    const P = require("../api/_lib/liga-profil");
+    const T = require("../api/_lib/liga-teams");
+    const team = { id: "aaaaaaaa", name: "NR", kuerzel: "NR", farbe: "rot", mitglieder: [{ discordId: "1", pid: "e".repeat(16), name: "Eva", nummer: 5 }] };
+    const liste = P.fahrerListe([], new Map(), [], T.nachPid([team]));
+    assert.deepStrictEqual(liste.map((f) => [f.name, f.ligaTeam]), [["Eva", { id: "aaaaaaaa", name: "NR", kuerzel: "NR", farbe: "rot" }]]);
+  },
   "Sichtung: Garage-61-Beitritt aus dem Profil nennt Name und Startnummer": () => {
     const S = require("../api/_lib/liga-sichtung");
     const k = S.teamBeitrittKarte("Lena Test", 46);

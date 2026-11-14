@@ -154,6 +154,7 @@ const sitemapUrls = [
   ...drivers.map((d) => ({ loc: `${SITE}/fahrer/${slugify(d.name)}` })),
   { loc: `${SITE}/liga` },
   { loc: `${SITE}/fahrer` },
+  { loc: `${SITE}/teams` },
   { loc: `${SITE}/regelwerk` },
   { loc: `${SITE}/impressum` },
   { loc: `${SITE}/datenschutz` },

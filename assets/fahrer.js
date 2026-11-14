@@ -37,7 +37,8 @@
     const b = d.bilanz;
     const zahlen = [[b.starts, "Starts"], [b.siege, "Siege"], [b.podien, "Podien"], [b.poles, "Poles"], [b.schnellste, "Schnellste Runden"], [b.ausfaelle, "Ausfälle"]];
     const land = p.land ? `${K.flagge(p.land)}<span>${esc(F.name(p.land))}</span>` : "";
-    const meta = [land ? `<span class="fa-land">${land}</span>` : "", p.team ? `<span>${esc(p.team)}</span>` : ""].filter(Boolean).join('<span aria-hidden="true">·</span>');
+    const ligaTeam = d.team ? `<a class="fa-team-link s-${esc(d.team.farbe)}" href="/teams?id=${encodeURIComponent(d.team.id)}"><span class="fa-l-team">${esc(d.team.kuerzel)}</span>${esc(d.team.name)}</a>` : "";
+    const meta = [land ? `<span class="fa-land">${land}</span>` : "", ligaTeam, p.team ? `<span>${esc(p.team)}</span>` : ""].filter(Boolean).join('<span aria-hidden="true">·</span>');
     main.innerHTML = `<section class="fa-held">
         <div class="fa-held-bild" style="background-image:url('${esc(kopfbild)}')" aria-hidden="true"></div>
         <div class="wrap">
@@ -82,7 +83,7 @@
 
   function fahrerKachel(f) {
     const bild = f.bild ? `<img class="fa-l-bild" src="${esc(K.avatarVon(f.pid, f.bild))}" alt="" width="64" height="64" loading="lazy">` : `<span class="fa-l-bild fa-l-ohne" aria-hidden="true">${esc(f.name.split(/\s+/).filter(Boolean).slice(0, 2).map((t) => t[0]).join("").toUpperCase())}</span>`;
-    const herkunft = [f.land ? `${K.flagge(f.land)}<span>${esc(F.name(f.land))}</span>` : "", f.team ? `<span>${esc(f.team)}</span>` : ""].filter(Boolean).join('<span aria-hidden="true">·</span>');
+    const herkunft = [f.land ? `${K.flagge(f.land)}<span>${esc(F.name(f.land))}</span>` : "", f.ligaTeam ? `<span class="fa-l-team s-${esc(f.ligaTeam.farbe)}">${esc(f.ligaTeam.kuerzel)}</span><span>${esc(f.ligaTeam.name)}</span>` : f.team ? `<span>${esc(f.team)}</span>` : ""].filter(Boolean).join('<span aria-hidden="true">·</span>');
     const bilanz = f.starts ? `${f.starts} ${f.starts === 1 ? "Start" : "Starts"}${f.siege ? ` · ${f.siege} ${f.siege === 1 ? "Sieg" : "Siege"}` : ""}${f.podien ? ` · ${f.podien} ${f.podien === 1 ? "Podium" : "Podien"}` : ""}` : "Noch kein Rennen";
     const serien = f.serien.map((s) => `<span class="fa-l-serie s-${esc(s.farbe)}">${esc(s.name)}</span>`).join("");
     return `<li><a class="fa-l-kachel" href="/fahrer?id=${encodeURIComponent(f.pid)}">
@@ -98,7 +99,7 @@
 
   function listeZeichnen() {
     const q = suche.trim().toLowerCase();
-    const treffer = alle.filter((f) => !q || f.name.toLowerCase().includes(q) || String(f.nummer || "") === q.replace(/^#/, "") || (f.team || "").toLowerCase().includes(q)).sort(SORT[sortierung]);
+    const treffer = alle.filter((f) => !q || f.name.toLowerCase().includes(q) || String(f.nummer || "") === q.replace(/^#/, "") || (f.team || "").toLowerCase().includes(q) || (f.ligaTeam ? `${f.ligaTeam.name} ${f.ligaTeam.kuerzel}`.toLowerCase().includes(q) : false)).sort(SORT[sortierung]);
     $("fa-l-liste").innerHTML = treffer.length ? treffer.map(fahrerKachel).join("") : '<li class="fa-l-leer">Kein Fahrer gefunden.</li>';
     $("fa-l-anzahl").textContent = q ? `${treffer.length} von ${alle.length}` : `${alle.length} ${alle.length === 1 ? "Fahrer" : "Fahrer"}`;
     main.querySelectorAll("[data-sort]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.sort === sortierung)));

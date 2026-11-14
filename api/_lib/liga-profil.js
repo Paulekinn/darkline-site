@@ -184,7 +184,7 @@ const leereAkte = (p) => ({ name: p.m, bilanz: { starts: 0, siege: 0, podien: 0,
 const inUebersicht = (p) => !!p && p.v === 1 && !!p.m;
 
 // Fahrerübersicht: alle Fahrer mit gewerteten Rennen (Namen stehen ohnehin in den Tabellen) und alle, die der Übersicht zugestimmt haben.
-function fahrerListe(serien, tabellen, profile) {
+function fahrerListe(serien, tabellen, profile, teamJe = new Map()) {
   const je = new Map();
   const eintrag = (pid, name) => je.get(pid) || je.set(pid, { pid, name, starts: 0, siege: 0, podien: 0, serien: new Map() }).get(pid);
   for (const s of serien) {
@@ -204,9 +204,11 @@ function fahrerListe(serien, tabellen, profile) {
   }
   const nachPid = new Map(profile.map((p) => [p.pid, p]));
   for (const p of profile) if (inUebersicht(p)) eintrag(p.pid, p.m);
+  // Teammitglieder stehen ohnehin öffentlich auf der Teamseite
+  for (const [pid, t] of teamJe) if (t.mitgliedName && !je.has(pid)) eintrag(pid, t.mitgliedName);
   return [...je.values()].map((e) => {
     const o = oeffentlich(nachPid.get(e.pid)) || {};
-    return { pid: e.pid, name: e.name, nummer: o.nummer || null, land: o.land || "", team: o.team || "", bild: o.bild || "", starts: e.starts, siege: e.siege, podien: e.podien, serien: [...e.serien.values()] };
+    return { pid: e.pid, name: e.name, nummer: o.nummer || null, land: o.land || "", team: o.team || "", ligaTeam: teamJe.has(e.pid) ? (({ mitgliedName, ...t }) => t)(teamJe.get(e.pid)) : null, bild: o.bild || "", starts: e.starts, siege: e.siege, podien: e.podien, serien: [...e.serien.values()] };
   }).sort((a, b) => (a.nummer || 1000) - (b.nummer || 1000) || String(a.name).localeCompare(String(b.name), "de"));
 }
 
@@ -214,9 +216,10 @@ function fahrerListe(serien, tabellen, profile) {
 async function liste(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Nicht erlaubt" });
   const { serien } = await D.katalog(false);
-  const [tabellen, profile] = await Promise.all([alleTabellen(serien), alleProfile(false).catch(() => [])]);
+  const Teams = require("./liga-teams");
+  const [tabellen, profile, teams] = await Promise.all([alleTabellen(serien), alleProfile(false).catch(() => []), Teams.alle(false).catch(() => [])]);
   res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=120");
-  return res.status(200).json({ fahrer: fahrerListe(serien, tabellen, profile) });
+  return res.status(200).json({ fahrer: fahrerListe(serien, tabellen, profile, Teams.nachPid(teams)) });
 }
 
 // ?r=profil&id=<kennung>
@@ -226,14 +229,20 @@ async function handler(req, res) {
   if (!PID.test(pid)) return res.status(404).json({ error: "Nicht gefunden" });
   const { serien } = await D.katalog(false);
   const akte = fahrerAkte(serien, await alleTabellen(serien), pid);
+  const Teams = require("./liga-teams");
+  const teams = await Teams.alle(false).catch(() => []);
+  const team = Teams.teamKurz(Teams.nachPid(teams).get(pid));
   if (!akte) {
+    // Ohne Rennen öffentlich: mit Zustimmung zur Fahrerübersicht oder als Mitglied eines Teams (der Beitritt schließt die Nennung ein)
     const p = (await alleProfile(false)).find((x) => x.pid === pid);
-    if (!inUebersicht(p)) return res.status(404).json({ error: "Nicht gefunden" });
+    const mitglied = teams.flatMap((t) => t.mitglieder || []).find((m) => m.pid === pid);
+    if (!inUebersicht(p) && !mitglied) return res.status(404).json({ error: "Nicht gefunden" });
     res.setHeader("Cache-Control", "public, s-maxage=30, stale-while-revalidate=60");
-    return res.status(200).json({ pid, ...leereAkte(p), profil: oeffentlich(p) });
+    const profil = { ...(oeffentlich(p) || {}), ...(!p || !p.n ? { nummer: mitglied ? mitglied.nummer : null } : {}) };
+    return res.status(200).json({ pid, ...leereAkte({ m: inUebersicht(p) ? p.m : mitglied.name }), profil, team });
   }
   res.setHeader("Cache-Control", "public, s-maxage=30, stale-while-revalidate=60");
-  return res.status(200).json({ pid, ...akte, profil: await angabenVon(pid) });
+  return res.status(200).json({ pid, ...akte, profil: await angabenVon(pid), team });
 }
 
 module.exports = handler;

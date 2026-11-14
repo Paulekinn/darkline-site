@@ -16,6 +16,7 @@ const G61 = require("./g61");
 const Sichtung = require("./liga-sichtung");
 const Anfragen = require("./liga-anfragen");
 const DiscordEvents = require("./discord-events");
+const Teams = require("./liga-teams");
 // Aktionen, nach denen sich Liga-Termine in Discord ändern können
 const TERMIN_AKTIONEN = new Set(["serie-speichern", "serie-loeschen", "rennen-speichern", "rennen-loeschen", "rennen-verschieben", "rennen-duplizieren", "saison-planen"]);
 const { leseErgebnis, berechneTabelle, klasseFuer } = require("../../assets/liga-wertung.js");
@@ -180,6 +181,9 @@ async function protokollText(b, kat) {
     "sichtung-einrichten": () => `Sichtung eingerichtet: ${serie(b.serie)}`,
     "sichtung-zuruecksetzen": () => `Sichtungs-Abgabe zurückgesetzt in ${serie(b.serie)}: ${b.name || b.discordId}, ${b.streckeName || b.strecke}`,
     "sichtung-zuordnen": () => `Garage-61-Fahrer ${b.discordId ? "zugeordnet" : "Zuordnung gelöst"} in ${serie(b.serie)}: ${b.slug}`,
+    "team-admin-loeschen": () => `Team gelöscht: ${b.name || b.team}`,
+    "team-admin-entfernen": () => `Fahrer aus Team entfernt: ${b.fahrerName || b.discordId}, ${b.name || b.team}`,
+    "team-admin-bearbeiten": () => `Team geändert: ${b.name} (${String(b.kuerzel || "").toUpperCase()})`,
     "report-status": async () => `Report-Status geändert: ${await report()}`,
     "report-urteil": async () => `Urteil gesprochen (${(b.urteil || {}).art}): ${await report()}`,
   };
@@ -335,6 +339,19 @@ const aktionen = {
     const strecke = kat.strecken.find((s) => s.id === b.id);
     if (!strecke) throw new Hinweis("Diese Strecke gibt es nicht.");
     return G.kartendaten(strecke);
+  },
+  // Teams: Die Rennleitung kann umbenennen, Mitglieder entfernen und Teams löschen. Gründen und Beitreten bleibt bei den Fahrern.
+  async "team-admin-loeschen"(b) {
+    await Teams.adminLoeschen(String(b.team || ""));
+    return {};
+  },
+  async "team-admin-entfernen"(b) {
+    await Teams.adminEntfernen(String(b.team || ""), D.brauchtId(String(b.discordId || "")));
+    return {};
+  },
+  async "team-admin-bearbeiten"(b) {
+    await Teams.adminBearbeiten(String(b.team || ""), b);
+    return {};
   },
   // Korrigiert das Profil eines Fahrers. Es gelten dieselben Prüfungen wie im Fahrerbereich.
   async "profil-bearbeiten"(b, kat) {
@@ -841,6 +858,11 @@ module.exports = async (req, res) => {
     const kat = await D.katalog(true);
     // Alle registrierten Fahrer, erst beim Öffnen der Ansicht geholt
     if ((req.query || {}).nur === "fahrer") return res.status(200).json({ angemeldet: true, fahrer: await alleFahrer(kat) });
+    // Teams für die Rennleitung: mit Discord-IDs zum Verwalten, ohne Einladungscode
+    if ((req.query || {}).nur === "teams") {
+      const teams = (await Teams.alle(true)).map((t) => ({ id: t.id, name: t.name, kuerzel: t.kuerzel, farbe: t.farbe, erstellt: t.erstellt, anfragen: (t.anfragen || []).length, mitglieder: (t.mitglieder || []).map((m) => ({ discordId: m.discordId, name: m.name, nummer: m.nummer || null, chef: m.discordId === t.chef })) })).sort((a, b) => a.name.localeCompare(b.name, "de"));
+      return res.status(200).json({ angemeldet: true, teams });
+    }
     if ((req.query || {}).akte) {
       const privatJeSerie = await Promise.all(kat.serien.map(async (x) => ({ serieName: x.name, privat: await D.privatLesen(x.id) })));
       const discordId = String(req.query.discord || "");

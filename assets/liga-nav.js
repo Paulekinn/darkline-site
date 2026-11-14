@@ -27,6 +27,7 @@
     nav.innerHTML = `<div class="wrap">
       ${eintrag("/liga", "Übersicht", pfad === "/liga" && !aktuelleSerie)}
       ${eintrag("/fahrer", "Fahrer", pfad === "/fahrer")}
+      ${eintrag("/teams", "Teams", pfad === "/teams")}
       ${eintrag("/regelwerk", "Regelwerk", pfad === "/regelwerk", "liga-nav-regeln")}
       ${menue("Ligen",sichtbar.filter((s) => s.typ !== "event"), false)}
       ${menue("Events", sichtbar.filter((s) => s.typ === "event"), true)}

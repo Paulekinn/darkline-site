@@ -967,7 +967,7 @@
     alleFahrer = (a && a.fahrer) || [];
     if (tab === "fahrer" && fahrerAnsicht === "alle") zeichne();
   }
-  const ansichtSchalter = () => `<div class="a-leiste">${[["alle", "Alle registrierten"], ["serie", "Nach Season"]].map(([id, t]) => `<button type="button" class="a-filter" data-fahrer-ansicht="${id}" aria-pressed="${fahrerAnsicht === id}">${t}</button>`).join("")}</div>`;
+  const ansichtSchalter = () => `<div class="a-leiste">${[["alle", "Alle registrierten"], ["serie", "Nach Season"], ["teams", "Teams"]].map(([id, t]) => `<button type="button" class="a-filter" data-fahrer-ansicht="${id}" aria-pressed="${fahrerAnsicht === id}">${t}</button>`).join("")}</div>`;
   const aktiveSerien = (f) => f.serien.filter((s) => !s.beendet);
 
   function alleFahrerZeile(f) {
@@ -1011,8 +1011,37 @@
     </section>`;
   }
 
+  /* ---------- Teams: Übersicht und Eingriffe der Rennleitung ---------- */
+  const TEAMFARBEN = [["rot", "Rot"], ["blau", "Blau"], ["lila", "Lila"], ["gruen", "Grün"], ["gelb", "Gelb"], ["tuerkis", "Türkis"]];
+  let teamsDaten = null;
+  let teamsLaedt = false;
+  let teamEdit = null;
+  async function teamsLaden() {
+    teamsLaedt = true;
+    const a = await fetch(`${API}&nur=teams`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    teamsLaedt = false;
+    teamsDaten = (a && a.teams) || [];
+    if (tab === "fahrer" && fahrerAnsicht === "teams") zeichne();
+  }
+  function teamKarte(t) {
+    const mitglieder = t.mitglieder.map((m) => `<li><span>${m.nummer ? `<span class="a-nr">#${esc(m.nummer)}</span> ` : ""}${esc(m.name)}${m.chef ? ' <span class="a-chip gold">Chef</span>' : ""}</span><button type="button" class="a-weg" data-team-raus="${esc(t.id)}" data-fahrer="${esc(m.discordId)}" data-fahrer-name="${esc(m.name)}" data-name="${esc(t.name)}" aria-label="${esc(m.name)} aus dem Team entfernen">×</button></li>`).join("");
+    const form = teamEdit === t.id ? `<form class="a-form" id="a-team-form" data-team="${esc(t.id)}"><div class="a-raster">${feld("Name", eingabe("name", t.name, 'maxlength="40"'))}${feld("Kürzel", eingabe("kuerzel", t.kuerzel, 'maxlength="4"'))}${feld("Farbe", auswahl("farbe", t.farbe, TEAMFARBEN))}</div><div class="a-leiste"><button type="submit" class="a-knopf">Speichern</button><button type="button" class="a-knopf zweit" data-team-edit="">Abbrechen</button></div></form>` : "";
+    return `<section class="a-karte"><div class="a-kartenkopf"><h2><span class="a-chip hell">${esc(t.kuerzel)}</span> ${esc(t.name)}</h2><div class="a-leiste">${t.anfragen ? `<span class="a-chip gelb">${t.anfragen} offene Anfrage${t.anfragen === 1 ? "" : "n"}</span>` : ""}<a class="a-knopf zweit klein" href="/teams?id=${encodeURIComponent(t.id)}" target="_blank" rel="noopener">Teamseite</a><button type="button" class="a-knopf zweit klein" data-team-edit="${esc(t.id)}">Bearbeiten</button><button type="button" class="a-knopf gefahr klein" data-team-loeschen="${esc(t.id)}" data-name="${esc(t.name)}">Löschen</button></div></div>
+      ${form}
+      <ol class="a-namen">${mitglieder}</ol>
+      <p class="a-hinweis">Gegründet am ${esc(datumKurz(t.erstellt))} · ${t.mitglieder.length} ${t.mitglieder.length === 1 ? "Fahrer" : "Fahrer"}</p>
+    </section>`;
+  }
+  function teamsTab() {
+    if (teamsDaten === null && !teamsLaedt) teamsLaden();
+    const kopf = `<section class="a-karte"><div class="a-kartenkopf"><h2>Teams</h2>${ansichtSchalter()}</div>`;
+    if (teamsDaten === null) return `${kopf}<p class="a-leer">Lade Teams …</p></section>`;
+    return `${kopf}<p class="a-hinweis">Fahrer gründen Teams im Fahrerbereich und laden per Link ein oder nehmen Anfragen an. Hier kann die Rennleitung umbenennen, Fahrer entfernen und Teams löschen.</p>${teamsDaten.length ? "" : '<p class="a-leer">Noch keine Teams.</p>'}</section>${teamsDaten.map(teamKarte).join("")}`;
+  }
+
   function fahrerTab() {
     if (fahrerAnsicht === "alle") return alleFahrerTab();
+    if (fahrerAnsicht === "teams") return teamsTab();
     if (!d.serien.length) return `<section class="a-karte">${ansichtSchalter()}<p class="a-leer">Leg zuerst eine Serie an.</p></section>`;
     const serie = d.serien.find((s) => s.id === serieId);
     const det = d.details;
@@ -1375,7 +1404,16 @@
     }
     if (b.dataset.akte) return akteOeffnen(b);
     if (b.dataset.fahrerFilter) { fahrerFilter = b.dataset.fahrerFilter; return zeichne(); }
-    if (b.dataset.fahrerAnsicht) { fahrerAnsicht = b.dataset.fahrerAnsicht; if (fahrerAnsicht === "alle") alleFahrer = null; return zeichne(); }
+    if (b.dataset.fahrerAnsicht) { fahrerAnsicht = b.dataset.fahrerAnsicht; alleFahrer = null; teamsDaten = null; teamEdit = null; return zeichne(); }
+    if (b.dataset.teamEdit !== undefined) { teamEdit = b.dataset.teamEdit || null; return zeichne(); }
+    if (b.dataset.teamLoeschen) {
+      if (!window.confirm(`Team ${b.dataset.name} löschen? Alle Mitglieder verlieren das Team. Das lässt sich nicht rückgängig machen.`)) return;
+      return aktion({ aktion: "team-admin-loeschen", team: b.dataset.teamLoeschen, name: b.dataset.name }, "Team gelöscht.").then((ok) => { if (ok) { teamsDaten = null; zeichne(); } });
+    }
+    if (b.dataset.teamRaus) {
+      if (!window.confirm(`${b.dataset.fahrerName} aus ${b.dataset.name} entfernen?`)) return;
+      return aktion({ aktion: "team-admin-entfernen", team: b.dataset.teamRaus, discordId: b.dataset.fahrer, fahrerName: b.dataset.fahrerName, name: b.dataset.name }, "Fahrer aus dem Team entfernt.").then((ok) => { if (ok) { teamsDaten = null; zeichne(); } });
+    }
     if (b.dataset.alleFilter) { alleFilter = b.dataset.alleFilter; return zeichne(); }
     if (b.dataset.akteZu) { akte = null; return zeichne(); }
     if (b.dataset.akteBearbeiten) { akte.bearbeiten = b.dataset.akteBearbeiten === "auf"; akte.werte = null; setzeMeldung(""); return zeichne(); }
@@ -1620,6 +1658,10 @@
     e.preventDefault();
     const f = e.target;
     const w = werte(f);
+    if (f.id === "a-team-form") {
+      if (await aktion({ aktion: "team-admin-bearbeiten", team: f.dataset.team, ...w }, "Team gespeichert.")) { teamEdit = null; teamsDaten = null; zeichne(); }
+      return;
+    }
     if (f.id === "f-akte-profil") {
       const { bildEntfernen, ...profil } = w;
       akte.werte = profil; // Bei einem Fehler bleibt alles Eingetippte stehen.

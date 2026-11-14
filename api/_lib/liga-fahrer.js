@@ -11,6 +11,8 @@ const Dc = require("./liga-discord");
 const F = require("./liga-fahrzeuge");
 const Sichtung = require("./liga-sichtung");
 const Anfragen = require("./liga-anfragen");
+const Teams = require("./liga-teams");
+const TEAM_AKTIONEN = new Set(["team-gruenden", "team-beitreten", "team-anfragen", "team-anfrage-zurueck", "team-anfrage-entscheiden", "team-verlassen", "team-entfernen", "team-bearbeiten", "team-link-neu", "team-chef", "team-aufloesen"]);
 const { klasseFuer } = require("../../assets/liga-wertung.js");
 
 const SCHLUSS_MINUTEN = 60;
@@ -69,7 +71,7 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
   // Fahrzeug je Season mit Fahrzeugwahl, in der der Fahrer gemeldet ist
   const mitWahl = kat.serien.filter((x) => (x.modelle || []).length && x.status !== "beendet" && alle.some((e) => e.typ === "serie" && e.serieId === x.id && e.discordId === s.id));
   // Die Abfragen hängen nicht voneinander ab und laufen deshalb gleichzeitig.
-  const [oeffentlich, wunsch, tabellen, reports, fahrzeuge, sichtungOffen, anfragen, imTeam] = await Promise.all([
+  const [oeffentlich, wunsch, tabellen, reports, fahrzeuge, sichtungOffen, anfragen, imTeam, teams] = await Promise.all([
     pid ? P.angabenVon(pid).catch(() => null) : null,
     P.wunschLesen(s.id).catch(() => null),
     profil ? laufendeTabellen(kat) : null,
@@ -80,7 +82,9 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
     Anfragen.eigene(kat.serien, s.id).catch(() => new Set()),
     // Garage-61-Team: kurz zwischengespeichert, ohne Antwort bleibt der Stand offen (null).
     profil ? Sichtung.imTeam(profil.iracingName) : false,
+    Teams.alle(frisch).catch(() => []),
   ]);
+  const meinTeam = Teams.teamVon(teams, s.id);
   return res.status(200).json({
     ...extra,
     sichtung: sichtungSerien(kat, alle, s.id).map((x) => x.id),
@@ -90,6 +94,11 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
     kalender: `/liga-kalender/${kalenderSchluessel(s.id)}`,
     fahrer: { name: s.name, profil, pid, oeffentlich, nummerWunsch: (wunsch || {}).nach || null },
     g61: { link: Sichtung.teamLink(), imTeam, gemeldet: !!(profil && profil.g61Anfrage) },
+    // Liga-Team: das eigene (als Teamchef mit Verwaltung), offene Anfragen und alle Teams zum Anfragen
+    team: meinTeam ? Teams.eigeneSicht(meinTeam, s.id, oeffentlich && pid ? { [pid]: oeffentlich } : {}) : null,
+    teamAnfragen: teams.filter((t) => (t.anfragen || []).some((a) => a.discordId === s.id)).map((t) => t.id),
+    teams: Teams.kurzliste(teams),
+    teamMax: Teams.MAX_MITGLIEDER,
     meineKarten: profil ? A.eigeneKarten(kat.serien, tabellen, profil.iracingName, pid) : [],
     serien: A.baueSerien(kat.serien, alle, { discordId: s.id, profil, klasseFuer, anfragen }),
     // Termine beendeter Serien gehören nicht mehr in den Fahrerbereich.
@@ -262,6 +271,8 @@ async function profilSpeichern(s, bisher, eingaben) {
     return mitStand(aktuell);
   });
   if (bisher && !wunsch) await P.wunschLoeschen(s.id);
+  // Name und Nummer im Liga-Team aktuell halten. Ein Fehler hier darf das Speichern nicht verhindern.
+  await Teams.mitgliedAktualisieren(s.id, profil).catch((e) => console.warn("Liga: Team aktualisieren:", e.message));
   if (neu) await R.teamMelden({ title: "Startnummer: Änderung beantragt", url: "https://darklineperformance.de/liga-admin", color: 0xd3121b, fields: [{ name: "Fahrer", value: grunddaten.iracingName, inline: true }, { name: "Bisher", value: `#${bisher.nummer}`, inline: true }, { name: "Neu", value: `#${wunsch}`, inline: true }] });
   return profil;
 }
@@ -272,6 +283,12 @@ module.exports = async (req, res) => {
   if (req.method === "GET") {
     if (!s) return res.status(200).json({ angemeldet: false });
     if ((req.query || {}).nur === "status") return res.status(200).json({ angemeldet: true, leitung: !!s.leitung });
+    // Einladungslink: welches Team steckt hinter dem Code? Beigetreten wird erst nach Bestätigung per POST.
+    if ((req.query || {}).nur === "einladung") {
+      const code = String(req.query.code || "");
+      const team = /^[0-9a-f]{16}$/.test(code) ? (await Teams.alle(true)).find((t) => t.einladung === code) : null;
+      return res.status(200).json({ angemeldet: true, team: team ? Teams.kurzliste([team])[0] : null });
+    }
     // Sichtung: nur die eigenen Werte, erst beim Öffnen der Ansicht, weil dafür Garage 61 gelesen wird.
     if ((req.query || {}).nur === "sichtung") {
       const [alle, kat] = await Promise.all([eintraege(false), D.katalog(false)]);
@@ -366,6 +383,10 @@ module.exports = async (req, res) => {
     await reportMelden(s, profil, body, alle, kat);
   } else if (body.aktion === "report-einspruch") {
     await reportEinspruch(s, profil, body, kat);
+  } else if (TEAM_AKTIONEN.has(body.aktion)) {
+    // Die Direktnachricht an Teamchef oder Fahrer darf scheitern, die Aktion gilt trotzdem.
+    const nachricht = await Teams.aktion(body.aktion, s.id, profil, body);
+    if (nachricht) await Dc.nachricht(nachricht.an, nachricht.text).catch(() => {});
   } else {
     return res.status(400).json({ error: "Unbekannte Aktion." });
   }
