@@ -19,7 +19,8 @@ const DiscordEvents = require("./discord-events");
 const Teams = require("./liga-teams");
 const Community = require("./liga-community");
 // Aktionen, nach denen sich Liga-Termine in Discord ändern können
-const TERMIN_AKTIONEN = new Set(["serie-speichern", "serie-loeschen", "rennen-speichern", "rennen-loeschen", "rennen-verschieben", "rennen-duplizieren", "saison-planen"]);
+// Community-Rennen erscheinen nur mit „Darkline Sponsored“ in Discord. Der Abgleich prüft das selbst.
+const TERMIN_AKTIONEN = new Set(["serie-speichern", "serie-loeschen", "rennen-speichern", "rennen-loeschen", "rennen-verschieben", "rennen-duplizieren", "saison-planen", "community-entscheiden", "community-aenderung-entscheiden", "community-absagen", "community-banner-weg"]);
 const { leseErgebnis, berechneTabelle, klasseFuer } = require("../../assets/liga-wertung.js");
 
 // Stewards: Reports abstimmen und entscheiden, dazu Fahrer-Akten, Ergebnisse, Strafenkatalog und Reglement nur lesen.

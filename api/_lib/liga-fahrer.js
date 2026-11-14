@@ -14,6 +14,8 @@ const Anfragen = require("./liga-anfragen");
 const Teams = require("./liga-teams");
 const Community = require("./liga-community");
 const COMMUNITY_AKTIONEN = new Set(["community-beantragen", "community-zurueck", "community-banner", "community-banner-weg", "community-teilnahme-anfragen", "community-teilnahme-zurueck", "community-teilnahme-entscheiden", "community-bearbeiten", "community-aenderung", "community-aenderung-zurueck", "community-absagen", "community-ergebnis", "community-ergebnis-loeschen"]);
+// Aktionen des Veranstalters, die ein Discord-Event eines gesponserten Rennens ändern
+const COMMUNITY_DISCORD = new Set(["community-absagen", "community-bearbeiten", "community-banner", "community-banner-weg"]);
 // Reports gibt es nur bei Community-Rennen, für die Darkline das Stewarding übernimmt.
 const katFuerReports = (kat, liste) => mitCommunity(kat, (liste || []).filter(Community.darklineStewarding));
 // Freigegebene Community-Rennen kommen nur im Speicher zum Katalog dazu: für Rennliste, Anmeldung und Überschneidungen.
@@ -419,6 +421,10 @@ module.exports = async (req, res) => {
     if (ergebnis && ergebnis.eintrag) alle = merke([...alle, jetztEintrag(ergebnis.eintrag)]);
     if (ergebnis && ergebnis.karte) await R.teamMelden(ergebnis.karte).catch(() => {});
     for (const n of (ergebnis && ergebnis.nachrichten) || []) await Dc.nachricht(n.an, n.text).catch(() => {});
+    // Gesponserte Rennen stehen als Discord-Event im Server: Absage, Banner und Beschreibung dort gleich nachziehen.
+    if (COMMUNITY_DISCORD.has(body.aktion) && ((await Community.alle(false).catch(() => [])).find((a) => a.id === String(body.id || "")) || {}).entscheid?.sponsored) {
+      await require("./discord-events").abgleichen({ erzwingen: true }).catch((e) => console.warn("Discord-Events:", e.message));
+    }
   } else if (TEAM_AKTIONEN.has(body.aktion)) {
     // Die Direktnachricht an Teamchef oder Fahrer darf scheitern, die Aktion gilt trotzdem.
     const nachricht = await Teams.aktion(body.aktion, s.id, profil, body);

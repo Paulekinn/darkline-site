@@ -34,6 +34,16 @@ const KAT = {
   assert.ok(t[1].name.endsWith("(Sichtung)"));
   assert.ok(E.ligaTermine({ serien: [], rennen: [{ id: "x", titel: "A".repeat(200), datum: "2026-11-20", startzeit: "20:00" }] })[0].name.length <= 100, "Discord erlaubt 100 Zeichen");
 }
+{
+  // Community-Rennen: nur freigegebene mit „Darkline Sponsored“
+  const basis = { id: "abcd0001", name: "Anna", titel: "Spa Night Sprint", status: "freigegeben", start: "2026-11-20T19:00:00.000Z", dauer: 45, strecke: "Spa", fahrzeugklasse: "GT3", art: "einzel", banner: "a1b2c3", entscheid: { stewarding: "darkline", sponsored: true } };
+  const t = E.communityTermine([basis, { ...basis, id: "abcd0002", entscheid: { stewarding: "eigene", sponsored: false } }, { ...basis, id: "abcd0003", status: "abgesagt" }, { ...basis, id: "abcd0004", status: "offen" }]);
+  assert.deepStrictEqual(t.map((x) => x.schluessel), ["community:abcd0001"], "Ohne Sponsoring, abgesagt oder offen: kein Event");
+  assert.strictEqual(t[0].ende - t[0].start, 45 * 60e3);
+  assert.ok(t[0].name.includes("Spa Night Sprint") && t[0].ort === "Spa (iRacing)");
+  assert.ok(t[0].beschreibung.includes("von Anna") && t[0].beschreibung.includes("Stewarding durch Darkline") && t[0].beschreibung.includes("/fahrerbereich?rennen=c-abcd0001"));
+  assert.strictEqual(t[0].bild, "/api/liga?r=bild&k=community-abcd0001&v=a1b2c3");
+}
 
 /* ---------- Planung ---------- */
 const termin = (schluessel, tageSpaeter, extra = {}) => ({ schluessel, start: JETZT + tageSpaeter * 864e5, ende: JETZT + tageSpaeter * 864e5 + 3600e3, name: schluessel, ort: "Spa (iRacing)", beschreibung: "", bild: "", ...extra });
@@ -98,7 +108,7 @@ const ev = (id, status = 1) => [id, { id, status }];
     return antwort(200, { id });
   };
   datei = { events: { "liga:geloescht": { id: "99" } } };
-  const opt = { jetzt: JETZT, holen, aendern, katalog: async () => KAT };
+  const opt = { jetzt: JETZT, holen, aendern, katalog: async () => KAT, community: async () => [] };
   const erst = await E.abgleichen({ ...opt, erzwingen: true });
   assert.deepStrictEqual(erst, { angelegt: 3, geaendert: 0, entfernt: 1, fehler: 0 });
   assert.ok(!discord.has("99"), "Event eines gelöschten Rennens ist weg");

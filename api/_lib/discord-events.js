@@ -1,4 +1,5 @@
-// Termine der Website als Discord-Events (oben im Server unter „Events“): Team-Rennen aus dem Rennkalender und Liga-Renntage.
+// Termine der Website als Discord-Events (oben im Server unter „Events“): Team-Rennen aus dem Rennkalender, Liga-Renntage
+// und Community-Rennen mit „Darkline Sponsored“.
 // Ein Abgleich legt fehlende Events an, ändert geänderte und entfernt abgesagte, gelöschte und vorbeigegangene.
 // Er läuft täglich über /api/wach, nach Änderungen an Rennen oder Serien im Liga-Admin und nach einem Push mit neuen oder geänderten Rennen.
 // Braucht DISCORD_BOT_TOKEN und DISCORD_GUILD_ID, der Bot das Recht „Events verwalten“. Fehlt etwas, passiert nichts.
@@ -67,6 +68,27 @@ function ligaTermine(kat) {
         r.fahrzeuge ? `Fahrzeuge: ${r.fahrzeuge}` : "",
         `An- und Abmeldung im Fahrerbereich: ${SITE}/fahrerbereich`,
         `Alle Infos: ${SITE}/liga${r.serie ? `?serie=${encodeURIComponent(r.serie)}` : ""}`,
+      ].filter(Boolean).join("\n"), 1000),
+    };
+  }).filter(Boolean);
+}
+
+// Community-Rennen: nur freigegebene mit „Darkline Sponsored“ (Entscheidung des Users), damit die Event-Liste nicht überläuft.
+// Abgesagte oder nicht mehr gesponserte verschwinden beim nächsten Abgleich wieder.
+function communityTermine(liste) {
+  return (liste || []).map((a) => {
+    if (!a || a.status !== "freigegeben" || !(a.entscheid && a.entscheid.sponsored)) return null;
+    const start = Date.parse(a.start);
+    if (!Number.isFinite(start)) return null;
+    return {
+      schluessel: `community:${a.id}`, start, ende: start + (Number(a.dauer) || 120) * 60e3,
+      name: kurz(`⭐ ${a.titel || "Community-Rennen"}`, 100), ort: ort(a.strecke),
+      bild: a.banner ? `/api/liga?r=bild&k=community-${a.id}&v=${a.banner}` : "",
+      beschreibung: kurz([
+        `Community-Rennen von ${a.name}, unterstützt von Darkline`,
+        [a.fahrzeugklasse, a.dauer && `${a.dauer} min`, a.art === "team" ? "Teamrennen" : "Einzelrennen"].filter(Boolean).join(" · "),
+        a.entscheid.stewarding === "darkline" ? "Stewarding durch Darkline" : "Auf eigene Verantwortung",
+        `Anmeldung: ${SITE}/fahrerbereich?rennen=c-${a.id}`,
       ].filter(Boolean).join("\n"), 1000),
     };
   }).filter(Boolean);
@@ -165,7 +187,7 @@ async function teamRennenLaden(holen) {
 
 // erzwingen: ohne die Pause zwischen zwei Abgleichen (Liga-Admin, täglicher Lauf). Die Sperre gegen gleichzeitige Abgleiche gilt immer.
 // Gibt eine kurze Zusammenfassung zurück oder null, wenn nichts eingerichtet ist.
-async function abgleichen({ erzwingen = false, jetzt = Date.now(), holen = fetch, aendern = D.jsonAendern, katalog = () => D.katalog(true) } = {}) {
+async function abgleichen({ erzwingen = false, jetzt = Date.now(), holen = fetch, aendern = D.jsonAendern, katalog = () => D.katalog(true), community = () => require("./liga-community").alle(true) } = {}) {
   const z = zugang();
   if (!z) return null;
   let darf = false;
@@ -180,13 +202,13 @@ async function abgleichen({ erzwingen = false, jetzt = Date.now(), holen = fetch
   const events = { ...(stand.events || {}) };
   const zaehler = { angelegt: 0, geaendert: 0, entfernt: 0, fehler: 0 };
   try {
-    const [team, kat] = await Promise.all([teamRennenLaden(holen), katalog().catch((e) => { console.warn("Discord-Events: Liga nicht lesbar:", e.message); return null; })]);
+    const [team, kat, gemeinschaft] = await Promise.all([teamRennenLaden(holen), katalog().catch((e) => { console.warn("Discord-Events: Liga nicht lesbar:", e.message); return null; }), community().catch((e) => { console.warn("Discord-Events: Community-Rennen nicht lesbar:", e.message); return null; })]);
     const rufe = discord(z, holen);
     const liste = await rufe("GET", `/guilds/${z.server}/scheduled-events`);
     if (!liste.ok) throw new Error(`Discord liefert die Events nicht (Code ${liste.status}).`);
     const bestehend = new Map((await liste.json()).map((ev) => [ev.id, ev]));
-    const termine = [...(team ? teamTermine(team) : []), ...(kat ? ligaTermine(kat) : [])];
-    const unbekannt = [...(team ? [] : ["team:"]), ...(kat ? [] : ["liga:"])];
+    const termine = [...(team ? teamTermine(team) : []), ...(kat ? ligaTermine(kat) : []), ...(gemeinschaft ? communityTermine(gemeinschaft) : [])];
+    const unbekannt = [...(team ? [] : ["team:"]), ...(kat ? [] : ["liga:"]), ...(gemeinschaft ? [] : ["community:"])];
     const eventRufe = (m, pfad, d) => rufe(m, `/guilds/${z.server}/scheduled-events${pfad}`, d);
     for (const s of planen(termine, events, bestehend, jetzt, unbekannt)) {
       const ergebnis = await ausfuehren(s, eventRufe, holen).catch((e) => { console.warn("Discord-Events:", e.message); return null; });
@@ -202,4 +224,4 @@ async function abgleichen({ erzwingen = false, jetzt = Date.now(), holen = fetch
   return zaehler;
 }
 
-module.exports = { teamTermine, ligaTermine, planen, abgleichen, pruefsumme };
+module.exports = { teamTermine, ligaTermine, communityTermine, planen, abgleichen, pruefsumme };
