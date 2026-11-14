@@ -239,6 +239,19 @@ fuellen().then(() => http.createServer(async (req, res) => {
     res.writeHead(302, { "Set-Cookie": cookies, Location: COCKPIT[als] ? "/liga-admin" : u.searchParams.get("ziel") || "/fahrerbereich" });
     return res.end();
   }
+  // Statt Discord: Auswahl der Testnutzer (der „Mit Discord anmelden“-Knopf der Seiten führt hierher)
+  if (u.pathname === "/api/discord-login") {
+    const admin = u.searchParams.get("ziel") === "liga-admin";
+    const wahl = admin
+      ? [["steward", "Steward Test", "Reports entscheiden, Rest nur lesen"], ["leitung", "Rennleitung Test", "Alles im Cockpit"]]
+      : [["anna", "Anna Racer #12", "Stammfahrerin GT3 Sprint Cup, Report offen"], ["ben", "Ben Neu #7", "Ohne Season, Chef von Night Racers"], ["carla", "Carla Fast #21", "GT3 Sprint Cup, Night Racers"], ["neu", "Neuling", "Discord-Konto ohne Fahrerprofil"], ["steward", "Steward Test", "Cockpit"], ["leitung", "Rennleitung Test", "Cockpit"]];
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Demo-Anmeldung</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0d0e;color:#e8ece9;font:16px/1.4 system-ui,sans-serif;padding:16px}main{width:100%;max-width:440px}
+h1{font-size:1.3rem;margin:0 0 4px}p{color:#9aa5a0;margin:0 0 18px}a{display:block;padding:14px 16px;margin-bottom:8px;background:#15181a;border-left:3px solid #d3121b;color:inherit;text-decoration:none}
+a:hover{background:#1d2124}b{display:block}small{color:#9aa5a0}</style>
+<main><h1>Demo-Anmeldung</h1><p>Statt Discord: Als wen möchtest du dich anmelden?</p>${wahl.map(([k, n, t]) => `<a href="/login?als=${k}"><b>${n}</b><small>${t}</small></a>`).join("")}</main>`);
+  }
   if (u.pathname === "/logout") { res.writeHead(302, { "Set-Cookie": ["dpm_liga=; Path=/; Max-Age=0", "dpm_liga_admin=; Path=/; Max-Age=0"], Location: "/liga" }); return res.end(); }
   if (u.pathname === "/api/liga") {
     let body = "";
