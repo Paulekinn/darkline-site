@@ -783,6 +783,8 @@
 
   /* ---------- Fahrer-Akte ---------- */
   const akteKnopf = (name, cust, discord) => `<button type="button" class="a-knopf zweit klein" data-akte="1" data-name="${esc(name)}" data-cust="${esc(cust || "")}" data-discord="${esc(discord || "")}">Akte</button>`;
+  // Der Fahrername selbst öffnet die Akte
+  const akteName = (name, cust, discord, inhalt) => `<button type="button" class="a-akte-name" data-akte="1" data-name="${esc(name)}" data-cust="${esc(cust || "")}" data-discord="${esc(discord || "")}" title="Akte von ${esc(name)} öffnen">${inhalt}</button>`;
   async function akteLaden(name, cust, discord) {
     const r = await fetch(`${API}&akte=1&cust=${encodeURIComponent(cust)}&discord=${encodeURIComponent(discord)}`, { cache: "no-store" }).catch(() => null);
     const daten = r && r.ok ? await r.json() : null;
@@ -836,14 +838,14 @@
     const klasse = f.custId && !serie.ohneKlassen ? `<select data-einstufung="${esc(f.custId)}" aria-label="Klasse von ${esc(f.name)}">${klassenOption(f.klasseAuto, f.klasseFest)}</select>` : "–";
     const abw = abweichung(f);
     return `<tr data-suche="${esc(`${f.name} ${f.custId} ${f.team || ""} ${f.nummer || ""}`.toLowerCase())}">
-      <td><div class="a-fahrer">${bild}<div><b>${f.nummer ? `<span class="a-nr">#${esc(f.nummer)}</span> ` : ""}${window.LigaKarte.flagge(f.land)}${esc(f.name)}</b>${f.team ? `<small>${esc(f.team)}</small>` : ""}</div>${fahrzeugChip(f.fahrzeugklasse)}</div></td>
+      <td><div class="a-fahrer">${bild}<div>${akteName(f.name, f.custId, f.discordId, `<b>${f.nummer ? `<span class="a-nr">#${esc(f.nummer)}</span> ` : ""}${window.LigaKarte.flagge(f.land)}${esc(f.name)}</b>`)}${f.team ? `<small>${esc(f.team)}</small>` : ""}</div>${fahrzeugChip(f.fahrzeugklasse)}</div></td>
       <td>${f.mitglied ? '<span class="a-chip hell">Season</span>' : '<span class="a-chip">Einzeln</span>'}${f.custId ? "" : ' <span class="a-chip rot">Kein Profil</span>'}</td>
       <td>${esc(f.custId) || "–"}</td>
       <td class="rechts">${zahl(f.iratingAngabe)}</td>
       <td class="rechts ${abw ? "a-abweichung" : ""}">${zahl(f.iratingErgebnis)}${abw ? " !" : ""}</td>
       <td>${klasse}</td>
       ${(serie.modelle || []).length ? `<td><select data-fahrzeug-von="${esc(f.discordId)}" aria-label="Fahrzeug von ${esc(f.name)}">${f.modell ? "" : '<option value="">– nicht gewählt –</option>'}${serie.modelle.map((m) => `<option value="${esc(m)}"${m === f.modell ? " selected" : ""}>${esc(m)}</option>`).join("")}</select>${f.wechsel ? `<small class="a-unter">${f.wechsel} Wechsel</small>` : ""}</td>` : ""}
-      <td class="rechts">${akteKnopf(f.name, f.custId, f.discordId)} <button type="button" class="a-knopf gefahr klein" data-aus-serie="${esc(f.discordId)}" data-name="${esc(f.name)}">Entfernen</button></td>
+      <td class="rechts"><button type="button" class="a-knopf gefahr klein" data-aus-serie="${esc(f.discordId)}" data-name="${esc(f.name)}">Entfernen</button></td>
     </tr>`;
   }
 
@@ -1001,7 +1003,7 @@
     const g61 = { team: '<span class="a-chip gruen">Im Team</span>', gemeldet: '<span class="a-chip gelb">Wartet auf Freigabe</span>', unbekannt: '<span class="a-chip">?</span>' }[f.g61] || '<span class="a-chip">–</span>';
     const discord = f.discord.rolle ? `<span class="a-chip gruen" title="${esc(f.discord.name ? `Servername: ${f.discord.name}` : "Servername noch nicht gesetzt")}">${f.discord.fahrerRolle ? "Fahrer" : "Interessent"}${f.discord.name ? " · Name" : ""}</span>` : '<span class="a-chip gelb">Offen</span>';
     return `<tr data-suche="${esc(`${f.name} ${f.custId} ${f.team || ""} ${f.nummer || ""} ${f.serien.map((s) => s.name).join(" ")}`.toLowerCase())}">
-      <td><div class="a-fahrer">${bild}<div><b>${f.nummer ? `<span class="a-nr">#${esc(f.nummer)}</span> ` : ""}${window.LigaKarte.flagge(f.land)}${esc(f.name)}</b>${f.team ? `<small>${esc(f.team)}</small>` : ""}${f.nummerWunsch ? `<small>Nummernwunsch #${esc(f.nummerWunsch)}</small>` : ""}</div></div></td>
+      <td><div class="a-fahrer">${bild}<div>${akteName(f.name, f.custId, f.discordId, `<b>${f.nummer ? `<span class="a-nr">#${esc(f.nummer)}</span> ` : ""}${window.LigaKarte.flagge(f.land)}${esc(f.name)}</b>`)}${f.team ? `<small>${esc(f.team)}</small>` : ""}${f.nummerWunsch ? `<small>Nummernwunsch #${esc(f.nummerWunsch)}</small>` : ""}</div></div></td>
       <td>${esc(f.custId) || "–"}</td>
       <td class="rechts">${zahl(f.irating)}</td>
       <td>${serien}</td>
@@ -1009,7 +1011,6 @@
       <td>${g61}</td>
       <td>${discord}</td>
       <td>${f.gespeichert ? esc(datumKurz(f.gespeichert)) : "–"}</td>
-      <td class="rechts">${akteKnopf(f.name, f.custId, f.discordId)}</td>
     </tr>`;
   }
 
@@ -1030,7 +1031,7 @@
     return `${akteHtml()}<section class="a-karte">${kopf}
       <div class="a-kennzahlen">${kachel(liste.length, "Registriert")}${kachel(gruppen.season.length, "In einer Season")}${kachel(gruppen.ohne.length, "Ohne Season")}${kachel(liste.filter((f) => f.uebersicht === true).length, "In der Fahrerübersicht")}${kachel(liste.filter((f) => f.g61 === "team").length, "Im Garage-61-Team")}${kachel(liste.filter((f) => f.g61 === "gemeldet").length, "Garage 61 wartet", "warnung")}</div>
       ${liste.length ? `<div class="a-leiste">${chips}<input type="search" id="a-fahrer-suche" class="a-suche" placeholder="Fahrer, ID, Team oder Season suchen" aria-label="Fahrer suchen"></div>
-      ${gezeigt.length ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>iRacing-ID</th><th class="rechts">iRating</th><th>Seasons</th><th>Fahrerübersicht</th><th>Garage 61</th><th>Discord</th><th>Gespeichert</th><th></th></tr></thead><tbody>${gezeigt.map(alleFahrerZeile).join("")}</tbody></table></div>` : '<p class="a-leer">Keine Fahrer in dieser Ansicht.</p>'}
+      ${gezeigt.length ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>iRacing-ID</th><th class="rechts">iRating</th><th>Seasons</th><th>Fahrerübersicht</th><th>Garage 61</th><th>Discord</th><th>Gespeichert</th></tr></thead><tbody>${gezeigt.map(alleFahrerZeile).join("")}</tbody></table></div>` : '<p class="a-leer">Keine Fahrer in dieser Ansicht.</p>'}
       <p class="a-hinweis">Alle Fahrer mit Profil im Fahrerbereich, auch ohne Season. „Gespeichert“ ist die letzte Änderung am Profil. Garage 61 wird über den Namen erkannt. Die Fahrerübersicht entscheidet jeder Fahrer selbst.</p>` : '<p class="a-leer">Noch niemand registriert.</p>'}
     </section>`;
   }

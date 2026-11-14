@@ -117,6 +117,10 @@ a.a-knopf{text-decoration:none}
 .a-fahrer>div{min-width:0}
 .a-fahrer b{display:block;font:800 .88rem/1.2 var(--a-breit)}
 .a-fahrer small{display:block;margin-top:2px;font:.68rem/1.2 var(--a-mono);color:var(--a-leise)}
+/* Name als Link zur Akte */
+.a-akte-name{all:unset;cursor:pointer;display:block;color:var(--a-text)}
+.a-akte-name:hover b,.a-akte-name:focus-visible b{text-decoration:underline;text-decoration-color:var(--a-rot);text-decoration-thickness:2px;text-underline-offset:3px}
+.a-akte-name:focus-visible{outline:2px solid var(--a-text);outline-offset:2px}
 .a-avatar{flex:none;width:34px;height:34px;object-fit:cover;clip-path:polygon(12% 0,100% 0,88% 100%,0 100%);background:var(--a-flaeche2)}
 .a-avatar.leer{display:grid;place-items:center;font:900 .86rem/1 var(--a-breit);color:var(--a-leise)}
 .a-nr{color:var(--a-gold)}
