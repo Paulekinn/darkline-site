@@ -208,12 +208,12 @@ async function fuellen() {
   // Community-Rennen: ein kommendes mit Freigabe (gesponsert), ein offenes, ein schon gefahrenes
   const start = (n, uhr) => isoStart(tag(n), uhr);
   const community = (id, wer, e) => json(`liga/community/${id}.json`, {
-    id, discordId: wer.id, name: wer.profil.iracingName, nummer: wer.profil.nummer, status: "freigegeben", quali: false, art: "einzel", zugang: "offen", plaetze: 20, iratingMin: null, iratingMax: null,
+    id, discordId: wer.id, name: wer.profil.iracingName, nummer: wer.profil.nummer, status: "freigegeben", training: 20, qualiDauer: 10, quali: true, art: "einzel", zugang: "offen", plaetze: 20, iratingMin: null, iratingMax: null,
     banner: "", session: { name: "", passwort: "" }, anfragen: [], aenderung: null, erstellt: vorTagen(5), ...e,
   });
-  await community("aaaa0001", NUTZER.anna, { titel: "Spa Night Sprint", datum: tag(9), uhrzeit: "20:00", start: start(9, "20:00"), strecke: "Spa-Francorchamps", fahrzeugklasse: "GT3", dauer: 45, quali: true, zugang: "freigabe", iratingMax: 3000,
+  await community("aaaa0001", NUTZER.anna, { titel: "Spa Night Sprint", datum: tag(9), uhrzeit: "20:00", start: start(9, "20:00"), strecke: "Spa-Francorchamps", fahrzeugklasse: "GT3", dauer: 45, training: 30, qualiDauer: 15, zugang: "freigabe", iratingMax: 3000,
     beschreibung: "Lockerer Sprint am Abend, offen für alle GT3-Fahrer bis 3000 iRating.", entscheid: { stewarding: "darkline", sponsored: true, zeit: vorTagen(4), von: "Rennleitung" } });
-  await community("bbbb0002", NUTZER.ben, { titel: "MX-5 Feierabendrennen", datum: tag(14), uhrzeit: "19:30", start: start(14, "19:30"), strecke: "Lime Rock Park", fahrzeugklasse: "Mazda MX-5", dauer: 30, plaetze: 16,
+  await community("bbbb0002", NUTZER.ben, { titel: "MX-5 Feierabendrennen", datum: tag(14), uhrzeit: "19:30", start: start(14, "19:30"), strecke: "Lime Rock Park", fahrzeugklasse: "Mazda MX-5", dauer: 30, training: 15, qualiDauer: 0, quali: false, plaetze: 16,
     beschreibung: "Kurzes Rennen nach Feierabend, jeder ist willkommen.", session: { name: "DSRS MX-5", passwort: "mx5" }, entscheid: { stewarding: "eigene", sponsored: false, zeit: vorTagen(4), von: "Rennleitung" } });
   const vor2 = new Date(Date.now() - 2 * 3600e3);
   await community("cccc0003", NUTZER.anna, { titel: "Monza Sprint", datum: vor2.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }), uhrzeit: vor2.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }), start: vor2.toISOString(),
@@ -222,7 +222,7 @@ async function fuellen() {
   await B.blobPut(A.anmeldungPfad("c-aaaa0001", NUTZER.carla.id, "", NUTZER.carla.name), "1", "text/plain");
   // Ein Antrag wartet auf die Rennleitung
   await json("liga/community/eeee0005.json", { id: "eeee0005", discordId: NUTZER.carla.id, name: "Carla Fast", nummer: 21, status: "offen", titel: "Suzuka Team-Enduro", datum: tag(25), uhrzeit: "18:00", start: start(25, "18:00"),
-    strecke: "Suzuka", fahrzeugklasse: "GT3", dauer: 120, quali: true, art: "team", zugang: "offen", plaetze: 30, iratingMin: null, iratingMax: null, beschreibung: "Zwei Stunden im Team, Fahrerwechsel Pflicht.", banner: "", session: { name: "", passwort: "" }, anfragen: [], aenderung: null, erstellt: vorTagen(0.5) });
+    strecke: "Suzuka", fahrzeugklasse: "GT3", dauer: 120, training: 45, qualiDauer: 20, quali: true, art: "team", zugang: "offen", plaetze: 30, iratingMin: null, iratingMax: null, beschreibung: "Zwei Stunden im Team, Fahrerwechsel Pflicht.", banner: "", session: { name: "", passwort: "" }, anfragen: [], aenderung: null, erstellt: vorTagen(0.5) });
 }
 
 /* ---------- Server ---------- */
