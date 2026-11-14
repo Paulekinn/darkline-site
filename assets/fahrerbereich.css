@@ -90,6 +90,8 @@
 .fb-schritte li.frei{border-top-color:rgba(255,255,255,.3);box-shadow:none}
 .fb-schritte li.frei::before{background:rgba(255,255,255,.18)}
 /* Liga-Team */
+.fb-lizenz-team{display:inline-flex;align-items:center;gap:8px;margin-top:6px;color:var(--ink);font:700 .8rem/1.2 var(--f-mono);text-decoration:none}
+.fb-lizenz-team:hover span{text-decoration:underline;text-underline-offset:3px}
 .fb-team{border-top-color:var(--s)}
 .fb-team-kz{display:inline-grid;place-items:center;min-width:34px;padding:4px 6px;background:var(--s);color:#fff;font:900 .74rem/1 var(--f-wide);letter-spacing:.04em;transform:skewX(-8deg)}
 .fb-team-kopf{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:4px 0 10px}
