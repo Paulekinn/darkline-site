@@ -623,21 +623,24 @@ a.liga-stream:hover em{color:#ff5a61}
 .liga-kopf .photo img{opacity:0;transition:opacity 1.2s ease}
 .liga-kopf .photo img.geladen{opacity:1}
 
-/* Lichteffekte: feine Speedlines ziehen übers Foto (über dem dunklen Verlauf, hinter dem Inhalt, zur Textseite hin ausgeblendet),
-   und alle paar Sekunden läuft ein Glanz über die Überschrift. */
-.liga-kopf .wrap{position:relative}
-.liga-kopf::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;mix-blend-mode:screen;
-  -webkit-mask-image:linear-gradient(90deg,transparent 10%,rgba(0,0,0,.35) 30%,#000 48%);mask-image:linear-gradient(90deg,transparent 10%,rgba(0,0,0,.35) 30%,#000 48%);
-  background:
-    linear-gradient(90deg,transparent,rgba(255,255,255,.8),transparent) -40% 21%/260px 2px no-repeat,
-    linear-gradient(90deg,transparent,rgba(255,40,48,1),transparent) -90% 38%/340px 2px no-repeat,
-    linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent) -140% 57%/200px 1px no-repeat,
-    linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent) -60% 74%/300px 2px no-repeat,
-    linear-gradient(90deg,transparent,rgba(255,40,48,.85),transparent) -200% 88%/240px 2px no-repeat;
-  animation:liga-speed 5.5s linear infinite}
-@keyframes liga-speed{
-  0%{background-position:-40% 21%,-90% 38%,-140% 57%,-60% 74%,-200% 88%}
-  100%{background-position:160% 21%,140% 38%,120% 57%,150% 74%,130% 88%}}
+/* Lichteffekte passend zum Nachtrennen:
+   1. Glimmen: Scheinwerfer und Flutlicht im Titelbild glimmen sanft, jedes Licht in eigenem Takt. Die Lichtpunkte
+      sucht liga.js im Bild selbst (funktioniert also auch mit einem neuen Titelbild); hier steht nur ihr Aussehen.
+   2. Abendrot: Ein roter Schein am Himmel atmet langsam.
+   Beides liegt im Foto und damit unter dem dunklen Verlauf, die Textseite bleibt ruhig.
+   3. Glanz: Alle paar Sekunden läuft ein Lichtreflex über die Überschrift. */
+.liga-glimmen{position:absolute;inset:0;pointer-events:none;animation:liga-glimmen-an 1.6s ease .4s both}
+@keyframes liga-glimmen-an{from{opacity:0}}
+.liga-glimmen i{position:absolute;width:var(--g);height:var(--g);translate:-50% -50%;border-radius:50%;mix-blend-mode:screen;
+  background:radial-gradient(circle,rgba(255,255,255,.9) 0,rgba(var(--rgb),.5) 16%,rgba(var(--rgb),.15) 40%,transparent 68%);
+  opacity:.35;animation:liga-glimmen var(--d) ease-in-out var(--v) infinite alternate}
+/* feiner waagrechter Lichtschleier wie bei einer Filmlinse */
+.liga-glimmen i::after{content:"";position:absolute;left:50%;top:50%;width:320%;height:2px;translate:-50% -50%;background:linear-gradient(90deg,transparent,rgba(var(--rgb),.45),transparent)}
+@keyframes liga-glimmen{0%{opacity:.3;transform:scale(.86)}55%{opacity:.8}100%{opacity:1;transform:scale(1.12)}}
+.liga-kopf .photo::after{content:"";position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;
+  background:radial-gradient(ellipse 34% 30% at 50% 26%,rgba(255,64,36,.5),rgba(211,18,27,.18) 55%,transparent 75%);
+  opacity:.35;animation:liga-abendrot 6s ease-in-out infinite alternate}
+@keyframes liga-abendrot{to{opacity:1}}
 @supports ((background-clip:text) or (-webkit-background-clip:text)){
   #liga-titel{color:transparent;-webkit-background-clip:text;background-clip:text;
     background-image:linear-gradient(100deg,var(--phos) 0 38%,#8e9794 45%,#fff 50%,#8e9794 55%,var(--phos) 62% 100%);

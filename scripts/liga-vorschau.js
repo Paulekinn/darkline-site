@@ -23,6 +23,7 @@ Object.assign(process.env, {
 
 /* ---------- Supabase-Attrappe wie in den Tests, Discord wird nur mitgeschrieben ---------- */
 const zeilen = new Map();
+const echterFetch = global.fetch; // nur für das Titelbild der Live-Seite
 global.fetch = async (url, o = {}) => {
   const u = new URL(url);
   if (u.hostname !== "projekt.supabase.co") {
@@ -173,6 +174,18 @@ async function fuellen() {
     await D.streckeSpeichern(id, D.pruefeStrecke({ name, variante: "Grand Prix", hinweise: HINWEISE[name] || "" }));
     bibliothek[name] = id;
   }
+
+  // Titelbild der Übersicht wie auf der Live-Seite, damit Banner und Effekte gleich aussehen. Ohne Netz bleibt das Teamfoto.
+  try {
+    const live = await echterFetch("https://darklineperformance.de/api/liga?r=oeffentlich", { signal: AbortSignal.timeout(5000) }).then((r) => r.json());
+    if (live.kopfbildVersion) {
+      const bild = await echterFetch(`https://darklineperformance.de/api/liga?r=bild&k=uebersicht&v=${live.kopfbildVersion}`, { signal: AbortSignal.timeout(10000) });
+      if (!bild.ok) throw new Error(`Bild: ${bild.status}`);
+      await D.bildSpeichern("uebersicht", Buffer.from(await bild.arrayBuffer()));
+      await D.einstellungenSpeichern({ kopfbildVersion: live.kopfbildVersion });
+      console.log("Titelbild von der Live-Seite übernommen.");
+    }
+  } catch (e) { console.log(`Titelbild der Live-Seite nicht geladen (${e.message}), Demo nutzt das Teamfoto.`); }
 
   // Seasons und Rennen (Rennen auf Bibliotheksstrecken sind verknüpft und bringen deren Hinweise mit)
   for (const [id, s] of Object.entries(SERIEN)) await D.serieSpeichern(id, s);

@@ -740,6 +740,59 @@
 
   const communityAbschnitt = (community) => (community.length ? einfuegen(abschnitt("Community-Rennen", "Von Fahrern veranstaltet", "Eigene Rennen unserer Fahrer, außerhalb der Seasons. Du willst selbst eins veranstalten? Im Fahrerbereich unter „Veranstalten“.", `<div class="liga-poster-raster">${community.map(communityKarte).join("")}</div>`, "community")) : null);
 
+  // Lichter im Titelbild glimmen lassen (Aussehen in liga.css): Die hellsten Punkte im Bild sind bei Nachtbildern
+  // Scheinwerfer und Flutlicht. Gesucht wird auf einer verkleinerten Kopie, gesetzt wird in Bildkoordinaten, damit die
+  // Lichter bei jeder Fenstergröße auf den Lampen sitzen (gleiche Rechnung wie object-fit: cover).
+  function lichterSetzen(img) {
+    let punkte;
+    try {
+      const B = 384, H = Math.max(1, Math.round((B * img.naturalHeight) / img.naturalWidth));
+      const c = document.createElement("canvas"); c.width = B; c.height = H;
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0, B, H);
+      const d = ctx.getImageData(0, 0, B, H).data;
+      const hell = (i) => 0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2] >= 225;
+      const gesehen = new Uint8Array(B * H);
+      punkte = [];
+      for (let i = 0; i < B * H; i++) {
+        if (gesehen[i] || !hell(i)) continue;
+        const stapel = [i]; gesehen[i] = 1;
+        let n = 0, sx = 0, sy = 0, r = 0, g = 0, b = 0, links = B, rechts = 0;
+        while (stapel.length) {
+          const p = stapel.pop(), px = p % B, py = (p / B) | 0;
+          n++; sx += px; sy += py; r += d[p * 4]; g += d[p * 4 + 1]; b += d[p * 4 + 2];
+          links = Math.min(links, px); rechts = Math.max(rechts, px);
+          for (const q of [p - 1, p + 1, p - B, p + B]) if (q >= 0 && q < B * H && !gesehen[q] && Math.abs((q % B) - px) <= 1 && hell(q)) { gesehen[q] = 1; stapel.push(q); }
+        }
+        // Einzelne helle Pixel sind Rauschen, riesige helle Flächen (Himmel, Schrift) keine Lampen.
+        if (n >= 3 && n <= B * H * 0.004) punkte.push({ x: sx / n / B, y: sy / n / H, breite: (rechts - links + 1) / B, n, rgb: [r / n, g / n, b / n].map((v) => Math.round(v)).join(",") });
+      }
+      punkte = punkte.sort((a, b) => b.n - a.n).slice(0, 12);
+    } catch (e) { return; } // Bild von fremder Adresse oder kein Canvas: dann eben ohne Glimmen
+    if (!punkte.length) return;
+    const foto = img.parentElement;
+    foto.querySelector(".liga-glimmen")?.remove();
+    const ebene = document.createElement("div");
+    ebene.className = "liga-glimmen";
+    ebene.setAttribute("aria-hidden", "true");
+    ebene.innerHTML = punkte.map((p, i) => `<i style="--rgb:${p.rgb};--d:${(2.4 + ((i * 0.77) % 1.8)).toFixed(2)}s;--v:${(-((i * 1.37) % 3)).toFixed(2)}s"></i>`).join("");
+    foto.appendChild(ebene);
+    const setzen = () => {
+      const W = foto.clientWidth, H = foto.clientHeight;
+      if (!W || !H) return;
+      const s = Math.max(W / img.naturalWidth, H / img.naturalHeight), bw = img.naturalWidth * s, bh = img.naturalHeight * s;
+      const [ox, oy] = getComputedStyle(img).objectPosition.split(" ").map((v) => (Number.isFinite(parseFloat(v)) ? parseFloat(v) / 100 : 0.5));
+      [...ebene.children].forEach((el, i) => {
+        const p = punkte[i];
+        el.style.left = `${(W - bw) * ox + p.x * bw}px`;
+        el.style.top = `${(H - bh) * oy + p.y * bh}px`;
+        el.style.setProperty("--g", `${Math.round(Math.min(110, Math.max(26, p.breite * bw * 4.5)))}px`);
+      });
+    };
+    setzen();
+    if (window.ResizeObserver) new ResizeObserver(setzen).observe(foto);
+  }
+
   // Kennzahlen im Kopf zählen beim Laden kurz hoch. Mit "Bewegung reduzieren" stehen sie sofort da.
   function hochzaehlen(felder) {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -911,7 +964,7 @@
     const s = kennung && serien.find((x) => x.id === kennung);
     // Titelbild: Bild der Serie, sonst das Bild der Übersicht, sonst das Teamfoto. Es blendet ein, sobald es geladen ist (liga.css).
     const kopfbild = $("liga-kopfbild");
-    kopfbild.addEventListener("load", () => kopfbild.classList.add("geladen"), { once: true });
+    kopfbild.addEventListener("load", () => { kopfbild.classList.add("geladen"); lichterSetzen(kopfbild); }, { once: true });
     kopfbild.src =s && s.bildVersion ? eigenesBild(`serie-${s.id}`, s.bildVersion) : daten && daten.kopfbildVersion ? eigenesBild("uebersicht", daten.kopfbildVersion) : "img/hero.webp";
     if (!s) return uebersicht(serien, rennen, (daten && daten.community) || [], (daten && daten.communityErgebnisse) || []);
 
