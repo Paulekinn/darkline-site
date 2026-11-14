@@ -616,3 +616,42 @@ a.liga-stream:hover em{color:#ff5a61}
 @media (max-width:640px){.liga-stream em,.liga-stream.suche a{margin-left:0}}
 @media (prefers-reduced-motion:reduce){.liga-stream.live i{animation:none}}
 .liga-kopf .photo{-webkit-mask-image:linear-gradient(180deg,#000 62%,transparent);mask-image:linear-gradient(180deg,#000 62%,transparent)}
+
+/* Kopfbereich in Bewegung: Das Titelbild blendet ein, beim Laden gleiten die Inhalte nacheinander herein.
+   Mit "Bewegung reduzieren" schaltet site.css alle Animationen ab, dann steht alles sofort da.
+   "translate" statt "transform", weil die Überschrift schon schräg gestellt ist (site.css). */
+.liga-kopf .photo img{opacity:0;transition:opacity 1.2s ease}
+.liga-kopf .photo img.geladen{opacity:1}
+
+/* Lichteffekte: feine Speedlines ziehen übers Foto (über dem dunklen Verlauf, hinter dem Inhalt, zur Textseite hin ausgeblendet),
+   und alle paar Sekunden läuft ein Glanz über die Überschrift. */
+.liga-kopf .wrap{position:relative}
+.liga-kopf::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;mix-blend-mode:screen;
+  -webkit-mask-image:linear-gradient(90deg,transparent 10%,rgba(0,0,0,.35) 30%,#000 48%);mask-image:linear-gradient(90deg,transparent 10%,rgba(0,0,0,.35) 30%,#000 48%);
+  background:
+    linear-gradient(90deg,transparent,rgba(255,255,255,.8),transparent) -40% 21%/260px 2px no-repeat,
+    linear-gradient(90deg,transparent,rgba(255,40,48,1),transparent) -90% 38%/340px 2px no-repeat,
+    linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent) -140% 57%/200px 1px no-repeat,
+    linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent) -60% 74%/300px 2px no-repeat,
+    linear-gradient(90deg,transparent,rgba(255,40,48,.85),transparent) -200% 88%/240px 2px no-repeat;
+  animation:liga-speed 5.5s linear infinite}
+@keyframes liga-speed{
+  0%{background-position:-40% 21%,-90% 38%,-140% 57%,-60% 74%,-200% 88%}
+  100%{background-position:160% 21%,140% 38%,120% 57%,150% 74%,130% 88%}}
+@supports ((background-clip:text) or (-webkit-background-clip:text)){
+  #liga-titel{color:transparent;-webkit-background-clip:text;background-clip:text;
+    background-image:linear-gradient(100deg,var(--phos) 0 38%,#8e9794 45%,#fff 50%,#8e9794 55%,var(--phos) 62% 100%);
+    background-size:300% 100%;background-position:100% 0;
+    animation:liga-rein .7s cubic-bezier(.2,.7,.2,1) .08s both,liga-glanz 7s ease-in-out 1.4s infinite}
+}
+@keyframes liga-glanz{0%{background-position:100% 0}22%,100%{background-position:0 0}}
+@keyframes liga-rein{from{opacity:0;translate:-26px 0}}
+@keyframes liga-rein-rechts{from{opacity:0;translate:34px 0}}
+.liga-kopf .liga-kicker,.liga-kopf h1,.liga-kopf .lead,.liga-kopf .hero-cta,.liga-kopf .liga-fakten>div{animation:liga-rein .7s cubic-bezier(.2,.7,.2,1) both}
+.liga-kopf h1{animation-delay:.08s}
+.liga-kopf .lead{animation-delay:.18s}
+.liga-kopf .hero-cta{animation-delay:.3s}
+.liga-kopf .liga-fakten>div:nth-child(2){animation-delay:.07s}
+.liga-kopf .liga-fakten>div:nth-child(3){animation-delay:.14s}
+.liga-kopf .liga-fakten>div:nth-child(4){animation-delay:.21s}
+.liga-kopf .liga-feature{animation:liga-rein-rechts .8s cubic-bezier(.2,.7,.2,1) .15s both}

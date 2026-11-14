@@ -740,6 +740,19 @@
 
   const communityAbschnitt = (community) => (community.length ? einfuegen(abschnitt("Community-Rennen", "Von Fahrern veranstaltet", "Eigene Rennen unserer Fahrer, außerhalb der Seasons. Du willst selbst eins veranstalten? Im Fahrerbereich unter „Veranstalten“.", `<div class="liga-poster-raster">${community.map(communityKarte).join("")}</div>`, "community")) : null);
 
+  // Kennzahlen im Kopf zählen beim Laden kurz hoch. Mit "Bewegung reduzieren" stehen sie sofort da.
+  function hochzaehlen(felder) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const dauer = 900, start = performance.now();
+    const ziele = [...felder].map((b) => [b, Number(b.textContent)]).filter(([, n]) => Number.isFinite(n) && n > 0);
+    const schritt = (jetzt) => {
+      const t = Math.min(1, (jetzt - start) / dauer), weich = 1 - Math.pow(1 - t, 3);
+      for (const [b, n] of ziele) b.textContent = String(Math.round(n * weich));
+      if (t < 1) requestAnimationFrame(schritt);
+    };
+    if (ziele.length) { for (const [b] of ziele) b.textContent = "0"; requestAnimationFrame(schritt); }
+  }
+
   function uebersicht(serien, rennen, community = [], communityErgebnisse = []) {
     // Community-Rennen erscheinen auch, wenn gerade keine Serie läuft.
     if (!serien.length) { communityAbschnitt(community); communityErgebnisAbschnitt(communityErgebnisse); return leer(null); }
@@ -762,6 +775,7 @@
       [klassenMax, "iRating-Klassen"],
     ].filter(([n]) => n > 0);
     $("liga-fortschritt").innerHTML = fakten.length ? `<div class="liga-fakten">${fakten.map(([n, l]) => `<div><b>${n}</b><span>${l}</span></div>`).join("")}</div>` : "";
+    hochzaehlen($("liga-fortschritt").querySelectorAll(".liga-fakten b"));
     if (termine[0]) { kopfBereich.querySelector(".wrap").insertAdjacentHTML("beforeend", feature(termine[0].r, termine[0].s)); countdown(); setInterval(countdown, 30000); }
 
     const liste = (l) => `<div class="liga-poster-raster">${l.map((s) => serienKarte(s, rennen)).join("")}</div>`;
@@ -895,8 +909,10 @@
     const serien = (daten && daten.serien) || [];
     const rennen = (daten && daten.rennen) || [];
     const s = kennung && serien.find((x) => x.id === kennung);
-    // Titelbild: Bild der Serie, sonst das Bild der Übersicht, sonst das Teamfoto
-    $("liga-kopfbild").src = s && s.bildVersion ? eigenesBild(`serie-${s.id}`, s.bildVersion) : daten && daten.kopfbildVersion ? eigenesBild("uebersicht", daten.kopfbildVersion) : "img/hero.webp";
+    // Titelbild: Bild der Serie, sonst das Bild der Übersicht, sonst das Teamfoto. Es blendet ein, sobald es geladen ist (liga.css).
+    const kopfbild = $("liga-kopfbild");
+    kopfbild.addEventListener("load", () => kopfbild.classList.add("geladen"), { once: true });
+    kopfbild.src =s && s.bildVersion ? eigenesBild(`serie-${s.id}`, s.bildVersion) : daten && daten.kopfbildVersion ? eigenesBild("uebersicht", daten.kopfbildVersion) : "img/hero.webp";
     if (!s) return uebersicht(serien, rennen, (daten && daten.community) || [], (daten && daten.communityErgebnisse) || []);
 
     document.title = `${s.name} · Darkline Simracing Series`;

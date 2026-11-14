@@ -282,6 +282,8 @@ a:hover{background:#1d2124}b{display:block}small{color:#9aa5a0}</style>
   const datei = path.join(WURZEL, p);
   if (!datei.startsWith(WURZEL) || !fs.existsSync(datei)) { res.statusCode = 404; return res.end("404"); }
   res.setHeader("Content-Type", TYPEN[path.extname(datei)] || "application/octet-stream");
+  // Nichts zwischenspeichern: Nach einer Änderung an CSS oder JS soll ein normales Neuladen reichen.
+  res.setHeader("Cache-Control", "no-store");
   fs.createReadStream(datei).pipe(res);
 }).listen(PORT, () => console.log(`Liga-Demo bereit: http://localhost:${PORT}/liga  (Anmelden: /login?als=anna|ben|carla|neu|steward|leitung)`)))
   .catch((e) => { console.error("Testdaten konnten nicht angelegt werden:", e); process.exit(1); });
