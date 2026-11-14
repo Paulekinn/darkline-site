@@ -103,6 +103,12 @@ a.a-knopf{text-decoration:none}
 .a-kennzahlen{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px}
 .a-kennzahl{all:unset;box-sizing:border-box;cursor:pointer;display:grid;gap:5px;padding:14px 15px;background:var(--a-flaeche);border-top:3px solid var(--a-linie);transition:background .15s}
 .a-kennzahl:hover{background:var(--a-flaeche2)}
+/* Reine Anzeige (etwa in der Akte): kein Klick-Zeiger, kein Hover */
+div.a-kennzahl{cursor:default}
+div.a-kennzahl:hover{background:var(--a-flaeche)}
+div.a-kennzahl.alarm:hover{background:linear-gradient(150deg,color-mix(in srgb,var(--a-rot) 32%,var(--a-flaeche)),var(--a-flaeche) 70%)}
+/* Aktiver Filter */
+.a-kennzahl[aria-pressed="true"]{background:var(--a-flaeche2);border-top-color:var(--a-text)}
 .a-kennzahl:focus-visible{outline:2px solid var(--a-text);outline-offset:-2px}
 .a-kennzahl b{font:900 2.2rem/1 var(--a-breit);font-variant-numeric:tabular-nums}
 .a-kennzahl span{font:500 .68rem/1.2 var(--a-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--a-leise)}

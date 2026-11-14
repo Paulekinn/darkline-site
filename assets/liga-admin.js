@@ -1024,12 +1024,16 @@
       ohne: liste.filter((f) => !aktiveSerien(f).length),
       season: liste.filter((f) => aktiveSerien(f).length),
       offen: liste.filter((f) => f.uebersicht === null),
+      sichtbar: liste.filter((f) => f.uebersicht === true),
+      g61team: liste.filter((f) => f.g61 === "team"),
+      g61wartet: liste.filter((f) => f.g61 === "gemeldet"),
     };
     const gezeigt = gruppen[alleFilter] || liste;
     const chips = [["alle", `Alle ${liste.length}`], ["season", `In einer Season ${gruppen.season.length}`], ["ohne", `Ohne Season ${gruppen.ohne.length}`], ["offen", `Übersicht nicht gefragt ${gruppen.offen.length}`]].map(([id, t]) => `<button type="button" class="a-filter" data-alle-filter="${id}" aria-pressed="${alleFilter === id}">${esc(t)}</button>`).join("");
-    const kachel = (w, t, art) => `<div class="a-kennzahl ${w && art ? art : ""}"><b>${w}</b><span>${esc(t)}</span></div>`;
+    // Jede Kachel filtert die Liste darunter, ein zweiter Klick zeigt wieder alle.
+    const kachel = (filter, t, art) => { const w = gruppen[filter].length; return `<button type="button" class="a-kennzahl ${w && art ? art : ""}" data-alle-filter="${filter}" aria-pressed="${alleFilter === filter}"><b>${w}</b><span>${esc(t)}</span></button>`; };
     return `${akteHtml()}<section class="a-karte">${kopf}
-      <div class="a-kennzahlen">${kachel(liste.length, "Registriert")}${kachel(gruppen.season.length, "In einer Season")}${kachel(gruppen.ohne.length, "Ohne Season")}${kachel(liste.filter((f) => f.uebersicht === true).length, "In der Fahrerübersicht")}${kachel(liste.filter((f) => f.g61 === "team").length, "Im Garage-61-Team")}${kachel(liste.filter((f) => f.g61 === "gemeldet").length, "Garage 61 wartet", "warnung")}</div>
+      <div class="a-kennzahlen">${kachel("alle", "Registriert")}${kachel("season", "In einer Season")}${kachel("ohne", "Ohne Season")}${kachel("sichtbar", "In der Fahrerübersicht")}${kachel("g61team", "Im Garage-61-Team")}${kachel("g61wartet", "Garage 61 wartet", "warnung")}</div>
       ${liste.length ? `<div class="a-leiste">${chips}<input type="search" id="a-fahrer-suche" class="a-suche" placeholder="Fahrer, ID, Team oder Season suchen" aria-label="Fahrer suchen"></div>
       ${gezeigt.length ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>iRacing-ID</th><th class="rechts">iRating</th><th>Seasons</th><th>Fahrerübersicht</th><th>Garage 61</th><th>Discord</th><th>Gespeichert</th></tr></thead><tbody>${gezeigt.map(alleFahrerZeile).join("")}</tbody></table></div>` : '<p class="a-leer">Keine Fahrer in dieser Ansicht.</p>'}
       <p class="a-hinweis">Alle Fahrer mit Profil im Fahrerbereich, auch ohne Season. „Gespeichert“ ist die letzte Änderung am Profil. Garage 61 wird über den Namen erkannt. Die Fahrerübersicht entscheidet jeder Fahrer selbst.</p>` : '<p class="a-leer">Noch niemand registriert.</p>'}
@@ -1072,15 +1076,17 @@
     const det = d.details;
     const ohneProfil = det.fahrer.filter((f) => !f.custId);
     const abweichend = det.fahrer.filter(abweichung);
-    const filter = { alle: det.fahrer, profil: ohneProfil, abweichung: abweichend }[fahrerFilter] || det.fahrer;
+    const gruppen = { alle: det.fahrer, season: det.fahrer.filter((f) => f.mitglied), einzeln: det.fahrer.filter((f) => !f.mitglied), profil: ohneProfil, abweichung: abweichend };
+    const filter = gruppen[fahrerFilter] || det.fahrer;
     const chips = [["alle", `Alle ${det.fahrer.length}`], ["profil", `Ohne Profil ${ohneProfil.length}`], ["abweichung", `iRating-Abweichung ${abweichend.length}`]].map(([id, t]) => `<button type="button" class="a-filter" data-fahrer-filter="${id}" aria-pressed="${fahrerFilter === id}">${esc(t)}</button>`).join("");
-    const kachel = (w, t, art) => `<div class="a-kennzahl ${w && art ? art : ""}"><b>${w}</b><span>${esc(t)}</span></div>`;
+    // Jede Kachel filtert die Liste, ein zweiter Klick zeigt wieder alle.
+    const kachel = (_, t, art, id) => { const w = gruppen[id].length; return `<button type="button" class="a-kennzahl ${w && art ? art : ""}" data-fahrer-filter="${id}" aria-pressed="${fahrerFilter === id}"><b>${w}</b><span>${esc(t)}</span></button>`; };
     const liste = (r, l) => l.map((f, i) => `<li><span>${i + 1}. ${esc(f.name)}</span>${fahrzeugChip(f.fahrzeugklasse)}<button type="button" class="a-weg" data-aus-rennen="${esc(r.id)}" data-fahrer="${esc(f.discordId)}" data-name="${esc(f.name)}" aria-label="${esc(f.name)} aus dem Rennen nehmen">×</button></li>`).join("");
     const rennen = det.rennen.map((r) => `<details class="a-rennen"><summary>${esc(r.titel)} · ${esc(zeit(r.start))} · ${r.starter.length}/${r.plaetze}${r.warteliste.length ? ` · ${r.warteliste.length} warten` : ""}</summary>
         ${r.starter.length ? `<ol class="a-namen">${liste(r, r.starter)}</ol>` : '<p class="a-hinweis" style="padding:0 12px 10px">Noch niemand gemeldet.</p>'}
         ${r.warteliste.length ? `<h4>Warteliste</h4><ol class="a-namen">${liste(r, r.warteliste)}</ol>` : ""}</details>`).join("");
     return `${akteHtml()}<section class="a-karte"><div class="a-kartenkopf"><h2>Fahrer</h2><div class="a-leiste">${ansichtSchalter()}${serienAuswahl()}</div></div>
-      <div class="a-kennzahlen">${kachel(det.fahrer.length, "Gemeldet")}${kachel(det.fahrer.filter((f) => f.mitglied).length, "In der Season")}${kachel(det.fahrer.filter((f) => !f.mitglied).length, "Einzelmeldungen")}${kachel(ohneProfil.length, "Ohne Profil", "alarm")}${kachel(abweichend.length, "iRating-Abweichung", "warnung")}</div>
+      <div class="a-kennzahlen">${kachel(0, "Gemeldet", "", "alle")}${kachel(0, "In der Season", "", "season")}${kachel(0, "Einzelmeldungen", "", "einzeln")}${kachel(0, "Ohne Profil", "alarm", "profil")}${kachel(0, "iRating-Abweichung", "warnung", "abweichung")}</div>
       ${det.fahrer.length ? `<div class="a-leiste">${chips}<input type="search" id="a-fahrer-suche" class="a-suche" placeholder="Fahrer, ID oder Team suchen" aria-label="Fahrer suchen"></div>
       ${filter.length ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>Meldung</th><th>iRacing-ID</th><th class="rechts" title="Vom Fahrer im Profil angegeben">iRating Profil</th><th class="rechts" title="Aus dem zuletzt eingelesenen Rennergebnis">iRating letztes Rennen</th><th>Klasse</th>${(serie.modelle || []).length ? "<th>Fahrzeug</th>" : ""}<th></th></tr></thead><tbody>${filter.map((f) => fahrerZeile(f, serie)).join("")}</tbody></table></div>` : '<p class="a-leer">Keine Fahrer in dieser Ansicht.</p>'}
       <p class="a-hinweis">„iRating Profil“ hat der Fahrer selbst angegeben. „iRating letztes Rennen“ stammt aus dem zuletzt eingelesenen Ergebnis und ist leer, solange kein Ergebnis dieses Fahrers vorliegt. Ein „!“ zeigt mehr als 150 Punkte Unterschied.</p>` : '<p class="a-leer">Noch keine Fahrer gemeldet.</p>'}
@@ -1443,7 +1449,7 @@
       return;
     }
     if (b.dataset.akte) return akteOeffnen(b);
-    if (b.dataset.fahrerFilter) { fahrerFilter = b.dataset.fahrerFilter; return zeichne(); }
+    if (b.dataset.fahrerFilter) { fahrerFilter = fahrerFilter === b.dataset.fahrerFilter && b.classList.contains("a-kennzahl") ? "alle" : b.dataset.fahrerFilter; return zeichne(); }
     if (b.dataset.fahrerAnsicht) { fahrerAnsicht = b.dataset.fahrerAnsicht; alleFahrer = null; teamsDaten = null; teamEdit = null; return zeichne(); }
     if (b.dataset.teamEdit !== undefined) { teamEdit = b.dataset.teamEdit || null; return zeichne(); }
     if (b.dataset.teamLoeschen) {
@@ -1458,7 +1464,8 @@
       if (!window.confirm(`${b.dataset.fahrerName} aus ${b.dataset.name} entfernen?`)) return;
       return aktion({ aktion: "team-admin-entfernen", team: b.dataset.teamRaus, discordId: b.dataset.fahrer, fahrerName: b.dataset.fahrerName, name: b.dataset.name }, "Fahrer aus dem Team entfernt.").then((ok) => { if (ok) { teamsDaten = null; zeichne(); } });
     }
-    if (b.dataset.alleFilter) { alleFilter = b.dataset.alleFilter; return zeichne(); }
+    // Zweiter Klick auf denselben Filter (etwa eine Kachel) zeigt wieder alle
+    if (b.dataset.alleFilter) { alleFilter = alleFilter === b.dataset.alleFilter && b.classList.contains("a-kennzahl") ? "alle" : b.dataset.alleFilter; return zeichne(); }
     if (b.dataset.akteZu) { akte = null; return zeichne(); }
     if (b.dataset.akteBearbeiten) { akte.bearbeiten = b.dataset.akteBearbeiten === "auf"; akte.werte = null; setzeMeldung(""); return zeichne(); }
     if (b.dataset.ergebnisImport) {
