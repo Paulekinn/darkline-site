@@ -126,7 +126,11 @@ Nach jedem Speichern im Admin postet eine GitHub Action (`.github/workflows/disc
 
 Ein Rennen auf *abgeschlossen* zu setzen postet nichts; das Ergebnis kommt erst mit dem Rennbericht.
 
-Nur Neues wird gepostet; Korrekturen an bestehenden Einträgen lösen keinen Post aus. Eine Rennvorschau, die mit einem Rennen verknüpft ist, postet nichts, weil das Rennen schon beim Anlegen angekündigt wurde. Die Action wartet, bis der Eintrag live ist, damit der Link funktioniert.
+Nur Neues wird gepostet. Eine Rennvorschau, die mit einem Rennen verknüpft ist, postet nichts, weil das Rennen schon beim Anlegen angekündigt wurde. Die Action wartet, bis der Eintrag live ist, damit der Link funktioniert.
+
+**Nachziehen:** Die Action merkt sich die ID jeder geposteten Nachricht in `.github/discord-posts.json` (eigener Commit „Discord: Nachrichten-IDs gemerkt“). Wird ein Beitrag oder ein angekündigtes Rennen später im Admin geändert, bearbeitet sie dieselbe Discord-Nachricht, ohne neuen Ping. Ändert sich das Ergebnis eines Rennens, zieht auch der verknüpfte Rennbericht nach. Umbenennen behält die Nachricht. Wurde die Nachricht in Discord gelöscht, wird sie vergessen.
+
+Für Posts von vor dieser Funktion fehlt die ID. Nachtragen: in Discord den Entwicklermodus einschalten, dann Rechtsklick auf die Nachricht → „Nachrichten-ID kopieren“, und in `.github/discord-posts.json` eintragen, z. B. `"news/2026-11-imsa-endurance-series-p1-im-ziel": { "nachricht": "1234567890123456789" }` (Rennen: `"rennen/<datei>"`). Beim Speichern dieser Datei zieht die Action die Nachricht sofort auf den aktuellen Stand. Das geht nur bei Nachrichten, die über denselben Webhook gepostet wurden.
 
 Einrichtung: in Discord im Kanal → Integrationen → Webhooks einen Webhook anlegen und die URL in GitHub unter Settings → Secrets and variables → Actions als `DISCORD_WEBHOOK_URL` speichern.
 

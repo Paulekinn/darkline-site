@@ -8,9 +8,12 @@ on:
     paths:
       - "content/news/**"
       - "content/races/**"
+      # Von Hand nachgetragene Nachrichten-IDs sofort nachziehen (die eigenen Commits der Action lösen keinen Lauf aus)
+      - ".github/discord-posts.json"
 
+# write: Die Action merkt sich die IDs der geposteten Nachrichten in .github/discord-posts.json, damit spätere Änderungen sie bearbeiten können.
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: discord-${{ github.ref }}
@@ -34,6 +37,25 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.sha }}
           DRY_RUN: ${{ github.ref == 'refs/heads/main' && '0' || '1' }}
+          STORE_OUT: ${{ runner.temp }}/discord-posts.json
+      # Neuen Stand der Nachrichten-IDs committen, auch wenn ein späterer Post fehlschlug. Immer auf dem neuesten main, damit keine Admin-Änderung verloren geht.
+      - name: Nachrichten-IDs merken
+        if: always() && github.ref == 'refs/heads/main'
+        run: |
+          [ -f "$RUNNER_TEMP/discord-posts.json" ] || { echo "Nichts zu merken."; exit 0; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3 4 5; do
+            git fetch -q origin main
+            git reset -q --hard origin/main
+            cp "$RUNNER_TEMP/discord-posts.json" .github/discord-posts.json
+            [ -z "$(git status --porcelain -- .github/discord-posts.json)" ] && { echo "Unverändert."; exit 0; }
+            git add .github/discord-posts.json
+            git commit -q -m "Discord: Nachrichten-IDs gemerkt"
+            git push -q origin HEAD:main && exit 0
+            sleep 5
+          done
+          exit 1
       # Team-Rennen als Discord-Events: Die Website gleicht ab, sobald der neue Stand live ist. Klappt das nicht, holt es der tägliche Lauf nach.
       - name: Discord-Events abgleichen
         if: always() && github.ref == 'refs/heads/main'
