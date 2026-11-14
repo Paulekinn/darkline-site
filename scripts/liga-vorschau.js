@@ -3,7 +3,7 @@
 //
 // Start:   node scripts/liga-vorschau.js        → http://localhost:8146/liga
 // Anmelden als Testnutzer (setzt das Cookie und leitet weiter):
-//   /login?als=anna     Fahrerin, Stammfahrerin im GT3 Sprint Cup, hat einen Report offen, Formula-iRating eingetragen
+//   /login?als=anna     Stammfahrerin im GT3 Sprint Cup, Report offen, Formula-iRating, bei Garage 61 gemeldet (ohne „Erste Schritte“)
 //   /login?als=ben      Fahrer ohne Season, Chef von „Night Racers“, kein Formula-iRating
 //   /login?als=carla    Fahrerin im GT3 Sprint Cup und bei Night Racers
 //   /login?als=neu      Discord-Konto ohne Fahrerprofil (Registrierung testen)
@@ -74,7 +74,8 @@ const json = (pfad, d) => B.blobPut(pfad, JSON.stringify(d), "application/json")
 
 // Testnutzer zum Anmelden. Anna, Ben und Carla haben ein Profil, „neu“ nicht.
 const NUTZER = {
-  anna: { id: "111111111111111111", name: "Anna", profil: { iracingName: "Anna Racer", custId: "100001", irating: 2100, iratingFormula: 1900, nummer: 12, land: "de" } },
+  // Anna hat sich schon beim Garage-61-Team gemeldet, deshalb sieht sie „Deine ersten Schritte“ nicht mehr
+  anna: { id: "111111111111111111", name: "Anna", profil: { iracingName: "Anna Racer", custId: "100001", irating: 2100, iratingFormula: 1900, nummer: 12, land: "de", g61Anfrage: vorTagen(3) } },
   ben: { id: "222222222222222222", name: "Ben", profil: { iracingName: "Ben Neu", custId: "100002", irating: 1800, iratingFormula: null, nummer: 7, land: "at" } },
   carla: { id: "333333333333333333", name: "Carla", profil: { iracingName: "Carla Fast", custId: "100003", irating: 3600, iratingFormula: 3100, nummer: 21, land: "ch" } },
   neu: { id: "444444444444444444", name: "Neuling" },
@@ -244,7 +245,7 @@ fuellen().then(() => http.createServer(async (req, res) => {
     const admin = u.searchParams.get("ziel") === "liga-admin";
     const wahl = admin
       ? [["steward", "Steward Test", "Reports entscheiden, Rest nur lesen"], ["leitung", "Rennleitung Test", "Alles im Cockpit"]]
-      : [["anna", "Anna Racer #12", "Stammfahrerin GT3 Sprint Cup, Report offen"], ["ben", "Ben Neu #7", "Ohne Season, Chef von Night Racers"], ["carla", "Carla Fast #21", "GT3 Sprint Cup, Night Racers"], ["neu", "Neuling", "Discord-Konto ohne Fahrerprofil"], ["steward", "Steward Test", "Cockpit"], ["leitung", "Rennleitung Test", "Cockpit"]];
+      : [["anna", "Anna Racer #12", "Stammfahrerin GT3 Sprint Cup, Report offen, erste Schritte erledigt"], ["ben", "Ben Neu #7", "Ohne Season, Chef von Night Racers"], ["carla", "Carla Fast #21", "GT3 Sprint Cup, Night Racers"], ["neu", "Neuling", "Discord-Konto ohne Fahrerprofil"], ["steward", "Steward Test", "Cockpit"], ["leitung", "Rennleitung Test", "Cockpit"]];
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Demo-Anmeldung</title>
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0d0e;color:#e8ece9;font:16px/1.4 system-ui,sans-serif;padding:16px}main{width:100%;max-width:440px}
