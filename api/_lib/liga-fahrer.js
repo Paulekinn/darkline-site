@@ -13,7 +13,9 @@ const Sichtung = require("./liga-sichtung");
 const Anfragen = require("./liga-anfragen");
 const Teams = require("./liga-teams");
 const Community = require("./liga-community");
-const COMMUNITY_AKTIONEN = new Set(["community-beantragen", "community-zurueck", "community-banner", "community-banner-weg", "community-teilnahme-anfragen", "community-teilnahme-zurueck", "community-teilnahme-entscheiden", "community-bearbeiten", "community-aenderung", "community-aenderung-zurueck", "community-absagen"]);
+const COMMUNITY_AKTIONEN = new Set(["community-beantragen", "community-zurueck", "community-banner", "community-banner-weg", "community-teilnahme-anfragen", "community-teilnahme-zurueck", "community-teilnahme-entscheiden", "community-bearbeiten", "community-aenderung", "community-aenderung-zurueck", "community-absagen", "community-ergebnis", "community-ergebnis-loeschen"]);
+// Reports gibt es nur bei Community-Rennen, für die Darkline das Stewarding übernimmt.
+const katFuerReports = (kat, liste) => mitCommunity(kat, (liste || []).filter(Community.darklineStewarding));
 // Freigegebene Community-Rennen kommen nur im Speicher zum Katalog dazu: für Rennliste, Anmeldung und Überschneidungen.
 // Reports, Seasons und Discord-Rollen arbeiten weiter mit dem reinen Liga-Katalog.
 function mitCommunity(kat, liste) {
@@ -49,8 +51,9 @@ const optionen = (s, kat) => ({ jetzt: Date.now(), schlussMinuten: SCHLUSS_MINUT
 const rennenFuerReports = (s, kat, alle) => A.baueRennen(kat.rennen, alle, { ...optionen(s, kat), mitIds: true, auchVergangene: true });
 
 // Reports für den Fahrerbereich: eigene Fälle, alle Urteile und die meldbaren Rennen
-async function reportDaten(s, kat, alle, frisch) {
+async function reportDaten(s, katLiga, alle, frisch) {
   const jetzt = Date.now();
+  const kat = katFuerReports(katLiga, await Community.alle(frisch).catch(() => []));
   const serien = serienMap(kat.serien);
   const reports = await R.alleReports(frisch);
   const sicht = reports.map((r) => R.sichtFahrer(r, r.einsprueche, s.id, jetzt, serien[r.serie]));
@@ -406,13 +409,13 @@ module.exports = async (req, res) => {
     await Sichtung.abgebenAusGarage(serie, alle, s.id, String(body.strecke || ""));
     extra.sichtungAbgegeben = true;
   } else if (body.aktion === "report-melden") {
-    await reportMelden(s, profil, body, alle, kat);
+    await reportMelden(s, profil, body, alle, katFuerReports(kat, await Community.alle(true).catch(() => [])));
   } else if (body.aktion === "report-einspruch") {
     await reportEinspruch(s, profil, body, kat);
   } else if (COMMUNITY_AKTIONEN.has(body.aktion)) {
     // Meldung an die Rennleitung und Direktnachrichten dürfen scheitern, gespeichert ist dann trotzdem.
-    const team = Teams.teamVon(await Teams.alle(false).catch(() => []), s.id);
-    const ergebnis = await Community.aktion(body.aktion, s.id, profil, body, { kat, eintraege: alle, team });
+    const teams = await Teams.alle(false).catch(() => []);
+    const ergebnis = await Community.aktion(body.aktion, s.id, profil, body, { kat, eintraege: alle, team: Teams.teamVon(teams, s.id), teamVon: (id) => Teams.teamVon(teams, id) });
     if (ergebnis && ergebnis.eintrag) alle = merke([...alle, jetztEintrag(ergebnis.eintrag)]);
     if (ergebnis && ergebnis.karte) await R.teamMelden(ergebnis.karte).catch(() => {});
     for (const n of (ergebnis && ergebnis.nachrichten) || []) await Dc.nachricht(n.an, n.text).catch(() => {});

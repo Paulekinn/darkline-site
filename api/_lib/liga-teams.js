@@ -284,10 +284,13 @@ const teamKurz = (t) => (t ? { id: t.id, name: t.name, kuerzel: t.kuerzel, farbe
 async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Nicht erlaubt" });
   const P = require("./liga-profil");
-  const [teams, profile, bilanz] = await Promise.all([alle(false), P.oeffentlicheProfile(), P.bilanzJePid().catch(() => new Map())]);
+  const C = require("./liga-community");
+  const [teams, profile, bilanz, teamrennen] = await Promise.all([alle(false), P.oeffentlicheProfile(), P.bilanzJePid().catch(() => new Map()),
+    // Teamwertung: nur Community-Rennen, die als Team gefahren wurden
+    C.alle(false).then(async (l) => (l.some((a) => a.ergebnis && a.ergebnis.team) ? C.teamErgebnisse(l, await require("./liga-reports").alleReports(false).catch(() => [])) : new Map())).catch(() => new Map())]);
   res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=120");
-  // Die Bilanz je Mitglied sind seine Einzelrennen, keine Teamwertung.
-  const mitBilanz = (t) => ({ ...t, mitglieder: t.mitglieder.map((m) => ({ ...m, ...(bilanz.get(m.pid) || { starts: 0, siege: 0, podien: 0 }) })) });
+  // Die Bilanz je Mitglied sind seine Einzelrennen, keine Teamwertung. Teamrennen stehen getrennt beim Team.
+  const mitBilanz = (t) => ({ ...t, mitglieder: t.mitglieder.map((m) => ({ ...m, ...(bilanz.get(m.pid) || { starts: 0, siege: 0, podien: 0 }) })), teamrennen: teamrennen.get(t.id) || [] });
   return res.status(200).json({ teams: teams.map((t) => mitBilanz(oeffentlich(t, profile))).sort((a, b) => b.mitglieder.length - a.mitglieder.length || a.name.localeCompare(b.name, "de")) });
 }
 

@@ -462,6 +462,12 @@
         <label class="a-check"><input type="checkbox" data-community-sponsored> Darkline Sponsored</label></span>
         <div class="a-leiste"><button type="button" class="a-knopf klein" data-community-entscheid="ja" ${daten}>Freigeben</button><button type="button" class="a-knopf zweit klein" data-community-entscheid="nein" ${daten}>Ablehnen</button></div></div>`;
     }).join("")}</div></section>` : "";
+    // Ergebnisse der Community-Rennen der letzten 14 Tage: fehlt eins, oder ist eins falsch hochgeladen?
+    const cErgebnisse = d.communityErgebnisse || [];
+    const cErgebnisHtml = cErgebnisse.length ? `<section class="a-karte"><div class="a-kartenkopf"><h2>Community-Ergebnisse</h2><span class="a-chip">${cErgebnisse.length}</span></div><p class="a-hinweis">Der Veranstalter lädt das Ergebnis hoch. Ein falsches Ergebnis entfernt ihr hier, danach kann er ein neues hochladen.</p><div class="a-liste">${cErgebnisse.map((a) => {
+      const stand = !a.hochgeladen ? "Ergebnis fehlt" : `${a.stand === "vorlaeufig" ? "Vorläufig" : "Endgültig"} · ${a.podium.map((n, i) => `P${i + 1} ${n}`).join(", ")}`;
+      return `<div class="a-abschluss s-rot"><span><b>${esc(a.titel)}</b><small>von ${esc(a.name)} · ${esc(terminText(a.start))} Uhr${a.team ? " · Teamrennen" : ""}${a.stewarding === "darkline" ? " · Stewarding durch Darkline" : ""}</small><small${a.hochgeladen ? "" : ' class="a-bild-fehler"'}>${esc(stand)}</small></span>${a.hochgeladen ? `<button type="button" class="a-knopf zweit klein" data-community-ergebnis-weg="${esc(a.id)}" data-titel="${esc(a.titel)}">Ergebnis entfernen</button>` : ""}</div>`;
+    }).join("")}</div></section>` : "";
     const aenderungHtml = aenderungen.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Community-Rennen: Änderungen</h2><span class="a-chip gelb">${aenderungen.length}</span></div><div class="a-liste">${aenderungen.map((a) => {
       const daten = `data-id="${esc(a.id)}" data-titel="${esc(a.titel)}" data-name="${esc(a.name)}"`;
       const stand = (x) => `${terminText(x.start)} Uhr · ${x.strecke} · ${x.fahrzeugklasse} · ${x.dauer} min`;
@@ -492,6 +498,7 @@
       ${cockpitStrafkonten()}
       ${abschluss}
       ${bannerHtml}
+      ${cErgebnisHtml}
       <div class="a-zwei">
         <section class="a-karte"><div class="a-kartenkopf"><h2>Zu entscheiden</h2><button type="button" class="a-knopf zweit klein" data-tab="reports">Alle Reports</button></div>${reportsHtml ? `<div class="a-liste">${reportsHtml}</div>` : '<p class="a-leer">Aktuell liegt nichts an.</p>'}</section>
         <section class="a-karte"><div class="a-kartenkopf"><h2>Nächste Rennen</h2><button type="button" class="a-knopf zweit klein" data-tab="rennen">Alle Rennen</button></div>${termine ? `<div class="a-liste">${termine}</div>` : '<p class="a-leer">Keine Rennen geplant.</p>'}</section>
@@ -1297,7 +1304,8 @@
   }
 
   // Bei Events zählt nur die Platzierung, dort gibt es keine Strafpunkte.
-  const urteileFuer = (r) => URTEILE.filter(([a]) => a !== "strafpunkte" || (serieVon(r.serie) || {}).typ !== "event");
+  // Keine Strafpunkte bei Events und Community-Rennen (dort gibt es keine Season-Tabelle)
+  const urteileFuer = (r) => URTEILE.filter(([a]) => a !== "strafpunkte" || ((serieVon(r.serie) || {}).typ !== "event" && !String(r.serie).startsWith("c-")));
 
   // Stimmen der Stewards. Solange man nicht selbst abgestimmt hat, bleiben die anderen verborgen.
   function abstimmung(r) {
@@ -1328,7 +1336,8 @@
     const m = r.urteil ? null : r.stimmen.mehrheit;
     const u = r.urteil || (m ? { art: m.art, punkte: m.punkte, sekunden: m.sekunden } : {});
     const art = u.art || "kein-vergehen";
-    const det = d.details && d.details.serie === r.serie ? d.details : { ergebnisse: [] };
+    // Community-Rennen: das vom Veranstalter hochgeladene Ergebnis
+    const det = r.communityErgebnis ? { ergebnisse: [r.communityErgebnis] } : d.details && d.details.serie === r.serie ? d.details : { ergebnisse: [] };
     const naechstes = u.rennen ? det.ergebnisse.find((e) => e.id === u.rennen) : [...det.ergebnisse].sort((a, b) => Math.abs(new Date(a.start) - new Date(r.start)) - Math.abs(new Date(b.start) - new Date(r.start)))[0];
     const strafend = art === "strafpunkte" || art === "zeitstrafe" || art === "dsq";
     return `<form id="f-urteil" class="a-karte" novalidate>
@@ -1344,7 +1353,7 @@
         <div class="a-feld" data-nur="strafe"${strafend ? "" : " hidden"}><label>Fahrer</label><select name="cust" id="u-fahrer">${naechstes ? fahrerOptionen(naechstes, u.cust || r.gegen.cust) : ""}</select></div>
         ${feld("Begründung (sehen alle angemeldeten Fahrer)", `<textarea name="begruendung" maxlength="2000">${esc(u.begruendung || "")}</textarea>`, true)}
       </div>
-      <p class="a-hinweis" data-nur="strafe"${strafend ? "" : " hidden"}>${det.ergebnisse.length ? "Zeitstrafen wirken nur bei Fahrern in der Führungsrunde. Bei Überrundeten bitte Strafpunkte vergeben." : "Für eine Strafe muss das Rennergebnis zuerst unter „Ergebnisse“ eingelesen werden."}</p>
+      <p class="a-hinweis" data-nur="strafe"${strafend ? "" : " hidden"}>${String(r.serie).startsWith("c-") ? (det.ergebnisse.length ? "Community-Rennen: Die Strafe ändert das Ergebnis des Rennens. Zeitstrafen wirken nur in der Führungsrunde, bei Überrundeten bitte disqualifizieren oder verwarnen." : "Für eine Strafe muss der Veranstalter zuerst das Ergebnis hochladen.") : det.ergebnisse.length ? "Zeitstrafen wirken nur bei Fahrern in der Führungsrunde. Bei Überrundeten bitte Strafpunkte vergeben." : "Für eine Strafe muss das Rennergebnis zuerst unter „Ergebnisse“ eingelesen werden."}</p>
       <div class="a-leiste"><button type="submit" class="a-knopf">Urteil speichern</button></div>
     </form>`;
   }
@@ -1705,6 +1714,10 @@
       const grund = ja ? "" : window.prompt("Grund für die Ablehnung (freiwillig). Der Fahrer bekommt ihn per Direktnachricht.", "");
       if (grund === null) return;
       return aktion({ aktion: "anfrage-entscheiden", serie: b.dataset.serie, discordId: b.dataset.discord, name: b.dataset.name, ja, grund }, ja ? "Freigegeben, der Fahrer ist angemeldet und wird informiert." : "Abgelehnt, der Fahrer wird informiert.");
+    }
+    if (b.dataset.communityErgebnisWeg) {
+      if (!window.confirm(`Ergebnis von „${b.dataset.titel}“ entfernen? Strafen aus Urteilen werden dabei mit entfernt. Der Veranstalter kann danach ein neues hochladen.`)) return;
+      return aktion({ aktion: "community-ergebnis-loeschen", id: b.dataset.communityErgebnisWeg, titel: b.dataset.titel }, "Ergebnis entfernt.");
     }
     if (b.dataset.communityAenderung) {
       const ja = b.dataset.communityAenderung === "ja";

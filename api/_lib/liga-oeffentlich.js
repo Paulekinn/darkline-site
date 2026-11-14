@@ -10,7 +10,12 @@ module.exports = async (req, res) => {
   const { serien, rennen, einstellungen } = await D.katalog(false);
   const antwort = { serien, rennen: rennen.map(D.oeffentlichesRennen), kopfbildVersion: einstellungen.kopfbildVersion || 0 };
   // Kommende Community-Rennen für die Übersicht. Ein Fehler hier blendet nur den Abschnitt aus.
-  if (!(req.query || {}).serie) antwort.community = Community.oeffentlich(await Community.alle(false).catch(() => []));
+  if (!(req.query || {}).serie) {
+    const liste = await Community.alle(false).catch(() => []);
+    antwort.community = Community.oeffentlich(liste);
+    // Letzte Ergebnisse. Vorläufig, solange bei Darkline-Stewarding ein Fall offen ist oder die Protestfrist läuft.
+    if (liste.some((a) => a.ergebnis)) antwort.communityErgebnisse = Community.oeffentlicheErgebnisse(liste, await R.alleReports(false).catch(() => []));
+  }
   const kennung = (req.query || {}).serie;
   if (D.istId(kennung) && serien.some((s) => s.id === kennung)) antwort.tabelle = await D.tabelleLesen(kennung);
   // Das iRating dient nur der Einstufung und bleibt bei der Rennleitung.

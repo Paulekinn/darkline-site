@@ -29,6 +29,20 @@
 
   const ohneRennen = '<section class="sheet"><div class="wrap"><div class="liga-leer"><h3>Noch keine Rennen</h3><p>Dieser Fahrer ist registriert, aber noch kein gewertetes Rennen gefahren. Ergebnisse und Fahrerkarte erscheinen hier nach dem ersten Start.</p><a class="hbtn" href="/fahrer">Alle Fahrer</a></div></div></section>';
 
+  // Community-Rennen: eigener Block, getrennt von Liga-Bilanz und Fahrerkarte
+  function communityBlock(c) {
+    if (!c || !c.starts) return "";
+    const datum = (s) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(s));
+    const zahlen = [[c.starts, c.starts === 1 ? "Start" : "Starts"], [c.siege, c.siege === 1 ? "Sieg" : "Siege"], [c.podien, c.podien === 1 ? "Podium" : "Podien"]];
+    const zeilen = c.rennen.map((r) => `<tr><td class="umbruch">${esc(r.titel)}${r.vorlaeufig ? ' <span class="liga-vorlaeufig">Vorläufig</span>' : ""}</td><td>${esc(datum(r.start))}</td><td class="umbruch">${esc(r.strecke)}</td><td class="umbruch">${esc(r.team || "–")}</td><td class="zahl">${r.dsq ? "DSQ" : r.platz ? `P${r.platz}` : "–"}</td></tr>`).join("");
+    return `<section class="sheet"><div class="wrap">
+      <div class="doc-head"><h2 class="wide">Community-Rennen</h2><div class="doc-meta lbl">${zahlen.map(([w, t]) => `${w} ${t}`).join(" · ")}</div><p>Eigene Rennen unserer Fahrer. Sie zählen nicht für die Seasons und die Fahrerkarte.</p></div>
+      <div class="liga-abschnitt-inhalt"><div class="liga-scroll k-ges" tabindex="0" role="region" aria-label="Community-Rennen"><table class="liga-tabelle">
+        <thead><tr><th>Rennen</th><th>Datum</th><th>Strecke</th><th>Team</th><th class="zahl">Platz</th></tr></thead><tbody>${zeilen}</tbody>
+      </table></div></div>
+    </div></section>`;
+  }
+
   function zeige(d) {
     const p = d.profil || {};
     const haupt = d.karten[0];
@@ -59,8 +73,9 @@
           ${haupt ? karteHtml(haupt, p) : ""}
         </div>
       </section>
-      ${haupt ? "" : ohneRennen}
+      ${haupt ? "" : d.community && d.community.starts ? '<section class="sheet"><div class="wrap"><p class="fa-l-satz">Noch kein Liga-Rennen. Die Fahrerkarte entsteht mit dem ersten gewerteten Rennen in einer Season oder einem Event.</p></div></section>' : ohneRennen}
       ${(d.erfolge || []).length ? `<section class="sheet"><div class="wrap"><div class="doc-head"><h2 class="wide">Event-Erfolge</h2><div class="doc-meta lbl">${d.erfolge.length} ${d.erfolge.length === 1 ? "Podium" : "Podien"}</div></div><ul class="fa-erfolge">${d.erfolge.map((e) => `<li class="${podium(e.platz)}"><b>${e.platz === 1 ? "Sieger" : `P${e.platz}`}</b><a href="/liga?serie=${encodeURIComponent(e.serie)}">${esc(e.titel)}</a>${e.klasse ? `<small>${esc(e.klasse)}</small>` : ""}</li>`).join("")}</ul></div></section>` : ""}
+      ${communityBlock(d.community)}
       ${d.karten.length > 1 ? `<section class="sheet"><div class="wrap"><div class="doc-head"><h2 class="wide">Weitere Serien</h2><div class="doc-meta lbl">${d.karten.length} Wertungen</div></div><div class="fa-karten">${d.karten.slice(1).map((k) => karteHtml(k, p)).join("")}</div></div></section>` : ""}
       ${haupt ? `<section class="sheet"><div class="wrap">
         <div class="doc-head"><h2 class="wide">Ergebnisse</h2><div class="doc-meta lbl">${b.starts} ${b.starts === 1 ? "Rennen" : "Rennen"}</div></div>

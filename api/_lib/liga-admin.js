@@ -184,6 +184,7 @@ async function protokollText(b, kat) {
     "community-entscheiden": () => `Community-Rennen ${b.ja === true ? `freigegeben (${b.stewarding === "darkline" ? "Stewarding durch Darkline" : "auf eigene Verantwortung"}${b.sponsored === true ? ", Darkline Sponsored" : ""})` : "abgelehnt"}: ${b.titel || b.id}`,
     "community-aenderung-entscheiden": () => `Änderung eines Community-Rennens ${b.ja === true ? "freigegeben" : "abgelehnt"}: ${b.titel || b.id}`,
     "community-absagen": () => `Community-Rennen abgesagt: ${b.titel || b.id}`,
+    "community-ergebnis-loeschen": () => `Ergebnis eines Community-Rennens gelöscht: ${b.titel || b.id}`,
     "community-banner-weg": () => `Banner eines Community-Rennens entfernt: ${b.titel || b.id}`,
     "fahrzeug-entscheiden": () => `Fahrzeugwechsel ${b.ja === true ? "bestätigt" : "abgelehnt"} in ${serie(b.serie)}`,
     "fahrzeug-setzen": () => `Fahrzeug gesetzt in ${serie(b.serie)}: ${b.modell}`,
@@ -271,6 +272,7 @@ function streckeZiel(kat, ziel) {
 function keinePunkteBeiEvents(kat, serieId, art) {
   const serie = kat.serien.find((s) => s.id === serieId);
   if (art === "strafpunkte" && serie && serie.typ === "event") throw new Hinweis("Bei Events gibt es keine Strafpunkte. Bitte wähle eine Zeitstrafe oder Disqualifikation.");
+  if (art === "strafpunkte" && Community.idAusRennen(serieId)) throw new Hinweis("Bei Community-Rennen gibt es keine Strafpunkte. Bitte wähle eine Verwarnung, Zeitstrafe oder Disqualifikation.");
 }
 
 const aktionen = {
@@ -493,6 +495,11 @@ const aktionen = {
     const a = await Community.adminAbsagen(String(b.id || ""), grund, s && s.name);
     const an = [a.discordId, ...Community.gemeldeteIds(a, await eintraege()), ...(a.anfragen || []).map((x) => x.discordId)].filter((x, i, l) => l.indexOf(x) === i);
     for (const id of an) await Dc.nachricht(id, Community.absageText(a, grund, true)).catch((e) => console.warn("Community-Rennen: Nachricht:", e.message));
+    return {};
+  },
+  // Falsches Ergebnis eines Community-Rennens entfernen. Der Veranstalter kann danach ein neues hochladen.
+  async "community-ergebnis-loeschen"(b) {
+    await Community.ergebnisLoeschen(String(b.id || ""));
     return {};
   },
   // Unpassender Banner eines Community-Rennens: Die Rennleitung entfernt ihn, der Fahrer bekommt eine Direktnachricht.
@@ -847,6 +854,27 @@ const aktionen = {
     darfEntscheiden(report, s);
     const urteil = R.pruefeUrteil(b.urteil || {});
     keinePunkteBeiEvents(kat, report.serie, urteil.art);
+    // Community-Rennen: Das Urteil wirkt auf das hochgeladene Ergebnis des Rennens, eine Season-Tabelle gibt es nicht.
+    const cId = Community.idAusRennen(report.serie);
+    if (cId) {
+      const a = (await Community.alle(true)).find((x) => x.id === cId);
+      if (!a) throw new Hinweis("Dieses Community-Rennen gibt es nicht mehr.");
+      const strafend = R.istStrafend(urteil);
+      const lg = Community.alsLigaErgebnis(a);
+      const fahrer = strafend && lg ? lg.fahrer.find((f) => f.cust === String(b.cust)) : null;
+      if (strafend && !fahrer) throw new Hinweis(lg ? "Bitte wähle den Fahrer aus, für den die Strafe gilt." : "Für eine Strafe muss der Veranstalter zuerst das Ergebnis hochladen.");
+      if (strafend || a.ergebnis) await Community.urteilAnwenden(a.id, report.id, urteil, fahrer ? { cust: fahrer.cust } : null);
+      const einspruecheC = ((await R.alleReports(true)).find((r) => r.id === report.id) || {}).einsprueche || [];
+      let vorherC;
+      const entschiedenC = await R.aendern(report.id, (r) => {
+        vorherC = r.urteil;
+        r.urteil = { ...urteil, ...(fahrer ? { rennen: lg.id, cust: fahrer.cust, name: fahrer.name } : {}), von: s.name, zeit: new Date().toISOString() };
+        r.status = "entschieden";
+        r.endgueltig = einspruecheC.length > 0;
+      });
+      await R.discordMelden(entschiedenC, urteil, vorherC);
+      return { warnungen: [] };
+    }
     let ziel = null;
     if (R.istStrafend(urteil)) {
       const ergebnis = (await D.ergebnisseLesen(report.serie)).find((e) => e.id === String(b.ergebnis));
@@ -923,11 +951,14 @@ module.exports = async (req, res) => {
     }
     const details = D.istId((req.query || {}).serie) && kat.serien.some((x) => x.id === req.query.serie) ? await serienDetails(kat, req.query.serie) : null;
     const alleReports = await R.alleReports(true);
-    const ergebnisseJe = new Map(await Promise.all([...new Set(alleReports.map((r) => r.serie))].filter((x) => D.istId(x)).map(async (id) => [id, await D.ergebnisseLesen(id).catch(() => [])])));
-    const reports = alleReports.map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id), stimmen: R.stimmenSicht(r, s.id), kontext: R.rennKontext(r, ergebnisseJe.get(r.serie) || []) }));
+    // Community-Rennen: Ergebnis aus dem Antrag im Format der Liga-Ergebnisse, für Kontext und Strafauswahl
+    const communityListe = alleReports.some((r) => Community.idAusRennen(r.serie)) ? await Community.alle(true).catch(() => []) : [];
+    const communityErgebnis = (serie) => { const a = communityListe.find((x) => Community.rennenId(x) === serie); return a ? Community.alsLigaErgebnis(a) : null; };
+    const ergebnisseJe = new Map(await Promise.all([...new Set(alleReports.map((r) => r.serie))].filter((x) => D.istId(x)).map(async (id) => [id, Community.idAusRennen(id) ? [communityErgebnis(id)].filter(Boolean) : await D.ergebnisseLesen(id).catch(() => [])])));
+    const reports = alleReports.map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id), stimmen: R.stimmenSicht(r, s.id), kontext: R.rennKontext(r, ergebnisseJe.get(r.serie) || []), ...(Community.idAusRennen(r.serie) ? { communityErgebnis: communityErgebnis(r.serie) } : {}) }));
     // Stewards bekommen nur, was sie für Reports und zum Nachlesen brauchen, ohne Anträge und Hinweise der Rennleitung.
-    if (istSteward(s)) return res.status(200).json({ angemeldet: true, rolle: "steward", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...COCKPIT_LEER, nummernWuensche: [], fahrzeugAntraege: [], beitrittsAnfragen: [], communityAntraege: [], communityAenderungen: [], communityKommend: [], details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
-    return res.status(200).json({ angemeldet: true, rolle: "leitung", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), nummernWuensche: await P.wuenscheLesen().catch(() => []), fahrzeugAntraege: (await F.offeneAntraege().catch(() => [])).map((a) => ({ ...a, serieName: (kat.serien.find((x) => x.id === a.serie) || {}).name || a.serie })), beitrittsAnfragen: (await Anfragen.alle().catch(() => [])).filter((a) => kat.serien.some((x) => x.id === a.serie)).map((a) => ({ ...a, serieName: kat.serien.find((x) => x.id === a.serie).name })), ...(await Promise.all([Community.alle(true), eintraege()]).then(([liste, meldungen]) => ({ communityAntraege: Community.offeneFuerCockpit(liste, kat), communityAenderungen: Community.aenderungenFuerCockpit(liste, kat), communityKommend: Community.kommendeFuerCockpit(liste, meldungen) })).catch(() => ({ communityAntraege: [], communityAenderungen: [], communityKommend: [] }))), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    if (istSteward(s)) return res.status(200).json({ angemeldet: true, rolle: "steward", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...COCKPIT_LEER, nummernWuensche: [], fahrzeugAntraege: [], beitrittsAnfragen: [], communityAntraege: [], communityAenderungen: [], communityKommend: [], communityErgebnisse: [], details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    return res.status(200).json({ angemeldet: true, rolle: "leitung", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), nummernWuensche: await P.wuenscheLesen().catch(() => []), fahrzeugAntraege: (await F.offeneAntraege().catch(() => [])).map((a) => ({ ...a, serieName: (kat.serien.find((x) => x.id === a.serie) || {}).name || a.serie })), beitrittsAnfragen: (await Anfragen.alle().catch(() => [])).filter((a) => kat.serien.some((x) => x.id === a.serie)).map((a) => ({ ...a, serieName: kat.serien.find((x) => x.id === a.serie).name })), ...(await Promise.all([Community.alle(true), eintraege()]).then(([liste, meldungen]) => ({ communityAntraege: Community.offeneFuerCockpit(liste, kat), communityAenderungen: Community.aenderungenFuerCockpit(liste, kat), communityKommend: Community.kommendeFuerCockpit(liste, meldungen), communityErgebnisse: Community.ergebnisseFuerCockpit(liste, alleReports) })).catch(() => ({ communityAntraege: [], communityAenderungen: [], communityKommend: [], communityErgebnisse: [] }))), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });

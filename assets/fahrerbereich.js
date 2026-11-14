@@ -142,7 +142,8 @@
 
   function hauptRennen(r) {
     const schluss = r.offen && r.anmeldungZu && !r.ich ? "" : r.offen ? `${r.anmeldungZu ? "Abmeldung" : "Anmeldung und Abmeldung"} bis ${datum(r.schluss)}, ${uhr(r.schluss)}` : r.status === "abgesagt" ? "" : "Änderungen jetzt bitte im Discord an die Rennleitung.";
-    const passwort = zeigeZugang(r) && r.ich && r.ich.status === "starter" ? r.passwort || "Kommt im Discord" : "";
+    // Bei Community-Rennen trägt der Veranstalter die Zugangsdaten ein, nicht die Rennleitung.
+    const passwort = zeigeZugang(r) && r.ich && r.ich.status === "starter" ? r.passwort || (r.community ? "Kommt vom Veranstalter" : "Kommt im Discord") : "";
     const konflikt = r.konflikt && r.konflikt.length ? `<p class="fb-konflikt">Überschneidung mit: ${esc(r.konflikt.join(", "))}. Melde dich bei einem der Rennen ab.</p>` : "";
     return `<article class="fb-haupt ${farbe(r.serieFarbe)}${r.serieTyp === "event" ? " ist-event" : ""}">
       <div class="fb-haupt-bild" ${motiv(rennBild(r))} aria-hidden="true"></div>
@@ -233,7 +234,7 @@
       </div>
       ${zeigeZugang(r) ? "" : '<p class="fb-klein">Du brauchst keine Zugangsdaten. Die Session findest du in iRacing bei unserer Liga.</p>'}
       <div class="fb-renntag-reihe${zeigeZugang(r) ? "" : " ohne-zugang"}">
-        ${zeigeZugang(r) ? `${zugang("Server", r.server, "Folgt im Discord")}${zugang("Passwort", r.passwort, "Folgt im Discord")}` : ""}
+        ${zeigeZugang(r) ? `${zugang(r.community ? "Session" : "Server", r.server, r.community ? "Kommt vom Veranstalter" : "Folgt im Discord")}${zugang("Passwort", r.passwort, r.community ? "Kommt vom Veranstalter" : "Folgt im Discord")}` : ""}
         <dl class="fb-fakten">${fakt("Training", r.training)}${fakt("Qualifying", r.qualifying)}${fakt("Rennen", r.renndauer)}${fakt("Wetter", r.wetter)}</dl>
       </div>
       <ul class="fb-renntag-liste">${RENNTAG_LISTE.map(([k, t]) => `<li><label><input type="checkbox" data-haken="${k}" data-rennen="${esc(r.id)}"${haken[k] ? " checked" : ""}> ${esc(t)}</label></li>`).join("")}</ul>
@@ -757,6 +758,16 @@
       <p class="fb-profil-link"><button type="button" class="fb-link" data-community-absagen="${esc(a.id)}" data-titel="${esc(a.titel)}">Rennen absagen</button></p>`;
   }
 
+  // Ergebnis: Nach dem Start lädt der Veranstalter die JSON-Datei aus iRacing hoch.
+  function communityErgebnisTeil(a) {
+    const e = a.ergebnis;
+    if (!e && !a.ergebnisMoeglich) return "";
+    const kurz = e ? `<p class="fb-klein">Ergebnis hochgeladen am ${esc(datum(e.hochgeladen))}, ${esc(uhr(e.hochgeladen))} · ${esc(e.anzahl)} ${e.team ? "Teams" : "Fahrer"} gewertet. ${e.zeilen.map((z) => `P${z.platz || "–"} ${esc(z.name)}`).join(" · ")}</p>` : "";
+    const knopf = a.ergebnisMoeglich ? `<div class="fb-kalender"><label class="fb-abmelden fb-datei">${e ? "Neue Ergebnisdatei hochladen" : "Ergebnisdatei hochladen"}<input type="file" accept=".json,application/json" data-community-ergebnis="${esc(a.id)}" hidden></label>${e ? `<button type="button" class="fb-abmelden" data-community-ergebnis-weg="${esc(a.id)}">Ergebnis entfernen</button>` : ""}</div>
+      <p class="fb-klein">Die JSON-Datei findest du in iRacing bei den Ergebnissen deiner Session (Export als JSON). Gewertet werden nur gemeldete Fahrer.${a.entscheid && a.entscheid.stewarding === "darkline" ? " Weil Darkline das Stewarding übernimmt, bleibt das Ergebnis bis zum Ende der Protestfrist vorläufig." : ""}</p>` : "";
+    return `<h4 class="fb-zwischen">Ergebnis</h4>${kurz}${knopf}`;
+  }
+
   function communityKarte(a) {
     const [klasse, text] = COMMUNITY_STATUS[a.status] || ["", a.status];
     const e = a.entscheid;
@@ -772,6 +783,7 @@
       <p class="fb-fall-text">${esc(a.beschreibung)}</p>${entscheid}
       ${bannerTeil}
       ${a.bearbeitbar ? communityVerwaltung(a) : ""}
+      ${communityErgebnisTeil(a)}
       ${a.status === "offen" ? `<p class="fb-profil-link"><button type="button" class="fb-link" data-community-zurueck="${esc(a.id)}">Antrag zurückziehen</button></p>` : ""}
     </article>`;
   }
@@ -929,6 +941,10 @@
       if (!window.confirm("Banner entfernen? Dann verwenden wir ein Livery-Bild.")) return;
       return sende({ aktion: "community-banner-weg", id: b.dataset.communityBannerWeg }).then((ok) => { if (ok) meldung("Banner entfernt.", true); });
     }
+    if (b.dataset.communityErgebnisWeg) {
+      if (!window.confirm("Ergebnis entfernen? Du kannst danach eine andere Datei hochladen.")) return;
+      return sende({ aktion: "community-ergebnis-loeschen", id: b.dataset.communityErgebnisWeg }).then((ok) => { if (ok) meldung("Ergebnis entfernt.", true); });
+    }
     if (b.dataset.communityTeilnahme) {
       const anfragen = b.dataset.communityTeilnahme === "anfragen";
       if (!anfragen && !window.confirm("Teilnahme-Anfrage zurückziehen?")) return;
@@ -1046,6 +1062,14 @@
 
   // Im Report-Formular gehören die Fahrer zum gewählten Rennen.
   main.addEventListener("change", (e) => {
+    if (e.target.dataset.communityErgebnis && e.target.files[0]) {
+      const id = e.target.dataset.communityErgebnis;
+      e.target.files[0].text()
+        .then((t) => JSON.parse(t))
+        .then((datei) => sende({ aktion: "community-ergebnis", id, datei }), () => { meldung("Diese Datei ist kein gültiges JSON. Bitte lade die Ergebnisdatei aus iRacing hoch."); return false; })
+        .then((ok) => { if (ok) meldung("Ergebnis gespeichert. Es steht jetzt auf der Ligaseite.", true); });
+      return;
+    }
     if (e.target.dataset.communityBanner && e.target.files[0]) {
       const ziel = e.target.dataset.communityBanner;
       const fehler = () => meldung("Dieses Bild konnte nicht gelesen werden. Bitte wähle ein anderes aus.");

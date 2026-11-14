@@ -1211,6 +1211,108 @@ const tests = {
       for (const k of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
     }
   },
+  "Community-Rennen: Ergebnisse lesen, abgleichen und werten": () => {
+    const C = require("../api/_lib/liga-community");
+    const start = "2026-11-20T19:00:00Z";
+    const zeile = (cust, name, pos, runden, abstand, extra) => ({ cust_id: cust, display_name: name, finish_position: pos, starting_position: pos, laps_complete: runden, interval: abstand, best_lap_time: 1234567, incidents: 2, car_class_short_name: "GT3", car_name: "BMW M4 GT3", reason_out: "Running", ...extra });
+    const einzel = { data: { subsession_id: 555, start_time: start, track: { track_name: "Spa" }, session_results: [{ simsession_type: 6, simsession_number: 0, results: [zeile(11, "Anna", 0, 20, 0), zeile(22, "Ben", 1, 20, 30000), zeile(33, "Fremd", 2, 20, 50000), zeile(44, "Carla", 3, 19, -1)] }] } };
+    const datei = C.leseErgebnisDatei(einzel);
+    assert.deepStrictEqual([datei.team, datei.zeilen.length, datei.zeilen[1].abstand, datei.zeilen[3].abstand], [false, 4, 30000, null]);
+    assert.throws(() => C.leseErgebnisDatei({ foo: 1 }), /keine iRacing-Ergebnisdatei/);
+    // Nur gemeldete Fahrer bleiben drin, mit anonymer Kennung statt iRacing-ID nach außen
+    const gemeldet = new Map([["11", { discordId: "1" }], ["22", { discordId: "2" }], ["44", { discordId: "4" }]]);
+    const ab = C.ergebnisAbgleichen(datei, gemeldet);
+    assert.deepStrictEqual(ab.zeilen.map((z) => z.name), ["Anna", "Ben", "Carla"]);
+    assert.ok(/^[0-9a-f]{16}$/.test(ab.zeilen[0].fahrer[0].pid));
+    assert.throws(() => C.ergebnisAbgleichen(datei, new Map()), /Keiner der Fahrer/);
+    // Wertung: 5 Sekunden Zeitstrafe schieben Anna hinter Ben, DSQ geht ans Ende
+    const a = { id: "abcd0001", status: "freigegeben", titel: "Test", start, dauer: 45, art: "einzel", entscheid: { stewarding: "darkline" }, ergebnis: ab, strafen: { zeitstrafen: [{ reportId: "r1", key: "11", sekunden: 5 }], disqualifikationen: [] } };
+    assert.deepStrictEqual(C.wertung(a).map((z) => [z.name, z.platz]), [["Ben", 1], ["Anna", 2], ["Carla", 3]]);
+    assert.deepStrictEqual(C.wertung({ ...a, strafen: { zeitstrafen: [], disqualifikationen: [{ reportId: "r2", key: "22" }] } }).map((z) => [z.name, z.platz]), [["Anna", 1], ["Carla", 2], ["Ben", null]]);
+    // Stand: bei Darkline-Stewarding vorläufig bis Fristende und solange ein Fall offen ist, sonst sofort endgültig
+    const kurzDanach = Date.parse(start) + 3600e3;
+    assert.strictEqual(C.ergebnisStand(a, [], kurzDanach), "vorlaeufig");
+    assert.strictEqual(C.ergebnisStand(a, [], Date.parse(start) + 80 * 3600e3), "endgueltig");
+    assert.strictEqual(C.ergebnisStand(a, [{ serie: "c-abcd0001", urteil: null }], Date.parse(start) + 80 * 3600e3), "vorlaeufig");
+    assert.strictEqual(C.ergebnisStand({ ...a, entscheid: { stewarding: "eigene" } }, [], kurzDanach), "endgueltig");
+    // Profil und öffentliche Sicht ohne iRacing- und Discord-IDs
+    const pidAnna = ab.zeilen[0].fahrer[0].pid;
+    const bilanz = C.fahrerBilanz([a], pidAnna, [], kurzDanach);
+    assert.deepStrictEqual([bilanz.starts, bilanz.siege, bilanz.podien, bilanz.rennen[0].platz, bilanz.rennen[0].vorlaeufig], [1, 0, 1, 2, true]);
+    const [oe] = C.oeffentlicheErgebnisse([a], [], kurzDanach);
+    const json = JSON.stringify(oe);
+    assert.ok(!json.includes('"cust"') && !json.includes("discordId"));
+    assert.strictEqual(C.alsLigaErgebnis(a).fahrer.find((f) => f.cust === "22").gesamt, 2);
+
+    // Teamrennen mit geteiltem Auto: Teamzeilen ohne iRacing-ID, Fahrer in driver_results
+    const teamZeile = (id, name, pos, fahrer, abstand) => ({ cust_id: -id, team_id: id, display_name: name, finish_position: pos, starting_position: pos, laps_complete: 100, interval: abstand, best_lap_time: 1300000, incidents: 4, car_class_short_name: "GT3", reason_out: "Running", driver_results: fahrer.map(([c, n]) => ({ cust_id: c, display_name: n, laps_complete: 50, incidents: 2, best_lap_time: 1300000 })) });
+    const team = C.leseErgebnisDatei({ data: { subsession_id: 777, start_time: start, track: { track_name: "Nordschleife" }, session_results: [{ simsession_type: 6, simsession_number: 0, results: [teamZeile(9, "iRacing-Team A", 0, [[11, "Anna"], [99, "Gast"]], 0), teamZeile(8, "iRacing-Team B", 1, [[22, "Ben"], [44, "Carla"]], 120000)] }] } });
+    assert.strictEqual(team.team, true);
+    const ligaTeams = { 1: { id: "aaaaaaaa", name: "Night Racers", kuerzel: "NR" }, 2: { id: "bbbbbbbb", name: "Iberia", kuerzel: "IBS" }, 4: { id: "bbbbbbbb", name: "Iberia", kuerzel: "IBS" } };
+    const tab = C.ergebnisAbgleichen(team, gemeldet, (id) => ligaTeams[id] || null);
+    assert.deepStrictEqual(tab.zeilen.map((z) => [z.ligaTeam.name, z.fahrer.length, z.weitere]), [["Night Racers", 1, 1], ["Iberia", 2, 0]]);
+    const ta = { ...a, art: "team", ergebnis: tab, strafen: {}, entscheid: { stewarding: "eigene" } };
+    const je = C.teamErgebnisse([ta, a], [], kurzDanach);
+    assert.deepStrictEqual([je.get("aaaaaaaa")[0].platz, je.get("bbbbbbbb")[0].platz, je.get("bbbbbbbb")[0].fahrer], [1, 2, ["Ben", "Carla"]]);
+    assert.ok(!je.has(undefined), "Einzelrennen zählen nicht für Teams");
+    // Strafe im Teamrennen trifft das ganze Auto
+    assert.deepStrictEqual(C.wertung({ ...ta, strafen: { disqualifikationen: [{ key: "t9" }] } }).map((z) => z.ligaTeam.kuerzel), ["IBS", "NR"]);
+  },
+  "Community-Rennen: Ergebnis hochladen, Urteil anwenden, entfernen": async () => {
+    const C = require("../api/_lib/liga-community");
+    const alt = { fetch: global.fetch, env: { ...process.env } };
+    Object.assign(process.env, { SUPABASE_URL: "https://speicher.example", SUPABASE_SECRET_KEY: "k" });
+    const db = new Map();
+    let uhr = 0;
+    global.fetch = async (url, init = {}) => {
+      const u = new URL(String(url));
+      const p = u.searchParams.get("pfad") || "";
+      const antwort = (daten) => ({ ok: true, json: async () => daten, text: async () => "" });
+      if (!init.method || init.method === "GET") {
+        if (p.startsWith("like.")) { const pre = p.slice(5).replace(/\*$/, "").replace(/\\(.)/g, "$1"); return antwort([...db].filter(([k]) => k.startsWith(pre)).map(([pfad, z]) => ({ pfad, ...z }))); }
+        const z = db.get(p.slice(3)); return antwort(z ? [z] : []);
+      }
+      if (init.method === "POST") { for (const z of JSON.parse(init.body)) { if (!db.has(z.pfad) || !String(init.headers && init.headers.prefer).includes("ignore-duplicates")) db.set(z.pfad, { inhalt: z.inhalt, binaer: false, geaendert: new Date(++uhr * 1000).toISOString() }); } return antwort([{ pfad: JSON.parse(init.body)[0].pfad }]); }
+      if (init.method === "PATCH") { const pfad = p.slice(3); const z = db.get(pfad); if (!z || `eq.${z.geaendert}` !== u.searchParams.get("geaendert")) return antwort([]); db.set(pfad, { ...z, ...JSON.parse(init.body), geaendert: new Date(++uhr * 1000).toISOString() }); return antwort([{ pfad }]); }
+      if (init.method === "DELETE") { for (const k of [...db.keys()]) if (p.includes(`"${k}"`)) db.delete(k); return antwort([]); }
+      throw new Error("unerwartet");
+    };
+    const B2 = require("../api/_lib/blob");
+    const vorEinerStunde = new Date(Date.now() - 3600e3).toISOString();
+    const anna = { iracingName: "Anna", nummer: 12 };
+    try {
+      await B2.blobPut("liga/fahrer/111111.json", JSON.stringify({ iracingName: "Anna", custId: "11", nummer: 12 }), "application/json");
+      await B2.blobPut("liga/fahrer/222222.json", JSON.stringify({ iracingName: "Ben", custId: "22", nummer: 7 }), "application/json");
+      await B2.blobPut("liga/community/abcd0009.json", JSON.stringify({ id: "abcd0009", discordId: "111111", name: "Anna", status: "freigegeben", titel: "Ergebnis-Test", start: vorEinerStunde, datum: "2026-01-01", uhrzeit: "20:00", dauer: 30, art: "einzel", zugang: "offen", plaetze: 10, entscheid: { stewarding: "darkline" }, anfragen: [], session: {} }), "application/json");
+      const eintraege = ["111111", "222222"].map((id, i) => A.leseEintrag({ pathname: A.anmeldungPfad("c-abcd0009", id, "", `F${id}`), uploadedAt: iso(i) }));
+      const datei = { subsession_id: 1, start_time: vorEinerStunde, track: { track_name: "Spa" }, session_results: [{ simsession_type: 6, simsession_number: 0, results: [{ cust_id: 22, display_name: "Ben", finish_position: 0, laps_complete: 10, interval: 0, incidents: 0 }, { cust_id: 11, display_name: "Anna", finish_position: 1, laps_complete: 10, interval: 20000, incidents: 1 }, { cust_id: 77, display_name: "Fremd", finish_position: 2, laps_complete: 10, interval: 40000, incidents: 0 }] }] };
+      // Nur der Veranstalter lädt hoch, nicht passende Termine werden abgelehnt
+      await assert.rejects(C.aktion("community-ergebnis", "222222", { iracingName: "Ben", nummer: 7 }, { id: "abcd0009", datei }, { eintraege }), /gibt es nicht/);
+      await assert.rejects(C.aktion("community-ergebnis", "111111", anna, { id: "abcd0009", datei: { ...datei, start_time: "2020-01-01T00:00:00Z" } }, { eintraege }), /passt nicht zum Termin/);
+      const { karte } = await C.aktion("community-ergebnis", "111111", anna, { id: "abcd0009", datei }, { eintraege });
+      assert.ok(/Ergebnis hochgeladen/.test(karte.title) && /Reports sind jetzt möglich/.test(karte.description));
+      let [a] = await C.alle(true);
+      assert.deepStrictEqual(C.wertung(a).map((z) => z.name), ["Ben", "Anna"], "Nicht gemeldete Fahrer fehlen");
+      // Urteil: 30 Sekunden für Ben, ein neues Urteil zum selben Report ersetzt das alte
+      await C.urteilAnwenden("abcd0009", "rep1", { art: "zeitstrafe", sekunden: 30 }, { cust: "22" });
+      [a] = await C.alle(true);
+      assert.deepStrictEqual(C.wertung(a).map((z) => z.name), ["Anna", "Ben"]);
+      await C.urteilAnwenden("abcd0009", "rep1", { art: "verwarnung" }, null);
+      [a] = await C.alle(true);
+      assert.deepStrictEqual(C.wertung(a).map((z) => z.name), ["Ben", "Anna"]);
+      // Die eigene Sicht zeigt nur die Kurzfassung, ohne Discord-IDs
+      const sicht = C.eigene(await C.alle(true), "111111", eintraege)[0];
+      assert.ok(sicht.ergebnisMoeglich && sicht.ergebnis.anzahl === 2 && !JSON.stringify(sicht).includes("222222"));
+      // Entfernen räumt Ergebnis und Strafen weg
+      await C.aktion("community-ergebnis-loeschen", "111111", anna, { id: "abcd0009" }, { eintraege });
+      [a] = await C.alle(true);
+      assert.strictEqual(a.ergebnis, null);
+      await assert.rejects(C.urteilAnwenden("abcd0009", "rep2", { art: "dsq" }, { cust: "22" }), /zuerst das Ergebnis/);
+    } finally {
+      global.fetch = alt.fetch;
+      for (const k of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
+    }
+  },
   "Fahrerübersicht: Teammitglieder erscheinen mit Team, auch ohne Rennen": () => {
     const P = require("../api/_lib/liga-profil");
     const T = require("../api/_lib/liga-teams");

@@ -238,6 +238,10 @@ async function handler(req, res) {
   const Teams = require("./liga-teams");
   const teams = await Teams.alle(false).catch(() => []);
   const team = Teams.teamKurz(Teams.nachPid(teams).get(pid));
+  // Community-Rennen als eigener Block, getrennt von Liga-Bilanz und Fahrerkarte. Ein Fehler blendet nur den Block aus.
+  const C = require("./liga-community");
+  const community = await C.alle(false).then(async (liste) => (liste.some((a) => a.ergebnis) ? C.fahrerBilanz(liste, pid, await require("./liga-reports").alleReports(false).catch(() => [])) : null)).catch(() => null);
+  const mitCommunity = community && community.starts ? { community } : {};
   if (!akte) {
     // Ohne Rennen öffentlich: mit Zustimmung zur Fahrerübersicht oder als Mitglied eines Teams (der Beitritt schließt die Nennung ein)
     const p = (await alleProfile(false)).find((x) => x.pid === pid);
@@ -245,10 +249,10 @@ async function handler(req, res) {
     if (!inUebersicht(p) && !mitglied) return res.status(404).json({ error: "Nicht gefunden" });
     res.setHeader("Cache-Control", "public, s-maxage=30, stale-while-revalidate=60");
     const profil = { ...(oeffentlich(p) || {}), ...(!p || !p.n ? { nummer: mitglied ? mitglied.nummer : null } : {}) };
-    return res.status(200).json({ pid, ...leereAkte({ m: inUebersicht(p) ? p.m : mitglied.name }), profil, team });
+    return res.status(200).json({ pid, ...leereAkte({ m: inUebersicht(p) ? p.m : mitglied.name }), profil, team, ...mitCommunity });
   }
   res.setHeader("Cache-Control", "public, s-maxage=30, stale-while-revalidate=60");
-  return res.status(200).json({ pid, ...akte, profil: await angabenVon(pid), team });
+  return res.status(200).json({ pid, ...akte, profil: await angabenVon(pid), team, ...mitCommunity });
 }
 
 module.exports = handler;

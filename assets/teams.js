@@ -40,13 +40,27 @@
     return `<li>${m.pid ? `<a class="fa-l-kachel" href="/fahrer?id=${encodeURIComponent(m.pid)}">${inhalt}</a>` : `<div class="fa-l-kachel">${inhalt}</div>`}</li>`;
   }
 
+  // Teamwertung: nur Rennen, die als Team gefahren wurden (Community-Teamrennen mit geteiltem Auto)
+  function teamrennenBlock(t) {
+    const l = t.teamrennen || [];
+    if (!l.length) return "";
+    const datum = (s) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(s));
+    const zeilen = l.map((r) => `<tr><td class="umbruch">${esc(r.titel)}${r.vorlaeufig ? ' <span class="liga-vorlaeufig">Vorläufig</span>' : ""}</td><td>${esc(datum(r.start))}</td><td class="umbruch">${esc(r.fahrer.join(", "))}</td><td class="zahl">${r.dsq ? "DSQ" : r.platz ? `P${r.platz}` : "–"}</td></tr>`).join("");
+    return `<div class="doc-head" style="margin-top:28px"><h2 class="wide">Teamrennen</h2><div class="doc-meta lbl">${l.length} ${l.length === 1 ? "Rennen" : "Rennen"}</div></div>
+      <div class="liga-scroll k-ges" tabindex="0" role="region" aria-label="Teamrennen von ${esc(t.name)}"><table class="liga-tabelle"><thead><tr><th>Rennen</th><th>Datum</th><th>Fahrer</th><th class="zahl">Platz</th></tr></thead><tbody>${zeilen}</tbody></table></div>`;
+  }
+
   function zeigeTeam(t) {
     document.title = `${t.name} · Darkline Simracing Series`;
-    main.innerHTML = `${held("img/hero.webp", "Team", `<div class="fa-identitaet ${farbe(t.farbe)}">${t.logo ? logo(t, "fa-t-logo-gross") : `<span class="fa-t-kz fa-t-gross">${esc(t.kuerzel)}</span>`}<div><h1>${esc(t.name)}</h1></div></div>`, `<div class="fa-zahlen fa-l-zahlen"><div><b>${t.mitglieder.length}</b><span>${t.mitglieder.length === 1 ? "Fahrer" : "Fahrer"}</span></div></div>`)}
+    const tr = t.teamrennen || [];
+    const siege = tr.filter((r) => r.platz === 1).length;
+    const zahlen = [[t.mitglieder.length, "Fahrer"], ...(tr.length ? [[tr.length, tr.length === 1 ? "Teamrennen" : "Teamrennen"], [siege, siege === 1 ? "Sieg" : "Siege"]] : [])];
+    main.innerHTML = `${held("img/hero.webp", "Team", `<div class="fa-identitaet ${farbe(t.farbe)}">${t.logo ? logo(t, "fa-t-logo-gross") : `<span class="fa-t-kz fa-t-gross">${esc(t.kuerzel)}</span>`}<div><h1>${esc(t.name)}</h1></div></div>`, `<div class="fa-zahlen fa-l-zahlen">${zahlen.map(([w, txt]) => `<div><b>${w}</b><span>${txt}</span></div>`).join("")}</div>`)}
       <section class="sheet"><div class="wrap">
         <div class="doc-head"><h2 class="wide">Fahrer</h2><div class="doc-meta lbl">${t.mitglieder.length} im Team</div></div>
-        <p class="fa-l-satz fa-t-hinweis">Die Zahlen auf den Kacheln sind die Einzelrennen der Fahrer. Teamergebnisse folgen mit den ersten Team-Events.</p>
+        <p class="fa-l-satz fa-t-hinweis">Die Zahlen auf den Kacheln sind die Einzelrennen der Fahrer. Für das Team zählen nur Rennen, die als Team gefahren wurden.</p>
         <ul class="fa-t-mitglieder ${farbe(t.farbe)}">${t.mitglieder.map(mitgliedKachel).join("")}</ul>
+        ${teamrennenBlock(t)}
         <p class="fa-l-satz" style="margin-top:18px"><a href="/teams">← Alle Teams</a></p>
       </div></section>`;
   }

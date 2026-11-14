@@ -543,6 +543,15 @@ a.liga-fk:focus-visible{background:color-mix(in srgb,var(--rang) 34%,var(--paper
 .liga-ausgabe li.p1 em{color:var(--liga-gold)}
 .liga-ausgabe li.p2 em{color:var(--liga-silber)}
 .liga-ausgabe li.p3 em{color:var(--liga-bronze)}
+/* Community-Ergebnisse: breitere Karten mit aufklappbarer Ergebnistabelle */
+.liga-ausgaben.breit{grid-template-columns:repeat(auto-fill,minmax(min(100%,440px),1fr));gap:12px}
+.liga-ausgaben.breit .liga-ausgabe{min-width:0}
+.liga-ausgaben.breit .liga-ausgabe header{align-items:flex-start}
+.liga-ausgaben.breit .liga-ausgabe header b{font-size:1.15rem;line-height:1.15;min-width:0;overflow-wrap:anywhere}
+.liga-ausgaben.breit .liga-ausgabe .liga-hinweis{margin:0}
+.liga-ausgaben.breit details summary{cursor:pointer;font:700 .72rem/1.4 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.liga-ausgaben.breit details[open] summary{margin-bottom:8px}
+.liga-team-fahrer{display:block;font-weight:400;color:var(--muted);font-size:.85em}
 
 /* Liga-Seiten: ein durchgehender Hintergrund mit weichen Lichtflecken statt einzelner Abschnitts-Kacheln.
    Ohne die Sektor-Marken S1, S2 … und ohne Trennlinien. Das Startbild läuft in denselben Grundton aus. */

@@ -701,11 +701,31 @@
     </article>`;
   }
 
+  // Ergebnisse der letzten Community-Rennen: Podium auf der Karte, das ganze Ergebnis zum Aufklappen
+  const podium3 = (p) => (p === 1 ? "p1" : p === 2 ? "p2" : p === 3 ? "p3" : "");
+  const fahrerName = (f) => (f.pid ? `<a href="/fahrer?id=${encodeURIComponent(f.pid)}">${esc(f.name)}</a>` : esc(f.name));
+  function communityErgebnisKarte(e) {
+    const team = e.art === "team";
+    const name = (z) => (team ? `<b>${esc(z.ligaTeam ? z.ligaTeam.name : z.name)}</b><small class="liga-team-fahrer">${z.fahrer.map(fahrerName).join(", ")}${z.weitere ? ` + ${z.weitere} weitere` : ""}</small>` : fahrerName(z.fahrer[0]));
+    const abstand = (z, i) => (z.dsq ? "DSQ" : i === 0 ? `${z.runden} Runden` : z.abstand === null ? "überrundet" : `+${((z.abstand + z.strafe * 10000) / 10000).toFixed(3).replace(".", ",")} s`);
+    const mehrklassen = new Set(e.zeilen.map((z) => z.klasse)).size > 1;
+    const zeilen = e.zeilen.map((z, i) => `<tr><td><span class="liga-pos ${podium3(z.platz)}"><b>${z.platz || "–"}</b></span></td><td class="umbruch">${name(z)}</td>${mehrklassen ? `<td>${esc(z.klasse)}</td>` : ""}<td class="zahl">${esc(abstand(z, i))}${z.strafe ? ` <small>(+${z.strafe} s Strafe)</small>` : ""}</td><td class="zahl">${z.besteRunde ? rundenzeit(z.besteRunde) : "–"}</td><td class="zahl">${z.incidents}</td></tr>`).join("");
+    const podium = e.zeilen.filter((z) => z.platz && z.platz <= 3).map((z) => `<li class="p${z.platz}"><em>${z.platz}</em>${team ? esc(z.ligaTeam ? z.ligaTeam.name : z.name) : fahrerName(z.fahrer[0])}</li>`).join("");
+    const wann = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(e.start));
+    return `<article class="liga-ausgabe">
+      <header><b>${esc(e.titel)}</b>${e.stand === "vorlaeufig" ? VORLAEUFIG : ""}</header>
+      <p class="liga-hinweis">${esc(`${wann} · ${e.strecke} · ${e.fahrzeugklasse} · von ${e.veranstalter}`)}${e.sponsored ? " · ★ Darkline Sponsored" : ""}</p>
+      <ol>${podium}</ol>
+      <details><summary>Ganzes Ergebnis (${e.zeilen.length})</summary><div class="liga-scroll k-ges" tabindex="0" role="region" aria-label="Ergebnis ${esc(e.titel)}"><table class="liga-tabelle"><thead><tr><th>Pos</th><th>${team ? "Team" : "Fahrer"}</th>${mehrklassen ? "<th>Klasse</th>" : ""}<th class="zahl">Abstand</th><th class="zahl">Beste Runde</th><th class="zahl">Inc</th></tr></thead><tbody>${zeilen}</tbody></table></div></details>
+    </article>`;
+  }
+  const communityErgebnisAbschnitt = (liste) => (liste && liste.length ? einfuegen(abschnitt("Community-Ergebnisse", "Letzte Rennen", "Ergebnisse der Community-Rennen. Sie zählen nicht für die Seasons. Bei Stewarding durch Darkline bleibt ein Ergebnis bis zum Ende der Protestfrist vorläufig.", `<div class="liga-ausgaben breit">${liste.map(communityErgebnisKarte).join("")}</div>`, "community-ergebnisse")) : null);
+
   const communityAbschnitt = (community) => (community.length ? einfuegen(abschnitt("Community-Rennen", "Von Fahrern veranstaltet", "Eigene Rennen unserer Fahrer, außerhalb der Seasons. Du willst selbst eins veranstalten? Im Fahrerbereich unter „Veranstalten“.", `<div class="liga-poster-raster">${community.map(communityKarte).join("")}</div>`, "community")) : null);
 
-  function uebersicht(serien, rennen, community = []) {
+  function uebersicht(serien, rennen, community = [], communityErgebnisse = []) {
     // Community-Rennen erscheinen auch, wenn gerade keine Serie läuft.
-    if (!serien.length) { communityAbschnitt(community); return leer(null); }
+    if (!serien.length) { communityAbschnitt(community); communityErgebnisAbschnitt(communityErgebnisse); return leer(null); }
     const aktiv = serien.filter((s) => s.status !== "beendet");
     const archiv = serien.filter((s) => s.status === "beendet");
     // Rennen von heute bleiben drei Stunden nach dem Start stehen, danach rückt das nächste nach.
@@ -733,6 +753,7 @@
     if (ligen.length) einfuegen(abschnitt("Ligen", imBetrieb(ligen) ? `${imBetrieb(ligen)} aktiv` : "In Planung", "", liste(ligen)));
     if (events.length) einfuegen(abschnitt("Events", `${events.length} ${events.length === 1 ? "Termin" : "Termine"}`, "", liste(events)));
     communityAbschnitt(community);
+    communityErgebnisAbschnitt(communityErgebnisse);
     if (!aktiv.length) einfuegen(abschnitt("Ligen und Events", "In Planung", "", '<p class="liga-hinweis">Neue Serien werden hier und im Discord angekündigt.</p>'));
     const weitere = termine.slice(1, 7);
     if (weitere.length) einfuegen(abschnitt("Weitere Termine", "Alle Serien", "", `<div class="liga-termine">${weitere.map((x) => terminZeile(x.r, x.s)).join("")}</div>`));
@@ -859,7 +880,7 @@
     const s = kennung && serien.find((x) => x.id === kennung);
     // Titelbild: Bild der Serie, sonst das Bild der Übersicht, sonst das Teamfoto
     $("liga-kopfbild").src = s && s.bildVersion ? eigenesBild(`serie-${s.id}`, s.bildVersion) : daten && daten.kopfbildVersion ? eigenesBild("uebersicht", daten.kopfbildVersion) : "img/hero.webp";
-    if (!s) return uebersicht(serien, rennen, (daten && daten.community) || []);
+    if (!s) return uebersicht(serien, rennen, (daten && daten.community) || [], (daten && daten.communityErgebnisse) || []);
 
     document.title = `${s.name} · Darkline Simracing Series`;
     $("liga-titel").innerHTML = esc(s.name);
