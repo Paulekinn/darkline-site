@@ -32,7 +32,7 @@ function falte(zeile) {
 function kalenderIcs(rennen, jetzt) {
   const zeilen = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Darkline Performance//Liga//DE", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:Darkline Simracing Series", "X-WR-TIMEZONE:Europe/Berlin", "REFRESH-INTERVAL;VALUE=DURATION:PT6H", "X-PUBLISHED-TTL:PT6H"];
   rennen.filter((r) => r.ich).forEach((r) => {
-    const info = r.ich.status !== "starter" ? `Du stehst auf Platz ${r.ich.platz} der Warteliste.` : r.zugangNoetig ? "Du bist gemeldet. Server und Passwort stehen im Fahrerbereich." : "Du bist gemeldet. Die Session findest du in iRacing bei unserer Liga.";
+    const info = r.ich.status === "veranstalter" ? "Du veranstaltest dieses Community-Rennen und hostest die Session in iRacing." : r.ich.status !== "starter" ? `Du stehst auf Platz ${r.ich.platz} der Warteliste.` : r.zugangNoetig ? "Du bist gemeldet. Server und Passwort stehen im Fahrerbereich." : "Du bist gemeldet. Die Session findest du in iRacing bei unserer Liga.";
     zeilen.push("BEGIN:VEVENT", `UID:${r.id}@darklineperformance.de`, `DTSTAMP:${icsZeit(jetzt)}`, `DTSTART:${icsZeit(r.start)}`, `DTEND:${icsZeit(r.ende)}`, `SUMMARY:${icsText([r.serieName, r.titel].filter(Boolean).join(": "))}`, ...(r.strecke ? [`LOCATION:${icsText(r.strecke)}`] : []), `DESCRIPTION:${icsText(info)}`, `URL:${LINK}/fahrerbereich`, `STATUS:${r.status === "abgesagt" ? "CANCELLED" : "CONFIRMED"}`, "END:VEVENT");
   });
   zeilen.push("END:VCALENDAR");
@@ -42,9 +42,15 @@ function kalenderIcs(rennen, jetzt) {
 async function kalender(req, res) {
   const discordId = kalenderPruefen((req.query || {}).k);
   if (!discordId) return res.status(404).json({ error: "Nicht gefunden" });
-  const [kat, alle] = await Promise.all([D.katalog(false), alleEintraege()]);
+  const Community = require("./liga-community");
+  const [kat, alle, community] = await Promise.all([D.katalog(false), alleEintraege(), Community.alle(false).catch(() => [])]);
   const jetzt = Date.now();
-  const rennen = A.baueRennen(kat.rennen, alle, { jetzt, schlussMinuten: 60, discordId, serien: serienMap(kat.serien), auchVergangene: true }).filter((r) => new Date(r.start).getTime() > jetzt - 30 * 864e5);
+  // Community-Rennen kommen wie im Fahrerbereich dazu. Der Veranstalter hat sein eigenes Rennen auch ohne Anmeldung im Kalender.
+  const c = Community.alsKatalog(community);
+  const eigene = new Set(community.filter((a) => a.discordId === discordId).map(Community.rennenId));
+  const rennen = A.baueRennen([...kat.rennen, ...c.rennen], alle, { jetzt, schlussMinuten: 60, discordId, serien: serienMap([...kat.serien, ...c.serien]), auchVergangene: true })
+    .filter((r) => new Date(r.start).getTime() > jetzt - 30 * 864e5)
+    .map((r) => (!r.ich && eigene.has(r.id) ? { ...r, ich: { status: "veranstalter" } } : r));
   res.statusCode = 200;
   res.setHeader("Content-Type", "text/calendar; charset=utf-8");
   res.setHeader("Cache-Control", "private, max-age=1800");

@@ -128,7 +128,12 @@
   const serienName = (id) => { const s = d.serien.find((x) => x.id === id); return s ? s.name : id; };
   const serienAuswahl = () => (d.serien.length ? `<select id="a-serie" class="a-auswahl" aria-label="Serie wählen">${d.serien.map((s) => `<option value="${esc(s.id)}"${s.id === serieId ? " selected" : ""}>${esc(s.name)}</option>`).join("")}</select>` : "");
   const statusChip = (s) => (s === "laeuft" ? '<span class="a-chip gruen">Läuft</span>' : s === "beendet" ? '<span class="a-chip">Beendet</span>' : s === "abgesagt" ? '<span class="a-chip rot">Abgesagt</span>' : s === "geplant" ? '<span class="a-chip gruen">Geplant</span>' : '<span class="a-chip gelb">Anmeldung</span>');
-  const klasseZeile = (k) => `<div class="a-klasse"><input name="k_name" value="${esc(k.name)}" placeholder="Name" aria-label="Klassenname"><input name="k_min" type="number" min="0" value="${esc(k.min)}" aria-label="iRating von"><input name="k_max" type="number" min="0" value="${esc(k.max ?? "")}" placeholder="offen" aria-label="iRating bis"><button type="button" class="a-knopf zweit klein" data-klasse-weg="1">Weg</button></div>`;
+  // Klassenfarbe: frei wählbar aus der Palette, „Automatisch“ färbt nach Position (oben rot, Mitte gelb, unten grün)
+  const farbAuswahl = (wert) => {
+    const hex = window.LigaKarte.klassenFarbwert(wert);
+    return `<span class="a-klasse-farbe"><i class="a-farbfeld" style="${hex ? `background:${hex}` : ""}" aria-hidden="true"></i><select name="k_farbe" aria-label="Klassenfarbe"><option value="">Automatisch</option>${window.LigaKarte.KLASSEN_FARBEN.map(([n, t]) => `<option value="${n}"${n === wert ? " selected" : ""}>${t}</option>`).join("")}</select></span>`;
+  };
+  const klasseZeile = (k) => `<div class="a-klasse"><input name="k_name" value="${esc(k.name)}" placeholder="Name" aria-label="Klassenname">${farbAuswahl(k.farbe || "")}<input name="k_min" type="number" min="0" value="${esc(k.min)}" aria-label="iRating von"><input name="k_max" type="number" min="0" value="${esc(k.max ?? "")}" placeholder="offen" aria-label="iRating bis"><button type="button" class="a-knopf zweit klein" data-klasse-weg="1">Weg</button></div>`;
 
   /* ---------- Bilder ---------- */
   const istStrecke = (ziel) => String(ziel).startsWith("strecke:");
@@ -510,7 +515,7 @@
     const ziel = document.getElementById("a-klassen-check");
     const box = document.getElementById("a-klassen");
     if (!ziel || !box) return;
-    const zeilen = [...box.querySelectorAll(".a-klasse")].map((z) => ({ name: z.querySelector('[name="k_name"]').value.trim(), min: z.querySelector('[name="k_min"]').value, max: z.querySelector('[name="k_max"]').value })).map((k) => ({ ...k, min: k.min === "" ? null : Number(k.min), max: k.max === "" ? null : Number(k.max) })).sort((a, b) => (a.min ?? 0) - (b.min ?? 0));
+    const zeilen = [...box.querySelectorAll(".a-klasse")].map((z) => ({ name: z.querySelector('[name="k_name"]').value.trim(), farbe: z.querySelector('[name="k_farbe"]').value, min: z.querySelector('[name="k_min"]').value, max: z.querySelector('[name="k_max"]').value })).map((k) => ({ ...k, min: k.min === "" ? null : Number(k.min), max: k.max === "" ? null : Number(k.max) })).sort((a, b) => (a.min ?? 0) - (b.min ?? 0));
     let fehler = "";
     zeilen.forEach((k, i) => {
       if (fehler) return;
@@ -519,7 +524,9 @@
       else if (i === zeilen.length - 1 && k.max !== null) fehler = "Bei der obersten Klasse bleibt „bis“ leer.";
       else if (i < zeilen.length - 1 && (k.max === null || k.max + 1 !== zeilen[i + 1].min)) fehler = `Zwischen ${k.name || "dieser Klasse"} und ${zeilen[i + 1].name || "der nächsten"} ist eine Lücke oder Überschneidung.`;
     });
-    ziel.innerHTML = `<div class="a-klassen-balken">${zeilen.map((k, i) => `<span class="${i === zeilen.length - 1 ? "pro" : i === 0 ? "am" : "mid"}"><b>${esc(k.name || "?")}</b><small>${k.min ?? "?"} bis ${k.max ?? "offen"}</small></span>`).join("")}</div><p class="a-hinweis ${fehler ? "a-bild-fehler" : "a-gut"}">${esc(fehler || "Die Klassen sind lückenlos.")}</p>`;
+    // Vorschau mit der gewählten Farbe, sonst automatisch nach Position
+    const farbwert = (k) => window.LigaKarte.klassenFarbwert(k.farbe);
+    ziel.innerHTML = `<div class="a-klassen-balken">${zeilen.map((k, i) => `<span class="${i === zeilen.length - 1 ? "pro" : i === 0 ? "am" : "mid"}"${farbwert(k) ? ` style="--k:${farbwert(k)}"` : ""}><b>${esc(k.name || "?")}</b><small>${k.min ?? "?"} bis ${k.max ?? "offen"}</small></span>`).join("")}</div><p class="a-hinweis ${fehler ? "a-bild-fehler" : "a-gut"}">${esc(fehler || "Die Klassen sind lückenlos.")}</p>`;
   }
 
   function serienForm() {
@@ -558,7 +565,7 @@
         ${feld("Freie Fahrzeugwechsel je Fahrer", eingabe("freieWechsel", w.freieWechsel ?? 0, 'type="number" min="0" max="10"'))}
       </div><p class="a-hinweis">Mit Fahrzeugliste wählt jeder Fahrer bei der Anmeldung sein Modell. Weitere Wechsel als die freien nur mit eurer Zustimmung. Fährt jemand ein anderes Auto als gemeldet, erscheint das nach dem Einlesen im Cockpit.</p>`)}
       ${abschnittForm(3, "Klassen", `<label class="a-check"><input type="checkbox" name="ohneKlassen" id="s-ohne-klassen"${w.ohneKlassen ? " checked" : ""}> Keine Klassen nach iRating: alle fahren in einer gemeinsamen Wertung, bei Multiclass je Fahrzeugklasse</label>
-        <div class="a-spalte" id="a-klassen-bereich"${w.ohneKlassen ? " hidden" : ""}><div class="a-klassen-kopf"><span>Name</span><span>Von</span><span>Bis</span><span></span></div><div class="a-klassen" id="a-klassen">${w.klassen.map(klasseZeile).join("")}</div><div><button type="button" class="a-knopf zweit klein" data-klasse-neu="1">Klasse hinzufügen</button></div><div id="a-klassen-check"></div>
+        <div class="a-spalte" id="a-klassen-bereich"${w.ohneKlassen ? " hidden" : ""}><div class="a-klassen-kopf"><span>Name</span><span>Farbe</span><span>Von</span><span>Bis</span><span></span></div><div class="a-klassen" id="a-klassen">${w.klassen.map(klasseZeile).join("")}</div><div><button type="button" class="a-knopf zweit klein" data-klasse-neu="1">Klasse hinzufügen</button></div><div id="a-klassen-check"></div>
           <div class="a-felder">
             ${feld("Einstufung der Fahrer", auswahl("einstufungArt", w.einstufungArt || "irating", [["irating", "Nach iRating"], ["sichtung", "Nach Sichtung (Garage 61)"]]))}
           </div>
@@ -1829,8 +1836,8 @@
     }
     if (f.id === "f-serie") {
       const fd = new FormData(f);
-      const namen = fd.getAll("k_name"), min = fd.getAll("k_min"), max = fd.getAll("k_max");
-      w.klassen = namen.map((name, i) => ({ name, min: min[i], max: max[i] }));
+      const namen = fd.getAll("k_name"), min = fd.getAll("k_min"), max = fd.getAll("k_max"), farben = fd.getAll("k_farbe");
+      w.klassen = namen.map((name, i) => ({ name, min: min[i], max: max[i], farbe: farben[i] || "" }));
       w.anmeldungOffen = f.elements.anmeldungOffen.checked;
       w.aufAnfrage = f.elements.aufAnfrage.checked;
       w.ohneKlassen = f.elements.ohneKlassen.checked;
@@ -1960,6 +1967,7 @@
 
   app.addEventListener("input", (e) => {
     const t = e.target;
+    if (t.name === "k_farbe") { const feld = t.parentElement.querySelector(".a-farbfeld"); if (feld) feld.style.background = window.LigaKarte.klassenFarbwert(t.value) || ""; }
     if (t.closest && t.closest("#a-klassen")) return klassenKontrolle();
     if (t.id === "a-strecken-suche") { streckenSuche = t.value; streckenAlle = false; return streckenListeNeu(); }
     if (t.id === "a-fahrer-suche") {

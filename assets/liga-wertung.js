@@ -475,7 +475,7 @@
       reihen.forEach((x, i) => { x.zeile.pos = i + 1; klassenPlatz.set(`${fz.id}:${x.cust}`, { id, name, pos: i + 1, pid: x.zeile.pid }); });
       const fahrer = reihen.map((x) => x.zeile);
       titelStand(fahrer, regeln, Math.max(0, regeln.rennenGesamt - rennenListe.length));
-      return { id, name, ...(regeln.ohneKlassen ? { offen: true } : {}), fahrzeugId: fz.id, fahrzeugklasse: fz.name, min: k.min, max: k.max, fahrer };
+      return { id, name, ...(regeln.ohneKlassen ? { offen: true } : {}), ...(k.farbe ? { farbe: k.farbe } : {}), fahrzeugId: fz.id, fahrzeugklasse: fz.name, min: k.min, max: k.max, fahrer };
     }));
 
     // Gesamtwertung: eigene Punkte nach dem Zieleinlauf der ganzen Fahrzeugklasse, weil jede Fahrerklasse sonst ihre eigenen Siegpunkte vergibt.

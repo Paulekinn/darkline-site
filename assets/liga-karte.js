@@ -5,8 +5,11 @@
   const WERTE = [["Speed", "speed", "s"], ["Sauberkeit", "sauberkeit", "c"], ["Racecraft", "racecraft", "r"], ["Konstanz", "konstanz", "k"]];
   const rang = (w) => (w === null || w === undefined ? "r-offen" : w >= 85 ? "r-gold" : w >= 70 ? "r-silber" : "r-bronze");
   const podium = (p) => (p >= 1 && p <= 3 ? `p${p}` : "");
-  // Oberste Klasse rot, unterste grün, dazwischen gelb
-  const klassenFarbe = (k) => (k.offen ? "k-ges" : k.max == null ? "k-pro" : k.min === 0 ? "k-am" : "k-mid");
+  // Wählbare Klassenfarben (Name, Bezeichnung, Farbwert). Die CSS-Klassen k-f-<name> stehen in liga.css.
+  const KLASSEN_FARBEN = [["rot", "Rot", "#ff4a54"], ["orange", "Orange", "#ff8a4c"], ["gelb", "Gelb", "#ffb020"], ["gruen", "Grün", "#3fd277"], ["tuerkis", "Türkis", "#2fd6c3"], ["blau", "Blau", "#62bdff"], ["lila", "Lila", "#c58bff"], ["pink", "Pink", "#ff6fb5"], ["weiss", "Weiß", "#e8ecea"]];
+  const klassenFarbwert = (name) => (KLASSEN_FARBEN.find(([n]) => n === name) || [])[2] || "";
+  // Gewählte Farbe, sonst automatisch: oberste Klasse rot, unterste grün, dazwischen gelb
+  const klassenFarbe = (k) => (k.gesamt || k.offen ? "k-ges" : k.farbe && klassenFarbwert(k.farbe) ? `k-f-${k.farbe}` : k.max == null ? "k-pro" : k.min === 0 ? "k-am" : "k-mid");
   const LIVERYS = ["porsche", "ferrari", "bmw", "amg", "ford"];
   const livery = (id) => LIVERYS[[...String(id)].reduce((t, c) => t + c.charCodeAt(0), 0) % LIVERYS.length];
   const bildVon = (id, version) => (version ? `api/liga?r=bild&k=${encodeURIComponent(`serie-${id}`)}&v=${encodeURIComponent(version)}` : `img/cars/${livery(id)}.webp`);
@@ -38,5 +41,5 @@
     return treffer ? FAHRZEUG_FARBEN[treffer] : FAHRZEUG_REIHE[[...schluessel].reduce((t, c) => t + c.charCodeAt(0), 0) % FAHRZEUG_REIHE.length];
   }
 
-  window.LigaKarte = { WERTE, rang, klassenFarbe, fahrzeugFarbe, bildVon, avatarVon, flagge, werte, inhalt };
+  window.LigaKarte = { WERTE, rang, klassenFarbe, KLASSEN_FARBEN, klassenFarbwert, fahrzeugFarbe, bildVon, avatarVon, flagge, werte, inhalt };
 })();

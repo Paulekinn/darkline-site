@@ -6,6 +6,9 @@
   --liga-lila:#c58bff; --liga-blau:#62bdff;
 }
 .k-pro{--k:var(--liga-rot)} .k-mid{--k:var(--liga-gelb)} .k-am{--k:var(--liga-gruen)}
+/* Von der Rennleitung gewählte Klassenfarben (liste in liga-karte.js) */
+.k-f-rot{--k:#ff4a54} .k-f-orange{--k:#ff8a4c} .k-f-gelb{--k:#ffb020} .k-f-gruen{--k:#3fd277} .k-f-tuerkis{--k:#2fd6c3}
+.k-f-blau{--k:#62bdff} .k-f-lila{--k:#c58bff} .k-f-pink{--k:#ff6fb5} .k-f-weiss{--k:#e8ecea}
 
 /* Kopf */
 .liga-kopf .wrap{gap:18px}

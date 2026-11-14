@@ -42,6 +42,8 @@ function pruefeUebertragung(v) {
 }
 
 const FARBEN = ["rot", "blau", "lila", "gruen", "gelb", "tuerkis"];
+// Farben für iRating-Klassen. Leer heißt automatisch nach Position (oben rot, Mitte gelb, unten grün).
+const KLASSEN_FARBEN = ["rot", "orange", "gelb", "gruen", "tuerkis", "blau", "lila", "pink", "weiss"];
 const KATEGORIEN = ["Sports_Car", "Formula", "Oval", "Dirt_Road", "Dirt_Oval"];
 
 // Prüft und vereinheitlicht die Eingaben für eine Serie.
@@ -55,6 +57,7 @@ function pruefeSerie(e) {
     name: text(k.name, 30),
     min: ganzzahl(k.min, `Klasse ${text(k.name, 30)}, Von`, 0, 20000),
     max: k.max === "" || k.max === null || k.max === undefined ? null : ganzzahl(k.max, `Klasse ${text(k.name, 30)}, Bis`, 0, 20000),
+    ...(KLASSEN_FARBEN.includes(k.farbe) ? { farbe: k.farbe } : {}),
   })).sort((a, b) => b.min - a.min);
   if (klassen.some((k) => !k.id)) throw new Hinweis("Jede Klasse braucht einen Namen.");
   const punkte = (Array.isArray(e.punkte) ? e.punkte : String(e.punkte || "").split(/[\s,;]+/).filter(Boolean)).map((p) => ganzzahl(p, "Punktetabelle", 0, 1000));

@@ -143,6 +143,9 @@ function baueSerien(serienListe, eintraege, { discordId, profil, klasseFuer, anf
   });
 }
 
+// Gewählte Klassenfarbe aus der Serie, auch für Tabellen, die vor der Farbwahl berechnet wurden. Leer heißt automatisch.
+const klassenFarbeAus = (s, k) => (((s.klassen || []).find((x) => x.id === k.id || (k.id && String(k.id).endsWith(`-${x.id}`))) || {}).farbe || "");
+
 // Die eigenen Fahrerkarten über die anonyme Kennung. Ältere Tabellen ohne Kennung werden über den iRacing-Namen zugeordnet.
 function eigeneKarten(serienListe, tabellen, iracingName, pid) {
   const name = String(iracingName || "").trim().toLowerCase();
@@ -153,7 +156,7 @@ function eigeneKarten(serienListe, tabellen, iracingName, pid) {
     return t.klassen.flatMap((k) => {
       const f = k.fahrer.find((x) => x.karte && (x.pid ? x.pid === pid : x.name.trim().toLowerCase() === name));
       if (!f) return [];
-      return [{ pid: f.pid, serie: s.id, serieName: s.name, serieTyp: s.typ || "liga", bildVersion: s.bildVersion || 0, rennenGesamt: t.rennenGesamt, klasseId: k.id, klasse: k.name, offen: k.offen, min: k.min, max: k.max, name: f.name, pos: f.pos, punkte: f.punkte, rennen: f.rennen, karte: f.karte }];
+      return [{ pid: f.pid, serie: s.id, serieName: s.name, serieTyp: s.typ || "liga", bildVersion: s.bildVersion || 0, rennenGesamt: t.rennenGesamt, klasseId: k.id, klasse: k.name, offen: k.offen, min: k.min, max: k.max, farbe: k.farbe || klassenFarbeAus(s, k), name: f.name, pos: f.pos, punkte: f.punkte, rennen: f.rennen, karte: f.karte }];
     });
   });
 }
@@ -190,4 +193,4 @@ function pruefeProfil(p) {
   return { iracingName: name, custId, irating: +irating };
 }
 
-module.exports = { PREFIX, anmeldungPfad, mitgliedPfad, abmeldungPfad, profilPfad, leseEintrag, berlinNachUtc, dauerMinuten, ordne, baueRennen, baueSerien, kollisionen, eigeneKarten, pruefeProfil, pruefeExtras, nummerPflicht };
+module.exports = { PREFIX, anmeldungPfad, mitgliedPfad, abmeldungPfad, profilPfad, leseEintrag, berlinNachUtc, dauerMinuten, ordne, baueRennen, baueSerien, kollisionen, eigeneKarten, klassenFarbeAus, pruefeProfil, pruefeExtras, nummerPflicht };

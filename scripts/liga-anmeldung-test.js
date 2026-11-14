@@ -1313,6 +1313,45 @@ const tests = {
       for (const k of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"]) { if (alt.env[k] === undefined) delete process.env[k]; else process.env[k] = alt.env[k]; }
     }
   },
+  "Klassenfarben: wählbar, ungültige fallen weg, Tabelle und Karten übernehmen sie": () => {
+    const serie = D.pruefeSerie({ name: "Farbtest", rennenGesamt: 8, gewerteteRennen: 7, anmeldeschlussMinuten: 60, punkte: [25, 18], punkteDanach: 1, bonusPole: 0, bonusSchnellsteRunde: 0, mindestRundenProzent: 60, klassen: [{ name: "Pro", min: 2000, max: "", farbe: "blau" }, { name: "Am", min: 0, max: 1999, farbe: "quatsch" }] });
+    assert.deepStrictEqual(serie.klassen.map((k) => k.farbe), ["blau", undefined]);
+    // Ältere Tabellen ohne Farbe: die Karte holt sie aus der Serie, auch bei mehreren Fahrzeugklassen (Kennung fz-klasse)
+    assert.strictEqual(A.klassenFarbeAus(serie, { id: "pro" }), "blau");
+    assert.strictEqual(A.klassenFarbeAus(serie, { id: "4074-pro" }), "blau");
+    assert.strictEqual(A.klassenFarbeAus(serie, { id: "am" }), "");
+    const karten = A.eigeneKarten([{ ...serie, id: "farb" }], new Map([["farb", { rennenGesamt: 8, klassen: [{ id: "pro", name: "Pro", min: 2000, max: null, fahrer: [{ name: "Lena", pid: "p", pos: 1, punkte: 25, rennen: [], karte: { rating: 80 } }] }] }]]), "Lena", "p");
+    assert.strictEqual(karten[0].farbe, "blau");
+    // Die Wertung gibt die Farbe an ihre Klassen weiter
+    const W = require("../assets/liga-wertung.js");
+    const regeln = { ...serie, klassen: serie.klassen, punkte: [25, 18], rennenGesamt: 8, gewerteteRennen: 7, mindestRundenProzent: 0 };
+    const rennen = [{ id: "1", start: "2026-11-01T18:00:00Z", strecke: "Spa", fahrer: [{ cust: "1", name: "Lena", irating: 2500, fahrzeugklasseId: "0", fahrzeugklasseName: "", gesamt: 1, start: 1, runden: 10, besteRunde: 1, incidents: 0, klassenAbstand: 0 }] }];
+    const tabelle = W.berechneTabelle(rennen, regeln, {});
+    assert.strictEqual(tabelle.klassen.find((k) => k.id === "pro").farbe, "blau");
+    assert.ok(!("farbe" in tabelle.klassen.find((k) => k.id === "am")));
+  },
+  "Kalender: Community-Rennen für Gemeldete und den Veranstalter": async () => {
+    const T2 = require("../api/_lib/liga-renntag");
+    const sb = supabaseAttrappe();
+    try {
+      const B3 = require("../api/_lib/blob");
+      const start = new Date(Date.now() + 3 * 864e5);
+      const tag = start.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+      await B3.blobPut("liga/community/abcd0007.json", JSON.stringify({ id: "abcd0007", discordId: "111111", name: "Anna", status: "freigegeben", titel: "Kalender-Rennen", datum: tag, uhrzeit: "20:00", start: start.toISOString(), strecke: "Spa", fahrzeugklasse: "GT3", dauer: 45, plaetze: 10, beschreibung: "x", session: {}, anfragen: [] }), "application/json");
+      await B3.blobPut(A.anmeldungPfad("c-abcd0007", "222222", "", "Ben"), "1", "text/plain");
+      // Der Kalender liest die Liste aus dem kurzen Zwischenspeicher, der hier noch den Stand früherer Tests hätte.
+      await require("../api/_lib/liga-community").alle(true);
+      const abruf = async (id) => { let text = ""; const r = { statusCode: 0, setHeader() {}, status(c) { this.statusCode = c; return this; }, json() { return this; }, end(t) { text = t; } }; await T2.kalender({ query: { k: S.kalenderSchluessel(id) } }, r); return text; };
+      const ben = await abruf("222222");
+      assert.ok(/SUMMARY:Community-Rennen: Kalender-Rennen/.test(ben.replace(/\r\n /g, "")) && /UID:c-abcd0007@/.test(ben));
+      const anna = await abruf("111111");
+      assert.ok(/Du veranstaltest dieses Community-Rennen/.test(anna.replace(/\r\n /g, "")), "Der Veranstalter hat sein Rennen auch ohne Anmeldung im Kalender");
+      const carla = await abruf("333333");
+      assert.ok(!/abcd0007/.test(carla), "Wer nicht gemeldet ist, hat es nicht im Kalender");
+    } finally {
+      sb.ende();
+    }
+  },
   "Fahrerübersicht: Teammitglieder erscheinen mit Team, auch ohne Rennen": () => {
     const P = require("../api/_lib/liga-profil");
     const T = require("../api/_lib/liga-teams");

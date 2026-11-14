@@ -7,7 +7,8 @@
   const zahl = (n) => Number(n).toLocaleString("de-DE");
   const bereich = (k) => (k.max == null ? `ab ${zahl(k.min)}` : k.min === 0 ? `bis ${zahl(k.max)}` : `${zahl(k.min)} bis ${zahl(k.max)}`);
   // Farbe nach Lage der Klasse: oberste rot, unterste grün, dazwischen gelb
-  const farbe = (k) => (k.gesamt || k.offen ? "k-ges" : k.max == null ? "k-pro" : k.min === 0 ? "k-am" : "k-mid");
+  // Klassenfarbe: von der Rennleitung gewählt, sonst automatisch nach Position (gemeinsame Regel in liga-karte.js)
+  const farbe = (k) => window.LigaKarte.klassenFarbe(k);
   // iRacing liefert die Startzeit in UTC, angezeigt wird der Tag in deutscher Zeit.
   const datum = (s) => { const d = new Date(s); return isNaN(d) ? "" : d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" }); };
   const podium = (p) => (p >= 1 && p <= 3 ? `p${p}` : "");
@@ -191,7 +192,7 @@
     x.save();
     x.translate(B - R - textB - 40, 62);
     x.transform(1, 0, -0.18, 1, 0, 0);
-    x.fillStyle = cssFarbe(KLASSEN_FARBE[farbe(k)] || "--ink");
+    x.fillStyle = (k.farbe && window.LigaKarte.klassenFarbwert(k.farbe)) || cssFarbe(KLASSEN_FARBE[farbe(k)] || "--ink");
     x.fillRect(0, 0, textB + 40, 58);
     x.fillStyle = "#08090a";
     x.fillText(klassenText, 20, 42);
