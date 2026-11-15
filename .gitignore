@@ -10,3 +10,4 @@ content/news.json
 # Abgeschaltete Beispiel-Liga, soll nicht öffentlich erreichbar sein
 /.demo/
 /discord.html
+/twitch.html
