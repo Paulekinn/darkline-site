@@ -58,8 +58,8 @@
   /* Streifen über dem Inhalt: Übertragung am Renntag, sonst der Aufruf für Broadcaster.
      Live gilt nach den Rennzeiten im Kalender, nicht nach dem echten Stream-Status. */
   const LIVE_MS = 3.5 * 3600e3;
-  const ZU = "liga-broadcaster-zu";
-  const zuBis = () => { try { return Number(localStorage.getItem(ZU)) || 0; } catch (e) { return 0; } };
+  // Twitch-Logo für den Broadcaster-Aufruf; die beiden "Augen" sind eigene Rechtecke, damit sie blinzeln können (liga.css).
+  const TWITCH = '<svg class="liga-twitch" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 0 1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/><rect class="auge" x="11.571" y="4.714" width="1.715" height="5.143"/><rect class="auge" x="16.286" y="4.714" width="1.714" height="5.143"/></svg>';
   function streamStreifen(daten) {
     const main = document.querySelector("main");
     if (!main || !daten) return;
@@ -80,15 +80,9 @@
     let html = "";
     if (live) html = `<a class="liga-stream live" href="${esc(live.s.uebertragung)}" target="_blank" rel="noopener"><div class="wrap"><i aria-hidden="true"></i><b>Live</b><span>${esc(titel(live))}</span><em>Jetzt ansehen →</em></div></a>`;
     else if (spaeter) html = `<a class="liga-stream heute" href="${esc(spaeter.s.uebertragung)}" target="_blank" rel="noopener"><div class="wrap"><b>📺 Heute</b><span>ab ${esc(spaeter.r.startzeit)} Uhr live: ${esc(titel(spaeter))}</span><em>Zum Kanal →</em></div></a>`;
-    else if (serien.some((s) => !s.uebertragung) && zuBis() < jetzt) html = `<div class="liga-stream suche"><div class="wrap"><b>🎙️ Broadcaster gesucht</b><span>Du willst unsere Rennen kommentieren oder übertragen?</span><a href="https://discord.gg/QP2rKy6n8U" target="_blank" rel="noopener">Melde dich im Discord unter #bewerbung →</a><button type="button" class="liga-stream-zu" aria-label="Hinweis für 30 Tage ausblenden">✕</button></div></div>`;
+    else if (serien.some((s) => !s.uebertragung)) html = `<div class="liga-stream suche"><div class="wrap"><span class="liga-suche-tag">${TWITCH}Gesucht</span><b>Broadcaster &amp; Kommentatoren</b><span>Kommentiere oder übertrage unsere Rennen.</span><a class="liga-suche-knopf" href="https://discord.gg/QP2rKy6n8U" target="_blank" rel="noopener">Discord · #bewerbung →</a></div></div>`;
     if (html) main.insertAdjacentHTML("afterbegin", html);
   }
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".liga-stream-zu")) return;
-    try { localStorage.setItem(ZU, String(Date.now() + 30 * 864e5)); } catch (err) { /* ohne Speicher nur bis zum Neuladen */ }
-    const streifen = e.target.closest(".liga-stream");
-    if (streifen) streifen.remove();
-  });
 
   zeichne([], false, false);
   Promise.all([lade("api/liga?r=oeffentlich"), lade("api/liga?r=admin&nur=status"), lade("api/liga?r=fahrer&nur=status")]).then(([daten, admin, fahrer]) => {

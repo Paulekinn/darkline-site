@@ -610,12 +610,18 @@ a.liga-stream:hover em{color:#ff5a61}
 .liga-stream.live b{color:#ff5a61}
 .liga-stream.live i{flex:none;width:10px;height:10px;border-radius:50%;background:var(--red);animation:liga-live 1.6s infinite}
 @keyframes liga-live{0%{box-shadow:0 0 0 0 rgba(211,18,27,.75)}70%{box-shadow:0 0 0 10px rgba(211,18,27,0)}100%{box-shadow:0 0 0 0 rgba(211,18,27,0)}}
-.liga-stream.suche{background:linear-gradient(90deg,rgba(124,72,214,.14),rgba(21,25,28,.5) 65%)}
-.liga-stream.suche a{margin-left:auto;color:var(--ink);font-weight:800;text-underline-offset:3px}
-.liga-stream.suche a:hover{color:#c9a8ff}
-.liga-stream-zu{all:unset;cursor:pointer;padding:2px 6px;color:var(--muted);line-height:1}
-.liga-stream-zu:hover{color:var(--ink)}
-.liga-stream-zu:focus-visible{outline:2px solid var(--red)}
+/* Gesuch (z. B. Broadcaster): lila Akzentkante, schräge Marke mit blinzelndem Twitch-Logo, Knopf statt Link */
+.liga-stream.suche{background:linear-gradient(90deg,rgba(124,72,214,.24),rgba(124,72,214,.07) 42%,rgba(21,25,28,.5) 78%);border-bottom-color:rgba(124,72,214,.35)}
+.liga-stream.suche::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#8b5cf6;box-shadow:0 0 14px rgba(139,92,246,.7)}
+.liga-stream.suche .wrap{gap:8px 14px}
+.liga-stream .liga-suche-tag{display:inline-flex;align-items:center;gap:7px;padding:5px 10px 5px 8px;background:#7c48d6;color:#fff;font:800 .64rem/1 var(--f-mono,monospace);letter-spacing:.14em;text-transform:uppercase;transform:skewX(-10deg)}
+.liga-twitch{width:13px;height:13px;flex:none;fill:#fff;transform:skewX(10deg);animation:liga-twitch-puls 4.2s ease-in-out infinite}
+.liga-twitch .auge{transform-box:fill-box;transform-origin:center;animation:liga-blinzeln 4.2s infinite}
+@keyframes liga-blinzeln{0%,44%,52%,100%{transform:scaleY(1)}48%{transform:scaleY(.12)}}
+@keyframes liga-twitch-puls{0%,100%{filter:drop-shadow(0 0 0 rgba(255,255,255,0))}48%{filter:drop-shadow(0 0 4px rgba(255,255,255,.75))}}
+.liga-stream.suche a.liga-suche-knopf{margin-left:auto;padding:7px 13px;border:1px solid rgba(167,128,255,.6);background:rgba(124,72,214,.12);color:#e9e0ff;font:800 .74rem/1.2 var(--f-wide);font-variation-settings:"wdth" 108;text-transform:uppercase;letter-spacing:.03em;text-decoration:none;transition:background .15s,color .15s,border-color .15s}
+.liga-stream.suche a.liga-suche-knopf:hover{background:#7c48d6;border-color:#7c48d6;color:#fff}
+.liga-stream.suche a.liga-suche-knopf:focus-visible{outline:2px solid #c9a8ff;outline-offset:2px}
 @media (max-width:640px){.liga-stream em,.liga-stream.suche a{margin-left:0}}
 @media (prefers-reduced-motion:reduce){.liga-stream.live i{animation:none}}
 .liga-kopf .photo{-webkit-mask-image:linear-gradient(180deg,#000 62%,transparent);mask-image:linear-gradient(180deg,#000 62%,transparent)}
