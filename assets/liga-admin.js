@@ -81,6 +81,7 @@
   let zugelassen = [];    // iRacing-IDs nicht gemeldeter Fahrer, die als Gast gewertet werden sollen
   let sichtung = null;    // Stand der Sichtung aus Garage 61: { serie, laedt, daten }, erst beim Öffnen des Menüpunkts geladen
   let sichtungForm = null; // Einrichtung der Sichtung, solange sie offen ist: { serie, werte, vorher }
+  let cockpitFilter = "alle"; // Filter im Cockpit-Eingang „Zu entscheiden“: alle, reports, anfragen, community
 
   async function vorschauRechnen() {
     const a = await sende({ aktion: "ergebnis-vorschau", serie: serieId, datei, zugelassen });
@@ -327,29 +328,6 @@
   const formLeiste = (speichern, loeschen) => `<div class="a-leiste a-klebeleiste"><button type="submit" class="a-knopf">${esc(speichern)}</button><button type="button" class="a-knopf zweit" data-abbrechen="1">Abbrechen</button>${loeschen || ""}</div>`;
 
   /* ---------- Cockpit ---------- */
-  // Automatische Prüfung nach dem Rennen: wer gemeldet war und fehlte, wer auffällig viele Incidents hatte.
-  function cockpitPruefungen() {
-    const liste = d.pruefungen || [];
-    if (!liste.length) return "";
-    const zeilen = liste.map((p) => {
-      const teile = [p.noShows.length ? `Nicht erschienen: ${p.noShows.map((f) => f.name).join(", ")}` : "", p.incidents.length ? `Viele Incidents: ${p.incidents.map((f) => `${f.name} (${f.incidents})`).join(", ")}` : ""].filter(Boolean);
-      // Anderes Auto als gemeldet: nachträglich genehmigen oder Ergebnis streichen
-      const fz = (p.fahrzeuge || []).map((f) => {
-        const daten = `data-serie="${esc(p.serie)}" data-discord="${esc(f.discordId || "")}" data-name="${esc(f.name)}"`;
-        return `<small class="a-pruefung">Anderes Fahrzeug: ${esc(f.name)} fuhr ${esc(f.gefahren)} statt ${esc(f.gemeldet)}</small><span class="a-pruefung-knoepfe"><button type="button" class="a-knopf zweit klein" data-fahrzeug-genehmigen="1" ${daten} data-modell="${esc(f.gefahren)}">Wechsel genehmigen</button><button type="button" class="a-knopf gefahr klein" data-fahrzeug-streichen="1" ${daten} data-rennen="${esc(p.id)}" data-cust="${esc(f.cust)}">Ergebnis streichen</button></span>`;
-      }).join("");
-      return `<div class="a-abschluss ${serienFarbe(p.serie)}"><span><b>${esc(p.strecke)}</b><small>${esc([p.serieName, zeit(p.start)].join(" · "))}</small>${teile.map((t) => `<small class="a-pruefung">${esc(t)}</small>`).join("")}${fz}</span><button type="button" class="a-knopf zweit klein" data-pruefung-erledigt="${esc(p.id)}" data-serie="${esc(p.serie)}">Erledigt</button></div>`;
-    }).join("");
-    return `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Prüfen nach dem Rennen</h2><span class="a-chip gelb">${liste.length}</span></div><div class="a-liste">${zeilen}</div></section>`;
-  }
-
-  function cockpitStrafkonten() {
-    const liste = d.strafkonten || [];
-    if (!liste.length) return "";
-    const zeilen = liste.map((k) => `<div class="a-abschluss ${serienFarbe(k.serie)}"><span><b>${esc(k.name)}</b><small>${esc(k.serieName)} · ${k.punkte} Strafpunkte, Grenze ${k.grenze}. Rennsperre prüfen.</small></span></div>`).join("");
-    return `<section class="a-karte a-karte-alarm"><div class="a-kartenkopf"><h2>Strafpunkte-Grenze erreicht</h2><span class="a-chip rot">${liste.length}</span></div><div class="a-liste">${zeilen}</div></section>`;
-  }
-
   /* ---------- Rennbericht ---------- */
   function bildLaden(src) {
     return new Promise((fertig) => { const i = new Image(); i.onload = () => fertig(i); i.onerror = () => fertig(null); i.src = src; });
@@ -437,88 +415,112 @@
     const laufend = d.serien.filter((s) => s.status !== "beendet");
     const kommend = [...d.rennen].filter((r) => r.status !== "abgesagt" && String(r.datum) >= heute()).sort((a, b) => `${a.datum} ${a.startzeit}`.localeCompare(`${b.datum} ${b.startzeit}`));
     const unfertig = kommend.filter((r) => rennenWarnungen(r).length);
-    // Alle Rennen gefahren, aber noch nicht beendet: Das entscheidet die Rennleitung, wenn Reports und Strafen erledigt sind.
-    const fertig = laufend.filter((s) => { const eigene = d.rennen.filter((r) => r.serie === s.id && r.status !== "abgesagt"); return eigene.length >= s.rennenGesamt && eigene.every((r) => String(r.datum) < heute()); });
-    const abschluss = fertig.length ? `<section class="a-karte a-karte-info"><h2>Kann beendet werden</h2><div class="a-liste">${fertig.map((s) => `<div class="a-abschluss s-${esc(s.farbe || "rot")}"><span><b>${esc(s.name)}</b><small>Alle Rennen sind gefahren. Beende die Serie, sobald Reports und Strafen erledigt sind.</small></span><button type="button" class="a-knopf zweit klein" data-serie-bearbeiten="${esc(s.id)}">Öffnen</button></div>`).join("")}</div></section>` : "";
-    // Eine geplante Serie wechselt nicht von selbst. Rückt ihr Termin näher, erinnert das Cockpit an die Anmeldung.
-    const grenze = plusTage(heute(), 14);
-    const baldFaellig = d.serien.map((s) => ({ s, r: s.status === "geplant" ? kommend.find((x) => x.serie === s.id) : null })).filter((x) => x.r && String(x.r.datum) <= grenze);
-    const anmeldungFaellig = baldFaellig.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Anmeldung noch nicht geöffnet</h2><span class="a-chip gelb">${baldFaellig.length}</span></div><div class="a-liste">${baldFaellig.map(({ s, r }) => `<div class="a-abschluss s-${esc(s.farbe || "rot")}"><span><b>${esc(s.name)}</b><small>Erstes Rennen am ${esc(datumKurz(r.datum))}, die Season steht noch auf „Geplant“.</small></span><button type="button" class="a-knopf klein" data-serie-oeffnen="${esc(s.id)}">Anmeldung öffnen</button></div>`).join("")}</div></section>` : "";
-    const nummern = d.nummernWuensche || [];
-    const nummernHtml = nummern.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Startnummer ändern</h2><span class="a-chip gelb">${nummern.length}</span></div><div class="a-liste">${nummern.map((w) => {
-      const daten = `data-discord="${esc(w.discordId)}" data-name="${esc(w.name)}" data-nummer="${esc(w.nach)}"`;
-      return `<div class="a-abschluss s-rot"><span><b>${esc(w.name)}</b><small>Von #${esc(w.von)} auf #${esc(w.nach)}, beantragt ${esc(zeit(w.seit))}</small></span><div class="a-leiste"><button type="button" class="a-knopf klein" data-nummer-aktion="nummer-bestaetigen" ${daten}>Bestätigen</button><button type="button" class="a-knopf zweit klein" data-nummer-aktion="nummer-ablehnen" ${daten}>Ablehnen</button></div></div>`;
-    }).join("")}</div></section>` : "";
-    const fzAntraege = d.fahrzeugAntraege || [];
-    const fahrzeugHtml = fzAntraege.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Fahrzeugwechsel</h2><span class="a-chip gelb">${fzAntraege.length}</span></div><div class="a-liste">${fzAntraege.map((a) => {
-      const daten = `data-serie="${esc(a.serie)}" data-discord="${esc(a.discordId)}"`;
-      return `<div class="a-abschluss ${serienFarbe(a.serie)}"><span><b>${esc(a.name || "Fahrer")}</b><small>${esc(a.serieName)}: ${esc(a.modell)} → ${esc(a.antrag.nach)}, beantragt ${esc(zeit(a.antrag.seit))}${(a.wechsel || []).length ? ` · bisher ${a.wechsel.length} Wechsel` : ""}</small></span><div class="a-leiste"><button type="button" class="a-knopf klein" data-fahrzeug-entscheid="ja" ${daten}>Bestätigen</button><button type="button" class="a-knopf zweit klein" data-fahrzeug-entscheid="nein" ${daten}>Ablehnen</button></div></div>`;
-    }).join("")}</div></section>` : "";
-    const anfragen = d.beitrittsAnfragen || [];
-    const anfragenHtml = anfragen.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Beitrittsanfragen</h2><span class="a-chip gelb">${anfragen.length}</span></div><div class="a-liste">${anfragen.map((a) => {
+    const bald = plusTage(heute(), 7);
+    const communityBild = (a) => `api/liga?r=bild&k=community-${encodeURIComponent(a.id)}&v=${encodeURIComponent(a.banner)}`;
+    const iratingText = (a) => (a.iratingMin != null && a.iratingMax != null ? `iRating ${a.iratingMin} bis ${a.iratingMax}` : a.iratingMin != null ? `iRating ab ${a.iratingMin}` : a.iratingMax != null ? `iRating bis ${a.iratingMax}` : "");
+    // Etikett vor jeder Zeile, damit man in der gemeinsamen Liste sofort sieht, worum es geht
+    const art = (text, farbe) => `<em class="a-art ${farbe}">${esc(text)}</em>`;
+    const mitArt = (html, text, farbe) => html.replace("<span>", `<span>${art(text, farbe)}`);
+    const knoepfe = (attr, daten, ja = "Freigeben", nein = "Ablehnen") => `<div class="a-leiste"><button type="button" class="a-knopf klein" ${attr}="ja" ${daten}>${ja}</button><button type="button" class="a-knopf zweit klein" ${attr}="nein" ${daten}>${nein}</button></div>`;
+
+    /* ---------- 1. Zu entscheiden: alles, wo jemand auf eine Antwort wartet ---------- */
+    // Reihenfolge: betrifft ein Rennen in den nächsten 7 Tagen, dann Reports, dann der Rest. Innerhalb davon das Älteste zuerst.
+    const eingang = [];
+    const neu = (gruppe, html, seit, datum, report = false) => eingang.push({ gruppe, html, seit: String(seit || ""), prio: datum && String(datum) <= bald ? 0 : report ? 1 : 2 });
+    const reportFaelle = [...new Map([...offene, ...einsprueche].map((r) => [r.id, r])).values()];
+    reportFaelle.forEach((r) => neu("reports", reportZeile(r).replace('<span class="a-fall-kopf">', `<span class="a-fall-kopf">${art(einspruchOffen(r) ? "Einspruch" : "Report", "rot")}`), r.erstellt, null, true));
+    (d.beitrittsAnfragen || []).forEach((a) => {
       const daten = `data-serie="${esc(a.serie)}" data-discord="${esc(a.discordId)}" data-name="${esc(a.name || "")}"`;
       const infos = [a.serieName, a.irating ? `iRating ${a.irating}` : "", a.modell, a.fahrzeugklasse, `angefragt ${zeit(a.seit)}`].filter(Boolean).join(" · ");
-      return `<div class="a-abschluss ${serienFarbe(a.serie)}"><span><b>${esc(a.name || "Fahrer")}</b><small>${esc(infos)}</small>${a.nachricht ? `<small>„${esc(a.nachricht)}“</small>` : ""}</span><div class="a-leiste"><button type="button" class="a-knopf klein" data-anfrage-entscheid="ja" ${daten}>Freigeben</button><button type="button" class="a-knopf zweit klein" data-anfrage-entscheid="nein" ${daten}>Ablehnen</button></div></div>`;
-    }).join("")}</div></section>` : "";
-    // Gaststarter (Reglement 2.2): Anfragen für einzelne Rennen, Erinnerungen zur iRacing-Liga und der Link für die Direktnachricht
-    const gAnfragen = d.gastAnfragen || [];
-    const gHinweise = d.gastHinweise || [];
-    const gastZeile = (a) => {
+      neu("anfragen", `<div class="a-abschluss ${serienFarbe(a.serie)}"><span>${art("Beitritt", "blau")}<b>${esc(a.name || "Fahrer")}</b><small>${esc(infos)}</small>${a.nachricht ? `<small>„${esc(a.nachricht)}“</small>` : ""}</span>${knoepfe("data-anfrage-entscheid", daten)}</div>`, a.seit);
+    });
+    (d.gastAnfragen || []).forEach((a) => {
       const daten = `data-rennen="${esc(a.rennen)}" data-discord="${esc(a.discordId)}" data-name="${esc(a.name || "")}"`;
       const infos = [`${a.serieName} · ${a.rennenTitel}`, datumKurz(a.datum) + (a.startzeit ? ` ${a.startzeit}` : ""), a.irating ? `iRating ${a.irating}` : "", a.fahrzeugklasse, a.plaetze ? `${a.gemeldet} von ${a.plaetze} Plätzen belegt` : "", `angefragt ${zeit(a.seit)}`].filter(Boolean).join(" · ");
-      return `<div class="a-abschluss ${serienFarbe(a.serie)}"><span><b>${esc(a.name || "Fahrer")}</b><small>${esc(infos)}</small>${a.nachricht ? `<small>„${esc(a.nachricht)}“</small>` : ""}</span><div class="a-leiste"><button type="button" class="a-knopf klein" data-gast-entscheid="ja" ${daten}>Freigeben</button><button type="button" class="a-knopf zweit klein" data-gast-entscheid="nein" ${daten}>Ablehnen</button></div></div>`;
-    };
-    const hinweisZeile = (h) => {
-      const daten = `data-rennen="${esc(h.rennen)}" data-discord="${esc(h.discordId)}" data-name="${esc(h.name || "")}"`;
-      const aufnehmen = h.schritt === "aufnehmen";
-      const text = aufnehmen ? `Vor dem Rennen in die iRacing-Liga aufnehmen${h.custId ? `, iRacing-ID ${h.custId}` : ""}` : `Rennen vorbei: wieder aus der iRacing-Liga entfernen${h.custId ? ` (iRacing-ID ${h.custId})` : ""}`;
-      return `<div class="a-abschluss ${serienFarbe(h.serie)}"><span><b>${esc(h.name || "Gast")}</b><small>${esc(`${h.rennenTitel} · ${datumKurz(h.datum)}${h.startzeit ? ` ${h.startzeit}` : ""}`)}</small><small>${esc(text)}</small></span><div class="a-leiste">${h.custId ? `<button type="button" class="a-knopf zweit klein" data-kopieren="${esc(h.custId)}">ID kopieren</button>` : ""}<button type="button" class="a-knopf klein" data-gast-liga="${aufnehmen ? "aufgenommen" : "entfernt"}" ${daten}>${aufnehmen ? "Aufgenommen" : "Entfernt"}</button></div></div>`;
-    };
-    const ligaLinkForm = `<form class="a-leiste" data-gast-link-form><input type="url" name="link" value="${esc(d.iracingLigaLink || "")}" placeholder="https://members-ng.iracing.com/…" aria-label="Link zur iRacing-Liga" style="flex:1 1 260px"><button type="submit" class="a-knopf zweit klein">Speichern</button></form>`;
-    const gastHtml = gAnfragen.length || gHinweise.length
-      ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Gaststarter</h2><span class="a-chip gelb">${gAnfragen.length + gHinweise.length}</span></div>
-        ${gAnfragen.length ? `<p class="a-hinweis">Gäste fahren nur das freigegebene Rennen, ohne Punkte. Nach der Freigabe bekommen sie eine Direktnachricht${d.iracingLigaLink ? " mit dem Link zur iRacing-Liga" : ", dass ihr sie in die iRacing-Liga aufnehmt"}.</p><div class="a-liste">${gAnfragen.map(gastZeile).join("")}</div>` : ""}
-        ${gHinweise.length ? `<h3 class="a-unterkopf">iRacing-Liga</h3><div class="a-liste">${gHinweise.map(hinweisZeile).join("")}</div>` : ""}
-        <details><summary class="a-hinweis">Link zur iRacing-Liga ${d.iracingLigaLink ? "ändern" : "eintragen"}</summary>${ligaLinkForm}</details></section>`
-      : `<details class="a-karte"><summary><b>Gaststarter</b> <span class="a-hinweis">Keine offenen Anfragen · Link zur iRacing-Liga ${d.iracingLigaLink ? "eingetragen" : "fehlt noch"}</span></summary><p class="a-hinweis">Der Link steht in der Direktnachricht an freigegebene Gäste. Ohne Link heißt es dort, dass ihr sie in die iRacing-Liga aufnehmt.</p>${ligaLinkForm}</details>`;
+      neu("anfragen", `<div class="a-abschluss ${serienFarbe(a.serie)}"><span>${art("Gast", "blau")}<b>${esc(a.name || "Fahrer")}</b><small>${esc(infos)}</small>${a.nachricht ? `<small>„${esc(a.nachricht)}“</small>` : ""}</span>${knoepfe("data-gast-entscheid", daten)}</div>`, a.seit, a.datum);
+    });
+    (d.nummernWuensche || []).forEach((w) => {
+      const daten = `data-discord="${esc(w.discordId)}" data-name="${esc(w.name)}" data-nummer="${esc(w.nach)}"`;
+      neu("anfragen", `<div class="a-abschluss s-rot"><span>${art("Startnummer", "grau")}<b>${esc(w.name)}</b><small>Von #${esc(w.von)} auf #${esc(w.nach)}, beantragt ${esc(zeit(w.seit))}</small></span><div class="a-leiste"><button type="button" class="a-knopf klein" data-nummer-aktion="nummer-bestaetigen" ${daten}>Bestätigen</button><button type="button" class="a-knopf zweit klein" data-nummer-aktion="nummer-ablehnen" ${daten}>Ablehnen</button></div></div>`, w.seit);
+    });
+    (d.fahrzeugAntraege || []).forEach((a) => {
+      const daten = `data-serie="${esc(a.serie)}" data-discord="${esc(a.discordId)}"`;
+      neu("anfragen", `<div class="a-abschluss ${serienFarbe(a.serie)}"><span>${art("Fahrzeug", "grau")}<b>${esc(a.name || "Fahrer")}</b><small>${esc(a.serieName)}: ${esc(a.modell)} → ${esc(a.antrag.nach)}, beantragt ${esc(zeit(a.antrag.seit))}${(a.wechsel || []).length ? ` · bisher ${a.wechsel.length} Wechsel` : ""}</small></span>${knoepfe("data-fahrzeug-entscheid", daten, "Bestätigen")}</div>`, a.antrag.seit);
+    });
     // Community-Rennen: Bei der Freigabe legt die Rennleitung Stewarding und „Darkline Sponsored“ fest.
-    const community = d.communityAntraege || [];
-    const communityBild = (a) => `api/liga?r=bild&k=community-${encodeURIComponent(a.id)}&v=${encodeURIComponent(a.banner)}`;
-    // Kommende freigegebene Rennen: Banner entfernen oder absagen. Beantragte Änderungen gibt die Rennleitung frei.
-    const cKommend = d.communityKommend || [];
-    const aenderungen = d.communityAenderungen || [];
-    const iratingText = (a) => (a.iratingMin != null && a.iratingMax != null ? `iRating ${a.iratingMin} bis ${a.iratingMax}` : a.iratingMin != null ? `iRating ab ${a.iratingMin}` : a.iratingMax != null ? `iRating bis ${a.iratingMax}` : "");
-    const terminText = (iso) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
-    const communityHtml = community.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Community-Rennen</h2><span class="a-chip gelb">${community.length}</span></div><div class="a-liste">${community.map((a) => {
+    (d.communityAntraege || []).forEach((a) => {
       const daten = `data-id="${esc(a.id)}" data-titel="${esc(a.titel)}" data-name="${esc(a.name)}"`;
-      const infos = [`${terminText(a.start)} Uhr`, a.strecke, a.fahrzeugklasse, [a.training ? `Training ${a.training} min` : "", a.qualiDauer ? `Quali ${a.qualiDauer} min` : a.quali ? "mit Quali" : "", `Rennen ${a.dauer} min`].filter(Boolean).join(", "), a.art === "team" ? "Teamrennen" : "Einzelrennen", a.zugang === "freigabe" ? "Veranstalter gibt Fahrer frei" : "offen für alle", `${a.plaetze} Plätze`, iratingText(a)].filter(Boolean).join(" · ");
+      const infos = [`${terminLang(a.start)} Uhr`, a.strecke, a.fahrzeugklasse, [a.training ? `Training ${a.training} min` : "", a.qualiDauer ? `Quali ${a.qualiDauer} min` : a.quali ? "mit Quali" : "", `Rennen ${a.dauer} min`].filter(Boolean).join(", "), a.art === "team" ? "Teamrennen" : "Einzelrennen", a.zugang === "freigabe" ? "Veranstalter gibt Fahrer frei" : "offen für alle", `${a.plaetze} Plätze`, iratingText(a)].filter(Boolean).join(" · ");
       const parallel = (a.kollisionen || []).length ? `<small class="a-bild-fehler">Überschneidung mit: ${esc(a.kollisionen.join(", "))}</small>` : "";
-      return `<div class="a-abschluss s-rot" data-community="${esc(a.id)}"><span>${a.banner ? `<img src="${esc(communityBild(a))}" alt="Banner ${esc(a.titel)}" loading="lazy" style="display:block;width:100%;max-width:360px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:4px;margin-bottom:6px">` : ""}<b>${esc(a.titel)}</b><small>von ${esc(a.name)}${a.nummer ? ` (#${esc(a.nummer)})` : ""}, beantragt ${esc(zeit(a.erstellt))}</small><small>${esc(infos)}</small><small>„${esc(a.beschreibung)}“</small>${parallel}
+      neu("community", `<div class="a-abschluss s-rot" data-community="${esc(a.id)}"><span>${art("Community-Rennen", "gold")}${a.banner ? `<img class="a-banner-klein" src="${esc(communityBild(a))}" alt="Banner ${esc(a.titel)}" loading="lazy">` : ""}<b>${esc(a.titel)}</b><small>von ${esc(a.name)}${a.nummer ? ` (#${esc(a.nummer)})` : ""}, beantragt ${esc(zeit(a.erstellt))}</small><small>${esc(infos)}</small><small>„${esc(a.beschreibung)}“</small>${parallel}
         <label class="a-check">Stewarding <select data-community-stewarding aria-label="Stewarding für ${esc(a.titel)}"><option value="">Bitte wählen</option><option value="darkline">Durch Darkline</option><option value="eigene">Auf eigene Verantwortung</option></select></label>
         <label class="a-check"><input type="checkbox" data-community-sponsored> Darkline Sponsored</label></span>
-        <div class="a-leiste"><button type="button" class="a-knopf klein" data-community-entscheid="ja" ${daten}>Freigeben</button><button type="button" class="a-knopf zweit klein" data-community-entscheid="nein" ${daten}>Ablehnen</button></div></div>`;
-    }).join("")}</div></section>` : "";
-    // Ergebnisse der Community-Rennen der letzten 14 Tage: fehlt eins, oder ist eins falsch hochgeladen?
-    const cErgebnisse = d.communityErgebnisse || [];
-    const cErgebnisHtml = cErgebnisse.length ? `<section class="a-karte"><div class="a-kartenkopf"><h2>Community-Ergebnisse</h2><span class="a-chip">${cErgebnisse.length}</span></div><p class="a-hinweis">Der Veranstalter lädt das Ergebnis hoch. Ein falsches Ergebnis entfernt ihr hier, danach kann er ein neues hochladen.</p><div class="a-liste">${cErgebnisse.map((a) => {
-      const stand = !a.hochgeladen ? "Ergebnis fehlt" : `${a.stand === "vorlaeufig" ? "Vorläufig" : "Endgültig"} · ${a.podium.map((n, i) => `P${i + 1} ${n}`).join(", ")}`;
-      return `<div class="a-abschluss s-rot"><span><b>${esc(a.titel)}</b><small>von ${esc(a.name)} · ${esc(terminText(a.start))} Uhr${a.team ? " · Teamrennen" : ""}${a.stewarding === "darkline" ? " · Stewarding durch Darkline" : ""}</small><small${a.hochgeladen ? "" : ' class="a-bild-fehler"'}>${esc(stand)}</small></span>${a.hochgeladen ? `<button type="button" class="a-knopf zweit klein" data-community-ergebnis-weg="${esc(a.id)}" data-titel="${esc(a.titel)}">Ergebnis entfernen</button>` : ""}</div>`;
-    }).join("")}</div></section>` : "";
-    const aenderungHtml = aenderungen.length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Community-Rennen: Änderungen</h2><span class="a-chip gelb">${aenderungen.length}</span></div><div class="a-liste">${aenderungen.map((a) => {
+        ${knoepfe("data-community-entscheid", daten)}</div>`, a.erstellt, String(a.start).slice(0, 10));
+    });
+    (d.communityAenderungen || []).forEach((a) => {
       const daten = `data-id="${esc(a.id)}" data-titel="${esc(a.titel)}" data-name="${esc(a.name)}"`;
-      const stand = (x) => `${terminText(x.start)} Uhr · ${x.strecke} · ${x.fahrzeugklasse} · ${x.dauer} min`;
+      const stand = (x) => `${terminLang(x.start)} Uhr · ${x.strecke} · ${x.fahrzeugklasse} · ${x.dauer} min`;
       const parallel = (a.kollisionen || []).length ? `<small class="a-bild-fehler">Überschneidung mit: ${esc(a.kollisionen.join(", "))}</small>` : "";
-      return `<div class="a-abschluss s-rot"><span><b>${esc(a.titel)}</b><small>von ${esc(a.name)}</small><small>Bisher: ${esc(stand(a.alt))}</small><small>Neu: ${esc(stand(a.neu))}</small>${parallel}</span><div class="a-leiste"><button type="button" class="a-knopf klein" data-community-aenderung="ja" ${daten}>Freigeben</button><button type="button" class="a-knopf zweit klein" data-community-aenderung="nein" ${daten}>Ablehnen</button></div></div>`;
-    }).join("")}</div></section>` : "";
-    const bannerHtml = cKommend.length ? `<section class="a-karte"><div class="a-kartenkopf"><h2>Kommende Community-Rennen</h2><span class="a-chip">${cKommend.length}</span></div><p class="a-hinweis">Veranstalter können ihren Banner bis zum Start ändern, er ist sofort sichtbar. Unpassende Banner entfernt ihr hier. Bei einer Absage bekommen Veranstalter und alle Gemeldeten eine Direktnachricht.</p><div class="a-liste">${cKommend.map((a) => {
-      const daten = `data-titel="${esc(a.titel)}" data-name="${esc(a.name)}"`;
-      const infos = [`${terminText(a.start)} Uhr`, a.strecke, `${a.gemeldet} von ${a.plaetze} gemeldet`, a.stewarding === "darkline" ? "Stewarding durch Darkline" : "auf eigene Verantwortung", a.sponsored ? "Darkline Sponsored" : ""].filter(Boolean).join(" · ");
-      return `<div class="a-abschluss s-rot"><span>${a.banner ? `<img src="${esc(communityBild(a))}" alt="Banner ${esc(a.titel)}" loading="lazy" style="display:block;width:100%;max-width:240px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:4px;margin-bottom:6px">` : ""}<b>${esc(a.titel)}</b><small>von ${esc(a.name)}</small><small>${esc(infos)}</small></span><div class="a-leiste">${a.banner ? `<button type="button" class="a-knopf zweit klein" data-community-banner-weg="${esc(a.id)}" ${daten}>Banner entfernen</button>` : ""}<button type="button" class="a-knopf zweit klein" data-community-absagen="${esc(a.id)}" ${daten}>Absagen</button></div></div>`;
-    }).join("")}</div></section>` : "";
-    const kachel = (wert, text, art, ziel) => `<button type="button" class="a-kennzahl ${art}" data-tab="${ziel}"><b>${wert}</b><span>${esc(text)}</span></button>`;
-    const reportsHtml = offene.slice(0, 5).map(reportZeile).join("");
+      neu("community", `<div class="a-abschluss s-rot"><span>${art("Änderung", "gold")}<b>${esc(a.titel)}</b><small>von ${esc(a.name)}</small><small>Bisher: ${esc(stand(a.alt))}</small><small>Neu: ${esc(stand(a.neu))}</small>${parallel}</span>${knoepfe("data-community-aenderung", daten)}</div>`, a.seit || "", String(a.alt.start).slice(0, 10));
+    });
+    eingang.sort((a, b) => a.prio - b.prio || a.seit.localeCompare(b.seit));
+    const GRUPPEN = [["alle", "Alle"], ["reports", "Reports"], ["anfragen", "Anfragen"], ["community", "Community"]];
+    const anzahl = (g) => (g === "alle" ? eingang.length : eingang.filter((e) => e.gruppe === g).length);
+    if (cockpitFilter !== "alle" && !anzahl(cockpitFilter)) cockpitFilter = "alle";
+    const sichtbar = eingang.filter((e) => cockpitFilter === "alle" || e.gruppe === cockpitFilter);
+    const filterLeiste = eingang.length > 3 ? `<div class="a-leiste a-filterleiste">${GRUPPEN.filter(([g]) => g === "alle" || anzahl(g)).map(([g, t]) => `<button type="button" class="a-filter" data-cockpit-filter="${g}" aria-pressed="${cockpitFilter === g}">${t} <em>${anzahl(g)}</em></button>`).join("")}</div>` : "";
+    const entscheidenHtml = `<section class="a-karte a-ck-bereich"><div class="a-kartenkopf"><h2>Zu entscheiden</h2>${eingang.length ? `<span class="a-chip gelb">${eingang.length}</span>` : ""}<button type="button" class="a-knopf zweit klein" data-tab="reports">Alle Reports</button></div>
+      ${eingang.length ? `${filterLeiste}<div class="a-liste">${sichtbar.map((e) => e.html).join("")}</div>` : '<p class="a-leer a-erledigt">✓ Alles erledigt, niemand wartet auf eine Entscheidung.</p>'}</section>`;
+
+    /* ---------- 2. Fällig: Erinnerungen, die eine Handlung brauchen ---------- */
+    const faellig = [];
+    const zeileF = (text, farbe, serie, titel, info, knopf) => faellig.push(`<div class="a-abschluss ${serie}"><span>${art(text, farbe)}<b>${esc(titel)}</b>${info}</span>${knopf}</div>`);
+    (d.strafkonten || []).forEach((k) => zeileF("Strafpunkte", "rot", serienFarbe(k.serie), k.name, `<small>${esc(k.serieName)} · ${k.punkte} Strafpunkte, Grenze ${k.grenze}. Rennsperre prüfen.</small>`, `<button type="button" class="a-knopf zweit klein" data-tab="fahrer">Zu den Fahrern</button>`));
+    (d.fehlendeErgebnisse || []).slice(0, 6).forEach((r) => zeileF("Ergebnis fehlt", "gelb", serienFarbe(r.serie), r.titel, `<small>${esc([(serieVon(r.serie) || {}).name, datumKurz(r.datum)].filter(Boolean).join(" · "))}</small>`, `<button type="button" class="a-knopf zweit klein" data-ergebnis-import="${esc(r.serie)}">Importieren</button>`));
+    // Automatische Prüfung nach dem Rennen: wer gemeldet war und fehlte, wer auffällig viele Incidents hatte, wer ein anderes Auto fuhr
+    (d.pruefungen || []).forEach((p) => {
+      const teile = [p.noShows.length ? `Nicht erschienen: ${p.noShows.map((f) => f.name).join(", ")}` : "", p.incidents.length ? `Viele Incidents: ${p.incidents.map((f) => `${f.name} (${f.incidents})`).join(", ")}` : ""].filter(Boolean);
+      const fz = (p.fahrzeuge || []).map((f) => {
+        const daten = `data-serie="${esc(p.serie)}" data-discord="${esc(f.discordId || "")}" data-name="${esc(f.name)}"`;
+        return `<small class="a-pruefung">Anderes Fahrzeug: ${esc(f.name)} fuhr ${esc(f.gefahren)} statt ${esc(f.gemeldet)}</small><span class="a-pruefung-knoepfe"><button type="button" class="a-knopf zweit klein" data-fahrzeug-genehmigen="1" ${daten} data-modell="${esc(f.gefahren)}">Wechsel genehmigen</button><button type="button" class="a-knopf gefahr klein" data-fahrzeug-streichen="1" ${daten} data-rennen="${esc(p.id)}" data-cust="${esc(f.cust)}">Ergebnis streichen</button></span>`;
+      }).join("");
+      zeileF("Nach dem Rennen", "gelb", serienFarbe(p.serie), p.strecke, `<small>${esc([p.serieName, zeit(p.start)].join(" · "))}</small>${teile.map((t) => `<small class="a-pruefung">${esc(t)}</small>`).join("")}${fz}`, `<button type="button" class="a-knopf zweit klein" data-pruefung-erledigt="${esc(p.id)}" data-serie="${esc(p.serie)}">Erledigt</button>`);
+    });
+    (d.gastHinweise || []).forEach((h) => {
+      const daten = `data-rennen="${esc(h.rennen)}" data-discord="${esc(h.discordId)}" data-name="${esc(h.name || "")}"`;
+      const aufnehmen = h.schritt === "aufnehmen";
+      zeileF("iRacing-Liga", "blau", serienFarbe(h.serie), h.name || "Gast", `<small>${esc(`${h.rennenTitel} · ${datumKurz(h.datum)}${h.startzeit ? ` ${h.startzeit}` : ""}`)}</small><small>${esc(aufnehmen ? `Gast vor dem Rennen aufnehmen${h.custId ? `, iRacing-ID ${h.custId}` : ""}` : `Rennen vorbei: Gast wieder entfernen${h.custId ? ` (iRacing-ID ${h.custId})` : ""}`)}</small>`, `<div class="a-leiste">${h.custId ? `<button type="button" class="a-knopf zweit klein" data-kopieren="${esc(h.custId)}">ID kopieren</button>` : ""}<button type="button" class="a-knopf klein" data-gast-liga="${aufnehmen ? "aufgenommen" : "entfernt"}" ${daten}>${aufnehmen ? "Aufgenommen" : "Entfernt"}</button></div>`);
+    });
+    // Eine geplante Serie wechselt nicht von selbst. Rückt ihr Termin näher, erinnert das Cockpit an die Anmeldung.
+    const grenze = plusTage(heute(), 14);
+    d.serien.map((s) => ({ s, r: s.status === "geplant" ? kommend.find((x) => x.serie === s.id) : null })).filter((x) => x.r && String(x.r.datum) <= grenze)
+      .forEach(({ s, r }) => zeileF("Anmeldung", "gelb", `s-${esc(s.farbe || "rot")}`, s.name, `<small>Erstes Rennen am ${esc(datumKurz(r.datum))}, die Season steht noch auf „Geplant“.</small>`, `<button type="button" class="a-knopf klein" data-serie-oeffnen="${esc(s.id)}">Anmeldung öffnen</button>`));
+    (d.sichtungen || []).filter((x) => !x.vorbei || x.komplett < x.fahrer).forEach((x) => zeileF("Sichtung", "grau", serienFarbe(x.serie), x.serieName, `<small>${x.eingerichtet ? `${x.komplett} von ${x.fahrer} Fahrern mit allen Strecken${x.teil ? `, ${x.teil} teilweise` : ""} · ${x.laeuft ? `läuft bis ${datumKurz(x.bis)}` : x.vorbei ? "vorbei" : `ab ${datumKurz(x.von)}`}` : "Noch nicht fertig eingerichtet"}</small>`, `<button type="button" class="a-knopf zweit klein" data-sichtung-oeffnen="${esc(x.serie)}">Öffnen</button>`));
+    // Alle Rennen gefahren, aber noch nicht beendet: Das entscheidet die Rennleitung, wenn Reports und Strafen erledigt sind.
+    laufend.filter((s) => { const eigene = d.rennen.filter((r) => r.serie === s.id && r.status !== "abgesagt"); return eigene.length >= s.rennenGesamt && eigene.every((r) => String(r.datum) < heute()); })
+      .forEach((s) => zeileF("Abschluss", "grau", `s-${esc(s.farbe || "rot")}`, s.name, "<small>Alle Rennen sind gefahren. Beende die Serie, sobald Reports und Strafen erledigt sind.</small>", `<button type="button" class="a-knopf zweit klein" data-serie-bearbeiten="${esc(s.id)}">Öffnen</button>`));
+    const faelligHtml = faellig.length ? `<section class="a-karte a-ck-bereich"><div class="a-kartenkopf"><h2>Fällig</h2><span class="a-chip">${faellig.length}</span></div><div class="a-liste">${faellig.join("")}</div></section>` : "";
+
+    /* ---------- 3. Überblick: nur zum Ansehen ---------- */
+    const kachel = (wert, text, stil, ziel) => `<button type="button" class="a-kennzahl ${stil}" data-tab="${ziel}"><b>${wert}</b><span>${esc(text)}</span></button>`;
     const termine = kommend.slice(0, 5).map(terminZeile).join("");
-    return `<section class="a-held"><div class="a-held-bild" aria-hidden="true"></div><div><span class="a-kicker">Rennleitung</span><h1>Hallo, ${esc(d.name)}</h1><p>${offene.length ? `${offene.length} ${offene.length === 1 ? "Report wartet" : "Reports warten"} auf eine Entscheidung.` : "Keine offenen Reports, alles erledigt."}</p></div></section>
+    // Kommende freigegebene Community-Rennen: Banner entfernen oder absagen
+    const cKommend = d.communityKommend || [];
+    const communityKommendHtml = cKommend.length ? `<section class="a-karte"><div class="a-kartenkopf"><h2>Kommende Community-Rennen</h2><span class="a-chip">${cKommend.length}</span></div><div class="a-liste">${cKommend.map((a) => {
+      const daten = `data-titel="${esc(a.titel)}" data-name="${esc(a.name)}"`;
+      const infos = [`${terminLang(a.start)} Uhr`, a.strecke, `${a.gemeldet} von ${a.plaetze} gemeldet`, a.stewarding === "darkline" ? "Stewarding durch Darkline" : "auf eigene Verantwortung", a.sponsored ? "Darkline Sponsored" : ""].filter(Boolean).join(" · ");
+      return `<div class="a-abschluss s-rot"><span><b>${esc(a.titel)}</b><small>von ${esc(a.name)}</small><small>${esc(infos)}</small></span><div class="a-leiste">${a.banner ? `<button type="button" class="a-knopf zweit klein" data-community-banner-weg="${esc(a.id)}" ${daten}>Banner entfernen</button>` : ""}<button type="button" class="a-knopf zweit klein" data-community-absagen="${esc(a.id)}" ${daten}>Absagen</button></div></div>`;
+    }).join("")}</div><p class="a-hinweis">Veranstalter können ihren Banner bis zum Start ändern. Bei einer Absage bekommen Veranstalter und alle Gemeldeten eine Direktnachricht.</p></section>` : "";
+    // Link zur iRacing-Liga für die Direktnachricht an freigegebene Gäste
+    const ligaLinkForm = `<form class="a-leiste" data-gast-link-form><input type="url" name="link" value="${esc(d.iracingLigaLink || "")}" placeholder="https://members-ng.iracing.com/…" aria-label="Link zur iRacing-Liga" style="flex:1 1 260px"><button type="submit" class="a-knopf zweit klein">Speichern</button></form>`;
+    const einstellungen = `<details class="a-karte a-einstellung"><summary><b>Gaststarter: Link zur iRacing-Liga</b> <span class="a-hinweis">${d.iracingLigaLink ? "eingetragen" : "fehlt noch"}</span></summary><p class="a-hinweis">Der Link steht in der Direktnachricht an freigegebene Gäste. Ohne Link heißt es dort, dass ihr sie in die iRacing-Liga aufnehmt.</p>${ligaLinkForm}</details>`;
+
+    const offenGesamt = eingang.length;
+    const satz = offenGesamt ? `${offenGesamt} ${offenGesamt === 1 ? "Sache wartet" : "Sachen warten"} auf eine Entscheidung${faellig.length ? `, ${faellig.length} ${faellig.length === 1 ? "Erinnerung ist" : "Erinnerungen sind"} fällig` : ""}.` : faellig.length ? `Nichts zu entscheiden, ${faellig.length} ${faellig.length === 1 ? "Erinnerung ist" : "Erinnerungen sind"} fällig.` : "Alles erledigt.";
+    return `<section class="a-held"><div class="a-held-bild" aria-hidden="true"></div><div><span class="a-kicker">Rennleitung</span><h1>Hallo, ${esc(d.name)}</h1><p>${satz}</p></div></section>
+      ${entscheidenHtml}
+      ${faelligHtml}
+      <h2 class="a-bereichskopf">Überblick</h2>
       <div class="a-kennzahlen">
         ${kachel(offene.length, "Offene Reports", offene.length ? "alarm" : "", "reports")}
         ${einsprueche.length ? kachel(einsprueche.length, "Einsprüche", "alarm", "reports") : ""}
@@ -526,19 +528,24 @@
         ${kachel(kommend.length, "Geplante Rennen", "", "rennen")}
         ${kachel(unfertig.length, "Rennen unvollständig", unfertig.length ? "warnung" : "", "rennen")}
       </div>
-      ${(d.fehlendeErgebnisse || []).length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Ergebnis fehlt</h2><span class="a-chip gelb">${d.fehlendeErgebnisse.length}</span></div><div class="a-liste">${d.fehlendeErgebnisse.slice(0, 6).map((r) => `<div class="a-abschluss ${serienFarbe(r.serie)}"><span><b>${esc(r.titel)}</b><small>${esc([(serieVon(r.serie) || {}).name, datumKurz(r.datum)].filter(Boolean).join(" · "))}</small></span><button type="button" class="a-knopf zweit klein" data-ergebnis-import="${esc(r.serie)}">Importieren</button></div>`).join("")}</div></section>` : ""}
-      ${anfragenHtml}${istSteward() ? "" : gastHtml}${communityHtml}${aenderungHtml}${nummernHtml}${fahrzeugHtml}
-      ${cockpitSichtung()}
-      ${anmeldungFaellig}
-      ${cockpitPruefungen()}
-      ${cockpitStrafkonten()}
-      ${abschluss}
-      ${bannerHtml}
-      ${cErgebnisHtml}
       <div class="a-zwei">
-        <section class="a-karte"><div class="a-kartenkopf"><h2>Zu entscheiden</h2><button type="button" class="a-knopf zweit klein" data-tab="reports">Alle Reports</button></div>${reportsHtml ? `<div class="a-liste">${reportsHtml}</div>` : '<p class="a-leer">Aktuell liegt nichts an.</p>'}</section>
         <section class="a-karte"><div class="a-kartenkopf"><h2>Nächste Rennen</h2><button type="button" class="a-knopf zweit klein" data-tab="rennen">Alle Rennen</button></div>${termine ? `<div class="a-liste">${termine}</div>` : '<p class="a-leer">Keine Rennen geplant.</p>'}</section>
-      </div>`;
+        ${communityKommendHtml || '<section class="a-karte"><h2>Kommende Community-Rennen</h2><p class="a-leer">Keine freigegebenen Community-Rennen geplant.</p></section>'}
+      </div>
+      ${einstellungen}`;
+  }
+
+  // Lange Terminangabe für Community-Rennen, z. B. „Fr., 20.11.2026, 20:00“
+  const terminLang = (iso) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+
+  // Ergebnisse der Community-Rennen der letzten 14 Tage, im Reiter „Ergebnisse“: fehlt eins, oder ist eins falsch hochgeladen?
+  function communityErgebnisseKarte() {
+    const liste = d.communityErgebnisse || [];
+    if (!liste.length) return "";
+    return `<section class="a-karte"><div class="a-kartenkopf"><h2>Community-Ergebnisse</h2><span class="a-chip">${liste.length}</span></div><p class="a-hinweis">Der Veranstalter lädt das Ergebnis hoch. Ein falsches Ergebnis entfernt ihr hier, danach kann er ein neues hochladen.</p><div class="a-liste">${liste.map((a) => {
+      const stand = !a.hochgeladen ? "Ergebnis fehlt" : `${a.stand === "vorlaeufig" ? "Vorläufig" : "Endgültig"} · ${a.podium.map((n, i) => `P${i + 1} ${n}`).join(", ")}`;
+      return `<div class="a-abschluss s-rot"><span><b>${esc(a.titel)}</b><small>von ${esc(a.name)} · ${esc(terminLang(a.start))} Uhr${a.team ? " · Teamrennen" : ""}${a.stewarding === "darkline" ? " · Stewarding durch Darkline" : ""}</small><small${a.hochgeladen ? "" : ' class="a-bild-fehler"'}>${esc(stand)}</small></span>${a.hochgeladen ? `<button type="button" class="a-knopf zweit klein" data-community-ergebnis-weg="${esc(a.id)}" data-titel="${esc(a.titel)}">Ergebnis entfernen</button>` : ""}</div>`;
+    }).join("")}</div></section>`;
   }
 
   /* ---------- Serien ---------- */
@@ -1163,13 +1170,6 @@
       </section>${unbekannt}`;
   }
 
-  // Kurzer Fortschritt im Cockpit
-  function cockpitSichtung() {
-    const liste = (d.sichtungen || []).filter((x) => !x.vorbei || x.komplett < x.fahrer);
-    if (!liste.length) return "";
-    return `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Sichtung</h2></div><div class="a-liste">${liste.map((x) => `<div class="a-abschluss ${serienFarbe(x.serie)}"><span><b>${esc(x.serieName)}</b><small>${x.eingerichtet ? `${x.komplett} von ${x.fahrer} Fahrern mit allen Strecken${x.teil ? `, ${x.teil} teilweise` : ""} · ${x.laeuft ? `läuft bis ${datumKurz(x.bis)}` : x.vorbei ? "vorbei" : `ab ${datumKurz(x.von)}`}` : "Noch nicht fertig eingerichtet"}</small></span><button type="button" class="a-knopf zweit klein" data-sichtung-oeffnen="${esc(x.serie)}">Öffnen</button></div>`).join("")}</div></section>`;
-  }
-
   /* ---------- Alle registrierten Fahrer, unabhängig von Seasons ---------- */
   let fahrerAnsicht = "alle";   // "alle" oder "serie"
   let alleFilter = "alle";
@@ -1337,7 +1337,8 @@
     </section>
     ${vorschauHtml()}
     <section class="a-karte"><h2>Eingelesene Rennen</h2>${ergebnisse ? `<div class="a-scroll"><table><thead><tr><th>Start</th><th>Strecke</th><th class="rechts">Fahrer</th><th>Stand</th><th></th></tr></thead><tbody>${ergebnisse}</tbody></table></div>` : '<p class="a-leer">Noch kein Ergebnis eingelesen.</p>'}</section>
-    <section class="a-karte"><h2>Strafen</h2>${strafForm}${strafen ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>Rennen</th><th class="rechts">Punkte</th><th>Grund</th><th></th></tr></thead><tbody>${strafen}</tbody></table></div>` : ""}</section>`;
+    <section class="a-karte"><h2>Strafen</h2>${strafForm}${strafen ? `<div class="a-scroll"><table><thead><tr><th>Fahrer</th><th>Rennen</th><th class="rechts">Punkte</th><th>Grund</th><th></th></tr></thead><tbody>${strafen}</tbody></table></div>` : ""}</section>
+    ${communityErgebnisseKarte()}`;
   }
   const fahrerOptionen = (e, gewaehlt) => e.fahrer.map((f) => `<option value="${esc(f.cust)}"${f.cust === gewaehlt ? " selected" : ""}>${esc(f.name)}</option>`).join("");
 
@@ -1876,6 +1877,7 @@
       if (grund === null) return;
       return aktion({ aktion: "anfrage-entscheiden", serie: b.dataset.serie, discordId: b.dataset.discord, name: b.dataset.name, ja, grund }, ja ? "Freigegeben, der Fahrer ist angemeldet und wird informiert." : "Abgelehnt, der Fahrer wird informiert.");
     }
+    if (b.dataset.cockpitFilter) { cockpitFilter = b.dataset.cockpitFilter; return zeichne(); }
     if (b.dataset.gastEntscheid) {
       const ja = b.dataset.gastEntscheid === "ja";
       if (ja && !window.confirm(`${b.dataset.name || "Diesen Fahrer"} als Gast für dieses Rennen freigeben? Er ist danach gemeldet (ohne Punkte) und bekommt eine Direktnachricht.`)) return;

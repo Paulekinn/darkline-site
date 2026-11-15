@@ -385,6 +385,24 @@ details.a-rg summary small{margin-left:8px;font:500 .72rem var(--a-mono);color:v
 .a-aehnlich b{color:var(--a-text)}
 .a-aehnlich.breit{grid-column:1/-1}
 
+/* Cockpit in drei Bereichen: Zu entscheiden, Fällig, Überblick */
+.a-ck-bereich{border-top:3px solid var(--a-rot)}
+.a-ck-bereich + .a-ck-bereich{border-top-color:var(--a-gelb)}
+.a-bereichskopf{margin:22px 0 2px;font:800 .78rem/1 var(--a-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--a-leise)}
+.a-filterleiste{margin:4px 0 10px}
+.a-filter em{font-style:normal;opacity:.7;margin-left:4px}
+.a-art{display:inline-block;width:max-content;margin-bottom:5px;padding:3px 7px;font:800 .6rem/1.2 var(--a-mono);font-style:normal;letter-spacing:.08em;text-transform:uppercase;background:var(--a-flaeche2);color:var(--a-leise)}
+.a-art.rot{background:color-mix(in srgb,var(--a-rot) 22%,var(--a-flaeche));color:var(--a-rot-hell)}
+.a-art.gelb{background:color-mix(in srgb,var(--a-gelb) 18%,var(--a-flaeche));color:var(--a-gelb)}
+.a-art.gold{background:color-mix(in srgb,var(--a-gold) 18%,var(--a-flaeche));color:var(--a-gold)}
+.a-art.blau{background:color-mix(in srgb,#5aa9ff 18%,var(--a-flaeche));color:#8cc4ff}
+.a-art.grau{background:var(--a-flaeche2);color:var(--a-text)}
+.a-fall-kopf .a-art{margin:0 4px 0 0}
+.a-abschluss > span > .a-art{display:block}
+.a-banner-klein{display:block;width:100%;max-width:300px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:4px;margin-bottom:6px}
+.a-erledigt{color:var(--a-ok)}
+.a-einstellung{margin-top:4px}
+
 /* Gaststarter im Cockpit */
 .a-unterkopf{margin:16px 0 8px;font-size:.74rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--a-leise)}
 .a-karte details>summary{cursor:pointer;list-style-position:inside;margin-top:10px}
