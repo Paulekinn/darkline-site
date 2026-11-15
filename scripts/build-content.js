@@ -149,7 +149,7 @@ console.log(`Seiten: ${races.length} Rennen, ${posts.length} News, ${drivers.len
 // ---------- Kurzadresse /discord: leitet auf den Discord-Link aus Admin → Einstellungen → Links & Recruiting ----------
 // Alle Discord-Knöpfe der Website zeigen auf /discord. Läuft eine Einladung ab, reicht es, den Link im Admin zu ändern.
 {
-  let ziel = "https://discord.gg/bSHEMVVDWF"; // nur falls in den Einstellungen nichts Gültiges steht
+  let ziel = "https://discord.gg/PUWtfpCakd"; // nur falls in den Einstellungen nichts Gültiges steht
   try {
     const s = JSON.parse(fs.readFileSync(path.join(ROOT, "content", "settings.json"), "utf8"));
     if (/^https:\/\/(discord\.gg|(www\.)?discord\.com\/invite)\/[\w-]+\/?$/.test(String(s.discord || "").trim())) ziel = s.discord.trim();
