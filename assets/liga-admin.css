@@ -401,6 +401,8 @@ details.a-rg summary small{margin-left:8px;font:500 .72rem var(--a-mono);color:v
 .a-abschluss > span > .a-art{display:block}
 .a-banner-klein{display:block;width:100%;max-width:300px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:4px;margin-bottom:6px}
 .a-erledigt{color:var(--a-ok)}
+small .a-akte-name{display:inline;color:inherit;text-decoration:underline dotted;text-underline-offset:3px}
+small .a-akte-name:hover,small .a-akte-name:focus-visible{color:var(--a-text);text-decoration:underline solid var(--a-rot)}
 .a-einstellung{margin-top:4px}
 
 /* Gaststarter im Cockpit */

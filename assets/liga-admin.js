@@ -421,6 +421,8 @@
     // Etikett vor jeder Zeile, damit man in der gemeinsamen Liste sofort sieht, worum es geht
     const art = (text, farbe) => `<em class="a-art ${farbe}">${esc(text)}</em>`;
     const mitArt = (html, text, farbe) => html.replace("<span>", `<span>${art(text, farbe)}`);
+    // Der Name öffnet die Fahrer-Akte, damit man vor der Entscheidung nachsehen kann, wer das ist
+    const mitAkte = (name, cust, discord) => (cust || discord ? akteName(name || "Fahrer", cust, discord, `<b>${esc(name || "Fahrer")}</b>`) : `<b>${esc(name || "Fahrer")}</b>`);
     const knoepfe = (attr, daten, ja = "Freigeben", nein = "Ablehnen") => `<div class="a-leiste"><button type="button" class="a-knopf klein" ${attr}="ja" ${daten}>${ja}</button><button type="button" class="a-knopf zweit klein" ${attr}="nein" ${daten}>${nein}</button></div>`;
 
     /* ---------- 1. Zu entscheiden: alles, wo jemand auf eine Antwort wartet ---------- */
@@ -432,27 +434,27 @@
     (d.beitrittsAnfragen || []).forEach((a) => {
       const daten = `data-serie="${esc(a.serie)}" data-discord="${esc(a.discordId)}" data-name="${esc(a.name || "")}"`;
       const infos = [a.serieName, a.irating ? `iRating ${a.irating}` : "", a.modell, a.fahrzeugklasse, `angefragt ${zeit(a.seit)}`].filter(Boolean).join(" · ");
-      neu("anfragen", `<div class="a-abschluss ${serienFarbe(a.serie)}"><span>${art("Beitritt", "blau")}<b>${esc(a.name || "Fahrer")}</b><small>${esc(infos)}</small>${a.nachricht ? `<small>„${esc(a.nachricht)}“</small>` : ""}</span>${knoepfe("data-anfrage-entscheid", daten)}</div>`, a.seit);
+      neu("anfragen", `<div class="a-abschluss ${serienFarbe(a.serie)}"><span>${art("Beitritt", "blau")}${mitAkte(a.name, a.custId, a.discordId)}<small>${esc(infos)}</small>${a.nachricht ? `<small>„${esc(a.nachricht)}“</small>` : ""}</span>${knoepfe("data-anfrage-entscheid", daten)}</div>`, a.seit);
     });
     (d.gastAnfragen || []).forEach((a) => {
       const daten = `data-rennen="${esc(a.rennen)}" data-discord="${esc(a.discordId)}" data-name="${esc(a.name || "")}"`;
       const infos = [`${a.serieName} · ${a.rennenTitel}`, datumKurz(a.datum) + (a.startzeit ? ` ${a.startzeit}` : ""), a.irating ? `iRating ${a.irating}` : "", a.fahrzeugklasse, a.plaetze ? `${a.gemeldet} von ${a.plaetze} Plätzen belegt` : "", `angefragt ${zeit(a.seit)}`].filter(Boolean).join(" · ");
-      neu("anfragen", `<div class="a-abschluss ${serienFarbe(a.serie)}"><span>${art("Gast", "blau")}<b>${esc(a.name || "Fahrer")}</b><small>${esc(infos)}</small>${a.nachricht ? `<small>„${esc(a.nachricht)}“</small>` : ""}</span>${knoepfe("data-gast-entscheid", daten)}</div>`, a.seit, a.datum);
+      neu("anfragen", `<div class="a-abschluss ${serienFarbe(a.serie)}"><span>${art("Gast", "blau")}${mitAkte(a.name, a.custId, a.discordId)}<small>${esc(infos)}</small>${a.nachricht ? `<small>„${esc(a.nachricht)}“</small>` : ""}</span>${knoepfe("data-gast-entscheid", daten)}</div>`, a.seit, a.datum);
     });
     (d.nummernWuensche || []).forEach((w) => {
       const daten = `data-discord="${esc(w.discordId)}" data-name="${esc(w.name)}" data-nummer="${esc(w.nach)}"`;
-      neu("anfragen", `<div class="a-abschluss s-rot"><span>${art("Startnummer", "grau")}<b>${esc(w.name)}</b><small>Von #${esc(w.von)} auf #${esc(w.nach)}, beantragt ${esc(zeit(w.seit))}</small></span><div class="a-leiste"><button type="button" class="a-knopf klein" data-nummer-aktion="nummer-bestaetigen" ${daten}>Bestätigen</button><button type="button" class="a-knopf zweit klein" data-nummer-aktion="nummer-ablehnen" ${daten}>Ablehnen</button></div></div>`, w.seit);
+      neu("anfragen", `<div class="a-abschluss s-rot"><span>${art("Startnummer", "grau")}${mitAkte(w.name, "", w.discordId)}<small>Von #${esc(w.von)} auf #${esc(w.nach)}, beantragt ${esc(zeit(w.seit))}</small></span><div class="a-leiste"><button type="button" class="a-knopf klein" data-nummer-aktion="nummer-bestaetigen" ${daten}>Bestätigen</button><button type="button" class="a-knopf zweit klein" data-nummer-aktion="nummer-ablehnen" ${daten}>Ablehnen</button></div></div>`, w.seit);
     });
     (d.fahrzeugAntraege || []).forEach((a) => {
       const daten = `data-serie="${esc(a.serie)}" data-discord="${esc(a.discordId)}"`;
-      neu("anfragen", `<div class="a-abschluss ${serienFarbe(a.serie)}"><span>${art("Fahrzeug", "grau")}<b>${esc(a.name || "Fahrer")}</b><small>${esc(a.serieName)}: ${esc(a.modell)} → ${esc(a.antrag.nach)}, beantragt ${esc(zeit(a.antrag.seit))}${(a.wechsel || []).length ? ` · bisher ${a.wechsel.length} Wechsel` : ""}</small></span>${knoepfe("data-fahrzeug-entscheid", daten, "Bestätigen")}</div>`, a.antrag.seit);
+      neu("anfragen", `<div class="a-abschluss ${serienFarbe(a.serie)}"><span>${art("Fahrzeug", "grau")}${mitAkte(a.name, "", a.discordId)}<small>${esc(a.serieName)}: ${esc(a.modell)} → ${esc(a.antrag.nach)}, beantragt ${esc(zeit(a.antrag.seit))}${(a.wechsel || []).length ? ` · bisher ${a.wechsel.length} Wechsel` : ""}</small></span>${knoepfe("data-fahrzeug-entscheid", daten, "Bestätigen")}</div>`, a.antrag.seit);
     });
     // Community-Rennen: Bei der Freigabe legt die Rennleitung Stewarding und „Darkline Sponsored“ fest.
     (d.communityAntraege || []).forEach((a) => {
       const daten = `data-id="${esc(a.id)}" data-titel="${esc(a.titel)}" data-name="${esc(a.name)}"`;
       const infos = [`${terminLang(a.start)} Uhr`, a.strecke, a.fahrzeugklasse, [a.training ? `Training ${a.training} min` : "", a.qualiDauer ? `Quali ${a.qualiDauer} min` : a.quali ? "mit Quali" : "", `Rennen ${a.dauer} min`].filter(Boolean).join(", "), a.art === "team" ? "Teamrennen" : "Einzelrennen", a.zugang === "freigabe" ? "Veranstalter gibt Fahrer frei" : "offen für alle", `${a.plaetze} Plätze`, iratingText(a)].filter(Boolean).join(" · ");
       const parallel = (a.kollisionen || []).length ? `<small class="a-bild-fehler">Überschneidung mit: ${esc(a.kollisionen.join(", "))}</small>` : "";
-      neu("community", `<div class="a-abschluss s-rot" data-community="${esc(a.id)}"><span>${art("Community-Rennen", "gold")}${a.banner ? `<img class="a-banner-klein" src="${esc(communityBild(a))}" alt="Banner ${esc(a.titel)}" loading="lazy">` : ""}<b>${esc(a.titel)}</b><small>von ${esc(a.name)}${a.nummer ? ` (#${esc(a.nummer)})` : ""}, beantragt ${esc(zeit(a.erstellt))}</small><small>${esc(infos)}</small><small>„${esc(a.beschreibung)}“</small>${parallel}
+      neu("community", `<div class="a-abschluss s-rot" data-community="${esc(a.id)}"><span>${art("Community-Rennen", "gold")}${a.banner ? `<img class="a-banner-klein" src="${esc(communityBild(a))}" alt="Banner ${esc(a.titel)}" loading="lazy">` : ""}<b>${esc(a.titel)}</b><small>von ${a.discordId ? akteName(a.name, "", a.discordId, esc(a.name)) : esc(a.name)}${a.nummer ? ` (#${esc(a.nummer)})` : ""}, beantragt ${esc(zeit(a.erstellt))}</small><small>${esc(infos)}</small><small>„${esc(a.beschreibung)}“</small>${parallel}
         <label class="a-check">Stewarding <select data-community-stewarding aria-label="Stewarding für ${esc(a.titel)}"><option value="">Bitte wählen</option><option value="darkline">Durch Darkline</option><option value="eigene">Auf eigene Verantwortung</option></select></label>
         <label class="a-check"><input type="checkbox" data-community-sponsored> Darkline Sponsored</label></span>
         ${knoepfe("data-community-entscheid", daten)}</div>`, a.erstellt, String(a.start).slice(0, 10));
@@ -474,8 +476,9 @@
 
     /* ---------- 2. Fällig: Erinnerungen, die eine Handlung brauchen ---------- */
     const faellig = [];
-    const zeileF = (text, farbe, serie, titel, info, knopf) => faellig.push(`<div class="a-abschluss ${serie}"><span>${art(text, farbe)}<b>${esc(titel)}</b>${info}</span>${knopf}</div>`);
-    (d.strafkonten || []).forEach((k) => zeileF("Strafpunkte", "rot", serienFarbe(k.serie), k.name, `<small>${esc(k.serieName)} · ${k.punkte} Strafpunkte, Grenze ${k.grenze}. Rennsperre prüfen.</small>`, `<button type="button" class="a-knopf zweit klein" data-tab="fahrer">Zu den Fahrern</button>`));
+    // person: { cust, discord } macht den Namen zum Link auf die Fahrer-Akte
+    const zeileF = (text, farbe, serie, titel, info, knopf, person) => faellig.push(`<div class="a-abschluss ${serie}"><span>${art(text, farbe)}${person ? mitAkte(titel, person.cust, person.discord) : `<b>${esc(titel)}</b>`}${info}</span>${knopf}</div>`);
+    (d.strafkonten || []).forEach((k) => zeileF("Strafpunkte", "rot", serienFarbe(k.serie), k.name, `<small>${esc(k.serieName)} · ${k.punkte} Strafpunkte, Grenze ${k.grenze}. Rennsperre prüfen.</small>`, akteKnopf(k.name, k.cust, ""), { cust: k.cust, discord: "" }));
     (d.fehlendeErgebnisse || []).slice(0, 6).forEach((r) => zeileF("Ergebnis fehlt", "gelb", serienFarbe(r.serie), r.titel, `<small>${esc([(serieVon(r.serie) || {}).name, datumKurz(r.datum)].filter(Boolean).join(" · "))}</small>`, `<button type="button" class="a-knopf zweit klein" data-ergebnis-import="${esc(r.serie)}">Importieren</button>`));
     // Automatische Prüfung nach dem Rennen: wer gemeldet war und fehlte, wer auffällig viele Incidents hatte, wer ein anderes Auto fuhr
     (d.pruefungen || []).forEach((p) => {
@@ -489,7 +492,7 @@
     (d.gastHinweise || []).forEach((h) => {
       const daten = `data-rennen="${esc(h.rennen)}" data-discord="${esc(h.discordId)}" data-name="${esc(h.name || "")}"`;
       const aufnehmen = h.schritt === "aufnehmen";
-      zeileF("iRacing-Liga", "blau", serienFarbe(h.serie), h.name || "Gast", `<small>${esc(`${h.rennenTitel} · ${datumKurz(h.datum)}${h.startzeit ? ` ${h.startzeit}` : ""}`)}</small><small>${esc(aufnehmen ? `Gast vor dem Rennen aufnehmen${h.custId ? `, iRacing-ID ${h.custId}` : ""}` : `Rennen vorbei: Gast wieder entfernen${h.custId ? ` (iRacing-ID ${h.custId})` : ""}`)}</small>`, `<div class="a-leiste">${h.custId ? `<button type="button" class="a-knopf zweit klein" data-kopieren="${esc(h.custId)}">ID kopieren</button>` : ""}<button type="button" class="a-knopf klein" data-gast-liga="${aufnehmen ? "aufgenommen" : "entfernt"}" ${daten}>${aufnehmen ? "Aufgenommen" : "Entfernt"}</button></div>`);
+      zeileF("iRacing-Liga", "blau", serienFarbe(h.serie), h.name || "Gast", `<small>${esc(`${h.rennenTitel} · ${datumKurz(h.datum)}${h.startzeit ? ` ${h.startzeit}` : ""}`)}</small><small>${esc(aufnehmen ? `Gast vor dem Rennen aufnehmen${h.custId ? `, iRacing-ID ${h.custId}` : ""}` : `Rennen vorbei: Gast wieder entfernen${h.custId ? ` (iRacing-ID ${h.custId})` : ""}`)}</small>`, `<div class="a-leiste">${h.custId ? `<button type="button" class="a-knopf zweit klein" data-kopieren="${esc(h.custId)}">ID kopieren</button>` : ""}<button type="button" class="a-knopf klein" data-gast-liga="${aufnehmen ? "aufgenommen" : "entfernt"}" ${daten}>${aufnehmen ? "Aufgenommen" : "Entfernt"}</button></div>`, { cust: h.custId, discord: h.discordId });
     });
     // Eine geplante Serie wechselt nicht von selbst. Rückt ihr Termin näher, erinnert das Cockpit an die Anmeldung.
     const grenze = plusTage(heute(), 14);
@@ -989,7 +992,9 @@
     zeichne();
     window.scrollTo(0, 0);
   }
-  const akteOeffnen = (b) => { setzeMeldung(""); return akteLaden(b.dataset.name, b.dataset.cust, b.dataset.discord); };
+  // Aus dem Cockpit geöffnet: In der Akte gibt es dann „Zurück zum Cockpit“, um direkt weiter zu entscheiden.
+  let akteAusCockpit = false;
+  const akteOeffnen = (b) => { setzeMeldung(""); akteAusCockpit = tab === "cockpit"; return akteLaden(b.dataset.name, b.dataset.cust, b.dataset.discord); };
 
   function akteProfilForm() {
     const w = akte.werte || akte.daten.profil;
@@ -1016,7 +1021,7 @@
     const zahl_ = (w, t, art) => `<div class="a-kennzahl ${w && art ? art : ""}"><b>${w}</b><span>${t}</span></div>`;
     const fall = (f) => `<button type="button" class="a-fall" data-report="${esc(f.id)}"><span class="a-fall-kopf"><span class="a-chip ${f.rolle === "gemeldet" ? "rot" : ""}">${f.rolle === "gemeldet" ? "Gemeldet" : "Hat gemeldet"}</span>${f.urteil ? `<span class="a-chip">${esc(urteilKurz(f.urteil))}</span>` : '<span class="a-chip gelb">Offen</span>'}<time>${esc(zeit(f.erstellt))}</time></span><b>${esc(f.von)} <span>meldet</span> ${esc(f.gegen)}</b><small>${esc([f.serieName, f.rennenTitel].filter(Boolean).join(" · "))}</small></button>`;
     const strafeZeile = (x) => `<tr><td>${esc(x.serieName)}</td><td class="rechts">${esc(x.typ === "zeit" ? `+${x.sekunden} s` : x.typ === "dsq" ? "DSQ" : `−${x.punkte}`)}</td><td class="umbruch">${esc(x.grund)}</td><td>${x.ausReport ? '<span class="a-chip">aus Report</span>' : ""}</td></tr>`;
-    return `<section class="a-karte a-form"><div class="a-kartenkopf"><h2>Akte: ${esc(akte.name)}</h2><div class="a-leiste">${akte.daten.profil && !akte.bearbeiten && !istSteward() ? '<button type="button" class="a-knopf klein" data-akte-bearbeiten="auf">Profil bearbeiten</button>' : ""}<button type="button" class="a-knopf zweit klein" data-akte-zu="1">Schließen</button></div></div>
+    return `<section class="a-karte a-form"><div class="a-kartenkopf"><h2>Akte: ${esc(akte.name)}</h2><div class="a-leiste">${akte.daten.profil && !akte.bearbeiten && !istSteward() ? '<button type="button" class="a-knopf klein" data-akte-bearbeiten="auf">Profil bearbeiten</button>' : ""}${akteAusCockpit ? '<button type="button" class="a-knopf klein" data-akte-cockpit="1">Zurück zum Cockpit</button>' : ""}<button type="button" class="a-knopf zweit klein" data-akte-zu="1">Schließen</button></div></div>
       ${akte.bearbeiten ? akteProfilForm() : ""}
       <div class="a-kennzahlen">${zahl_(s.gemeldet, "Gemeldet worden", "warnung")}${zahl_(s.selbstGemeldet, "Selbst gemeldet")}${zahl_(s.verwarnungen, "Verwarnungen", "warnung")}${zahl_(s.strafpunkte, "Strafpunkte", "alarm")}${zahl_(s.zeitstrafen, "Zeitstrafen", "alarm")}${zahl_(s.disqualifikationen, "Disqualifikationen", "alarm")}</div>
       ${faelle.length ? `<h3>Fälle</h3><div class="a-liste">${faelle.map(fall).join("")}</div>` : '<p class="a-leer">Keine Reports zu diesem Fahrer.</p>'}
@@ -1666,7 +1671,8 @@
     }
     // Zweiter Klick auf denselben Filter (etwa eine Kachel) zeigt wieder alle
     if (b.dataset.alleFilter) { alleFilter = alleFilter === b.dataset.alleFilter && b.classList.contains("a-kennzahl") ? "alle" : b.dataset.alleFilter; return zeichne(); }
-    if (b.dataset.akteZu) { akte = null; return zeichne(); }
+    if (b.dataset.akteZu) { akte = null; akteAusCockpit = false; return zeichne(); }
+    if (b.dataset.akteCockpit) { akte = null; akteAusCockpit = false; tab = "cockpit"; zeichne(); return window.scrollTo(0, 0); }
     if (b.dataset.akteBearbeiten) { akte.bearbeiten = b.dataset.akteBearbeiten === "auf"; akte.werte = null; setzeMeldung(""); return zeichne(); }
     if (b.dataset.ergebnisImport) {
       serieId = b.dataset.ergebnisImport; tab = "ergebnisse"; form = null; vorschau = null; datei = null; zugelassen = []; setzeMeldung("");
