@@ -80,7 +80,7 @@
     let html = "";
     if (live) html = `<a class="liga-stream live" href="${esc(live.s.uebertragung)}" target="_blank" rel="noopener"><div class="wrap"><i aria-hidden="true"></i><b>Live</b><span>${esc(titel(live))}</span><em>Jetzt ansehen →</em></div></a>`;
     else if (spaeter) html = `<a class="liga-stream heute" href="${esc(spaeter.s.uebertragung)}" target="_blank" rel="noopener"><div class="wrap"><b>📺 Heute</b><span>ab ${esc(spaeter.r.startzeit)} Uhr live: ${esc(titel(spaeter))}</span><em>Zum Kanal →</em></div></a>`;
-    else if (serien.some((s) => !s.uebertragung)) html = `<div class="liga-stream suche"><div class="wrap"><span class="liga-suche-tag">${TWITCH}Gesucht</span><b>Broadcaster &amp; Kommentatoren</b><span>Kommentiere oder übertrage unsere Rennen.</span><a class="liga-suche-knopf" href="https://discord.gg/QP2rKy6n8U" target="_blank" rel="noopener">Discord · #bewerbung →</a></div></div>`;
+    else if (serien.some((s) => !s.uebertragung)) html = `<div class="liga-stream suche"><div class="wrap"><span class="liga-suche-tag">${TWITCH}Gesucht</span><b>Broadcaster &amp; Kommentatoren</b><span>Kommentiere oder übertrage unsere Rennen.</span><a class="liga-suche-knopf" href="/discord" target="_blank" rel="noopener">Discord · #bewerbung →</a></div></div>`;
     if (html) main.insertAdjacentHTML("afterbegin", html);
   }
 

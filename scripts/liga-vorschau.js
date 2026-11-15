@@ -290,6 +290,11 @@ a:hover{background:#1d2124}b{display:block}small{color:#9aa5a0}</style>
     res.send = (d) => { res.end(d); return res; };
     try { return await liga(req, res); } catch (e) { console.error(e); if (!res.headersSent) { res.statusCode = 500; res.end("{}"); } return; }
   }
+  // Live erzeugt build-content.js daraus discord.html, in der Demo genügt eine Weiterleitung.
+  if (u.pathname === "/discord") {
+    const ziel = JSON.parse(fs.readFileSync(path.join(WURZEL, "content", "settings.json"), "utf8")).discord;
+    res.writeHead(302, { Location: ziel }); return res.end();
+  }
   let p = u.pathname === "/" ? "/liga.html" : u.pathname;
   if (!path.extname(p)) p += ".html";
   const datei = path.join(WURZEL, p);

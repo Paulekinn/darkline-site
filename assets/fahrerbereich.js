@@ -395,7 +395,7 @@
             <li><b>Anmeldung</b><span>Für Serien und einzelne Rennen mit einem Klick</span></li>
             <li><b>Fahrerkarte</b><span>Dein Rating, deine Werte, deine Abzeichen</span></li>
           </ul>
-          <div class="fb-held-fuss"><a class="fb-knopf" href="/api/discord-login?ziel=liga">Mit Discord anmelden</a><span>Dafür musst du auf unserem <a href="https://discord.gg/QP2rKy6n8U">Discord-Server</a> sein.</span></div>
+          <div class="fb-held-fuss"><a class="fb-knopf" href="/api/discord-login?ziel=liga">Mit Discord anmelden</a><span>Dafür musst du auf unserem <a href="/discord">Discord-Server</a> sein.</span></div>
         </div>
       </div>
     </section>`;

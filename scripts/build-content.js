@@ -146,6 +146,27 @@ for (const d of drivers) {
 }
 console.log(`Seiten: ${races.length} Rennen, ${posts.length} News, ${drivers.length} Fahrer`);
 
+// ---------- Kurzadresse /discord: leitet auf den Discord-Link aus Admin → Einstellungen → Links & Recruiting ----------
+// Alle Discord-Knöpfe der Website zeigen auf /discord. Läuft eine Einladung ab, reicht es, den Link im Admin zu ändern.
+{
+  let ziel = "https://discord.gg/bSHEMVVDWF"; // nur falls in den Einstellungen nichts Gültiges steht
+  try {
+    const s = JSON.parse(fs.readFileSync(path.join(ROOT, "content", "settings.json"), "utf8"));
+    if (/^https:\/\/(discord\.gg|(www\.)?discord\.com\/invite)\/[\w-]+\/?$/.test(String(s.discord || "").trim())) ziel = s.discord.trim();
+  } catch (e) { /* Standard behalten */ }
+  fs.writeFileSync(path.join(ROOT, "discord.html"), `<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<title>Discord · ${BRAND}</title>
+<meta name="robots" content="noindex">
+<meta http-equiv="refresh" content="0; url=${esc(ziel)}">
+<link rel="canonical" href="${esc(ziel)}">
+<script>location.replace(${JSON.stringify(ziel)});</script>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#08090a;color:#e8ecea;font:16px/1.5 system-ui,sans-serif}a{color:#fff}</style>
+</head><body><p>Weiter zum Discord … <a href="${esc(ziel)}">Falls nichts passiert, hier klicken</a>.</p></body></html>
+`);
+  console.log(`discord.html → ${ziel}`);
+}
+
 // ---------- Sitemap für Suchmaschinen: /sitemap.xml ----------
 const sitemapUrls = [
   { loc: `${SITE}/` },
