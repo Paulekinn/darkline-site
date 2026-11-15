@@ -1,4 +1,4 @@
-// Fahrerbereich der Liga. GET: Dashboard · POST { aktion }: profil, anmelden, abmelden, serie-anmelden, serie-abmelden, serie-anfragen, serie-anfrage-zurueck, community-beantragen, community-zurueck, team-…, logout
+// Fahrerbereich der Liga. GET: Dashboard · POST { aktion }: profil, anmelden, abmelden, gast-anfragen, gast-anfrage-zurueck, serie-anmelden, serie-abmelden, serie-anfragen, serie-anfrage-zurueck, community-beantragen, community-zurueck, team-…, logout
 // Ligafahrer haben ein eigenes Cookie (dpm_liga) und damit keinen Zugang zum Teambereich.
 const { getLigaSession, clearLigaSession, fahrerKennung, kalenderSchluessel } = require("./session");
 const P = require("./liga-profil");
@@ -11,6 +11,7 @@ const Dc = require("./liga-discord");
 const F = require("./liga-fahrzeuge");
 const Sichtung = require("./liga-sichtung");
 const Anfragen = require("./liga-anfragen");
+const Gaeste = require("./liga-gaeste");
 const Teams = require("./liga-teams");
 const Community = require("./liga-community");
 const COMMUNITY_AKTIONEN = new Set(["community-beantragen", "community-zurueck", "community-banner", "community-banner-weg", "community-teilnahme-anfragen", "community-teilnahme-zurueck", "community-teilnahme-entscheiden", "community-bearbeiten", "community-aenderung", "community-aenderung-zurueck", "community-absagen", "community-ergebnis", "community-ergebnis-loeschen"]);
@@ -84,7 +85,7 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
   // Fahrzeug je Season mit Fahrzeugwahl, in der der Fahrer gemeldet ist
   const mitWahl = kat.serien.filter((x) => (x.modelle || []).length && x.status !== "beendet" && alle.some((e) => e.typ === "serie" && e.serieId === x.id && e.discordId === s.id));
   // Die Abfragen hängen nicht voneinander ab und laufen deshalb gleichzeitig.
-  const [oeffentlich, wunsch, tabellen, reports, fahrzeuge, sichtungOffen, anfragen, imTeam, teams, community] = await Promise.all([
+  const [oeffentlich, wunsch, tabellen, reports, fahrzeuge, sichtungOffen, anfragen, imTeam, teams, community, gastAnfragen] = await Promise.all([
     pid ? P.angabenVon(pid).catch(() => null) : null,
     P.wunschLesen(s.id).catch(() => null),
     profil ? laufendeTabellen(kat) : null,
@@ -97,13 +98,14 @@ async function antwort(res, s, profil, alle, kat, frisch, extra = {}) {
     profil ? Sichtung.imTeam(profil.iracingName) : false,
     Teams.alle(frisch).catch(() => []),
     Community.alle(frisch).catch(() => []),
+    Gaeste.eigeneAnfragen(s.id).catch(() => new Set()),
   ]);
   const meinTeam = Teams.teamVon(teams, s.id);
   // Rennliste mit Community-Rennen. Intern mit Discord-IDs gebaut, damit Teamrennen das Teamkürzel zeigen können, ausgeliefert ohne.
   const katMit = mitCommunity(kat, community);
   const nachAntrag = new Map(community.map((a) => [Community.rennenId(a), a]));
   const ohneId = ({ discordId, quelle, ...f }) => f;
-  const rennen = A.baueRennen(katMit.rennen, alle, { ...optionen(s, katMit), mitIds: true })
+  const rennen = A.baueRennen(katMit.rennen, alle, { ...optionen(s, katMit), mitIds: true, gastAnfragen })
     .filter((r) => (serienMap(kat.serien)[r.serie] || {}).status !== "beendet")
     .map((r) => {
       const a = nachAntrag.get(r.id);
@@ -210,6 +212,7 @@ async function anmelden(s, profil, body, alle, kat, communityListe = []) {
   if (stand.anmeldungFolgt) throw new Hinweis("Die Anmeldung für diese Serie ist noch nicht geöffnet.");
   if (stand.anmeldungZu) throw new Hinweis("Die Anmeldung für diese Serie ist geschlossen.");
   if (stand.nurFreigegeben) throw new Hinweis("Diese Season ist privat. Bitte stelle zuerst eine Beitrittsanfrage.");
+  if (stand.gastNoetig) throw new Hinweis("Du bist nicht in dieser Season. Melde dich für die Season an oder stelle für dieses Rennen eine Gastanfrage, die Rennleitung gibt dich dann frei.");
   const parallel = A.kollisionen(kat.rennen, rennen.id, alle, optionen(s, kat));
   if (parallel.length) throw new Hinweis(`Dieses Rennen überschneidet sich mit: ${parallel.join(", ")}. Melde dich dort zuerst ab.`);
   // Wer sich abgemeldet hatte und zurückkommt, wird als neue Meldung hinten eingereiht und verdrängt keinen Nachrücker. Die Abmeldung bleibt bestehen.
@@ -270,6 +273,30 @@ async function serieAnfragen(s, profil, body, alle, kat) {
   };
   await Anfragen.speichern(serie.id, s.id, anfrage);
   await R.teamMelden(Anfragen.meldungKarte(serie, anfrage)).catch(() => {});
+}
+
+// Gaststart (Reglement 2.2): Anfrage für ein einzelnes Rennen einer offenen Season. Die Rennleitung bekommt eine Meldung im Discord.
+async function gastAnfragen(s, profil, body, alle, kat) {
+  profilVollstaendig(profil);
+  const { rennen, stand } = rennenPruefen(s, kat, alle, body.rennen);
+  if (!stand) throw new Hinweis("Die Anmeldung für dieses Rennen ist geschlossen.");
+  if (stand.ich) return;
+  if (stand.anmeldungFolgt) throw new Hinweis("Die Anmeldung für diese Serie ist noch nicht geöffnet.");
+  if (stand.anmeldungZu) throw new Hinweis("Die Anmeldung für diese Serie ist geschlossen.");
+  if (stand.nurFreigegeben) throw new Hinweis("Diese Season ist privat. Gäste für einzelne Rennen gibt es dort nicht.");
+  if (!stand.gastNoetig) throw new Hinweis("Für dieses Rennen brauchst du keine Gastanfrage.");
+  if (await Gaeste.anfrageLesen(s.id, rennen.id)) return;
+  const parallel = A.kollisionen(kat.rennen, rennen.id, alle, optionen(s, kat));
+  if (parallel.length) throw new Hinweis(`Dieses Rennen überschneidet sich mit: ${parallel.join(", ")}. Melde dich dort zuerst ab.`);
+  const serie = serienMap(kat.serien)[rennen.serie] || {};
+  formulaIratingPruefen(serie, profil);
+  const anfrage = {
+    name: profil.iracingName, custId: profil.custId || "", irating: A.iratingFuer(profil, serie.kategorie) ?? profil.irating ?? null,
+    fahrzeugklasse: fahrzeugklasseWaehlen(serie.fahrzeugklassen || [], String(body.fahrzeugklasse || "")),
+    nachricht: String(body.nachricht || "").trim().replace(/\s+/g, " ").slice(0, 300),
+  };
+  await Gaeste.anfrageSpeichern(s.id, rennen.id, anfrage);
+  await R.teamMelden(Gaeste.meldungKarte(serie, rennen, anfrage)).catch(() => {});
 }
 
 async function serieAbmelden(s, body, alle, kat) {
@@ -397,6 +424,10 @@ module.exports = async (req, res) => {
     const communityListe = await Community.alle(true).catch(() => []);
     const katMit = mitCommunity(kat, communityListe);
     alle = body.aktion === "anmelden" ? await anmelden(s, profil, body, alle, katMit, communityListe) : await abmelden(s, body, alle, katMit);
+  } else if (body.aktion === "gast-anfragen") {
+    await gastAnfragen(s, profil, body, alle, kat);
+  } else if (body.aktion === "gast-anfrage-zurueck") {
+    if (kat.rennen.some((r) => r.id === body.rennen)) await Gaeste.anfrageLoeschen(s.id, body.rennen);
   } else if (body.aktion === "serie-anmelden") {
     alle = await serieAnmelden(s, profil, body, alle, kat);
   } else if (body.aktion === "serie-abmelden") {

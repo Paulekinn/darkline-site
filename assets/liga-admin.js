@@ -460,6 +460,27 @@
       const infos = [a.serieName, a.irating ? `iRating ${a.irating}` : "", a.modell, a.fahrzeugklasse, `angefragt ${zeit(a.seit)}`].filter(Boolean).join(" · ");
       return `<div class="a-abschluss ${serienFarbe(a.serie)}"><span><b>${esc(a.name || "Fahrer")}</b><small>${esc(infos)}</small>${a.nachricht ? `<small>„${esc(a.nachricht)}“</small>` : ""}</span><div class="a-leiste"><button type="button" class="a-knopf klein" data-anfrage-entscheid="ja" ${daten}>Freigeben</button><button type="button" class="a-knopf zweit klein" data-anfrage-entscheid="nein" ${daten}>Ablehnen</button></div></div>`;
     }).join("")}</div></section>` : "";
+    // Gaststarter (Reglement 2.2): Anfragen für einzelne Rennen, Erinnerungen zur iRacing-Liga und der Link für die Direktnachricht
+    const gAnfragen = d.gastAnfragen || [];
+    const gHinweise = d.gastHinweise || [];
+    const gastZeile = (a) => {
+      const daten = `data-rennen="${esc(a.rennen)}" data-discord="${esc(a.discordId)}" data-name="${esc(a.name || "")}"`;
+      const infos = [`${a.serieName} · ${a.rennenTitel}`, datumKurz(a.datum) + (a.startzeit ? ` ${a.startzeit}` : ""), a.irating ? `iRating ${a.irating}` : "", a.fahrzeugklasse, a.plaetze ? `${a.gemeldet} von ${a.plaetze} Plätzen belegt` : "", `angefragt ${zeit(a.seit)}`].filter(Boolean).join(" · ");
+      return `<div class="a-abschluss ${serienFarbe(a.serie)}"><span><b>${esc(a.name || "Fahrer")}</b><small>${esc(infos)}</small>${a.nachricht ? `<small>„${esc(a.nachricht)}“</small>` : ""}</span><div class="a-leiste"><button type="button" class="a-knopf klein" data-gast-entscheid="ja" ${daten}>Freigeben</button><button type="button" class="a-knopf zweit klein" data-gast-entscheid="nein" ${daten}>Ablehnen</button></div></div>`;
+    };
+    const hinweisZeile = (h) => {
+      const daten = `data-rennen="${esc(h.rennen)}" data-discord="${esc(h.discordId)}" data-name="${esc(h.name || "")}"`;
+      const aufnehmen = h.schritt === "aufnehmen";
+      const text = aufnehmen ? `Vor dem Rennen in die iRacing-Liga aufnehmen${h.custId ? `, iRacing-ID ${h.custId}` : ""}` : `Rennen vorbei: wieder aus der iRacing-Liga entfernen${h.custId ? ` (iRacing-ID ${h.custId})` : ""}`;
+      return `<div class="a-abschluss ${serienFarbe(h.serie)}"><span><b>${esc(h.name || "Gast")}</b><small>${esc(`${h.rennenTitel} · ${datumKurz(h.datum)}${h.startzeit ? ` ${h.startzeit}` : ""}`)}</small><small>${esc(text)}</small></span><div class="a-leiste">${h.custId ? `<button type="button" class="a-knopf zweit klein" data-kopieren="${esc(h.custId)}">ID kopieren</button>` : ""}<button type="button" class="a-knopf klein" data-gast-liga="${aufnehmen ? "aufgenommen" : "entfernt"}" ${daten}>${aufnehmen ? "Aufgenommen" : "Entfernt"}</button></div></div>`;
+    };
+    const ligaLinkForm = `<form class="a-leiste" data-gast-link-form><input type="url" name="link" value="${esc(d.iracingLigaLink || "")}" placeholder="https://members-ng.iracing.com/…" aria-label="Link zur iRacing-Liga" style="flex:1 1 260px"><button type="submit" class="a-knopf zweit klein">Speichern</button></form>`;
+    const gastHtml = gAnfragen.length || gHinweise.length
+      ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Gaststarter</h2><span class="a-chip gelb">${gAnfragen.length + gHinweise.length}</span></div>
+        ${gAnfragen.length ? `<p class="a-hinweis">Gäste fahren nur das freigegebene Rennen, ohne Punkte. Nach der Freigabe bekommen sie eine Direktnachricht${d.iracingLigaLink ? " mit dem Link zur iRacing-Liga" : ", dass ihr sie in die iRacing-Liga aufnehmt"}.</p><div class="a-liste">${gAnfragen.map(gastZeile).join("")}</div>` : ""}
+        ${gHinweise.length ? `<h3 class="a-unterkopf">iRacing-Liga</h3><div class="a-liste">${gHinweise.map(hinweisZeile).join("")}</div>` : ""}
+        <details><summary class="a-hinweis">Link zur iRacing-Liga ${d.iracingLigaLink ? "ändern" : "eintragen"}</summary>${ligaLinkForm}</details></section>`
+      : `<details class="a-karte"><summary><b>Gaststarter</b> <span class="a-hinweis">Keine offenen Anfragen · Link zur iRacing-Liga ${d.iracingLigaLink ? "eingetragen" : "fehlt noch"}</span></summary><p class="a-hinweis">Der Link steht in der Direktnachricht an freigegebene Gäste. Ohne Link heißt es dort, dass ihr sie in die iRacing-Liga aufnehmt.</p>${ligaLinkForm}</details>`;
     // Community-Rennen: Bei der Freigabe legt die Rennleitung Stewarding und „Darkline Sponsored“ fest.
     const community = d.communityAntraege || [];
     const communityBild = (a) => `api/liga?r=bild&k=community-${encodeURIComponent(a.id)}&v=${encodeURIComponent(a.banner)}`;
@@ -506,7 +527,7 @@
         ${kachel(unfertig.length, "Rennen unvollständig", unfertig.length ? "warnung" : "", "rennen")}
       </div>
       ${(d.fehlendeErgebnisse || []).length ? `<section class="a-karte a-karte-info"><div class="a-kartenkopf"><h2>Ergebnis fehlt</h2><span class="a-chip gelb">${d.fehlendeErgebnisse.length}</span></div><div class="a-liste">${d.fehlendeErgebnisse.slice(0, 6).map((r) => `<div class="a-abschluss ${serienFarbe(r.serie)}"><span><b>${esc(r.titel)}</b><small>${esc([(serieVon(r.serie) || {}).name, datumKurz(r.datum)].filter(Boolean).join(" · "))}</small></span><button type="button" class="a-knopf zweit klein" data-ergebnis-import="${esc(r.serie)}">Importieren</button></div>`).join("")}</div></section>` : ""}
-      ${anfragenHtml}${communityHtml}${aenderungHtml}${nummernHtml}${fahrzeugHtml}
+      ${anfragenHtml}${istSteward() ? "" : gastHtml}${communityHtml}${aenderungHtml}${nummernHtml}${fahrzeugHtml}
       ${cockpitSichtung()}
       ${anmeldungFaellig}
       ${cockpitPruefungen()}
@@ -1855,6 +1876,20 @@
       if (grund === null) return;
       return aktion({ aktion: "anfrage-entscheiden", serie: b.dataset.serie, discordId: b.dataset.discord, name: b.dataset.name, ja, grund }, ja ? "Freigegeben, der Fahrer ist angemeldet und wird informiert." : "Abgelehnt, der Fahrer wird informiert.");
     }
+    if (b.dataset.gastEntscheid) {
+      const ja = b.dataset.gastEntscheid === "ja";
+      if (ja && !window.confirm(`${b.dataset.name || "Diesen Fahrer"} als Gast für dieses Rennen freigeben? Er ist danach gemeldet (ohne Punkte) und bekommt eine Direktnachricht.`)) return;
+      const grund = ja ? "" : window.prompt("Grund für die Ablehnung (freiwillig). Der Fahrer bekommt ihn per Direktnachricht.", "");
+      if (grund === null) return;
+      return aktion({ aktion: "gast-entscheiden", rennen: b.dataset.rennen, discordId: b.dataset.discord, name: b.dataset.name, ja, grund }, ja ? "Freigegeben, der Gast ist gemeldet und wird informiert. Denkt an die iRacing-Liga." : "Abgelehnt, der Fahrer wird informiert.");
+    }
+    if (b.dataset.gastLiga) {
+      return aktion({ aktion: "gast-liga", rennen: b.dataset.rennen, discordId: b.dataset.discord, name: b.dataset.name, schritt: b.dataset.gastLiga }, b.dataset.gastLiga === "entfernt" ? "Abgehakt: aus der iRacing-Liga entfernt." : "Abgehakt: in die iRacing-Liga aufgenommen.");
+    }
+    if (b.dataset.kopieren) {
+      try { await navigator.clipboard.writeText(b.dataset.kopieren); setzeMeldung("iRacing-ID kopiert."); zeichne(); } catch (err) { window.prompt("iRacing-ID zum Kopieren:", b.dataset.kopieren); }
+      return;
+    }
     if (b.dataset.communityErgebnisWeg) {
       if (!window.confirm(`Ergebnis von „${b.dataset.titel}“ entfernen? Strafen aus Urteilen werden dabei mit entfernt. Der Veranstalter kann danach ein neues hochladen.`)) return;
       return aktion({ aktion: "community-ergebnis-loeschen", id: b.dataset.communityErgebnisWeg, titel: b.dataset.titel }, "Ergebnis entfernt.");
@@ -1917,6 +1952,7 @@
   app.addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = e.target;
+    if (f.hasAttribute("data-gast-link-form")) return aktion({ aktion: "gast-liga-link", link: f.elements.link.value }, f.elements.link.value.trim() ? "Link zur iRacing-Liga gespeichert." : "Link zur iRacing-Liga entfernt.");
     const w = werte(f);
     if (f.id === "a-team-form") {
       if (await aktion({ aktion: "team-admin-bearbeiten", team: f.dataset.team, ...w }, "Team gespeichert.")) { teamEdit = null; teamsDaten = null; zeichne(); }

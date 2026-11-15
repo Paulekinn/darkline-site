@@ -368,6 +368,64 @@ const tests = {
     const [dabei] = A.baueSerien(liste, [mitglied("gt3", "2", 100)], { discordId: "2", profil: null, klasseFuer: () => null, anfragen: new Set(["gt3"]) });
     assert.strictEqual(dabei.anfrage, false, "Wer schon dabei ist, hat keine offene Anfrage mehr");
   },
+  "Gaststart: einzelnes Rennen einer offenen Season nur per Anfrage": () => {
+    const offen = { gt3: { status: "anmeldung", name: "GT3" } };
+    const r = (e, o) => A.baueRennen([SERIENRENNEN], e, { ...OPT, discordId: "2", serien: offen, ...o })[0];
+    assert.strictEqual(r([]).gastNoetig, true, "Ohne Season braucht es eine Gastanfrage");
+    assert.strictEqual(r([mitglied("gt3", "2", 100)]).gastNoetig, false, "Season-Fahrer melden sich normal");
+    assert.strictEqual(r([], { gastAnfragen: new Set(["s1r"]) }).gastAnfrage, true, "Offene Anfrage wird angezeigt");
+    assert.strictEqual(A.baueRennen([SERIENRENNEN], [], { ...OPT, discordId: "2", serien: { gt3: { status: "anmeldung", name: "GT3", aufAnfrage: true } } })[0].gastNoetig, false, "Private Seasons kennen keine Gäste");
+    assert.strictEqual(A.baueRennen([SERIENRENNEN], [], { ...OPT, discordId: "2", serien: { gt3: { status: "anmeldung", name: "GT3", typ: "event" } } })[0].gastNoetig, false, "Events kennen keine Gäste");
+    assert.strictEqual(baue([]).gastNoetig, false, "Rennen ohne Season brauchen keine Anfrage");
+  },
+  "Gaststart: Erinnerungen zur iRacing-Liga vor und nach dem Rennen": () => {
+    const G2 = require("../api/_lib/liga-gaeste");
+    const rennen = [{ ...SERIENRENNEN }];
+    const serien = [{ id: "gt3", name: "GT3", status: "anmeldung" }, { id: "gt4", name: "GT4", status: "anmeldung" }];
+    const gast = (zusatz) => ({ rennen: "s1r", discordId: "9", name: "Gast", custId: "4711", inLiga: false, entfernt: false, ...zusatz });
+    const gemeldet = [eintrag("s1r", "9", 100)];
+    const vorher = { rennen, alle: gemeldet, serien, jetzt: START - 864e5 };
+    assert.deepStrictEqual(G2.ligaHinweise([gast()], vorher).map((h) => [h.schritt, h.custId]), [["aufnehmen", "4711"]]);
+    assert.strictEqual(G2.ligaHinweise([gast({ inLiga: "x" })], vorher).length, 0, "Aufgenommen: vor dem Rennen nichts mehr zu tun");
+    assert.strictEqual(G2.ligaHinweise([gast()], { ...vorher, alle: [] }).length, 0, "Abgemeldeter Gast, nie aufgenommen: keine Erinnerung");
+    const nachher = { ...vorher, jetzt: START + 5 * 3600e3 };
+    assert.deepStrictEqual(G2.ligaHinweise([gast({ inLiga: "x" })], nachher).map((h) => h.schritt), ["entfernen"]);
+    assert.strictEqual(G2.ligaHinweise([gast({ inLiga: "x", entfernt: "y" })], nachher).length, 0, "Entfernt: erledigt");
+    assert.strictEqual(G2.ligaHinweise([gast({ inLiga: "x" })], { ...nachher, jetzt: START + 15 * 864e5 }).length, 0, "Nach zwei Wochen keine Erinnerung mehr");
+    assert.strictEqual(G2.ligaHinweise([gast()], { ...vorher, alle: [...gemeldet, mitglied("gt4", "9", 50)] }).length, 0, "Wer in einer anderen Season ist, ist schon in der iRacing-Liga");
+  },
+  "Gaststart: Link zur iRacing-Liga und Texte der Direktnachricht": () => {
+    const G2 = require("../api/_lib/liga-gaeste");
+    assert.strictEqual(G2.ligaLinkPruefen(""), "");
+    assert.match(G2.ligaLinkPruefen(" https://members-ng.iracing.com/web/racing/leagues/league?id=1 "), /^https:\/\/members-ng\.iracing\.com\//);
+    assert.throws(() => G2.ligaLinkPruefen("https://boese.example/iracing.com"), /iracing\.com/);
+    assert.throws(() => G2.ligaLinkPruefen("http://members.iracing.com/x"), /iracing\.com/);
+    assert.throws(() => G2.ligaLinkPruefen("kein link"), /https/);
+    const serie = { name: "GT3" }, r = { titel: "Rennen 2", datum: "2026-12-10", startzeit: "20:00" };
+    assert.match(G2.freigabeText(serie, r, "https://members-ng.iracing.com/x"), /members-ng\.iracing\.com\/x/);
+    assert.match(G2.freigabeText(serie, r, ""), /nimmt dich die Rennleitung/);
+    assert.match(G2.freigabeText(serie, r, ""), /10\.12\.2026, 20:00 Uhr/);
+    assert.match(G2.freigabeText(serie, r, ""), /nur für dieses Rennen/);
+    assert.match(G2.ablehnungText(serie, r, "Feld voll"), /Grund: Feld voll/);
+  },
+  "Gaststart: Anfragen werden je Fahrer und Rennen gespeichert": async () => {
+    const G2 = require("../api/_lib/liga-gaeste");
+    const db = supabaseAttrappe();
+    try {
+      await G2.anfrageSpeichern("9", "s1r", { name: "Gast", custId: "4711", nachricht: "Hallo" });
+      await G2.anfrageSpeichern("9", "s2r", { name: "Gast" });
+      await G2.anfrageSpeichern("8", "s1r", { name: "Zweiter" });
+      assert.deepStrictEqual([...(await G2.eigeneAnfragen("9"))].sort(), ["s1r", "s2r"]);
+      assert.deepStrictEqual((await G2.alleAnfragen()).map((a) => [a.discordId, a.rennen]).sort(), [["8", "s1r"], ["9", "s1r"], ["9", "s2r"]]);
+      assert.strictEqual((await G2.anfrageLesen("9", "s1r")).nachricht, "Hallo");
+      await G2.anfragenDesRennens("s1r");
+      assert.deepStrictEqual((await G2.alleAnfragen()).map((a) => a.rennen), ["s2r"], "Anfragen eines gelöschten Rennens gehen mit");
+      await G2.gastSpeichern("s2r", "9", { name: "Gast", inLiga: false, entfernt: false });
+      assert.strictEqual((await G2.gastLesen("s2r", "9")).name, "Gast");
+      await G2.gaesteDesRennens("s2r");
+      assert.strictEqual(await G2.gastLesen("s2r", "9"), null);
+    } finally { db.ende(); }
+  },
   "Season: Wer für die Season gemeldet ist, steht in allen Runden": () => {
     const runden = Array.from({ length: 8 }, (_, i) => ({ ...SERIENRENNEN, id: `r${i + 1}`, titel: `Runde ${i + 1}`, datum: `2026-12-${String(10 + i).padStart(2, "0")}`, plaetze: 40 }));
     const stand = A.baueRennen(runden, [mitglied("gt3", "2", 100)], { ...OPT, discordId: "2" });

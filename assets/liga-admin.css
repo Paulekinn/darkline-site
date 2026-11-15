@@ -384,3 +384,9 @@ details.a-rg summary small{margin-left:8px;font:500 .72rem var(--a-mono);color:v
 .a-aehnlich:empty{display:none}
 .a-aehnlich b{color:var(--a-text)}
 .a-aehnlich.breit{grid-column:1/-1}
+
+/* Gaststarter im Cockpit */
+.a-unterkopf{margin:16px 0 8px;font-size:.74rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--a-leise)}
+.a-karte details>summary{cursor:pointer;list-style-position:inside;margin-top:10px}
+details.a-karte>summary{margin-top:0}
+.a-karte details form{margin-top:8px}

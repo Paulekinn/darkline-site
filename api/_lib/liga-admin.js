@@ -15,6 +15,7 @@ const F = require("./liga-fahrzeuge");
 const G61 = require("./g61");
 const Sichtung = require("./liga-sichtung");
 const Anfragen = require("./liga-anfragen");
+const Gaeste = require("./liga-gaeste");
 const DiscordEvents = require("./discord-events");
 const Teams = require("./liga-teams");
 const Community = require("./liga-community");
@@ -37,9 +38,11 @@ const serieFinden = (kat, id) => {
 };
 
 // Alle für eine Serie oder eines ihrer Rennen gemeldeten Fahrer: Map iRacing-ID → iRacing-Name
-async function gemeldeteFahrer(kat, serieId) {
+// Mit Ergebnis zählen Einzelmeldungen (Gäste) nur für das Rennen, zu dem das Ergebnis gehört. Ein Gast darf nur sein freigegebenes Rennen fahren.
+async function gemeldeteFahrer(kat, serieId, ergebnis) {
   const alle = await eintraege();
-  const rennen = new Set(kat.rennen.filter((r) => r.serie === serieId).map((r) => r.id));
+  const passend = ergebnis ? Renntag.rennenZumErgebnis(kat.rennen, serieId, ergebnis) : null;
+  const rennen = new Set(passend ? [passend.id] : kat.rennen.filter((r) => r.serie === serieId).map((r) => r.id));
   const ids = [...new Set(alle.filter((e) => (e.typ === "serie" && e.serieId === serieId) || (e.typ === "rennen" && rennen.has(e.rennenId))).map((e) => e.discordId))];
   const profile = await Promise.all(ids.map(async (d) => { const t = await blobGet(A.profilPfad(d)); return t ? { discordId: d, ...JSON.parse(t) } : null; }));
   const vorhanden = profile.filter((p) => p && p.custId);
@@ -183,6 +186,9 @@ async function protokollText(b, kat) {
     "nummer-ablehnen": () => `Startnummer abgelehnt: ${b.name}, gewünscht #${b.nummer}`,
     "g61-sichtung-test": () => "",
     "anfrage-entscheiden": () => `Beitrittsanfrage ${b.ja === true ? "freigegeben" : "abgelehnt"} in ${serie(b.serie)}: ${b.name || b.discordId}`,
+    "gast-entscheiden": () => `Gastanfrage ${b.ja === true ? "freigegeben" : "abgelehnt"} für ${rennen(b.rennen)}: ${b.name || b.discordId}`,
+    "gast-liga": () => `Gast ${b.schritt === "entfernt" ? "aus der iRacing-Liga entfernt" : "in die iRacing-Liga aufgenommen"}: ${b.name || b.discordId}`,
+    "gast-liga-link": () => `Link zur iRacing-Liga ${String(b.link || "").trim() ? "gesetzt" : "entfernt"}`,
     "community-entscheiden": () => `Community-Rennen ${b.ja === true ? `freigegeben (${b.stewarding === "darkline" ? "Stewarding durch Darkline" : "auf eigene Verantwortung"}${b.sponsored === true ? ", Darkline Sponsored" : ""})` : "abgelehnt"}: ${b.titel || b.id}`,
     "community-aenderung-entscheiden": () => `Änderung eines Community-Rennens ${b.ja === true ? "freigegeben" : "abgelehnt"}: ${b.titel || b.id}`,
     "community-absagen": () => `Community-Rennen abgesagt: ${b.titel || b.id}`,
@@ -240,6 +246,25 @@ async function cockpitHinweise(kat) {
 }
 
 // Die laut Anmeldung erwarteten Starter des Rennens, mit iRacing-ID für den Abgleich mit dem Ergebnis.
+// Gaststarter fürs Cockpit: offene Anfragen kommender Rennen und Erinnerungen zur iRacing-Liga.
+// Anfragen von Fahrern, die inzwischen in der Season oder schon gemeldet sind, fallen weg.
+async function gastDaten(kat) {
+  const [anfragen, gaeste, alle] = await Promise.all([Gaeste.alleAnfragen(), Gaeste.alleGaeste(), eintraege()]);
+  const jetzt = Date.now();
+  const nachId = new Map(kat.rennen.map((r) => [r.id, r]));
+  const offen = anfragen.map((a) => ({ a, r: nachId.get(a.rennen) })).filter(({ a, r }) => {
+    if (!r || r.status === "abgesagt") return false;
+    const start = A.berlinNachUtc(r.datum, r.startzeit);
+    if (start === null || start < jetzt) return false;
+    return !alle.some((e) => e.discordId === a.discordId && ((e.typ === "serie" && e.serieId === r.serie) || (e.typ === "rennen" && e.rennenId === r.id)));
+  }).map(({ a, r }) => {
+    const serie = kat.serien.find((x) => x.id === r.serie) || {};
+    const [stand] = A.baueRennen([r], alle, { jetzt, schlussMinuten: 60, discordId: "", serien: { [r.serie]: serie } });
+    return { ...a, rennenTitel: r.titel || r.strecke || "Rennen", serie: r.serie, serieName: serie.name || "", datum: r.datum, startzeit: r.startzeit, plaetze: r.plaetze || 0, gemeldet: stand ? stand.starter.length : 0 };
+  });
+  return { gastAnfragen: offen, gastHinweise: Gaeste.ligaHinweise(gaeste, { rennen: kat.rennen, alle, serien: kat.serien, jetzt }), iracingLigaLink: (kat.einstellungen || {}).iracingLigaLink || "" };
+}
+
 async function erwarteteStarter(kat, serie, ergebnis) {
   const rennen = Renntag.rennenZumErgebnis(kat.rennen, serie.id, ergebnis);
   if (!rennen) return [];
@@ -472,6 +497,46 @@ const aktionen = {
     await Dc.nachricht(discordId, Anfragen.freigabeText(serie));
     return {};
   },
+  // Gastanfrage (Reglement 2.2): Freigabe macht daraus eine Einzelmeldung für genau dieses Rennen. Der Fahrer bekommt in beiden Fällen eine Direktnachricht.
+  async "gast-entscheiden"(b, kat) {
+    const discordId = D.brauchtId(b.discordId);
+    const rennen = kat.rennen.find((r) => r.id === b.rennen);
+    if (!rennen) throw new Hinweis("Dieses Rennen gibt es nicht mehr.");
+    const serie = serieFinden(kat, rennen.serie);
+    const anfrage = await Gaeste.anfrageLesen(discordId, rennen.id);
+    if (!anfrage) throw new Hinweis("Diese Anfrage liegt nicht mehr vor.");
+    if (b.ja !== true) {
+      await Gaeste.anfrageLoeschen(discordId, rennen.id);
+      await Dc.nachricht(discordId, Gaeste.ablehnungText(serie, rennen, String(b.grund || "").trim().slice(0, 300)));
+      return {};
+    }
+    const start = A.berlinNachUtc(rennen.datum, rennen.startzeit);
+    if (rennen.status === "abgesagt" || start === null || start < Date.now()) throw new Hinweis("Dieses Rennen ist abgesagt oder schon gestartet.");
+    const alle = await eintraege();
+    const schonDa = alle.some((e) => e.discordId === discordId && ((e.typ === "rennen" && e.rennenId === rennen.id) || (e.typ === "serie" && e.serieId === serie.id)));
+    if (!schonDa) await blobPut(A.anmeldungPfad(rennen.id, discordId, anfrage.fahrzeugklasse || "", anfrage.name || "Fahrer"), "1", "text/plain");
+    await Gaeste.gastSpeichern(rennen.id, discordId, { name: anfrage.name || "Fahrer", custId: anfrage.custId || "", freigegeben: new Date().toISOString(), inLiga: false, entfernt: false });
+    await Gaeste.anfrageLoeschen(discordId, rennen.id);
+    await Dc.nachricht(discordId, Gaeste.freigabeText(serie, rennen, (kat.einstellungen || {}).iracingLigaLink || ""));
+    return {};
+  },
+  // Erinnerung abhaken: Gast in die iRacing-Liga aufgenommen oder nach dem Rennen wieder entfernt
+  async "gast-liga"(b) {
+    const discordId = D.brauchtId(b.discordId);
+    const rennenId = D.brauchtId(b.rennen);
+    const gast = await Gaeste.gastLesen(rennenId, discordId);
+    if (!gast) throw new Hinweis("Diesen Gast gibt es nicht mehr.");
+    const zeit = new Date().toISOString();
+    await Gaeste.gastSpeichern(rennenId, discordId, b.schritt === "entfernt" ? { ...gast, entfernt: zeit } : { ...gast, inLiga: zeit });
+    return {};
+  },
+  // Link zur iRacing-Liga, er steht in der Direktnachricht an freigegebene Gäste. Leer entfernt ihn.
+  async "gast-liga-link"(b, kat) {
+    const link = Gaeste.ligaLinkPruefen(b.link);
+    const { iracingLigaLink, ...rest } = kat.einstellungen || {};
+    await D.einstellungenSpeichern(link ? { ...rest, iracingLigaLink: link } : rest);
+    return { link };
+  },
   // Community-Rennen: Freigabe mit Stewarding und optional „Darkline Sponsored“, oder Ablehnung mit Grund. Der Fahrer bekommt eine Direktnachricht.
   async "community-entscheiden"(b, kat, s) {
     const ja = b.ja === true;
@@ -656,6 +721,8 @@ const aktionen = {
     const weg = kat.rennen.find((r) => r.id === b.id);
     if (weg.sichtung && (await D.ergebnisseLesen(weg.serie)).some((e) => D.istSichtung(e, [weg], weg.serie))) throw new Hinweis("Zu diesem Sichtungsrennen gibt es ein eingelesenes Ergebnis. Lösche zuerst das Ergebnis, sonst würde es in der Tabelle zählen. Bereits übernommene Klassen bleiben erhalten.");
     if (meldungen.length) await blobDelete(meldungen.map((e) => e.pfad));
+    await Gaeste.anfragenDesRennens(b.id).catch(() => {});
+    await Gaeste.gaesteDesRennens(b.id).catch(() => {});
     await D.rennenLoeschen(b.id);
     return {};
   },
@@ -663,7 +730,7 @@ const aktionen = {
   async "ergebnis-vorschau"(b, kat) {
     const serie = serieFinden(kat, b.serie);
     const eingelesen = leseErgebnis(b.datei);
-    const { gemeldet, stamm } = await gemeldeteFahrer(kat, b.serie);
+    const { gemeldet, stamm } = await gemeldeteFahrer(kat, b.serie, eingelesen);
     const { ergebnis: neu, fremde, fehlend } = D.abgleichen(eingelesen, gemeldet, b.zugelassen, stamm);
     const vorhanden = await D.ergebnisseLesen(b.serie);
     const bisher = vorhanden.filter((e) => e.id !== neu.id);
@@ -675,8 +742,9 @@ const aktionen = {
   async "ergebnis-veroeffentlichen"(b, kat) {
     const serie = serieFinden(kat, b.serie);
     // Nicht gemeldete Fahrer werden nicht gewertet und auch nicht gespeichert.
-    const { gemeldet, stamm, discord } = await gemeldeteFahrer(kat, b.serie);
-    const { ergebnis } = D.abgleichen(leseErgebnis(b.datei), gemeldet, b.zugelassen, stamm);
+    const eingelesen = leseErgebnis(b.datei);
+    const { gemeldet, stamm, discord } = await gemeldeteFahrer(kat, b.serie, eingelesen);
+    const { ergebnis } = D.abgleichen(eingelesen, gemeldet, b.zugelassen, stamm);
     if (!ergebnis.fahrer.length) throw new Hinweis("Keiner der Fahrer in dieser Datei ist für diese Serie gemeldet. Prüfe die Serie und die Datei oder lasse einzelne Fahrer als Gast zu.");
     // Ein Fehler bei der Zusatzprüfung darf das Veröffentlichen nicht verhindern.
     const fahrzeuge =(serie.modelle || []).length ? F.abweichungen(ergebnis, discord, await F.derSerie(b.serie).catch(() => new Map())) : [];
@@ -960,7 +1028,7 @@ module.exports = async (req, res) => {
     const reports = alleReports.map((r) => ({ ...r, ichBeteiligt: R.beteiligt(r, s.id), stimmen: R.stimmenSicht(r, s.id), kontext: R.rennKontext(r, ergebnisseJe.get(r.serie) || []), ...(Community.idAusRennen(r.serie) ? { communityErgebnis: communityErgebnis(r.serie) } : {}) }));
     // Stewards bekommen nur, was sie für Reports und zum Nachlesen brauchen, ohne Anträge und Hinweise der Rennleitung.
     if (istSteward(s)) return res.status(200).json({ angemeldet: true, rolle: "steward", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...COCKPIT_LEER, nummernWuensche: [], fahrzeugAntraege: [], beitrittsAnfragen: [], communityAntraege: [], communityAenderungen: [], communityKommend: [], communityErgebnisse: [], details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
-    return res.status(200).json({ angemeldet: true, rolle: "leitung", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), nummernWuensche: await P.wuenscheLesen().catch(() => []), fahrzeugAntraege: (await F.offeneAntraege().catch(() => [])).map((a) => ({ ...a, serieName: (kat.serien.find((x) => x.id === a.serie) || {}).name || a.serie })), beitrittsAnfragen: (await Anfragen.alle().catch(() => [])).filter((a) => kat.serien.some((x) => x.id === a.serie)).map((a) => ({ ...a, serieName: kat.serien.find((x) => x.id === a.serie).name })), ...(await Promise.all([Community.alle(true), eintraege()]).then(([liste, meldungen]) => ({ communityAntraege: Community.offeneFuerCockpit(liste, kat), communityAenderungen: Community.aenderungenFuerCockpit(liste, kat), communityKommend: Community.kommendeFuerCockpit(liste, meldungen), communityErgebnisse: Community.ergebnisseFuerCockpit(liste, alleReports) })).catch(() => ({ communityAntraege: [], communityAenderungen: [], communityKommend: [], communityErgebnisse: [] }))), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
+    return res.status(200).json({ angemeldet: true, rolle: "leitung", name: s.name, serien: kat.serien, rennen: kat.rennen, strecken: kat.strecken, katalog: await Regeln.katalogLesen(), reglement: await Regeln.reglementLesen(), ...(await cockpitHinweise(kat).catch(() => COCKPIT_LEER)), nummernWuensche: await P.wuenscheLesen().catch(() => []), fahrzeugAntraege: (await F.offeneAntraege().catch(() => [])).map((a) => ({ ...a, serieName: (kat.serien.find((x) => x.id === a.serie) || {}).name || a.serie })), beitrittsAnfragen: (await Anfragen.alle().catch(() => [])).filter((a) => kat.serien.some((x) => x.id === a.serie)).map((a) => ({ ...a, serieName: kat.serien.find((x) => x.id === a.serie).name })), ...(await gastDaten(kat).catch(() => ({ gastAnfragen: [], gastHinweise: [], iracingLigaLink: "" }))), ...(await Promise.all([Community.alle(true), eintraege()]).then(([liste, meldungen]) => ({ communityAntraege: Community.offeneFuerCockpit(liste, kat), communityAenderungen: Community.aenderungenFuerCockpit(liste, kat), communityKommend: Community.kommendeFuerCockpit(liste, meldungen), communityErgebnisse: Community.ergebnisseFuerCockpit(liste, alleReports) })).catch(() => ({ communityAntraege: [], communityAenderungen: [], communityKommend: [], communityErgebnisse: [] }))), details, reports, kopfbildVersion: kat.einstellungen.kopfbildVersion || 0 });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Nicht erlaubt" });
   if (!gleicheHerkunft(req)) return res.status(403).json({ error: "Anfrage abgelehnt." });

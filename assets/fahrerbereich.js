@@ -119,7 +119,9 @@
         : `<button type="button" class="fb-knopf fb-melden" data-community-teilnahme="anfragen" data-id="${esc(c.id)}">Teilnahme anfragen</button>`;
     }
     const voll = r.plaetze && r.starter.length >= r.plaetze;
-    // In einer Season ist die Anmeldung für alle Runden der Normalfall, ein einzelnes Rennen die Ausnahme für Gäste.
+    // In einer Season ist die Anmeldung für alle Runden der Normalfall. Ein einzelnes Rennen als Gast gibt es nur nach Freigabe der Rennleitung (Reglement 2.2).
+    if (r.gastAnfrage) return `<span class="fb-zu">Gastanfrage gestellt, die Rennleitung entscheidet</span><button type="button" class="fb-abmelden" data-aktion="gast-anfrage-zurueck" data-rennen="${esc(r.id)}">Zurückziehen</button>`;
+    if (r.gastNoetig) return `${klassenAuswahl("h-" + r.id, r.fahrzeugklassen)}${season ? seasonKnopf(season) : ""}<button type="button" class="${season ? "fb-abmelden" : "fb-knopf fb-melden"}" data-aktion="gast-anfragen" data-rennen="${esc(r.id)}">Nur dieses Rennen: als Gast anfragen</button>`;
     if (season) return `${klassenAuswahl("h-" + r.id, r.fahrzeugklassen)}${seasonKnopf(season)}<button type="button" class="fb-abmelden" data-aktion="anmelden" data-rennen="${esc(r.id)}">${voll ? "Nur dieses Rennen, auf die Warteliste" : "Nur dieses Rennen als Gast"}</button>`;
     return `${klassenAuswahl("h-" + r.id, r.fahrzeugklassen)}<button type="button" class="fb-knopf fb-melden" data-aktion="anmelden" data-rennen="${esc(r.id)}">${voll ? "Auf die Warteliste" : "Jetzt anmelden"}</button>`;
   }
@@ -1028,6 +1030,16 @@
     if (b.dataset.aktion === "anmelden") {
       const select = b.parentElement.querySelector("select");
       return sende({ aktion: "anmelden", rennen: b.dataset.rennen, fahrzeugklasse: select ? select.value : "" });
+    }
+    if (b.dataset.aktion === "gast-anfragen") {
+      const select = b.parentElement.querySelector("select:not([data-modell])");
+      const nachricht = window.prompt("Gastanfrage für dieses eine Rennen. Gäste fahren ohne Punkte, die Rennleitung gibt dich frei. Möchtest du ihr etwas dazu schreiben? (freiwillig)", "");
+      if (nachricht === null) return;
+      return sende({ aktion: "gast-anfragen", rennen: b.dataset.rennen, fahrzeugklasse: select ? select.value : "", nachricht }).then((ok) => { if (ok) meldung("Deine Gastanfrage ist bei der Rennleitung. Du bekommst eine Direktnachricht im Discord, sobald sie entschieden hat.", true); });
+    }
+    if (b.dataset.aktion === "gast-anfrage-zurueck") {
+      if (window.confirm("Gastanfrage zurückziehen?")) sende({ aktion: "gast-anfrage-zurueck", rennen: b.dataset.rennen });
+      return;
     }
     if (b.dataset.aktion === "abmelden") {
       const text = b.dataset.quelle === "serie" ? "Nur von diesem Rennen abmelden? Du bleibst in der Serie gemeldet, dein Platz geht an den Nächsten auf der Warteliste." : "Wirklich von diesem Rennen abmelden? Dein Platz geht an den Nächsten auf der Warteliste.";

@@ -80,7 +80,7 @@ function fahrzeugeVonSerie(serie) {
 const fahrzeugeVon = (r, serie) => String((r && r.fahrzeuge) || "").trim() || fahrzeugeVonSerie(serie);
 
 // Bereitet die Rennen für den Fahrerbereich auf. Das Passwort sehen nur Fahrer mit Startplatz.
-function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, serien = {}, mitIds = false, auchVergangene = false }) {
+function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, serien = {}, mitIds = false, auchVergangene = false, gastAnfragen = new Set() }) {
   const liste = kalender
     .map((r) => ({ ...r, startMs: berlinNachUtc(r.datum, r.startzeit) }))
     .filter((r) => r.startMs !== null && (auchVergangene || r.startMs + 3 * 3600e3 > jetzt))
@@ -116,6 +116,9 @@ function baueRennen(kalender, eintraege, { jetzt, schlussMinuten, discordId, ser
         anmeldungFolgt: serie.status === "geplant",
         // Private Season: nur freigegebene Fahrer, keine Gäste für einzelne Rennen
         nurFreigegeben: !!serie.aufAnfrage && !einzelrennen && !inSerie.has(discordId),
+        // Offene Season ohne eigene Mitgliedschaft: einzelnes Rennen nur als Gast nach Freigabe (Reglement 2.2)
+        gastNoetig: !einzelrennen && !!r.serie && !serie.aufAnfrage && !!discordId && !inSerie.has(discordId),
+        gastAnfrage: gastAnfragen.has(r.id),
         // Ligen laufen über die iRacing-Liga. Eigene Zugangsdaten braucht es nur bei Einzelrennen und Serien mit ein oder zwei Rennen.
         zugangNoetig: einzelrennen || !(serie.rennenGesamt > 2),
         strecke: r.strecke || "", streckenBild: r.streckenBild || null, fahrzeuge: fahrzeugeVon(r, serie), fahrzeugklassen: serie.fahrzeugklassen || [], plaetze: r.plaetze || 0,
